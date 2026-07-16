@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { Loader2 } from "lucide-react";
 import BattleForce from "@/components/game/BattleForce";
 import BattleDiorama from "@/components/game/BattleDiorama";
+import InitiativeTracker from "@/components/game/InitiativeTracker";
 import BattleSparks from "@/components/game/BattleSparks";
 import { ALL_MANEUVERS, MANEUVER_KEYS, SIGNATURE_MANEUVERS, SIGNATURE_COOLDOWNS } from "@/lib/massCombat";
 import { WEATHER_META } from "@/lib/weather";
@@ -60,6 +61,8 @@ export default function BattleView({ battle, busy, onChoose }) {
         </div>
 
         <BattleDiorama attacker={battle.attacker} defender={battle.defender} fx={fx} />
+
+        <InitiativeTracker attacker={battle.attacker} defender={battle.defender} round={battle.round} />
 
         <div className="flex gap-3 mb-4">
           <BattleForce side={battle.attacker} title="Attacker" accent="#C9752E" isMe={iAmAttacker} />

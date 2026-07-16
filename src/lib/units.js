@@ -14,11 +14,11 @@ export const TERRAIN_RESOURCE = {
 };
 
 export const UNIT_TYPES = {
-  riflemen: { key: "riflemen", label: "Riflemen", points: 5, cost: { manpower: 2, steel: 1 }, attack: 1, defense: 2, domain: "land", deployAt: "barracks" },
-  crawler: { key: "crawler", label: "Diesel Crawler", points: 12, cost: { steel: 3, fuel: 2 }, attack: 3, defense: 2, domain: "land", deployAt: "foundry" },
-  gunboat: { key: "gunboat", label: "Ironclad Gunboat", points: 10, cost: { steel: 3, fuel: 1 }, attack: 2, defense: 2, domain: "sea", deployAt: "foundry" },
-  fighter: { key: "fighter", label: "Prop Fighter", points: 15, cost: { steel: 2, fuel: 3 }, attack: 3, defense: 1, domain: "air", deployAt: "airstrip" },
-  artillery: { key: "artillery", label: "Siege Artillery", points: 10, cost: { steel: 3, manpower: 1 }, attack: 1, defense: 1, domain: "land", deployAt: "foundry" },
+  riflemen: { key: "riflemen", label: "Riflemen", points: 5, cost: { manpower: 2, steel: 1 }, attack: 1, defense: 2, speed: 3, domain: "land", deployAt: "barracks" },
+  crawler: { key: "crawler", label: "Diesel Crawler", points: 12, cost: { steel: 3, fuel: 2 }, attack: 3, defense: 2, speed: 2, domain: "land", deployAt: "foundry" },
+  gunboat: { key: "gunboat", label: "Ironclad Gunboat", points: 10, cost: { steel: 3, fuel: 1 }, attack: 2, defense: 2, speed: 4, domain: "sea", deployAt: "foundry" },
+  fighter: { key: "fighter", label: "Prop Fighter", points: 15, cost: { steel: 2, fuel: 3 }, attack: 3, defense: 1, speed: 6, domain: "air", deployAt: "airstrip" },
+  artillery: { key: "artillery", label: "Siege Artillery", points: 10, cost: { steel: 3, manpower: 1 }, attack: 1, defense: 1, speed: 1, domain: "land", deployAt: "foundry" },
 };
 
 export const UNIT_KEYS = ["riflemen", "crawler", "gunboat", "fighter", "artillery"];
