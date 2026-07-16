@@ -81,19 +81,19 @@ export const PLANETS = [
   {
     id: "cindara", name: "Cindara", radius: 4, spin: 0.03, seed: 1917,
     blurb: "The ash world. Home front of the abandoned continent — every column and convoy of the war crawls its grey crust.",
-    palette: { base: "#46423c", high: "#6e675c", low: "#26241f", accent: "#8a3e2f", atmo: "#b0533f", caps: "#9a958c" },
+    palette: { base: "#46423c", high: "#6e675c", low: "#26241f", accent: "#8a3e2f", atmo: "#b0533f", caps: "#9a958c", storm: { color: "#7a6f60", opacity: 0.26, speed: 0.05 } },
     ...cindara,
   },
   {
     id: "veyra", name: "Veyra", radius: 3.4, spin: 0.045, seed: 2044,
     blurb: "A rust desert of dead foundry belts and dune-buried highways. Its depots still hold pre-collapse fuel.",
-    palette: { base: "#6b4a2c", high: "#8f6a3a", low: "#3a2917", accent: "#b5722f", atmo: "#d18a3f", caps: "#c9b89a" },
+    palette: { base: "#6b4a2c", high: "#8f6a3a", low: "#3a2917", accent: "#b5722f", atmo: "#d18a3f", caps: "#c9b89a", storm: { color: "#c98a45", opacity: 0.34, speed: 0.1 } },
     ...veyra,
   },
   {
     id: "morhollow", name: "Morhollow", radius: 3.1, spin: 0.02, seed: 3121,
     blurb: "A frozen marsh-world of brine fogs and salt-ice quays. Trails vanish under the frost between seasons.",
-    palette: { base: "#3d4a4a", high: "#5f7373", low: "#222b2b", accent: "#7a93a5", atmo: "#8fb3c6", caps: "#dfe8ea" },
+    palette: { base: "#3d4a4a", high: "#5f7373", low: "#222b2b", accent: "#7a93a5", atmo: "#8fb3c6", caps: "#dfe8ea", storm: { color: "#aec4cc", opacity: 0.28, speed: 0.03 } },
     ...morhollow,
   },
 ];

@@ -2,6 +2,7 @@ import React, { useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { mulberry32 } from "@/lib/macro/planets";
+import DustStorm from "@/components/starmap/DustStorm";
 
 // Procedurally painted planet surface — terrain blotches, craters, ice caps
 function makeSurfaceTexture(planet) {
@@ -39,6 +40,47 @@ function makeSurfaceTexture(planet) {
     g.strokeStyle = p.high;
     g.lineWidth = 1.2;
     g.beginPath(); g.arc(x, y, r, Math.PI * 1.1, Math.PI * 1.9); g.stroke();
+  }
+  // Wind-scour streaks — abrasive dust lanes dragged along the prevailing winds
+  for (let i = 0; i < 260; i++) {
+    const y = rand() * 512, x = rand() * 1024, len = 30 + rand() * 160;
+    g.globalAlpha = 0.03 + rand() * 0.06;
+    g.strokeStyle = rand() < 0.55 ? p.low : p.high;
+    g.lineWidth = 0.6 + rand() * 1.6;
+    g.beginPath();
+    g.moveTo(x, y);
+    g.lineTo(x + len, y + (rand() - 0.5) * 10);
+    g.stroke();
+  }
+  // Oxide drips & rust veins — corrosion bleeding downslope
+  for (let i = 0; i < 55; i++) {
+    const x = rand() * 1024, y = rand() * 460;
+    g.globalAlpha = 0.08 + rand() * 0.12;
+    g.strokeStyle = p.accent;
+    g.lineWidth = 1 + rand() * 2.4;
+    g.lineCap = "round";
+    g.beginPath();
+    g.moveTo(x, y);
+    g.quadraticCurveTo(x + (rand() - 0.5) * 14, y + 12 + rand() * 30, x + (rand() - 0.5) * 20, y + 25 + rand() * 55);
+    g.stroke();
+  }
+  // Dead industrial belts — soot-black scar bands with faint furnace embers
+  for (let i = 0; i < 8; i++) {
+    const x = rand() * 1024, y = 90 + rand() * 330, w = 60 + rand() * 130, h = 12 + rand() * 26, rot = (rand() - 0.5) * 0.6;
+    g.globalAlpha = 0.22;
+    g.fillStyle = "#141210";
+    g.beginPath(); g.ellipse(x, y, w, h, rot, 0, Math.PI * 2); g.fill();
+    for (let j = 0; j < 7; j++) {
+      g.globalAlpha = 0.3 + rand() * 0.3;
+      g.fillStyle = rand() < 0.6 ? "#8a4a22" : "#c9722f";
+      g.fillRect(x + (rand() - 0.5) * w * 1.4, y + (rand() - 0.5) * h * 1.4, 1.5 + rand() * 2, 1 + rand() * 1.5);
+    }
+  }
+  // Soot speckle grain — fine ash sitting in every hollow
+  for (let i = 0; i < 900; i++) {
+    g.globalAlpha = 0.05 + rand() * 0.1;
+    g.fillStyle = rand() < 0.7 ? p.low : p.high;
+    g.fillRect(rand() * 1024, rand() * 512, 1 + rand() * 1.6, 1 + rand() * 1.6);
   }
   // Polar caps
   for (const [y0, y1] of [[0, 48], [464, 512]]) {
@@ -80,8 +122,9 @@ export default function PlanetBody({ planet, onClick }) {
     <group>
       <mesh onClick={onClick}>
         <sphereGeometry args={[planet.radius, 64, 64]} />
-        <meshStandardMaterial map={map} roughness={0.95} metalness={0.05} />
+        <meshStandardMaterial map={map} bumpMap={map} bumpScale={0.07} roughness={0.95} metalness={0.08} />
       </mesh>
+      <DustStorm planet={planet} />
       <mesh ref={cloudRef} scale={1.018}>
         <sphereGeometry args={[planet.radius, 48, 48]} />
         <meshStandardMaterial map={clouds} transparent opacity={0.5} depthWrite={false} />

@@ -1,8 +1,10 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { Html } from "@react-three/drei";
+import * as THREE from "three";
 import { latLonToXYZ } from "@/lib/macro/planets";
 import { NODE_KINDS } from "@/lib/macro/graph";
 import NodeRadialMenu from "@/components/starmap/NodeRadialMenu";
+import IndustrialHub from "@/components/starmap/IndustrialHub";
 
 const KIND_COLORS = { city: "#C9A227", town: "#b3ab9c", depot: "#B5722F", crossroads: "#8a8378", ruin: "#a65240" };
 const KIND_SIZE = { city: 1.6, town: 1.1, depot: 1.2, crossroads: 0.85, ruin: 1.0 };
@@ -13,8 +15,19 @@ export default function NodeMarker({ node, planet, hovered, isOrigin, isDest, is
   const s = planet.radius * 0.022 * (KIND_SIZE[node.kind] || 1);
   const active = isOrigin || isDest;
   const kindLabel = NODE_KINDS[node.kind]?.label || node.kind;
+  // Align industrial works with the surface normal so they stand upright on the sphere
+  const surfaceQuat = useMemo(() => {
+    const normal = new THREE.Vector3(...pos).normalize();
+    return new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal);
+  }, [pos[0], pos[1], pos[2]]);
+  const isIndustrial = node.kind === "city" || node.kind === "depot";
   return (
     <group position={pos}>
+      {isIndustrial && (
+        <group quaternion={surfaceQuat}>
+          <IndustrialHub s={s * 1.15} />
+        </group>
+      )}
       <mesh
         scale={hovered || active || menuOpen ? 1.9 : 1}
         onClick={(e) => { e.stopPropagation(); onClick(node); }}
