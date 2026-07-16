@@ -1,0 +1,85 @@
+{
+  "name": "Game",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "multiplayer",
+        "campaign"
+      ],
+      "default": "multiplayer"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "lobby",
+        "active",
+        "complete"
+      ],
+      "default": "lobby"
+    },
+    "mapId": {
+      "type": "string"
+    },
+    "tiles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "factionSlots": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "turnOrder": {
+      "type": "array",
+      "items": {
+        "type": "integer"
+      }
+    },
+    "currentTurnIndex": {
+      "type": "integer",
+      "default": 0
+    },
+    "turnNumber": {
+      "type": "integer",
+      "default": 1
+    },
+    "territoryStates": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "treasuries": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "combatLog": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "campaignWinCondition": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "hostUserId": {
+      "type": "string"
+    },
+    "winnerSlot": {
+      "type": "integer"
+    }
+  },
+  "required": [
+    "name"
+  ]
+}

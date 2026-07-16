@@ -1,0 +1,157 @@
+import React, { useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
+import { base44 } from "@/api/base44Client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Loader2, Trash2 } from "lucide-react";
+import HexBoard from "@/components/hexmap/HexBoard";
+import { NEIGHBOR_DIRS, keyOf } from "@/lib/hex";
+
+const TERRAINS = ["plains", "hills", "forest", "marsh", "highlands"];
+const RESOURCES = [
+  { id: "", label: "None" },
+  { id: "oil_field", label: "Oil Field (+2 income)" },
+  { id: "coal_depot", label: "Coal Depot (+1 income)" },
+  { id: "iron_foundry", label: "Iron Foundry (Crawler −1)" },
+];
+
+export default function MapEditor() {
+  const navigate = useNavigate();
+  const [tiles, setTiles] = useState([{ id: "t0", q: 0, r: 0, name: "Heartland", terrain: "plains", baseIncome: 3, resourceBonus: null, isCapital: true, isSea: false }]);
+  const [selectedId, setSelectedId] = useState("t0");
+  const [mapName, setMapName] = useState("");
+  const [description, setDescription] = useState("");
+  const [playerCount, setPlayerCount] = useState(2);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [nextId, setNextId] = useState(1);
+
+  const selected = tiles.find((t) => t.id === selectedId);
+
+  const ghosts = useMemo(() => {
+    const occupied = new Set(tiles.map((t) => keyOf(t.q, t.r)));
+    const spots = new Map();
+    for (const t of tiles) {
+      for (const [dq, dr] of NEIGHBOR_DIRS) {
+        const q = t.q + dq, r = t.r + dr;
+        if (!occupied.has(keyOf(q, r))) spots.set(keyOf(q, r), { q, r });
+      }
+    }
+    return [...spots.values()];
+  }, [tiles]);
+
+  const addTile = (g) => {
+    const tile = { id: `t${nextId}`, q: g.q, r: g.r, name: `Zone ${nextId}`, terrain: "plains", baseIncome: 2, resourceBonus: null, isCapital: false, isSea: false };
+    setNextId(nextId + 1);
+    setTiles([...tiles, tile]);
+    setSelectedId(tile.id);
+  };
+
+  const updateTile = (patch) => setTiles(tiles.map((t) => (t.id === selectedId ? { ...t, ...patch } : t)));
+  const removeTile = () => {
+    if (tiles.length <= 1) return;
+    setTiles(tiles.filter((t) => t.id !== selectedId));
+    setSelectedId(null);
+  };
+
+  const capitals = tiles.filter((t) => t.isCapital).length;
+
+  const save = async () => {
+    setSaving(true);
+    setError("");
+    try {
+      const occupied = new Map(tiles.map((t) => [keyOf(t.q, t.r), t]));
+      const withAdj = tiles.map((t) => ({
+        ...t,
+        adjacentIds: NEIGHBOR_DIRS.map(([dq, dr]) => occupied.get(keyOf(t.q + dq, t.r + dr))).filter(Boolean).map((n) => n.id),
+      }));
+      await base44.entities.GameMap.create({
+        name: mapName, description, tiles: withAdj, recommendedPlayerCount: playerCount, isPublished: true,
+      });
+      navigate("/maps");
+    } catch (e) {
+      setError("Failed to save map");
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h1 className="text-2xl font-bold uppercase tracking-widest text-stone-100">Map Editor</h1>
+        <p className="text-sm text-stone-500">Click dashed hexes to add zones. Click a zone to edit it. Place at least {playerCount} capitals.</p>
+      </div>
+
+      <div className="grid lg:grid-cols-[1fr_300px] gap-4">
+        <div className="border border-stone-800 bg-stone-950 rounded-lg p-2">
+          <HexBoard
+            tiles={tiles.map((t) => ({ ...t, visible: true }))}
+            selectedId={selectedId}
+            onTileClick={(t) => setSelectedId(t.id)}
+            ghosts={ghosts}
+            onGhostClick={addTile}
+          />
+        </div>
+
+        <div className="space-y-4">
+          {selected && (
+            <div className="border border-stone-800 bg-[#1C1714] rounded-lg p-4 space-y-3">
+              <div className="flex justify-between items-center">
+                <h3 className="text-xs uppercase tracking-wider text-stone-500">Zone Properties</h3>
+                <Button size="sm" variant="ghost" onClick={removeTile} className="h-6 text-red-500 hover:text-red-400 p-1">
+                  <Trash2 className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+              <Input value={selected.name} onChange={(e) => updateTile({ name: e.target.value })} className="bg-stone-900 border-stone-700 text-sm" />
+              <label className="flex items-center gap-2 text-xs text-stone-400">
+                <input type="checkbox" checked={selected.isSea} onChange={(e) => updateTile({ isSea: e.target.checked, isCapital: false, baseIncome: e.target.checked ? 0 : 2, resourceBonus: null, terrain: e.target.checked ? "sea" : "plains" })} />
+                Sea zone
+              </label>
+              {!selected.isSea && (
+                <>
+                  <label className="flex items-center gap-2 text-xs text-stone-400">
+                    <input type="checkbox" checked={selected.isCapital} onChange={(e) => updateTile({ isCapital: e.target.checked })} />
+                    Capital ★
+                  </label>
+                  <div>
+                    <label className="text-xs text-stone-500">Terrain</label>
+                    <select value={selected.terrain} onChange={(e) => updateTile({ terrain: e.target.value })} className="w-full bg-stone-900 border border-stone-700 rounded p-1.5 text-xs text-stone-300 mt-1">
+                      {TERRAINS.map((t) => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-stone-500">Base income: {selected.baseIncome}</label>
+                    <input type="range" min={1} max={5} value={selected.baseIncome} onChange={(e) => updateTile({ baseIncome: Number(e.target.value) })} className="w-full" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-stone-500">Resource</label>
+                    <select value={selected.resourceBonus || ""} onChange={(e) => updateTile({ resourceBonus: e.target.value || null })} className="w-full bg-stone-900 border border-stone-700 rounded p-1.5 text-xs text-stone-300 mt-1">
+                      {RESOURCES.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
+                    </select>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          <div className="border border-stone-800 bg-[#1C1714] rounded-lg p-4 space-y-3">
+            <h3 className="text-xs uppercase tracking-wider text-stone-500">Publish Map</h3>
+            <Input placeholder="Map name" value={mapName} onChange={(e) => setMapName(e.target.value)} className="bg-stone-900 border-stone-700 text-sm" />
+            <Input placeholder="Description" value={description} onChange={(e) => setDescription(e.target.value)} className="bg-stone-900 border-stone-700 text-sm" />
+            <div>
+              <label className="text-xs text-stone-500">Recommended players</label>
+              <select value={playerCount} onChange={(e) => setPlayerCount(Number(e.target.value))} className="w-full bg-stone-900 border border-stone-700 rounded p-1.5 text-xs text-stone-300 mt-1">
+                {[2, 3, 4].map((n) => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </div>
+            <p className="text-[11px] text-stone-600">{tiles.length} zones · {capitals} capitals {capitals < playerCount && <span className="text-yellow-600">(need {playerCount})</span>}</p>
+            {error && <p className="text-xs text-red-400">{error}</p>}
+            <Button disabled={!mapName || tiles.length < 8 || capitals < playerCount || saving} onClick={save} className="w-full bg-amber-800 hover:bg-amber-700 text-xs uppercase tracking-wider">
+              {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />} Publish to Library
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,34 @@
+{
+  "name": "GameMap",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "tiles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "recommendedPlayerCount": {
+      "type": "integer",
+      "default": 2
+    },
+    "isPublished": {
+      "type": "boolean",
+      "default": true
+    },
+    "loreBlurb": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "name",
+    "tiles"
+  ]
+}

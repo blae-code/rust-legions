@@ -1,0 +1,35 @@
+{
+  "name": "UserProfile",
+  "type": "object",
+  "properties": {
+    "displayName": {
+      "type": "string"
+    },
+    "avatarUrl": {
+      "type": "string"
+    },
+    "gamesPlayed": {
+      "type": "integer",
+      "default": 0
+    },
+    "gamesWon": {
+      "type": "integer",
+      "default": 0
+    },
+    "campaignsCompleted": {
+      "type": "integer",
+      "default": 0
+    },
+    "mapsCreated": {
+      "type": "integer",
+      "default": 0
+    },
+    "isAdmin": {
+      "type": "boolean",
+      "default": false
+    }
+  },
+  "required": [
+    "displayName"
+  ]
+}

@@ -7,6 +7,13 @@ import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import ScrollToTop from './components/ScrollToTop';
 // Add page imports here
+import Layout from './components/Layout';
+import Home from './pages/Home';
+import NewGame from './pages/NewGame';
+import GamePage from './pages/GamePage';
+import FactionBuilder from './pages/FactionBuilder';
+import MapEditor from './pages/MapEditor';
+import MapLibrary from './pages/MapLibrary';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -35,6 +42,14 @@ const AuthenticatedApp = () => {
   return (
     <Routes>
       {/* Add your page Route elements here */}
+      <Route element={<Layout />}>
+        <Route path="/" element={<Home />} />
+        <Route path="/new-game" element={<NewGame />} />
+        <Route path="/game/:gameId" element={<GamePage />} />
+        <Route path="/faction-builder" element={<FactionBuilder />} />
+        <Route path="/map-editor" element={<MapEditor />} />
+        <Route path="/maps" element={<MapLibrary />} />
+      </Route>
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );

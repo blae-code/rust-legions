@@ -1,0 +1,50 @@
+{
+  "name": "Faction",
+  "type": "object",
+  "properties": {
+    "factionName": {
+      "type": "string"
+    },
+    "lore": {
+      "type": "string"
+    },
+    "doctrine": {
+      "type": "string",
+      "enum": [
+        "aggressive",
+        "economic",
+        "defensive"
+      ],
+      "default": "aggressive"
+    },
+    "traits": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "insigniaDescription": {
+      "type": "string"
+    },
+    "isNPC": {
+      "type": "boolean",
+      "default": false
+    },
+    "npcDispositions": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "lifepathChoices": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "isPublished": {
+      "type": "boolean",
+      "default": false
+    }
+  },
+  "required": [
+    "factionName"
+  ]
+}
