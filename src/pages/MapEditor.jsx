@@ -6,13 +6,14 @@ import { Input } from "@/components/ui/input";
 import { Loader2, Trash2 } from "lucide-react";
 import HexBoard from "@/components/hexmap/HexBoard";
 import { NEIGHBOR_DIRS, keyOf } from "@/lib/hex";
+import { TERRAIN_RESOURCE } from "@/lib/units";
 
 const TERRAINS = ["plains", "hills", "forest", "marsh", "highlands"];
 const RESOURCES = [
   { id: "", label: "None" },
-  { id: "oil_field", label: "Oil Field (+2 income)" },
-  { id: "coal_depot", label: "Coal Depot (+1 income)" },
-  { id: "iron_foundry", label: "Iron Foundry (Crawler −1)" },
+  { id: "oil_field", label: "Oil Field (+2 Fuel)" },
+  { id: "coal_depot", label: "Coal Depot (+1 Steel)" },
+  { id: "iron_foundry", label: "Iron Works (Crawler −1 Steel)" },
 ];
 
 export default function MapEditor() {
@@ -117,7 +118,7 @@ export default function MapEditor() {
                   <div>
                     <label className="text-xs text-muted-foreground">Terrain</label>
                     <select value={selected.terrain} onChange={(e) => updateTile({ terrain: e.target.value })} className="w-full bg-input border border-border rounded-sm p-1.5 text-xs text-secondary-foreground mt-1 font-heading tracking-wide">
-                      {TERRAINS.map((t) => <option key={t} value={t}>{t}</option>)}
+                      {TERRAINS.map((t) => <option key={t} value={t}>{t} → {TERRAIN_RESOURCE[t] || "manpower"}</option>)}
                     </select>
                   </div>
                   <div>

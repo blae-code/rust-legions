@@ -6,7 +6,7 @@ export default function UnitStepper({ label, value, max, onChange, cost }) {
     <div className="flex items-center justify-between gap-2 py-1">
       <span className="text-xs font-heading tracking-wide text-secondary-foreground flex-1">
         {label}
-        {cost !== undefined && <span className="text-muted-foreground font-mono ml-1">({cost}₪)</span>}
+        {cost !== undefined && <span className="text-muted-foreground font-mono ml-1">({cost})</span>}
         {max !== undefined && <span className="text-muted-foreground font-mono ml-1">/ {max}</span>}
       </span>
       <div className="flex items-center gap-1">

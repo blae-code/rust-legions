@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { UNIT_TYPES, UNIT_KEYS, RESOURCE_LABELS } from "@/lib/units";
+import { UNIT_TYPES, UNIT_KEYS, RESOURCE_LABELS, TERRAIN_RESOURCE, RESOURCE_META } from "@/lib/units";
 import UnitStepper from "./UnitStepper";
 
 export default function TilePanel({ game, tile, onMove, onAttack, busy }) {
@@ -44,7 +44,7 @@ export default function TilePanel({ game, tile, onMove, onAttack, busy }) {
           {tile.isCapital && <span className="text-brass-bright">★ </span>}{tile.name}
         </h3>
         <p className="text-xs text-muted-foreground font-mono">
-          {tile.isSea ? "SEA ZONE" : `${tile.terrain?.toUpperCase()} · INCOME ${tile.baseIncome}`}
+          {tile.isSea ? "SEA ZONE" : `${tile.terrain?.toUpperCase()} · +${tile.baseIncome} ${RESOURCE_META[TERRAIN_RESOURCE[tile.terrain] || "manpower"].label.toUpperCase()}`}
           {tile.resourceBonus && ` · ${RESOURCE_LABELS[tile.resourceBonus].toUpperCase()}`}
         </p>
         <p className="text-xs mt-1 font-heading tracking-wide" style={{ color: ownerFaction?.color || "hsl(30 9% 54%)" }}>

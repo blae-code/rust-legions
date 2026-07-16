@@ -1,6 +1,9 @@
 import React, { useMemo } from "react";
 import { axialToPixel, hexPoints, HEX_SIZE } from "@/lib/hex";
-import { totalUnits } from "@/lib/units";
+import { totalUnits, TERRAIN_RESOURCE } from "@/lib/units";
+
+const RES_SHORT = { manpower: "M", steel: "S", fuel: "F" };
+const RES_COLOR = { manpower: "#C9B88A", steel: "#9FA8B5", fuel: "#C79A6B" };
 
 const TERRAIN_FILL = {
   plains: "#57503A",
@@ -129,11 +132,26 @@ export default function HexBoard({
                     </text>
                   </>
                 )}
-                {!tile.isSea && !tile.state && tile.baseIncome > 0 && (
-                  <text x={x} y={y + 14} textAnchor="middle" fontSize="7.5" fontFamily="'IBM Plex Mono', monospace" fill="#a8a29e" className="pointer-events-none select-none">
-                    +{tile.baseIncome}
+                {!tile.isSea && units === 0 && tile.baseIncome > 0 && (
+                  <text x={x} y={y + 14} textAnchor="middle" fontSize="7.5" fontFamily="'IBM Plex Mono', monospace" fill={RES_COLOR[TERRAIN_RESOURCE[tile.terrain] || "manpower"]} className="pointer-events-none select-none">
+                    +{tile.baseIncome}{RES_SHORT[TERRAIN_RESOURCE[tile.terrain] || "manpower"]}
                   </text>
                 )}
+                {(tile.state?.buildings || []).map((b, i) => (
+                  <rect
+                    key={i}
+                    x={x - 7 + i * 9}
+                    y={y + 21}
+                    width="6"
+                    height="6"
+                    fill={(b.level || 0) > 0 ? "#E0A32E" : "#6B5B3A"}
+                    stroke="#0c0a09"
+                    strokeWidth="0.6"
+                    className="pointer-events-none"
+                  >
+                    <title>{b.type}</title>
+                  </rect>
+                ))}
               </>
             )}
             {hidden && (

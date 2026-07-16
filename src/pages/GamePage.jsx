@@ -7,7 +7,9 @@ import HexBoard from "@/components/hexmap/HexBoard";
 import TilePanel from "@/components/game/TilePanel";
 import PurchasePanel from "@/components/game/PurchasePanel";
 import CombatLog from "@/components/game/CombatLog";
+import BuildPanel from "@/components/game/BuildPanel";
 import LobbyView from "@/components/game/LobbyView";
+import { RESOURCE_KEYS, RESOURCE_META } from "@/lib/units";
 
 export default function GamePage() {
   const { gameId } = useParams();
@@ -120,12 +122,23 @@ export default function GamePage() {
           />
         </div>
         <div className="space-y-4">
-          {game.isMyTurn && game.status === "active" && (
-            <div className="relative overflow-hidden rounded border border-brass/50 bg-brass/10 px-4 py-2.5">
-              <div className="cq-hazard absolute left-0 top-0 bottom-0 w-1 h-auto" style={{ height: "100%" }} />
-              <p className="text-xs text-brass-bright font-heading uppercase tracking-[0.2em]">
-                Your turn, Commander — treasury <span className="font-mono">{game.myTreasury}₪</span>
-              </p>
+          {game.status === "active" && game.myResources && (
+            <div className={`rounded border px-4 py-2.5 space-y-1.5 ${game.isMyTurn ? "border-brass/50 bg-brass/10" : "border-border bg-card"}`}>
+              {game.isMyTurn && (
+                <p className="text-xs text-brass-bright font-heading uppercase tracking-[0.2em]">Your turn, Commander</p>
+              )}
+              <div className="flex justify-between text-xs font-mono text-secondary-foreground">
+                {RESOURCE_KEYS.map((k) => (
+                  <span key={k} title={RESOURCE_META[k].label}>
+                    {RESOURCE_META[k].icon} {game.myResources[k] || 0}
+                    <span className="text-muted-foreground"> +{game.myProduction?.[k] || 0}</span>
+                  </span>
+                ))}
+              </div>
+              <div className="flex justify-between text-[10px] font-mono text-muted-foreground">
+                <span>Army {game.myArmyPoints}/{game.myArmyCap} pts</span>
+                <span>Control {game.myLandControl}% / {game.mapControlTarget}%</span>
+              </div>
             </div>
           )}
           <TilePanel
@@ -135,6 +148,7 @@ export default function GamePage() {
             onMove={(from, to, units) => act({ action: "moveUnits", fromTileId: from, toTileId: to, units })}
             onAttack={(from, to, units) => act({ action: "attack", fromTileId: from, toTileId: to, units })}
           />
+          <BuildPanel game={game} tile={selectedTile} busy={busy} onBuild={(tileId, buildingType) => act({ action: "build", tileId, buildingType })} />
           <PurchasePanel game={game} busy={busy} onPurchase={(tileId, units) => act({ action: "purchaseUnits", tileId, units })} />
           <CombatLog entries={game.combatLog} />
         </div>
