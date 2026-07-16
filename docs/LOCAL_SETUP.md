@@ -1,10 +1,19 @@
 # Local Development in VS Code
 
 A step-by-step guide to cloning and running **Rust Legions** locally. Assumes
-you have [Node.js](https://nodejs.org) 18+ and [git](https://git-scm.com)
-installed, plus [VS Code](https://code.visualstudio.com).
+you have [Node.js](https://nodejs.org) 18+ installed, plus
+[VS Code](https://code.visualstudio.com) with the **Claude Code** extension.
+
+> **This guide is for the frontend-only workflow** — editing the React app
+> locally against the **hosted** Base44 backend, using git (via the Claude Code
+> extension) to push and pull. You do **not** need the Base44 CLI. See
+> [Backend functions](#backend-functions-base44functions) below for how backend
+> changes reach the live app.
 
 ## 1. Clone the repository
+
+Use the Claude Code extension's git integration to clone
+`blae-code/rust-legions`, or from a terminal:
 
 ```bash
 git clone https://github.com/blae-code/rust-legions.git
@@ -50,34 +59,37 @@ you — no action needed.
 npm install
 ```
 
-## 4. Run the app
+## 4. Point the frontend at the hosted backend
 
-You have two options.
-
-### Option A — full stack with the Base44 CLI (recommended)
-
-Runs the local Base44 backend **and** the frontend together:
+The game's logic (the `gameEngine` API and friends) lives in the **hosted**
+Base44 backend, not on your machine. So the local frontend needs to know where
+that backend is, or API calls will fail and the app will render but not work.
 
 ```bash
-npm install -g base44@latest   # one-time
-base44 dev
+cp .env.example .env.local
 ```
 
-Open the frontend URL the command prints. The CLI injects local backend values,
-so no `.env` file is needed.
-
-### Option B — frontend only, against a hosted backend
-
-If you just want to work on the UI against a deployed Base44 app:
+Then edit `.env.local` and fill in your deployed app's values:
 
 ```bash
-cp .env.example .env.local      # then fill in your app id + URL
+VITE_BASE44_APP_ID=your_app_id
+VITE_BASE44_APP_BASE_URL=https://your-app.base44.app
+```
+
+You can find both in the Base44 dashboard for the app. `.env.local` is
+git-ignored, so it stays on your machine only.
+
+## 5. Run the frontend
+
+```bash
 npm run dev
 ```
 
-Vite serves at **http://localhost:5173** by default.
+Vite serves at **http://localhost:5173** by default (it prints the URL, and
+picks the next free port if 5173 is taken). Edits to files under `src/`
+hot-reload instantly.
 
-## 5. Everyday commands
+## 6. Everyday commands
 
 | Command | What it does |
 | --- | --- |
@@ -88,7 +100,29 @@ Vite serves at **http://localhost:5173** by default.
 | `npm run lint:fix` | ESLint with autofix |
 | `npm run typecheck` | Type-check via `jsconfig.json` |
 
-## 6. Before you build a feature
+## 7. Push and pull with the Claude Code extension
+
+Use the Claude Code extension (or VS Code's built-in Source Control panel) for
+all git work — stage, commit, push, pull. There is no separate deploy step for
+day-to-day work:
+
+- **Frontend changes** (`src/`) are pushed to git like any other project.
+- **Any change pushed to the repo is also reflected in the Base44 Builder** —
+  this is how the hosted app picks up your work. To publish it to the live app,
+  open the Base44 dashboard and publish from there.
+
+### Backend functions (`base44/functions`)
+
+The backend Deno functions run **only** on Base44 — you cannot execute them
+locally without the CLI. Edit them here, push via git, and they flow to the
+Base44 Builder for you to publish. The Deno extension gives you correct
+language support while editing them (already scoped in `.vscode/settings.json`).
+
+> Remember the **one critical invariant** (see `CLAUDE.md`): several game rules
+> live in *both* `base44/functions/gameEngine/entry.ts` and a mirror in
+> `src/lib/*.js`. Change both sides together.
+
+## 8. Before you build a feature
 
 Read the docs in this order — the project has a strict server/client
 rules-mirroring invariant and a committed design direction:
