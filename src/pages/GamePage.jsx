@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
-import { Loader2, Volume2, VolumeX, Handshake } from "lucide-react";
+import { Loader2, Volume2, VolumeX, Handshake, FlaskConical } from "lucide-react";
 import { playSfx, sfxEnabled, setSfxEnabled } from "@/lib/sfx";
 import HexBoard3D from "@/components/hexmap3d/HexBoard3D";
 import TilePanel from "@/components/game/TilePanel";
@@ -21,6 +21,7 @@ import ProbePanel from "@/components/game/ProbePanel";
 import DispatchArchive from "@/components/game/DispatchArchive";
 import WeatherBadge from "@/components/game/WeatherBadge";
 import DiplomacyPanel from "@/components/game/diplomacy/DiplomacyPanel";
+import DoctrinePanel from "@/components/game/research/DoctrinePanel";
 import FortressBay from "@/components/game/fortress/FortressBay";
 import { RESOURCE_KEYS, RESOURCE_META } from "@/lib/units";
 
@@ -36,6 +37,7 @@ export default function GamePage() {
   const [report, setReport] = useState(null);
   const [mapFx, setMapFx] = useState(null);
   const [showDiplomacy, setShowDiplomacy] = useState(false);
+  const [showDoctrine, setShowDoctrine] = useState(false);
   const pollRef = useRef(null);
   const prevBattleRef = useRef(false);
 
@@ -92,8 +94,22 @@ export default function GamePage() {
       setError(e.response?.data?.error || "Probe failed");
       setBusy(false);
       return null;
-    }
-  };
+      }
+      };
+
+      // Research focus is an off-turn ("concurrent play") action — routed to its own engine
+      const setResearchFocus = async (techId) => {
+      setBusy(true);
+      setError("");
+      try {
+        await base44.functions.invoke("concurrentPlay", { gameId, action: "setResearchFocus", techId });
+        playSfx("build");
+        await refresh();
+      } catch (e) {
+        setError(e.response?.data?.error || "Directive failed");
+      }
+      setBusy(false);
+      };
 
   if (!game) {
     return (
@@ -140,6 +156,16 @@ export default function GamePage() {
           ))}
         </div>
         {game.status === "active" && <WeatherBadge weather={game.weather} />}
+        {game.status === "active" && game.myResearch && (
+          <button
+            onClick={() => setShowDoctrine(true)}
+            title="Doctrine Research — may be set off-turn"
+            className={`relative p-1.5 rounded-sm border transition-colors ${game.myResearch.focus ? "border-brass/50 text-brass-bright" : "border-border text-muted-foreground hover:text-brass-bright hover:border-brass/50"}`}
+          >
+            <FlaskConical className="w-3.5 h-3.5" />
+            {!game.myResearch.focus && <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-rust cq-lamp text-rust" />}
+          </button>
+        )}
         {game.status === "active" && game.diplomacy && (
           <button
             onClick={() => setShowDiplomacy(true)}
@@ -270,6 +296,7 @@ export default function GamePage() {
       </div>
 
       <DiplomacyPanel open={showDiplomacy} onClose={() => setShowDiplomacy(false)} game={game} busy={busy} onAction={act} />
+      <DoctrinePanel open={showDoctrine} onClose={() => setShowDoctrine(false)} research={game.myResearch} busy={busy} onSetFocus={setResearchFocus} />
       <BattleView battle={game.battle} busy={busy} onChoose={(maneuver) => act({ action: "battleChoice", maneuver })} />
       {!game.battle && <BattleReport report={report} onClose={() => setReport(null)} />}
     </div>

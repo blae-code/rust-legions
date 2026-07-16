@@ -99,6 +99,51 @@ function compileMods(picks = []) {
 
 const slotMods = (slot) => slot?.mods || compileMods(slot?.pointBuy);
 
+// ---------- Research / doctrine tree (mirrors src/lib/doctrine.js) ----------
+const TECHS = {
+  standardized_calibers: { label: 'Standardized Calibers', cost: 3, prereq: null, mods: { unitStat: { riflemen: { attack: 1 } } } },
+  hardened_plate: { label: 'Hardened Plate', cost: 4, prereq: 'standardized_calibers', mods: { unitStat: { crawler: { defense: 1 } } } },
+  combined_arms: { label: 'Combined Arms Doctrine', cost: 6, prereq: 'hardened_plate', mods: { unitStat: { crawler: { attack: 1 }, fighter: { attack: 1 } } } },
+  rationalized_foundries: { label: 'Rationalized Foundries', cost: 3, prereq: null, mods: { income: { steel: 1 } } },
+  synthetic_fuel: { label: 'Synthetic Fuel Program', cost: 4, prereq: 'rationalized_foundries', mods: { income: { fuel: 1 } } },
+  total_mobilization: { label: 'Total Mobilization', cost: 6, prereq: 'synthetic_fuel', mods: { income: { manpower: 1 }, armyCap: 20 } },
+  field_kitchens: { label: 'Field Kitchens', cost: 3, prereq: null, mods: { armyCap: 10 } },
+  motorized_supply: { label: 'Motorized Supply Trains', cost: 4, prereq: 'field_kitchens', mods: { supplyRange: 1 } },
+  general_staff_academy: { label: 'General Staff Academy', cost: 6, prereq: 'motorized_supply', mods: { capitalDefense: 1, unitStat: { riflemen: { defense: 1 } } } },
+};
+
+function mergeMods(m, add = {}) {
+  for (const [u, stats] of Object.entries(add.unitStat || {})) {
+    m.unitStat[u] = m.unitStat[u] || {};
+    for (const [s, v] of Object.entries(stats)) m.unitStat[u][s] = (m.unitStat[u][s] || 0) + v;
+  }
+  for (const k of RESOURCE_KEYS) m.income[k] += (add.income || {})[k] || 0;
+  m.armyCap += add.armyCap || 0;
+  m.capitalDefense += add.capitalDefense || 0;
+  m.supplyRange = (m.supplyRange || 0) + (add.supplyRange || 0);
+}
+
+// One research point per completed round for each faction with a set focus
+function tickResearch(game) {
+  for (const slot of game.factionSlots) {
+    if (slot.eliminated || slot.isNPC) continue;
+    const r = slot.research;
+    if (!r || !r.focus) continue;
+    const tech = TECHS[r.focus];
+    if (!tech || (r.completed || []).includes(r.focus)) { r.focus = null; continue; }
+    r.progress = r.progress || {};
+    r.progress[r.focus] = (r.progress[r.focus] || 0) + 1;
+    if (r.progress[r.focus] >= tech.cost) {
+      r.completed = r.completed || [];
+      r.completed.push(r.focus);
+      if (!slot.mods) slot.mods = compileMods(slot.pointBuy);
+      mergeMods(slot.mods, tech.mods);
+      game.combatLog.push({ turn: game.turnNumber, type: 'event', text: `${slot.factionName}'s doctrine advances — ${tech.label} enters service.` });
+      r.focus = null;
+    }
+  }
+}
+
 const MAP_CONTROL_PCT = 60;
 const ARMY_CAP_FLOOR = 90;
 const ARMY_CAP_PER_MANPOWER = 10;
@@ -342,6 +387,7 @@ function isSupplySource(slotIdx, tile, st) {
 
 // Dijkstra from every supply hub through friendly land — returns the Set of supplied tile ids
 function computeSupply(game, slotIdx) {
+  const range = SUPPLY_RANGE + (slotMods(game.factionSlots[slotIdx]).supplyRange || 0);
   const dist = {};
   const queue = [];
   for (const t of game.tiles) {
@@ -360,7 +406,7 @@ function computeSupply(game, slotIdx) {
       const ast = game.territoryStates[aid];
       if (!at || at.isSea || !ast || ast.owner !== slotIdx) continue;
       const nd = dist[cur] + supplyCost(at);
-      if (nd > SUPPLY_RANGE) continue;
+      if (nd > range) continue;
       if (dist[aid] === undefined || nd < dist[aid]) { dist[aid] = nd; queue.push(aid); }
     }
   }
@@ -1187,6 +1233,7 @@ function advanceTurn(game) {
       }
       game.weather = w;
       recordSnapshot(game);
+      tickResearch(game);
       // Lapsed accords — hostilities may resume
       if (game.diplomacy?.relations) {
         for (const [k, r] of Object.entries(game.diplomacy.relations)) {
@@ -1393,6 +1440,7 @@ Deno.serve(async (req) => {
         mapControlTarget: MAP_CONTROL_PCT,
         suppliedTiles: [...mySupplied],
         myCosts: mySlot !== null && active ? effectiveCosts(game, mySlot) : null,
+        myResearch: mySlot !== null ? (mySlotObj.research || { focus: null, progress: {}, completed: [] }) : null,
         isHost: game.hostUserId === user.id,
         campaignWinCondition: game.campaignWinCondition,
         factions: (game.factionSlots || []).map((s) => ({
@@ -1484,6 +1532,7 @@ Deno.serve(async (req) => {
       }
       game.factionSlots.forEach((slot, i) => {
         slot.mods = compileMods(slot.pointBuy);
+        slot.research = { focus: null, progress: {}, completed: [] };
         slot.generals = slot.isNPC ? [] : [supremeCommander(slot)];
         slot.armiesRaised = 0;
         const cap = capitals[i];
