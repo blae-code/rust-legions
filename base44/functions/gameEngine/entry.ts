@@ -8,6 +8,21 @@ const TERRAIN_RESOURCE = {
   marsh: 'fuel',
 };
 
+// ---------- Weather ----------
+const WEATHER_TYPES = {
+  clear: { label: 'Clear Skies', weight: 40 },
+  rain: { label: 'Driving Rain', weight: 25 },
+  fog: { label: 'Heavy Fog', weight: 20 },
+  storm: { label: 'Thunderstorm', weight: 15 },
+};
+const ROUGH_TERRAIN = ['mountains', 'highlands', 'marsh'];
+function rollWeather() {
+  const total = Object.values(WEATHER_TYPES).reduce((s, w) => s + w.weight, 0);
+  let r = Math.random() * total;
+  for (const [k, w] of Object.entries(WEATHER_TYPES)) { r -= w.weight; if (r <= 0) return k; }
+  return 'clear';
+}
+
 const UNITS = {
   riflemen: { points: 5, cost: { manpower: 2, steel: 1 }, attack: 1, defense: 2, domain: 'land', deployAt: 'barracks' },
   crawler: { points: 12, cost: { steel: 3, fuel: 2 }, attack: 3, defense: 2, domain: 'land', deployAt: 'foundry' },
@@ -352,14 +367,14 @@ function removeCasualties(units, n) {
   }
 }
 
-function resolveCombat(attUnits, defUnits, attTraits, defTraits, defFortBonus = 0, attStatMods = {}, defStatMods = {}) {
+function resolveCombat(attUnits, defUnits, attTraits, defTraits, defFortBonus = 0, attStatMods = {}, defStatMods = {}, attFlat = 0) {
   const att = { ...attUnits };
   const def = { ...defUnits };
   let rounds = 0;
   let attLosses = 0, defLosses = 0;
   while (totalUnits(att) > 0 && totalUnits(def) > 0 && rounds < 25) {
     rounds++;
-    const aHits = rollHits(att, 'attack', attTraits, 0, attStatMods);
+    const aHits = rollHits(att, 'attack', attTraits, attFlat, attStatMods);
     const dHits = rollHits(def, 'defense', defTraits, defFortBonus, defStatMods);
     const aRemove = Math.min(dHits, totalUnits(att));
     const dRemove = Math.min(aHits, totalUnits(def));
@@ -390,6 +405,9 @@ function doAttack(game, slotIdx, fromTileId, toTileId, committed) {
   if (toSt.owner === slotIdx) throw new Error('Cannot attack your own territory');
   if (!fromTile.adjacentIds.includes(toTileId)) throw new Error('Territories are not adjacent');
   if (!validAttackUnits(committed, toTile)) throw new Error('Those units cannot attack that terrain');
+  const weather = game.weather || 'clear';
+  if (weather === 'storm' && ((committed.fighter || 0) > 0 || (committed.gunboat || 0) > 0)) throw new Error('The storm grounds all aircraft and gunboats this turn');
+  if (weather === 'rain' && !toTile.isSea && ROUGH_TERRAIN.includes(toTile.terrain)) throw new Error('Driving rain has washed out the roads — that ground is impassable this turn');
   for (const k of UNIT_KEYS) {
     if ((committed[k] || 0) > (fromSt.units[k] || 0)) throw new Error('Not enough units');
   }
@@ -408,7 +426,7 @@ function doAttack(game, slotIdx, fromTileId, toTileId, committed) {
   const attM = slotMods(attSlot);
   const defM = defSlot ? slotMods(defSlot) : {};
   const capBonus = defSlot && defSlot.capitalTileId === toTileId ? (defM.capitalDefense || 0) : 0;
-  const result = resolveCombat(committed, toSt.units, attSlot.traits || [], defSlot?.traits || [], fortLevel(toSt) + capBonus, attM.unitStat || {}, defM.unitStat || {});
+  const result = resolveCombat(committed, toSt.units, attSlot.traits || [], defSlot?.traits || [], fortLevel(toSt) + capBonus + (weather === 'fog' ? -1 : 0), attM.unitStat || {}, defM.unitStat || {}, weather === 'rain' ? -1 : 0);
 
   let outcome;
   if (result.defenderWiped && totalUnits(result.att) > 0) {
@@ -603,7 +621,8 @@ function npcTakeTurn(game, slotIdx) {
     const pick = candidates[0];
     const srcUnits = game.territoryStates[pick.from].units;
     const committed = {};
-    for (const k of ['riflemen', 'crawler', 'fighter']) {
+    const npcCommitKeys = (game.weather || 'clear') === 'storm' ? ['riflemen', 'crawler'] : ['riflemen', 'crawler', 'fighter'];
+    for (const k of npcCommitKeys) {
       committed[k] = k === 'riflemen' ? Math.max((srcUnits[k] || 0) - 1, 0) : (srcUnits[k] || 0);
     }
     if (totalUnits(committed) === 0) break;
@@ -812,6 +831,7 @@ function createBattle(game, slotIdx, army, toTileId) {
   const st = game.territoryStates[toTileId];
   if (st.owner === slotIdx) throw new Error('Target is friendly — march instead');
 
+  const weather = game.weather || 'clear';
   const attSlotObj = game.factionSlots[slotIdx];
   const defSlotIdx = st.owner !== null && st.owner !== undefined ? st.owner : null;
   const defSlotObj = defSlotIdx !== null ? game.factionSlots[defSlotIdx] : null;
@@ -864,6 +884,7 @@ function createBattle(game, slotIdx, army, toTileId) {
       strategy: attGeneral.strategy, units: { ...army.regiments }, morale: 100, choice: null, nextBonus: 0, losses: 0,
       signature: attTrait?.signature || null, sigCooldown: 0, vetBonus: attRank.bonus, rank: attRank.label,
       supplyPenalty: attSupplied ? 0 : -2,
+      weatherPenalty: weather === 'rain' ? -1 : 0,
       design: army.design || null,
     },
     defender: {
@@ -874,16 +895,20 @@ function createBattle(game, slotIdx, army, toTileId) {
       generalId: defGeneral?.id || null,
       signature: defTrait?.signature || null, sigCooldown: 0, vetBonus: defRank.bonus, rank: defRank.label,
       supplyPenalty: defSupplied ? 0 : -2,
+      weatherPenalty: weather === 'fog' ? -1 : 0,
       design: defDesign,
       choice: null, nextBonus: 0, losses: 0,
       interactive: defenderIsLive(game, defSlotObj),
     },
     round: 1,
     terrain: toTile.terrain,
+    weather,
     log: [`The ${army.name} under ${attGeneral.name} engages at ${toTile.name}${terrainBonus > 0 ? ` — the ${toTile.terrain} favors the defense (+${terrainBonus})` : ''}.`],
   };
   if (!attSupplied) game.activeBattle.log.push(`${attGeneral.name}'s columns fight cut off from supply — every shell is rationed (−2).`);
   if (!defSupplied) game.activeBattle.log.push(`The defenders of ${toTile.name} are under siege — stores run thin (−2).`);
+  if (weather === 'rain') game.activeBattle.log.push('Driving rain turns the field to mud — the assault bogs down (attacker −1).');
+  if (weather === 'fog') game.activeBattle.log.push('Heavy fog cloaks the assault columns — the defense fires blind (defender −1).');
   // Defenders are committed to the battle; the zone stands empty until it resolves
   game.armies = (game.armies || []).filter((a) => !absorbed.some((x) => x.id === a.id));
   st.units = {};
@@ -895,7 +920,7 @@ function battleSkill(side, other) {
   const m = MANEUVERS[side.choice];
   const ratio = Math.max(forcePoints(side.units), 1) / Math.max(forcePoints(other.units), 1);
   const strengthMod = Math.max(Math.min(Math.round(Math.log2(ratio) * 2), 4), -4);
-  return side.strategy + m.skill + strengthMod + (side.fortBonus || 0) + (side.terrainBonus || 0) + (side.vetBonus || 0) + (side.nextBonus || 0) + (side.supplyPenalty || 0) + ((side.design || {}).skill || 0);
+  return side.strategy + m.skill + strengthMod + (side.fortBonus || 0) + (side.terrainBonus || 0) + (side.vetBonus || 0) + (side.nextBonus || 0) + (side.supplyPenalty || 0) + (side.weatherPenalty || 0) + ((side.design || {}).skill || 0);
 }
 
 function finishBattle(game, b, attackerWon) {
@@ -1053,6 +1078,11 @@ function advanceTurn(game) {
     game.currentTurnIndex = (game.currentTurnIndex + 1) % game.turnOrder.length;
     if (game.currentTurnIndex === 0) {
       game.turnNumber++;
+      const w = rollWeather();
+      if (w !== (game.weather || 'clear')) {
+        game.combatLog.push({ turn: game.turnNumber, type: 'event', text: `The weather turns — ${WEATHER_TYPES[w].label.toLowerCase()} settles over the front.` });
+      }
+      game.weather = w;
       recordSnapshot(game);
     }
     const slotIdx = game.turnOrder[game.currentTurnIndex];
@@ -1202,7 +1232,7 @@ Deno.serve(async (req) => {
         if (myRole) {
           const sideView = (s, fac) => ({ faction: fac, general: s.generalName, strategy: s.strategy, units: s.units, morale: Math.max(s.morale, 0), losses: s.losses, chosen: !!s.choice, signature: s.signature || null, sigCooldown: s.sigCooldown || 0, vetBonus: s.vetBonus || 0, rank: s.rank || null, design: s.design?.name || null });
           battle = {
-            tileName: ab.tileName, round: ab.round, myRole, terrain: ab.terrain || null, terrainBonus: ab.defender.terrainBonus || 0,
+            tileName: ab.tileName, round: ab.round, myRole, terrain: ab.terrain || null, weather: ab.weather || 'clear', terrainBonus: ab.defender.terrainBonus || 0,
             attacker: sideView(ab.attacker, game.factionSlots[ab.attacker.slot]?.factionName),
             defender: sideView(ab.defender, defOwnerObj ? defOwnerObj.factionName : 'Neutral Garrison'),
             fortBonus: ab.defender.fortBonus,
@@ -1239,6 +1269,7 @@ Deno.serve(async (req) => {
         })(),
         id: game.id, name: game.name, mode: game.mode, status: game.status,
         turnNumber: game.turnNumber, currentSlot: currentSlotIdx,
+        weather: game.weather || 'clear',
         isMyTurn: active && game.factionSlots?.[currentSlotIdx]?.userId === user.id,
         mySlot,
         myResources: mySlot !== null ? getTreasury(game, mySlot) : null,
@@ -1330,6 +1361,7 @@ Deno.serve(async (req) => {
       }
 
       game.status = 'active';
+      game.weather = 'clear';
       game.territoryStates = states;
       game.armies = [];
       game.lastSeen = {};
@@ -1338,7 +1370,7 @@ Deno.serve(async (req) => {
       recordSnapshot(game);
 
       await svc.entities.Game.update(game.id, {
-        status: 'active', tiles: game.tiles, factionSlots: game.factionSlots,
+        status: 'active', weather: 'clear', tiles: game.tiles, factionSlots: game.factionSlots,
         territoryStates: game.territoryStates, treasuries: game.treasuries, combatLog: game.combatLog,
         statHistory: game.statHistory, armies: [], lastSeen: {},
       });
@@ -1375,9 +1407,12 @@ Deno.serve(async (req) => {
       if (fromSt.owner !== slotIdx) return Response.json({ error: 'You do not control that territory' }, { status: 400 });
       if (toSt.owner !== slotIdx) return Response.json({ error: 'Destination must be friendly — use Attack for enemy territory' }, { status: 400 });
       if (!fromTile.adjacentIds.includes(toTileId)) return Response.json({ error: 'Territories are not adjacent' }, { status: 400 });
+      const weather = game.weather || 'clear';
+      if (weather === 'rain' && !toTile.isSea && ROUGH_TERRAIN.includes(toTile.terrain)) return Response.json({ error: 'Driving rain has washed out the roads — mountains, highlands and marsh are impassable this turn' }, { status: 400 });
       for (const k of UNIT_KEYS) {
         const n = units[k] || 0;
         if (n <= 0) continue;
+        if (weather === 'storm' && (k === 'fighter' || k === 'gunboat')) return Response.json({ error: 'The storm grounds aircraft and gunboats this turn' }, { status: 400 });
         if (n > (fromSt.units[k] || 0)) return Response.json({ error: 'Not enough units' }, { status: 400 });
         const domain = UNITS[k].domain;
         if (domain === 'land' && toTile.isSea) return Response.json({ error: 'Land units cannot enter sea zones' }, { status: 400 });
@@ -1532,6 +1567,7 @@ Deno.serve(async (req) => {
       const toSt = game.territoryStates[toTileId];
       const toTile = game.tiles.find((t) => t.id === toTileId);
       if (!toTile || !toSt) return Response.json({ error: 'Invalid destination' }, { status: 400 });
+      if ((game.weather || 'clear') === 'rain' && !toTile.isSea && ROUGH_TERRAIN.includes(toTile.terrain)) return Response.json({ error: 'Driving rain has washed out the roads — rough terrain is impassable this turn' }, { status: 400 });
       if (toSt.owner === slotIdx) {
         if (toTile.isSea) return Response.json({ error: 'Field armies cannot enter sea zones' }, { status: 400 });
         const fromTile = game.tiles.find((t) => t.id === army.tileId);
@@ -1642,7 +1678,8 @@ Deno.serve(async (req) => {
       fromSt.lastBombardTurn = game.turnNumber;
       // Each gun rolls — hits on 3 or less. Casualties only; bombardment never captures ground.
       let hits = 0;
-      for (let i = 0; i < (fromSt.units.artillery || 0); i++) if (roll() <= 3) hits++;
+      const hitOn = (game.weather || 'clear') === 'rain' ? 2 : 3;
+      for (let i = 0; i < (fromSt.units.artillery || 0); i++) if (roll() <= hitOn) hits++;
       const destroyed = Math.min(hits, totalUnits(toSt.units));
       removeCasualties(toSt.units, destroyed);
       const attName = game.factionSlots[slotIdx].factionName;
@@ -1669,7 +1706,7 @@ Deno.serve(async (req) => {
       if (!canAfford(treasury, PROBE_COST)) return Response.json({ error: 'Insufficient fuel to mount a patrol' }, { status: 400 });
       pay(treasury, PROBE_COST);
       // Scouts bring back partial intel — each detail has a chance of being observed
-      const seen = (p) => Math.random() < p;
+      const seen = (p) => Math.random() < ((game.weather || 'clear') === 'fog' ? p * 0.5 : p);
       const garrison = {};
       for (const k of UNIT_KEYS) garrison[k] = seen(0.7) ? (st.units[k] || 0) : null;
       const armies = (game.armies || []).filter((a) => a.tileId === body.tileId && a.owner !== slotIdx).map((a) => {
@@ -1707,7 +1744,7 @@ Deno.serve(async (req) => {
       await svc.entities.Game.update(game.id, {
         territoryStates: game.territoryStates, factionSlots: game.factionSlots,
         treasuries: game.treasuries, combatLog: game.combatLog,
-        currentTurnIndex: game.currentTurnIndex, turnNumber: game.turnNumber,
+        currentTurnIndex: game.currentTurnIndex, turnNumber: game.turnNumber, weather: game.weather || 'clear',
         status: game.status, winnerSlot: game.winnerSlot, statHistory: game.statHistory,
       });
       await logIfComplete();

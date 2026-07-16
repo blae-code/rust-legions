@@ -25,6 +25,10 @@
     "mapId": {
       "type": "string"
     },
+    "weather": {
+      "type": "string",
+      "default": "clear"
+    },
     "tiles": {
       "type": "array",
       "items": {

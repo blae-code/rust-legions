@@ -4,6 +4,7 @@ import BattleForce from "@/components/game/BattleForce";
 import BattleDiorama from "@/components/game/BattleDiorama";
 import BattleSparks from "@/components/game/BattleSparks";
 import { ALL_MANEUVERS, MANEUVER_KEYS, SIGNATURE_MANEUVERS, SIGNATURE_COOLDOWNS } from "@/lib/massCombat";
+import { WEATHER_META } from "@/lib/weather";
 
 export default function BattleView({ battle, busy, onChoose }) {
   const [fx, setFx] = useState(0);
@@ -44,6 +45,11 @@ export default function BattleView({ battle, busy, onChoose }) {
               {battle.fortBonus > 0 && <>DEFENDER ENTRENCHED · FORTIFICATION +{battle.fortBonus}</>}
               {battle.fortBonus > 0 && battle.terrainBonus > 0 && " · "}
               {battle.terrainBonus > 0 && <>{battle.terrain?.toUpperCase()} TERRAIN +{battle.terrainBonus} DEF</>}
+            </p>
+          )}
+          {battle.weather && battle.weather !== "clear" && (
+            <p className="font-mono text-[9px] text-brass mt-0.5">
+              {WEATHER_META[battle.weather]?.icon} {WEATHER_META[battle.weather]?.label.toUpperCase()} — {battle.weather === "rain" ? "ATTACKER −1" : battle.weather === "fog" ? "DEFENDER −1" : "AIRCRAFT GROUNDED"}
             </p>
           )}
         </div>

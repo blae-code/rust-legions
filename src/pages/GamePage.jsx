@@ -19,6 +19,8 @@ import BattleView from "@/components/game/BattleView";
 import BattleReport from "@/components/game/BattleReport";
 import ProbePanel from "@/components/game/ProbePanel";
 import DispatchArchive from "@/components/game/DispatchArchive";
+import WeatherBadge from "@/components/game/WeatherBadge";
+import WeatherOverlay from "@/components/game/WeatherOverlay";
 import { RESOURCE_KEYS, RESOURCE_META } from "@/lib/units";
 
 export default function GamePage() {
@@ -135,6 +137,7 @@ export default function GamePage() {
             </div>
           ))}
         </div>
+        {game.status === "active" && <WeatherBadge weather={game.weather} />}
         <button
           onClick={() => { setSfxEnabled(!sound); setSound(!sound); }}
           title={sound ? "Mute battlefield audio" : "Enable battlefield audio"}
@@ -195,6 +198,7 @@ export default function GamePage() {
                 onTileClick={(t) => { setSelectedId(t.id === selectedId ? null : t.id); setSelectedArmyId(null); }}
               />
             </div>
+            {game.status === "active" && <WeatherOverlay weather={game.weather} />}
           </div>
           <WarCharts history={game.statHistory} factions={game.factions} />
         </div>

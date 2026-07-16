@@ -368,3 +368,34 @@
   55% { opacity: 0.95; transform: scale(1.1); }
   100% { opacity: 0; transform: scale(1.55); }
 }
+
+/* ---- Battlefield weather ---- */
+.cq-rain {
+  background-image: repeating-linear-gradient(105deg, transparent 0 6px, rgba(160, 190, 215, 0.13) 6px 7px);
+  animation: cq-rainfall 0.5s linear infinite;
+  pointer-events: none;
+}
+@keyframes cq-rainfall {
+  from { background-position: 0 0; }
+  to { background-position: -30px 60px; }
+}
+
+.cq-fogbank {
+  background:
+    radial-gradient(ellipse 70% 50% at 30% 40%, rgba(155, 150, 140, 0.18), transparent 70%),
+    radial-gradient(ellipse 60% 45% at 70% 60%, rgba(155, 150, 140, 0.14), transparent 70%);
+  animation: cq-smoke 18s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+
+.cq-stormflash {
+  opacity: 0;
+  animation: cq-stormflash 7s infinite;
+  pointer-events: none;
+}
+@keyframes cq-stormflash {
+  0%, 95%, 100% { opacity: 0; }
+  96% { opacity: 0.14; }
+  97% { opacity: 0; }
+  98% { opacity: 0.09; }
+}
