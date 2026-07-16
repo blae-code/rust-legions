@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import useUser from "@/hooks/useUser";
-import { Shield, Loader2, Volume2, VolumeX } from "lucide-react";
-import { sfxEnabled, setSfxEnabled } from "@/lib/sfx";
+import { Shield, Loader2 } from "lucide-react";
+import AudioHud from "@/components/home/AudioHud";
 import StormFront25D from "@/components/home/StormFront25D";
 import BootSequence from "@/components/home/BootSequence";
 import GameMenu from "@/components/home/GameMenu";
@@ -19,7 +19,6 @@ export default function Home() {
   const [games, setGames] = useState(null);
   const [factions, setFactions] = useState(null);
   const [profile, setProfile] = useState(null);
-  const [sound, setSound] = useState(sfxEnabled());
   const [needsInduction, setNeedsInduction] = useState(false);
 
   useEffect(() => {
@@ -63,13 +62,7 @@ export default function Home() {
             <p className="font-mono text-[10px] text-muted-foreground tracking-widest hidden sm:block cq-flicker">
               ⁜ SECURE CHANNEL · CMDR {(user?.full_name || user?.email || "").split(" ")[0]?.toUpperCase()} ⁜
             </p>
-            <button
-              onClick={() => { setSfxEnabled(!sound); setSound(!sound); }}
-              title={sound ? "Mute battlefield audio" : "Enable battlefield audio"}
-              className={`p-1.5 rounded-sm border transition-colors ${sound ? "border-brass/50 text-brass-bright" : "border-border text-muted-foreground"}`}
-            >
-              {sound ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
-            </button>
+            <AudioHud />
           </div>
         </div>
 

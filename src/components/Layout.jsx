@@ -51,13 +51,9 @@ export default function Layout() {
 
   // The command HQ is a full-screen game menu — no web chrome there
   const isMenu = location.pathname === "/";
+  // The command HQ carries its own audio controls in the HUD's top-right corner
   if (isMenu) {
-    return (
-      <>
-        <Outlet />
-        <MusicController />
-      </>
-    );
+    return <Outlet />;
   }
 
   return (
