@@ -48,6 +48,12 @@ export default function Layout() {
     );
   }
 
+  // The command HQ is a full-screen game menu — no web chrome there
+  const isMenu = location.pathname === "/";
+  if (isMenu) {
+    return <Outlet />;
+  }
+
   return (
     <div className="min-h-screen">
       <header className="sticky top-0 z-40 border-b border-border bg-card/95 backdrop-blur-sm">

@@ -80,6 +80,15 @@ const SOUNDS = {
     tone(c, { freq: 880, duration: 0.12, gain: 0.05, type: "triangle", delay: 0.09 });
     noise(c, { duration: 0.08, gain: 0.02, filterType: "bandpass", freq: 5000, delay: 0.09 });
   },
+  // Menu hover — dry radio blip
+  hover(c) {
+    tone(c, { freq: 1200, freqEnd: 900, duration: 0.05, gain: 0.02, type: "square" });
+  },
+  // Menu select — brass switch clank
+  select(c) {
+    tone(c, { freq: 300, freqEnd: 180, duration: 0.12, gain: 0.05, type: "triangle" });
+    noise(c, { duration: 0.08, gain: 0.03, filterType: "bandpass", freq: 2500 });
+  },
   // Heavy ledger stamp — orders sealed
   endTurn(c) {
     tone(c, { freq: 120, freqEnd: 45, duration: 0.25, gain: 0.09, type: "sine" });
