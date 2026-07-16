@@ -13,6 +13,7 @@ export default function GameMenu({ continueGame }) {
     { to: "/map-editor", label: "Cartography Bureau", sub: "Draft new battlegrounds tile by tile" },
     { to: "/maps", label: "Map Archive", sub: "Survey every registered theater" },
     { to: "/patch-notes", label: "Field Amendments", sub: "Patch dispatches from the War Ministry" },
+    { to: "/asset-registry", label: "Illustration Directorate", sub: "The master registry of commissioned art plates" },
   ].filter(Boolean);
 
   return (

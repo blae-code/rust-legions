@@ -16,6 +16,7 @@ import MapEditor from './pages/MapEditor';
 import MapLibrary from './pages/MapLibrary';
 import ArmyDesigner from './pages/ArmyDesigner';
 import PatchNotes from './pages/PatchNotes';
+import AssetRegistry from './pages/AssetRegistry';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -53,6 +54,7 @@ const AuthenticatedApp = () => {
         <Route path="/maps" element={<MapLibrary />} />
         <Route path="/army-designer" element={<ArmyDesigner />} />
         <Route path="/patch-notes" element={<PatchNotes />} />
+        <Route path="/asset-registry" element={<AssetRegistry />} />
       </Route>
       <Route path="*" element={<PageNotFound />} />
     </Routes>
