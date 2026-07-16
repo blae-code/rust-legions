@@ -10,6 +10,7 @@ import PurchasePanel from "@/components/game/PurchasePanel";
 import CombatLog from "@/components/game/CombatLog";
 import BuildPanel from "@/components/game/BuildPanel";
 import LobbyView from "@/components/game/LobbyView";
+import WarChronicle from "@/components/game/WarChronicle";
 import { RESOURCE_KEYS, RESOURCE_META } from "@/lib/units";
 
 export default function GamePage() {
@@ -121,6 +122,8 @@ export default function GamePage() {
           </p>
         </div>
       )}
+
+      {game.status === "complete" && <WarChronicle entries={game.combatLog} />}
 
       {error && <p className="text-xs text-rust font-mono">{error}</p>}
 

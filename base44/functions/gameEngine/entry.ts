@@ -354,6 +354,19 @@ function doAttack(game, slotIdx, fromTileId, toTileId, committed) {
     toSt.owner = slotIdx;
     toSt.units = result.att;
     outcome = 'captured';
+    // Detailed capture record — what was seized and from whom
+    game.combatLog.push({
+      turn: game.turnNumber,
+      type: 'capture',
+      faction: attSlot.factionName,
+      tileName: toTile.name,
+      from: defSlot ? defSlot.factionName : 'Neutral garrison',
+      resource: toTile.isSea ? null : (TERRAIN_RESOURCE[toTile.terrain] || 'manpower'),
+      amount: toTile.isSea ? 0 : (toTile.baseIncome || 1),
+      bonus: toTile.resourceBonus || null,
+      buildings: (toSt.buildings || []).filter((b) => (b.level || 0) > 0).map((b) => b.type),
+      isCapital: !!toTile.isCapital,
+    });
   } else if (result.attackerWiped) {
     toSt.units = result.def;
     outcome = 'repelled';
@@ -686,7 +699,7 @@ Deno.serve(async (req) => {
           isOpen: !s.isNPC && !s.userId, isMe: s.userId === user.id, traits: s.userId === user.id ? s.traits : undefined,
         })),
         tiles: visibleStateFor(game, mySlot),
-        combatLog: (game.combatLog || []).slice(-30),
+        combatLog: game.status === 'complete' ? (game.combatLog || []) : (game.combatLog || []).slice(-30),
         winnerSlot: game.winnerSlot,
         winnerName: game.winnerSlot !== undefined && game.winnerSlot !== null ? game.factionSlots?.[game.winnerSlot]?.factionName : null,
       });

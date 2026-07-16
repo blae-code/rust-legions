@@ -15,6 +15,13 @@ export default function CombatLog({ entries = [] }) {
             <span className="text-steel font-mono mr-1">T{e.turn}</span>
             {e.type === "event" ? (
               <span className="text-brass">{e.text}</span>
+            ) : e.type === "capture" ? (
+              <span>
+                <span className="text-brass-bright font-semibold">{e.faction}</span> seized{" "}
+                <span className="text-secondary-foreground">{e.isCapital ? "★ " : ""}{e.tileName}</span>
+                {e.resource && <span className="text-olive"> · +{e.amount}/turn</span>}
+                {(e.buildings || []).length > 0 && <span className="text-steel"> · {e.buildings.length} structure{e.buildings.length > 1 ? "s" : ""} captured</span>}
+              </span>
             ) : (
               <span>
                 <span className="text-secondary-foreground">{e.attacker}</span> assaulted{" "}
