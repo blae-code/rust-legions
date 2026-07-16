@@ -57,4 +57,21 @@ export default [
       "react-hooks/rules-of-hooks": "error",
     },
   },
+  {
+    // react-three-fiber renders three.js objects as intrinsic JSX elements
+    // (<mesh>, <meshStandardMaterial metalness .../>, <bufferGeometry args .../>).
+    // Their props are three.js object properties, not DOM attributes, so
+    // `react/no-unknown-property` produces only false positives here. It stays
+    // strict for real DOM everywhere else. R3F usage is fully contained to these
+    // paths (verified: no bare three.js primitives live outside them) — if a new
+    // 3D file appears, add it here.
+    files: [
+      "src/components/hexmap3d/**/*.{js,jsx}",
+      "src/components/starmap/**/*.{js,jsx}",
+      "src/pages/StarMap.jsx",
+    ],
+    rules: {
+      "react/no-unknown-property": "off",
+    },
+  },
 ];

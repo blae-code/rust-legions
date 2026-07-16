@@ -60,7 +60,7 @@ export default function FactionBuilder() {
         isNPC: false,
       });
       navigate("/");
-    } catch (e) {
+    } catch {
       setError("Failed to save faction");
       setSaving(false);
     }

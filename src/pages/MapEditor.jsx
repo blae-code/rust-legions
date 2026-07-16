@@ -72,7 +72,7 @@ export default function MapEditor() {
         name: mapName, description, tiles: withAdj, recommendedPlayerCount: playerCount, planetId, isPublished: true,
       });
       navigate("/maps");
-    } catch (e) {
+    } catch {
       setError("Failed to save map");
       setSaving(false);
     }

@@ -52,7 +52,7 @@ export default function BattleDiorama({ attacker, defender, fx }) {
     setFallen(fallList);
     const t = setTimeout(() => { setFiring(false); setBooms([]); setFallen([]); }, 1500);
     return () => clearTimeout(t);
-  }, [fx]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [fx]);  
 
   const aSprites = useMemo(() => spriteList(attacker.units), [attacker.units]);
   const dSprites = useMemo(() => spriteList(defender.units), [defender.units]);
