@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Flag } from "lucide-react";
 import { ARMY_UNIT_KEYS, REGIMENT_LABELS } from "@/lib/massCombat";
+import GeneralPortrait from "@/components/game/GeneralPortrait";
 
 export default function MusterPanel({ game, tile, busy, onMuster }) {
   const [levy, setLevy] = useState({});
@@ -42,16 +43,19 @@ export default function MusterPanel({ game, tile, busy, onMuster }) {
           </span>
         </div>
       ))}
-      <select
-        value={chosen}
-        onChange={(e) => setGeneralId(e.target.value)}
-        className="w-full bg-input border border-border rounded-sm text-xs px-2 py-1.5 text-secondary-foreground font-mono"
-      >
-        {freeGenerals.map((g) => (
-          <option key={g.id} value={g.id}>{g.name}{g.supreme ? " ★" : ""}{g.traitLabel ? ` “${g.traitLabel}”` : ""} — Strategy {g.strategy}</option>
-        ))}
-        <option value="recruit">Commission a new general ({recruitCost} Manpower)</option>
-      </select>
+      <div className="flex items-center gap-2">
+        {chosen !== "recruit" && <GeneralPortrait general={freeGenerals.find((g) => g.id === chosen)} size={44} />}
+        <select
+          value={chosen}
+          onChange={(e) => setGeneralId(e.target.value)}
+          className="flex-1 min-w-0 bg-input border border-border rounded-sm text-xs px-2 py-1.5 text-secondary-foreground font-mono"
+        >
+          {freeGenerals.map((g) => (
+            <option key={g.id} value={g.id}>{g.name}{g.supreme ? " ★" : ""}{g.traitLabel ? ` “${g.traitLabel}”` : ""} — Strategy {g.strategy}</option>
+          ))}
+          <option value="recruit">Commission a new general ({recruitCost} Manpower)</option>
+        </select>
+      </div>
       {chosen === "recruit" && !canAffordRecruit && <p className="text-[10px] text-rust font-mono">Insufficient manpower to commission a general.</p>}
       <Button size="sm" disabled={disabled} onClick={() => onMuster(tile.id, levy, chosen)} className="w-full bg-brass hover:bg-brass-bright text-primary-foreground font-heading uppercase text-xs tracking-[0.2em]">
         Muster Army
