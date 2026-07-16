@@ -12,6 +12,7 @@ export default function GameMenu({ continueGame }) {
     { to: "/army-designer", label: "Army Design Bureau", sub: "Draft doctrine patterns for your armies" },
     { to: "/map-editor", label: "Cartography Bureau", sub: "Draft new battlegrounds tile by tile" },
     { to: "/maps", label: "Map Archive", sub: "Survey every registered theater" },
+    { to: "/patch-notes", label: "Field Amendments", sub: "Patch dispatches from the War Ministry" },
   ].filter(Boolean);
 
   return (

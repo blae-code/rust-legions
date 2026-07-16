@@ -15,6 +15,7 @@ import FactionBuilder from './pages/FactionBuilder';
 import MapEditor from './pages/MapEditor';
 import MapLibrary from './pages/MapLibrary';
 import ArmyDesigner from './pages/ArmyDesigner';
+import PatchNotes from './pages/PatchNotes';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -51,6 +52,7 @@ const AuthenticatedApp = () => {
         <Route path="/map-editor" element={<MapEditor />} />
         <Route path="/maps" element={<MapLibrary />} />
         <Route path="/army-designer" element={<ArmyDesigner />} />
+        <Route path="/patch-notes" element={<PatchNotes />} />
       </Route>
       <Route path="*" element={<PageNotFound />} />
     </Routes>

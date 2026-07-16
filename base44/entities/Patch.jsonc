@@ -1,0 +1,59 @@
+{
+  "name": "Patch",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "string"
+    },
+    "codename": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "releaseDate": {
+      "type": "string",
+      "format": "date"
+    },
+    "isPublished": {
+      "type": "boolean",
+      "default": false
+    },
+    "changes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "category": {
+            "type": "string",
+            "enum": [
+              "new_content",
+              "balance",
+              "mechanics",
+              "fix",
+              "ui",
+              "audio"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "impact": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "required": [
+    "version",
+    "title"
+  ]
+}
