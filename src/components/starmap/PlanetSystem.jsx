@@ -5,9 +5,10 @@ import * as THREE from "three";
 import PlanetBody from "@/components/starmap/PlanetBody";
 import RouteArcs from "@/components/starmap/RouteArcs";
 import NodeMarker from "@/components/starmap/NodeMarker";
+import MarchTrail from "@/components/starmap/MarchTrail";
 
 // A whole world: rotating surface + its full node network + route arcs
-export default function PlanetSystem({ planet, position, selected, onSelect, hoveredId, onHoverNode }) {
+export default function PlanetSystem({ planet, position, selected, onSelect, hoveredId, onHoverNode, origin, dest, plan, onNodeClick }) {
   const spinner = useRef();
   useFrame((_, dt) => { if (spinner.current) spinner.current.rotation.y += dt * planet.spin; });
   return (
@@ -15,13 +16,17 @@ export default function PlanetSystem({ planet, position, selected, onSelect, hov
       <group ref={spinner}>
         <PlanetBody planet={planet} onClick={(e) => { e.stopPropagation(); onSelect(planet.id); }} />
         <RouteArcs planet={planet} />
+        {plan && <MarchTrail planet={planet} plan={plan} />}
         {planet.nodes.map((n) => (
           <NodeMarker
             key={n.id}
             node={n}
             planet={planet}
             hovered={hoveredId === n.id}
+            isOrigin={n.id === origin}
+            isDest={n.id === dest}
             onHover={(node) => onHoverNode(node ? { ...node, planetName: planet.name } : null)}
+            onClick={(node) => onNodeClick(planet, node)}
           />
         ))}
       </group>

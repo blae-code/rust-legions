@@ -6,7 +6,11 @@ import { Stars, OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
 import { PLANETS } from "@/lib/macro/planets";
 import { NODE_KINDS } from "@/lib/macro/graph";
+import { findPath, planMarch } from "@/lib/macro/march";
 import PlanetSystem from "@/components/starmap/PlanetSystem";
+
+// A standard mixed column — crawlers set the pace at 16 miles a day
+const DAY_RATE = 16;
 
 const POSITIONS = [[-15, 1, -2], [0, -1, 0], [15, 2, -3]];
 
@@ -27,10 +31,29 @@ const LEGEND = [["highway", "#C9A227"], ["road", "#9a927f"], ["track", "#6e675c"
 export default function StarMap() {
   const [selectedId, setSelectedId] = useState(PLANETS[0].id);
   const [hovered, setHovered] = useState(null);
+  const [march, setMarch] = useState({ planetId: null, origin: null, dest: null });
   const controls = useRef();
   const idx = PLANETS.findIndex((p) => p.id === selectedId);
   const selected = PLANETS[idx];
   const focus = useMemo(() => new THREE.Vector3(...POSITIONS[idx]), [idx]);
+
+  const marchPlanet = PLANETS.find((p) => p.id === march.planetId);
+  const plan = useMemo(() => {
+    if (!marchPlanet || !march.origin || !march.dest) return null;
+    const found = findPath(march.origin, march.dest, DAY_RATE, marchPlanet.routes);
+    return found ? planMarch(found.path, DAY_RATE, marchPlanet.routes) : null;
+  }, [march, marchPlanet]);
+
+  // Two clicks plot a march: first sets the origin, second the objective
+  const onNodeClick = (planet, node) => {
+    setSelectedId(planet.id);
+    setMarch((m) => {
+      if (m.planetId === planet.id && m.origin === node.id) return { planetId: null, origin: null, dest: null };
+      if (m.planetId !== planet.id || !m.origin || m.dest) return { planetId: planet.id, origin: node.id, dest: null };
+      return { ...m, dest: node.id };
+    });
+  };
+  const nodeName = (id) => marchPlanet?.nodes.find((n) => n.id === id)?.name || "";
 
   return (
     <div className="min-h-screen p-4 sm:p-6">
@@ -43,7 +66,7 @@ export default function StarMap() {
             <p className="cq-label text-rust">Astrocartography Directorate</p>
             <h1 className="cq-display text-3xl">The Star Chart</h1>
             <p className="font-mono text-[10px] text-muted-foreground tracking-widest mt-1">
-              THREE WORLDS · {PLANETS.reduce((s, p) => s + p.nodes.length, 0)} CHARTED SETTLEMENTS · DRAG TO ORBIT, SCROLL TO CLOSE IN
+              THREE WORLDS · {PLANETS.reduce((s, p) => s + p.nodes.length, 0)} CHARTED SETTLEMENTS · CLICK TWO SETTLEMENTS TO PLOT A MARCH
             </p>
           </div>
           <div className="flex gap-1.5">
@@ -78,6 +101,10 @@ export default function StarMap() {
                   onSelect={setSelectedId}
                   hoveredId={hovered?.id || null}
                   onHoverNode={setHovered}
+                  origin={march.planetId === p.id ? march.origin : null}
+                  dest={march.planetId === p.id ? march.dest : null}
+                  plan={march.planetId === p.id ? plan : null}
+                  onNodeClick={onNodeClick}
                 />
               ))}
               <Rig controlsRef={controls} focus={focus} />
@@ -96,6 +123,28 @@ export default function StarMap() {
               <p className="font-mono text-[9px] text-brass-bright mt-1 border-t border-border pt-1">
                 ▸ {hovered.name.toUpperCase()} — {(NODE_KINDS[hovered.kind]?.label || hovered.kind).toUpperCase()} · {hovered.planetName?.toUpperCase()}
               </p>
+            )}
+            {march.origin && !march.dest && (
+              <p className="font-mono text-[9px] text-brass mt-1 border-t border-border pt-1">
+                ▸ COLUMN STAGED AT {nodeName(march.origin).toUpperCase()} — CLICK AN OBJECTIVE
+              </p>
+            )}
+            {plan && (
+              <div className="font-mono text-[9px] mt-1 border-t border-border pt-1 space-y-0.5">
+                <p className="text-brass-bright">
+                  ▸ {nodeName(march.origin).toUpperCase()} → {nodeName(march.dest).toUpperCase()} · {plan.legs.length} LEG{plan.legs.length > 1 ? "S" : ""} · ARRIVES DAY {plan.arrivalDay}
+                </p>
+                <p className="text-muted-foreground">STANDARD COLUMN · {DAY_RATE} MI/DAY · {plan.legs.reduce((s, l) => s + l.miles, 0)} MILES</p>
+                <button
+                  onClick={() => setMarch({ planetId: null, origin: null, dest: null })}
+                  className="text-rust hover:text-brass-bright transition-colors uppercase tracking-widest"
+                >
+                  ✕ Clear plot
+                </button>
+              </div>
+            )}
+            {march.origin && march.dest && !plan && (
+              <p className="font-mono text-[9px] text-rust mt-1 border-t border-border pt-1">▸ NO OVERLAND ROUTE REACHES THAT OBJECTIVE</p>
             )}
           </div>
 

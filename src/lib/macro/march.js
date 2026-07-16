@@ -25,7 +25,7 @@ export const routeDays = (route, dayRate) =>
   route[2] / (dayRate * ROUTE_QUALITY[route[3]].mult);
 
 // Dijkstra over the route graph, minimizing total march days
-export function findPath(fromId, toId, dayRate) {
+export function findPath(fromId, toId, dayRate, routes = MACRO_ROUTES) {
   if (!dayRate || fromId === toId) return null;
   const dist = { [fromId]: 0 };
   const prev = {};
@@ -37,7 +37,7 @@ export function findPath(fromId, toId, dayRate) {
     if (cur === toId) break;
     if (done.has(cur)) continue;
     done.add(cur);
-    for (const route of MACRO_ROUTES) {
+    for (const route of routes) {
       const [a, b] = route;
       if (a !== cur && b !== cur) continue;
       const next = a === cur ? b : a;
@@ -58,11 +58,11 @@ export function findPath(fromId, toId, dayRate) {
 
 // Break a path into legs with cumulative day windows, plus end-of-day waypoints
 // (leg index + fraction along it) for rendering the column's overnight camps.
-export function planMarch(path, dayRate) {
+export function planMarch(path, dayRate, routes = MACRO_ROUTES) {
   const legs = [];
   let elapsed = 0;
   for (let i = 0; i < path.length - 1; i++) {
-    const route = MACRO_ROUTES.find(
+    const route = routes.find(
       ([a, b]) => (a === path[i] && b === path[i + 1]) || (a === path[i + 1] && b === path[i])
     );
     const days = routeDays(route, dayRate);
