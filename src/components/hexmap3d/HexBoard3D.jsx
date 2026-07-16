@@ -6,6 +6,7 @@ import TerrainTile from "./TerrainTile";
 import ArmyFlag3D from "./ArmyFlag3D";
 import DriftingHaze from "./DriftingHaze";
 import TileFX from "./TileFX";
+import Weather3D from "./Weather3D";
 
 // 3D war-table board — drop-in replacement for the SVG HexBoard in the game view
 export default function HexBoard3D({
@@ -18,6 +19,7 @@ export default function HexBoard3D({
   selectedArmyId,
   onArmyClick,
   fx = null,
+  weather = "clear",
   height = 560,
 }) {
   const { center, extent } = useMemo(() => {
@@ -104,6 +106,7 @@ export default function HexBoard3D({
         })()}
 
         <DriftingHaze center={center} extent={extent} />
+        <Weather3D weather={weather} center={center} extent={extent} />
 
         <MapControls
           target={[center[0], 0, center[1]]}

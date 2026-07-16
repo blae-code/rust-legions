@@ -20,7 +20,6 @@ import BattleReport from "@/components/game/BattleReport";
 import ProbePanel from "@/components/game/ProbePanel";
 import DispatchArchive from "@/components/game/DispatchArchive";
 import WeatherBadge from "@/components/game/WeatherBadge";
-import WeatherOverlay from "@/components/game/WeatherOverlay";
 import { RESOURCE_KEYS, RESOURCE_META } from "@/lib/units";
 
 export default function GamePage() {
@@ -185,6 +184,7 @@ export default function GamePage() {
               </div>
               <HexBoard3D
                 tiles={game.tiles}
+                weather={game.status === "active" ? game.weather : "clear"}
                 slotColors={slotColors}
                 selectedId={selectedId}
                 overlay={overlay}
@@ -198,7 +198,6 @@ export default function GamePage() {
                 onTileClick={(t) => { setSelectedId(t.id === selectedId ? null : t.id); setSelectedArmyId(null); }}
               />
             </div>
-            {game.status === "active" && <WeatherOverlay weather={game.weather} />}
           </div>
           <WarCharts history={game.statHistory} factions={game.factions} />
         </div>
