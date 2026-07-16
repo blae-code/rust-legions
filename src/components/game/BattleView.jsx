@@ -54,7 +54,7 @@ export default function BattleView({ battle, busy, onChoose }) {
           )}
           {battle.weather && battle.weather !== "clear" && (
             <p className="font-mono text-[9px] text-brass mt-0.5">
-              {WEATHER_META[battle.weather]?.icon} {WEATHER_META[battle.weather]?.label.toUpperCase()} — {battle.weather === "rain" ? "ATTACKER −1" : battle.weather === "fog" ? "DEFENDER −1" : "AIRCRAFT GROUNDED"}
+              {WEATHER_META[battle.weather]?.icon} {WEATHER_META[battle.weather]?.label.toUpperCase()} — {battle.weather === "rain" ? "ATTACKER −1" : battle.weather === "snow" ? "ATTACKER −1 · ARMOR FROZEN" : battle.weather === "fog" ? "DEFENDER −1" : "AIRCRAFT GROUNDED"}
             </p>
           )}
         </div>

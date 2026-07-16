@@ -22,4 +22,12 @@ export const WEATHER_META = {
     label: "Thunderstorm",
     effects: ["Aircraft & gunboats grounded — no moves or attacks"],
   },
+  snow: {
+    icon: "❄",
+    label: "Falling Snow",
+    effects: [
+      "Attackers −1 to hit",
+      "Crawler engines frozen — armor cannot move or attack",
+    ],
+  },
 };

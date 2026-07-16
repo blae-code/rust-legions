@@ -10,10 +10,11 @@ const TERRAIN_RESOURCE = {
 
 // ---------- Weather ----------
 const WEATHER_TYPES = {
-  clear: { label: 'Clear Skies', weight: 40 },
-  rain: { label: 'Driving Rain', weight: 25 },
-  fog: { label: 'Heavy Fog', weight: 20 },
-  storm: { label: 'Thunderstorm', weight: 15 },
+  clear: { label: 'Clear Skies', weight: 35 },
+  rain: { label: 'Driving Rain', weight: 22 },
+  fog: { label: 'Heavy Fog', weight: 18 },
+  storm: { label: 'Thunderstorm', weight: 12 },
+  snow: { label: 'Falling Snow', weight: 13 },
 };
 const ROUGH_TERRAIN = ['mountains', 'highlands', 'marsh'];
 
@@ -417,6 +418,7 @@ function doAttack(game, slotIdx, fromTileId, toTileId, committed) {
   const weather = game.weather || 'clear';
   if (weather === 'storm' && ((committed.fighter || 0) > 0 || (committed.gunboat || 0) > 0)) throw new Error('The storm grounds all aircraft and gunboats this turn');
   if (weather === 'rain' && !toTile.isSea && ROUGH_TERRAIN.includes(toTile.terrain)) throw new Error('Driving rain has washed out the roads — that ground is impassable this turn');
+  if (weather === 'snow' && (committed.crawler || 0) > 0) throw new Error('Crawler engines freeze in the snowfall — armor cannot attack this turn');
   for (const k of UNIT_KEYS) {
     if ((committed[k] || 0) > (fromSt.units[k] || 0)) throw new Error('Not enough units');
   }
@@ -437,7 +439,7 @@ function doAttack(game, slotIdx, fromTileId, toTileId, committed) {
   const capBonus = defSlot && defSlot.capitalTileId === toTileId ? (defM.capitalDefense || 0) : 0;
   const terrDef = toTile.isSea ? 0 : (TERRAIN_BATTLE_MODS[toTile.terrain] || 0);
   const attSlope = toTile.isSea ? 0 : slopeMod(fromTile, toTile);
-  const attFlat = (weather === 'rain' ? -1 : 0) + attSlope;
+  const attFlat = (weather === 'rain' || weather === 'snow' ? -1 : 0) + attSlope;
   const result = resolveCombat(committed, toSt.units, attSlot.traits || [], defSlot?.traits || [], fortLevel(toSt) + capBonus + terrDef + (weather === 'fog' ? -1 : 0), attM.unitStat || {}, defM.unitStat || {}, attFlat);
 
   let outcome;
@@ -634,7 +636,8 @@ function npcTakeTurn(game, slotIdx) {
     const pick = candidates[0];
     const srcUnits = game.territoryStates[pick.from].units;
     const committed = {};
-    const npcCommitKeys = (game.weather || 'clear') === 'storm' ? ['riflemen', 'crawler'] : ['riflemen', 'crawler', 'fighter'];
+    const w = game.weather || 'clear';
+    const npcCommitKeys = w === 'storm' ? ['riflemen', 'crawler'] : w === 'snow' ? ['riflemen', 'fighter'] : ['riflemen', 'crawler', 'fighter'];
     for (const k of npcCommitKeys) {
       committed[k] = k === 'riflemen' ? Math.max((srcUnits[k] || 0) - 1, 0) : (srcUnits[k] || 0);
     }
@@ -898,7 +901,7 @@ function createBattle(game, slotIdx, army, toTileId) {
       strategy: attGeneral.strategy, units: { ...army.regiments }, morale: 100, choice: null, nextBonus: 0, losses: 0,
       signature: attTrait?.signature || null, sigCooldown: 0, vetBonus: attRank.bonus, rank: attRank.label,
       supplyPenalty: attSupplied ? 0 : -2,
-      weatherPenalty: weather === 'rain' ? -1 : 0,
+      weatherPenalty: weather === 'rain' || weather === 'snow' ? -1 : 0,
       elevMod: eMod,
       design: army.design || null,
     },
@@ -924,6 +927,7 @@ function createBattle(game, slotIdx, army, toTileId) {
   if (!defSupplied) game.activeBattle.log.push(`The defenders of ${toTile.name} are under siege — stores run thin (−2).`);
   if (weather === 'rain') game.activeBattle.log.push('Driving rain turns the field to mud — the assault bogs down (attacker −1).');
   if (weather === 'fog') game.activeBattle.log.push('Heavy fog cloaks the assault columns — the defense fires blind (defender −1).');
+  if (weather === 'snow') game.activeBattle.log.push('Deep snow drags at the assault columns (attacker −1).');
   if (eMod < 0) game.activeBattle.log.push(`The assault climbs uphill into ${toTile.name} — the grade favors the defense (attacker −1).`);
   if (eMod > 0) game.activeBattle.log.push(`${attGeneral.name} strikes downhill — momentum carries the assault (attacker +1).`);
   // Defenders are committed to the battle; the zone stands empty until it resolves
@@ -1430,6 +1434,7 @@ Deno.serve(async (req) => {
         const n = units[k] || 0;
         if (n <= 0) continue;
         if (weather === 'storm' && (k === 'fighter' || k === 'gunboat')) return Response.json({ error: 'The storm grounds aircraft and gunboats this turn' }, { status: 400 });
+        if (weather === 'snow' && k === 'crawler') return Response.json({ error: 'Crawler engines freeze in the snowfall — armor cannot move this turn' }, { status: 400 });
         if (n > (fromSt.units[k] || 0)) return Response.json({ error: 'Not enough units' }, { status: 400 });
         const domain = UNITS[k].domain;
         if (domain === 'land' && toTile.isSea) return Response.json({ error: 'Land units cannot enter sea zones' }, { status: 400 });
@@ -1585,6 +1590,7 @@ Deno.serve(async (req) => {
       const toTile = game.tiles.find((t) => t.id === toTileId);
       if (!toTile || !toSt) return Response.json({ error: 'Invalid destination' }, { status: 400 });
       if ((game.weather || 'clear') === 'rain' && !toTile.isSea && ROUGH_TERRAIN.includes(toTile.terrain)) return Response.json({ error: 'Driving rain has washed out the roads — rough terrain is impassable this turn' }, { status: 400 });
+      if ((game.weather || 'clear') === 'snow' && (army.regiments.crawler || 0) > 0) return Response.json({ error: 'Snow chokes the fuel lines — armies fielding crawlers cannot march this turn' }, { status: 400 });
       if (toSt.owner === slotIdx) {
         if (toTile.isSea) return Response.json({ error: 'Field armies cannot enter sea zones' }, { status: 400 });
         const fromTile = game.tiles.find((t) => t.id === army.tileId);

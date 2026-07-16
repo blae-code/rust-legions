@@ -54,6 +54,58 @@ function Rain({ center, extent, heavy }) {
   );
 }
 
+// Gently swaying snowflakes settling over the front
+function Snow({ center, extent }) {
+  const ref = useRef();
+  const count = 380;
+  const ceiling = Math.max(extent * 0.8, 6);
+  const spanX = extent * 1.4;
+  const spanZ = extent * 1.2;
+
+  const { geo, flakes } = useMemo(() => {
+    const positions = new Float32Array(count * 3);
+    const flakes = [];
+    for (let i = 0; i < count; i++) {
+      flakes.push({
+        x: center[0] + (Math.random() - 0.5) * spanX,
+        z: center[1] + (Math.random() - 0.5) * spanZ,
+        y: Math.random() * ceiling,
+        speed: 0.5 + Math.random() * 0.6,
+        sway: Math.random() * Math.PI * 2,
+      });
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    return { geo, flakes };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useFrame(({ clock }, dt) => {
+    const step = Math.min(dt, 0.05);
+    const t = clock.elapsedTime;
+    const pos = ref.current.geometry.attributes.position.array;
+    for (let i = 0; i < count; i++) {
+      const f = flakes[i];
+      f.y -= f.speed * step;
+      if (f.y < 0) {
+        f.y = ceiling;
+        f.x = center[0] + (Math.random() - 0.5) * spanX;
+        f.z = center[1] + (Math.random() - 0.5) * spanZ;
+      }
+      const j = i * 3;
+      pos[j] = f.x + Math.sin(t * 0.8 + f.sway) * 0.3;
+      pos[j + 1] = f.y;
+      pos[j + 2] = f.z + Math.cos(t * 0.6 + f.sway) * 0.2;
+    }
+    ref.current.geometry.attributes.position.needsUpdate = true;
+  });
+
+  return (
+    <points ref={ref} geometry={geo} frustumCulled={false}>
+      <pointsMaterial color="#E8EDF2" size={0.07} transparent opacity={0.75} depthWrite={false} sizeAttenuation />
+    </points>
+  );
+}
+
 // Low fog banks drifting just above the tiles
 function FogBanks({ center, extent }) {
   const group = useRef();
@@ -142,6 +194,7 @@ export default function Weather3D({ weather, center, extent }) {
         <Rain center={center} extent={extent} heavy={weather === "storm"} />
       )}
       {weather === "fog" && <FogBanks center={center} extent={extent} />}
+      {weather === "snow" && <Snow center={center} extent={extent} />}
       {weather === "storm" && <StormFlash center={center} extent={extent} />}
     </>
   );
