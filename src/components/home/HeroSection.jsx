@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Swords, Flag } from "lucide-react";
+import Typewriter from "@/components/home/Typewriter";
 
 const HERO_IMG = "https://media.base44.com/images/public/6a58196dcd485ecc774cae1b/3b5791ea2_generated_image.png";
 
@@ -18,6 +19,7 @@ export default function HeroSection({ firstName }) {
         transition={{ duration: 8, ease: "easeOut" }}
       />
       <div className="absolute inset-0 bg-gradient-to-t from-background via-background/40 to-background/20" />
+      <div className="absolute inset-0 cq-smoke" />
       <div className="absolute inset-0 cq-scanlines opacity-40" />
       <div className="absolute inset-0 cq-vignette" />
 
@@ -26,8 +28,16 @@ export default function HeroSection({ firstName }) {
         GRID 47°N · SECTOR IX
       </div>
       <div className="absolute top-4 right-4 font-mono text-[10px] text-brass/70 tracking-widest hidden sm:block">
-        SIGNAL: ENCRYPTED ▮▮▮
+        <Typewriter text="SIGNAL: ENCRYPTED ▮▮▮  //  DECODING TRANSMISSION..." delay={1200} speed={45} />
       </div>
+      <motion.div
+        className="cq-stamp absolute top-10 right-6 text-lg hidden md:block"
+        initial={{ opacity: 0, scale: 2.2, rotate: -8 }}
+        animate={{ opacity: 1, scale: 1, rotate: -8 }}
+        transition={{ delay: 1.4, duration: 0.25, ease: "easeIn" }}
+      >
+        Classified
+      </motion.div>
 
       <div className="absolute inset-x-0 bottom-0 p-6 sm:p-10 max-w-7xl mx-auto">
         <motion.p

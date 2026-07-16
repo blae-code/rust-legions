@@ -204,6 +204,32 @@
   to { transform: translateX(-50%); }
 }
 
+@keyframes cq-smoke {
+  from { transform: translateX(-25%) translateY(0); }
+  to { transform: translateX(25%) translateY(-4%); }
+}
+
+.cq-smoke {
+  background:
+    radial-gradient(ellipse 60% 40% at 30% 70%, hsl(26 20% 20% / 0.5), transparent 70%),
+    radial-gradient(ellipse 50% 35% at 70% 60%, hsl(26 15% 15% / 0.45), transparent 70%);
+  animation: cq-smoke 24s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+
+/* Inked rubber stamp */
+.cq-stamp {
+  @apply font-display uppercase;
+  color: hsl(var(--rust) / 0.85);
+  border: 3px double hsl(var(--rust) / 0.7);
+  border-radius: 4px;
+  padding: 2px 12px;
+  letter-spacing: 0.3em;
+  transform: rotate(-8deg);
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='40'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.6'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.9 0.1'/%3E%3C/filter%3E%3Crect width='120' height='40' filter='url(%23n)'/%3E%3C/svg%3E");
+  mask-size: cover;
+}
+
 @keyframes cq-flicker {
   0%, 100% { opacity: 1; }
   92% { opacity: 1; }

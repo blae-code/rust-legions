@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Swords, Flag, Loader2 } from "lucide-react";
 import HeroSection from "@/components/home/HeroSection";
 import DispatchTicker from "@/components/home/DispatchTicker";
+import CommandLedger from "@/components/home/CommandLedger";
+import HomeFooter from "@/components/home/HomeFooter";
 import SectionHeader from "@/components/home/SectionHeader";
 import FrontCard from "@/components/home/FrontCard";
 import FactionCard from "@/components/home/FactionCard";
@@ -32,6 +34,10 @@ export default function Home() {
     <div>
       <HeroSection firstName={user?.full_name?.split(" ")[0]} />
       <DispatchTicker />
+
+      <div className="pt-8">
+        <CommandLedger games={games} factions={factions} />
+      </div>
 
       <div className="space-y-14 py-10">
         {/* Active Fronts */}
@@ -88,6 +94,8 @@ export default function Home() {
           <ToolsSection />
         </section>
       </div>
+
+      <HomeFooter />
     </div>
   );
 }
