@@ -12,20 +12,28 @@ import SectionHeader from "@/components/home/SectionHeader";
 import FrontCard from "@/components/home/FrontCard";
 import FactionCard from "@/components/home/FactionCard";
 import ToolsSection from "@/components/home/ToolsSection";
+import DoctrineBriefing from "@/components/home/DoctrineBriefing";
+import ServiceRecord from "@/components/home/ServiceRecord";
+import FeaturedMaps from "@/components/home/FeaturedMaps";
 
 export default function Home() {
   const { user } = useUser();
   const [games, setGames] = useState(null);
   const [factions, setFactions] = useState(null);
+  const [profile, setProfile] = useState(null);
+  const [maps, setMaps] = useState(null);
 
   useEffect(() => {
     if (!user) return;
     base44.functions.invoke("gameEngine", { action: "listMyGames" }).then((r) => setGames(r.data.games));
     base44.entities.Faction.filter({ created_by_id: user.id }).then(setFactions);
+    base44.entities.GameMap.filter({ isPublished: true }, "-created_date", 3).then(setMaps);
     // Lazily ensure a UserProfile exists
-    base44.entities.UserProfile.filter({ created_by_id: user.id }).then((profiles) => {
+    base44.entities.UserProfile.filter({ created_by_id: user.id }).then(async (profiles) => {
       if (profiles.length === 0) {
-        base44.entities.UserProfile.create({ displayName: user.full_name || user.email });
+        setProfile(await base44.entities.UserProfile.create({ displayName: user.full_name || user.email }));
+      } else {
+        setProfile(profiles[0]);
       }
     });
   }, [user]);
@@ -40,6 +48,9 @@ export default function Home() {
       </div>
 
       <div className="space-y-14 py-10">
+        {/* Service Record */}
+        <ServiceRecord profile={profile} />
+
         {/* Active Fronts */}
         <section>
           <SectionHeader icon={Swords} kicker="Situation Report" title="Active Fronts" />
@@ -87,6 +98,20 @@ export default function Home() {
             </div>
           )}
         </section>
+
+        {/* How the war is waged */}
+        <section>
+          <SectionHeader kicker="Field Manual 7-A" title="How the War Is Waged" />
+          <DoctrineBriefing />
+        </section>
+
+        {/* Featured maps */}
+        {maps && maps.length > 0 && (
+          <section>
+            <SectionHeader kicker="Cartographic Archive" title="Featured Theaters" />
+            <FeaturedMaps maps={maps} />
+          </section>
+        )}
 
         {/* War Room Tools */}
         <section>
