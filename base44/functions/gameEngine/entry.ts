@@ -25,6 +25,54 @@ const BUILDINGS = {
   airstrip: { cost: { steel: 3, fuel: 3 } },
 };
 
+// GURPS-style point-buy perk effects (mirrors src/lib/pointBuy.js)
+const PERK_MODS = {
+  veteran_corps: { unitStat: { riflemen: { attack: 1 } } },
+  industrial_base: { income: { steel: 1 } },
+  oil_concessions: { income: { fuel: 1 } },
+  deep_reserves: { income: { manpower: 1 } },
+  conscription: { unitCost: { riflemen: { manpower: -1 } } },
+  mobilization_doctrine: { armyCap: 15 },
+  war_chest: { startBonus: 4 },
+  home_guard: { capitalDefense: 1 },
+  war_weary: { armyCap: -15 },
+  fuel_shortage: { income: { fuel: -1 } },
+  rusting_arsenal: { unitCost: { crawler: { steel: 1 } } },
+  green_recruits: { unitStat: { riflemen: { defense: -1 } } },
+  depleted_stockpiles: { startBonus: -4 },
+  brittle_industry: { income: { steel: -1 } },
+  pariah_state: { disposition: -10 },
+  trench_gear: { unitStat: { riflemen: { defense: 1 } } },
+  flame_projectors: { unitStat: { crawler: { attack: 1 } }, unitCost: { crawler: { fuel: 1 } } },
+  heavy_plating: { unitStat: { crawler: { defense: 1 } } },
+  naval_rams: { unitStat: { gunboat: { attack: 1 } } },
+  drop_tanks: { unitStat: { fighter: { defense: 1 } } },
+};
+
+function compileMods(picks = []) {
+  const m = { unitStat: {}, unitCost: {}, income: { manpower: 0, steel: 0, fuel: 0 }, armyCap: 0, startBonus: 0, capitalDefense: 0, disposition: 0 };
+  for (const id of picks) {
+    const p = PERK_MODS[id];
+    if (!p) continue;
+    for (const [unit, stats] of Object.entries(p.unitStat || {})) {
+      m.unitStat[unit] = m.unitStat[unit] || {};
+      for (const [s, v] of Object.entries(stats)) m.unitStat[unit][s] = (m.unitStat[unit][s] || 0) + v;
+    }
+    for (const [unit, res] of Object.entries(p.unitCost || {})) {
+      m.unitCost[unit] = m.unitCost[unit] || {};
+      for (const [r, v] of Object.entries(res)) m.unitCost[unit][r] = (m.unitCost[unit][r] || 0) + v;
+    }
+    for (const k of RESOURCE_KEYS) m.income[k] += (p.income || {})[k] || 0;
+    m.armyCap += p.armyCap || 0;
+    m.startBonus += p.startBonus || 0;
+    m.capitalDefense += p.capitalDefense || 0;
+    m.disposition += p.disposition || 0;
+  }
+  return m;
+}
+
+const slotMods = (slot) => slot?.mods || compileMods(slot?.pointBuy);
+
 const MAP_CONTROL_PCT = 60;
 const ARMY_CAP_FLOOR = 90;
 const ARMY_CAP_PER_MANPOWER = 10;
@@ -118,7 +166,7 @@ function armyPoints(game, slotIdx) {
 
 function armyCap(game, slotIdx) {
   const prod = factionProduction(game, slotIdx);
-  return Math.max(ARMY_CAP_FLOOR, prod.manpower * ARMY_CAP_PER_MANPOWER);
+  return Math.max(ARMY_CAP_FLOOR, prod.manpower * ARMY_CAP_PER_MANPOWER) + (slotMods(game.factionSlots[slotIdx]).armyCap || 0);
 }
 
 function effectiveCosts(game, slotIdx) {
@@ -127,9 +175,12 @@ function effectiveCosts(game, slotIdx) {
     const tile = game.tiles.find((t) => t.id === tid);
     return st.owner === slotIdx && tile?.resourceBonus === 'iron_foundry';
   });
+  const mods = slotMods(slot);
   const costs = {};
   for (const k of UNIT_KEYS) {
     const c = { ...UNITS[k].cost };
+    const cm = (mods.unitCost || {})[k] || {};
+    for (const rk of Object.keys(cm)) c[rk] = Math.max((c[rk] || 0) + cm[rk], 0);
     const disc = traitBonus(slot.traits, k, 'unit_discount');
     if (disc > 0 && c.steel) c.steel = Math.max(c.steel - disc, 0);
     if (k === 'crawler' && ownsIronFoundry && c.steel) c.steel = Math.max(c.steel - 1, 1);
@@ -152,6 +203,8 @@ function collectIncome(game, slotIdx) {
   if (slot.capitalTileId && game.territoryStates[slot.capitalTileId]?.owner !== slotIdx) return;
   const prod = factionProduction(game, slotIdx);
   prod.manpower += traitBonus(slot.traits, null, 'income_flat');
+  const incomeMods = slotMods(slot).income || {};
+  for (const k of RESOURCE_KEYS) prod[k] = Math.max(prod[k] + (incomeMods[k] || 0), 0);
   const treasury = getTreasury(game, slotIdx);
   for (const k of RESOURCE_KEYS) treasury[k] = (treasury[k] || 0) + prod[k];
 }
@@ -226,11 +279,12 @@ function checkCampaignWin(game) {
 }
 
 // ---------- Combat ----------
-function rollHits(units, statKey, traits, flatBonus = 0) {
+function rollHits(units, statKey, traits, flatBonus = 0, unitStatMods = {}) {
   const kind = statKey === 'attack' ? 'attack_bonus' : 'defense_bonus';
   let hits = 0;
   for (const k of UNIT_KEYS) {
-    const stat = Math.min(UNITS[k][statKey] + traitBonus(traits, k, kind) + flatBonus, 5);
+    const perkMod = (unitStatMods[k] || {})[statKey] || 0;
+    const stat = Math.max(Math.min(UNITS[k][statKey] + traitBonus(traits, k, kind) + perkMod + flatBonus, 5), 1);
     for (let i = 0; i < (units[k] || 0); i++) if (roll() <= stat) hits++;
   }
   return hits;
@@ -243,15 +297,15 @@ function removeCasualties(units, n) {
   }
 }
 
-function resolveCombat(attUnits, defUnits, attTraits, defTraits, defFortBonus = 0) {
+function resolveCombat(attUnits, defUnits, attTraits, defTraits, defFortBonus = 0, attStatMods = {}, defStatMods = {}) {
   const att = { ...attUnits };
   const def = { ...defUnits };
   let rounds = 0;
   let attLosses = 0, defLosses = 0;
   while (totalUnits(att) > 0 && totalUnits(def) > 0 && rounds < 25) {
     rounds++;
-    const aHits = rollHits(att, 'attack', attTraits);
-    const dHits = rollHits(def, 'defense', defTraits, defFortBonus);
+    const aHits = rollHits(att, 'attack', attTraits, 0, attStatMods);
+    const dHits = rollHits(def, 'defense', defTraits, defFortBonus, defStatMods);
     const aRemove = Math.min(dHits, totalUnits(att));
     const dRemove = Math.min(aHits, totalUnits(def));
     removeCasualties(att, aRemove);
@@ -290,7 +344,10 @@ function doAttack(game, slotIdx, fromTileId, toTileId, committed) {
 
   const attSlot = game.factionSlots[slotIdx];
   const defSlot = toSt.owner !== null && toSt.owner !== undefined ? game.factionSlots[toSt.owner] : null;
-  const result = resolveCombat(committed, toSt.units, attSlot.traits || [], defSlot?.traits || [], fortLevel(toSt));
+  const attM = slotMods(attSlot);
+  const defM = defSlot ? slotMods(defSlot) : {};
+  const capBonus = defSlot && defSlot.capitalTileId === toTileId ? (defM.capitalDefense || 0) : 0;
+  const result = resolveCombat(committed, toSt.units, attSlot.traits || [], defSlot?.traits || [], fortLevel(toSt) + capBonus, attM.unitStat || {}, defM.unitStat || {});
 
   let outcome;
   if (result.defenderWiped && totalUnits(result.att) > 0) {
@@ -574,10 +631,11 @@ Deno.serve(async (req) => {
       slots.push({
         slotIndex: 0, userId: user.id, factionId, factionName: faction.factionName,
         isNPC: false, doctrine: faction.doctrine, traits: faction.traits || [],
+        pointBuy: faction.pointBuy?.picks || [],
         npcDispositions: faction.npcDispositions || {}, color: COLORS[0], eliminated: false,
       });
       for (let i = 1; i < humans; i++) {
-        slots.push({ slotIndex: i, userId: null, factionId: null, factionName: null, isNPC: false, traits: [], color: COLORS[i], eliminated: false });
+        slots.push({ slotIndex: i, userId: null, factionId: null, factionName: null, isNPC: false, traits: [], pointBuy: [], color: COLORS[i], eliminated: false });
       }
       npcs.forEach((cfg, j) => {
         const idx = humans + j;
@@ -585,7 +643,7 @@ Deno.serve(async (req) => {
         slots.push({
           slotIndex: idx, userId: null, isNPC: true, doctrine: cfg.doctrine || 'aggressive',
           factionName: names[Math.floor(Math.random() * names.length)],
-          traits: [], dispositions: {}, color: COLORS[idx], eliminated: false,
+          traits: [], pointBuy: [], dispositions: {}, color: COLORS[idx], eliminated: false,
         });
       });
 
@@ -647,6 +705,7 @@ Deno.serve(async (req) => {
       open.factionName = faction.factionName;
       open.doctrine = faction.doctrine;
       open.traits = faction.traits || [];
+      open.pointBuy = faction.pointBuy?.picks || [];
       open.npcDispositions = faction.npcDispositions || {};
       await svc.entities.Game.update(game.id, { factionSlots: game.factionSlots });
       return Response.json({ ok: true, slotIndex: open.slotIndex });
@@ -674,6 +733,7 @@ Deno.serve(async (req) => {
         states[t.id] = t.isSea ? { owner: null, units: {}, buildings: [] } : { owner: null, units: { riflemen: 1 }, buildings: [] };
       }
       game.factionSlots.forEach((slot, i) => {
+        slot.mods = compileMods(slot.pointBuy);
         const cap = capitals[i];
         slot.capitalTileId = cap.id;
         // Capitals start with an operational Barracks
@@ -684,13 +744,14 @@ Deno.serve(async (req) => {
             states[aid] = { owner: slot.slotIndex, units: { riflemen: 2 }, buildings: [] };
           }
         }
-        game.treasuries[String(slot.slotIndex)] = { ...START_RESOURCES };
+        const startBonus = slot.mods.startBonus || 0;
+        game.treasuries[String(slot.slotIndex)] = Object.fromEntries(RESOURCE_KEYS.map((k) => [k, Math.max(START_RESOURCES[k] + startBonus, 0)]));
       });
 
       for (const npc of game.factionSlots.filter((s) => s.isNPC)) {
         npc.dispositions = {};
         for (const h of game.factionSlots.filter((s) => !s.isNPC)) {
-          npc.dispositions[String(h.slotIndex)] = (h.npcDispositions || {})[npc.doctrine] || 0;
+          npc.dispositions[String(h.slotIndex)] = ((h.npcDispositions || {})[npc.doctrine] || 0) + (slotMods(h).disposition || 0);
         }
       }
 

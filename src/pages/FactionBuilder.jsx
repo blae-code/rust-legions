@@ -4,6 +4,8 @@ import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Loader2, RefreshCw, Check } from "lucide-react";
 import { LIFEPATH_CHAPTERS, DOCTRINES, PHILOSOPHIES, VALUES, availableOptions } from "@/lib/lifepath";
+import { PERK_BY_ID, pickError } from "@/lib/pointBuy";
+import PointBuyPanel from "@/components/faction/PointBuyPanel";
 
 const IDENTITY_GROUPS = [
   { key: "doctrine", title: "Military Doctrine", options: DOCTRINES },
@@ -16,13 +18,15 @@ export default function FactionBuilder() {
   const [step, setStep] = useState(0);
   const [choices, setChoices] = useState({});
   const [identity, setIdentity] = useState({});
+  const [picks, setPicks] = useState([]);
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
   const isIdentityStep = step === LIFEPATH_CHAPTERS.length;
-  const isReviewStep = step === LIFEPATH_CHAPTERS.length + 1;
+  const isArmouryStep = step === LIFEPATH_CHAPTERS.length + 1;
+  const isReviewStep = step === LIFEPATH_CHAPTERS.length + 2;
   const chapter = LIFEPATH_CHAPTERS[step];
 
   const synthesize = async () => {
@@ -34,7 +38,7 @@ export default function FactionBuilder() {
         doctrine: identity.doctrine,
       });
       setResult(res.data);
-      setStep(LIFEPATH_CHAPTERS.length + 1);
+      setStep(LIFEPATH_CHAPTERS.length + 2);
     } catch (e) {
       setError(e.response?.data?.error || "Synthesis failed — try again");
     }
@@ -52,6 +56,7 @@ export default function FactionBuilder() {
         insigniaDescription: result.insigniaDescription,
         npcDispositions: result.npcDispositions,
         lifepathChoices: { ...choices, ...identity },
+        pointBuy: { picks },
         isNPC: false,
       });
       navigate("/");
@@ -70,12 +75,12 @@ export default function FactionBuilder() {
       </div>
 
       <div className="flex gap-1">
-        {[...LIFEPATH_CHAPTERS.map((c) => c.title), "Identity", "Review"].map((t, i) => (
+        {[...LIFEPATH_CHAPTERS.map((c) => c.title), "Identity", "Armoury", "Review"].map((t, i) => (
           <div key={t} className={`h-1 flex-1 rounded-full ${i <= step ? "bg-brass" : "bg-secondary"}`} />
         ))}
       </div>
 
-      {!isIdentityStep && !isReviewStep && (
+      {!isIdentityStep && !isArmouryStep && !isReviewStep && (
         <div className="cq-panel p-6 space-y-4">
           <div>
             <p className="cq-label text-brass">Chapter {step + 1} — {chapter.title}</p>
@@ -128,7 +133,29 @@ export default function FactionBuilder() {
           <div className="flex justify-between">
             <Button variant="outline" onClick={() => setStep(step - 1)} className="border-border text-muted-foreground text-xs font-heading uppercase tracking-[0.2em]">Back</Button>
             <Button
-              disabled={!identity.doctrine || !identity.philosophy || !identity.value || loading}
+              disabled={!identity.doctrine || !identity.philosophy || !identity.value}
+              onClick={() => setStep(step + 1)}
+              className="bg-brass hover:bg-brass-bright text-primary-foreground text-xs font-heading uppercase tracking-[0.2em]"
+            >
+              Continue
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {isArmouryStep && (
+        <div className="cq-panel p-6 space-y-4">
+          <div>
+            <p className="cq-label text-brass">Requisition Bureau — Assets & Liabilities</p>
+            <h2 className="text-xl font-heading font-semibold tracking-wide text-foreground mt-1">Balance the national ledger</h2>
+            <p className="text-xs text-muted-foreground mt-1">Every asset and unit upgrade must be funded by accepting liabilities — the ledger cannot run a deficit. A blank ledger is a perfectly balanced nation.</p>
+          </div>
+          <PointBuyPanel picks={picks} setPicks={setPicks} />
+          {error && <p className="text-xs text-rust font-mono">{error}</p>}
+          <div className="flex justify-between">
+            <Button variant="outline" onClick={() => setStep(step - 1)} className="border-border text-muted-foreground text-xs font-heading uppercase tracking-[0.2em]">Back</Button>
+            <Button
+              disabled={!!pickError(picks) || loading}
               onClick={synthesize}
               className="bg-rust hover:bg-destructive text-destructive-foreground text-xs font-heading uppercase tracking-[0.2em]"
             >
@@ -158,6 +185,18 @@ export default function FactionBuilder() {
               ))}
             </div>
           </div>
+          {picks.length > 0 && (
+            <div>
+              <h3 className="cq-label mb-2">Requisition Ledger</h3>
+              <div className="flex flex-wrap gap-1.5">
+                {picks.map((id) => (
+                  <span key={id} className={`cq-tag ${PERK_BY_ID[id]?.cat === "liability" ? "border-rust/60 text-rust" : "border-brass/60 text-brass-bright"}`}>
+                    {PERK_BY_ID[id]?.label}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
           <div>
             <h3 className="cq-label mb-1">Standing with NPC Powers</h3>
             <div className="flex gap-4 text-xs font-mono">

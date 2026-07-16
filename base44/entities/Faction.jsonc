@@ -39,6 +39,10 @@
       "type": "object",
       "additionalProperties": true
     },
+    "pointBuy": {
+      "type": "object",
+      "additionalProperties": true
+    },
     "isPublished": {
       "type": "boolean",
       "default": false
