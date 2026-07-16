@@ -6,88 +6,88 @@
 
 @layer base {
   :root {
-    --background: 26 24% 6%;
-    --foreground: 35 22% 87%;
-    --card: 25 20% 10%;
-    --card-foreground: 35 22% 87%;
-    --popover: 25 20% 9%;
-    --popover-foreground: 35 22% 87%;
-    --primary: 38 65% 48%;
-    --primary-foreground: 26 30% 8%;
-    --secondary: 25 14% 16%;
-    --secondary-foreground: 35 18% 80%;
-    --muted: 25 14% 13%;
-    --muted-foreground: 30 9% 54%;
-    --accent: 25 14% 16%;
-    --accent-foreground: 38 65% 60%;
-    --destructive: 5 58% 40%;
-    --destructive-foreground: 35 22% 92%;
-    --border: 26 14% 18%;
-    --input: 26 14% 20%;
-    --ring: 38 65% 48%;
-    --chart-1: 38 65% 48%;
-    --chart-2: 8 55% 42%;
-    --chart-3: 75 15% 35%;
-    --chart-4: 210 10% 40%;
-    --chart-5: 27 87% 67%;
+    --background: 210 8% 7%;
+    --foreground: 40 8% 84%;
+    --card: 210 7% 11%;
+    --card-foreground: 40 8% 84%;
+    --popover: 210 7% 10%;
+    --popover-foreground: 40 8% 84%;
+    --primary: 4 68% 46%;
+    --primary-foreground: 40 10% 93%;
+    --secondary: 210 6% 16%;
+    --secondary-foreground: 40 6% 78%;
+    --muted: 210 6% 13%;
+    --muted-foreground: 210 4% 56%;
+    --accent: 210 6% 16%;
+    --accent-foreground: 5 62% 58%;
+    --destructive: 4 72% 42%;
+    --destructive-foreground: 40 10% 93%;
+    --border: 210 6% 17%;
+    --input: 210 6% 19%;
+    --ring: 4 68% 46%;
+    --chart-1: 4 68% 50%;
+    --chart-2: 40 22% 55%;
+    --chart-3: 210 5% 45%;
+    --chart-4: 210 8% 65%;
+    --chart-5: 20 55% 48%;
     --radius: 0.25rem;
-    --brass: 38 65% 48%;
-    --brass-bright: 41 78% 58%;
-    --rust: 8 55% 42%;
-    --olive: 75 14% 35%;
-    --steel: 210 10% 42%;
+    --brass: 40 20% 54%;
+    --brass-bright: 42 28% 66%;
+    --rust: 4 68% 46%;
+    --olive: 80 8% 40%;
+    --steel: 210 8% 48%;
     --font-heading: 'Barlow Condensed', ui-sans-serif, system-ui, sans-serif;
     --font-body: 'Barlow', ui-sans-serif, system-ui, sans-serif;
     --font-display: 'Bebas Neue', 'Barlow Condensed', sans-serif;
     --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
-    --sidebar-background: 25 20% 8%;
-    --sidebar-foreground: 35 18% 80%;
-    --sidebar-primary: 38 65% 48%;
-    --sidebar-primary-foreground: 26 30% 8%;
-    --sidebar-accent: 25 14% 14%;
-    --sidebar-accent-foreground: 35 18% 80%;
-    --sidebar-border: 26 14% 18%;
-    --sidebar-ring: 38 65% 48%;
+    --sidebar-background: 210 7% 9%;
+    --sidebar-foreground: 40 6% 78%;
+    --sidebar-primary: 4 68% 46%;
+    --sidebar-primary-foreground: 40 10% 93%;
+    --sidebar-accent: 210 6% 14%;
+    --sidebar-accent-foreground: 40 6% 78%;
+    --sidebar-border: 210 6% 17%;
+    --sidebar-ring: 4 68% 46%;
   }
 
   .dark {
-    --background: 26 24% 6%;
-    --foreground: 35 22% 87%;
-    --card: 25 20% 10%;
-    --card-foreground: 35 22% 87%;
-    --popover: 25 20% 9%;
-    --popover-foreground: 35 22% 87%;
-    --primary: 38 65% 48%;
-    --primary-foreground: 26 30% 8%;
-    --secondary: 25 14% 16%;
-    --secondary-foreground: 35 18% 80%;
-    --muted: 25 14% 13%;
-    --muted-foreground: 30 9% 54%;
-    --accent: 25 14% 16%;
-    --accent-foreground: 38 65% 60%;
-    --destructive: 5 58% 40%;
-    --destructive-foreground: 35 22% 92%;
-    --border: 26 14% 18%;
-    --input: 26 14% 20%;
-    --ring: 38 65% 48%;
-    --chart-1: 38 65% 48%;
-    --chart-2: 8 55% 42%;
-    --chart-3: 75 15% 35%;
-    --chart-4: 210 10% 40%;
-    --chart-5: 27 87% 67%;
-    --brass: 38 65% 48%;
-    --brass-bright: 41 78% 58%;
-    --rust: 8 55% 42%;
-    --olive: 75 14% 35%;
-    --steel: 210 10% 42%;
-    --sidebar-background: 25 20% 8%;
-    --sidebar-foreground: 35 18% 80%;
-    --sidebar-primary: 38 65% 48%;
-    --sidebar-primary-foreground: 26 30% 8%;
-    --sidebar-accent: 25 14% 14%;
-    --sidebar-accent-foreground: 35 18% 80%;
-    --sidebar-border: 26 14% 18%;
-    --sidebar-ring: 38 65% 48%;
+    --background: 210 8% 7%;
+    --foreground: 40 8% 84%;
+    --card: 210 7% 11%;
+    --card-foreground: 40 8% 84%;
+    --popover: 210 7% 10%;
+    --popover-foreground: 40 8% 84%;
+    --primary: 4 68% 46%;
+    --primary-foreground: 40 10% 93%;
+    --secondary: 210 6% 16%;
+    --secondary-foreground: 40 6% 78%;
+    --muted: 210 6% 13%;
+    --muted-foreground: 210 4% 56%;
+    --accent: 210 6% 16%;
+    --accent-foreground: 5 62% 58%;
+    --destructive: 4 72% 42%;
+    --destructive-foreground: 40 10% 93%;
+    --border: 210 6% 17%;
+    --input: 210 6% 19%;
+    --ring: 4 68% 46%;
+    --chart-1: 4 68% 50%;
+    --chart-2: 40 22% 55%;
+    --chart-3: 210 5% 45%;
+    --chart-4: 210 8% 65%;
+    --chart-5: 20 55% 48%;
+    --brass: 40 20% 54%;
+    --brass-bright: 42 28% 66%;
+    --rust: 4 68% 46%;
+    --olive: 80 8% 40%;
+    --steel: 210 8% 48%;
+    --sidebar-background: 210 7% 9%;
+    --sidebar-foreground: 40 6% 78%;
+    --sidebar-primary: 4 68% 46%;
+    --sidebar-primary-foreground: 40 10% 93%;
+    --sidebar-accent: 210 6% 14%;
+    --sidebar-accent-foreground: 40 6% 78%;
+    --sidebar-border: 210 6% 17%;
+    --sidebar-ring: 4 68% 46%;
   }
 }
 
@@ -99,8 +99,8 @@
   body {
     @apply bg-background text-foreground font-body;
     background-image:
-      radial-gradient(ellipse at 20% -10%, hsl(38 65% 48% / 0.05), transparent 55%),
-      radial-gradient(ellipse at 90% 110%, hsl(8 55% 42% / 0.05), transparent 50%),
+      radial-gradient(ellipse at 20% -10%, hsl(4 68% 46% / 0.05), transparent 55%),
+      radial-gradient(ellipse at 90% 110%, hsl(210 10% 60% / 0.04), transparent 50%),
       repeating-linear-gradient(0deg, transparent 0 2px, hsl(0 0% 0% / 0.12) 2px 4px);
     background-attachment: fixed;
   }
@@ -132,8 +132,8 @@
     height: 4px;
     background: repeating-linear-gradient(
       -45deg,
-      hsl(var(--brass)) 0 10px,
-      hsl(26 24% 8%) 10px 20px
+      hsl(var(--rust)) 0 10px,
+      hsl(210 8% 7%) 10px 20px
     );
     opacity: 0.85;
   }
@@ -223,10 +223,10 @@
   /* War-table map surface */
   .cq-board {
     background:
-      radial-gradient(ellipse at 50% 25%, hsl(38 45% 35% / 0.07), transparent 60%),
-      repeating-linear-gradient(0deg, transparent 0 23px, hsl(38 30% 45% / 0.045) 23px 24px),
-      repeating-linear-gradient(90deg, transparent 0 23px, hsl(38 30% 45% / 0.045) 23px 24px),
-      linear-gradient(180deg, hsl(26 20% 8%), hsl(26 24% 4%));
+      radial-gradient(ellipse at 50% 25%, hsl(210 10% 45% / 0.06), transparent 60%),
+      repeating-linear-gradient(0deg, transparent 0 23px, hsl(210 8% 60% / 0.045) 23px 24px),
+      repeating-linear-gradient(90deg, transparent 0 23px, hsl(210 8% 60% / 0.045) 23px 24px),
+      linear-gradient(180deg, hsl(210 7% 9%), hsl(210 9% 4%));
   }
 }
 
@@ -299,8 +299,8 @@
   width: 3px;
   height: 3px;
   border-radius: 9999px;
-  background: hsl(38 80% 55%);
-  box-shadow: 0 0 5px 1px hsl(38 80% 50% / 0.7);
+  background: hsl(8 60% 50%);
+  box-shadow: 0 0 5px 1px hsl(8 60% 44% / 0.6);
   opacity: 0;
   animation: cq-ember-rise 9s linear infinite;
   pointer-events: none;
