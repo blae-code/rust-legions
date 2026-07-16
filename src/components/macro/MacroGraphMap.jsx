@@ -1,10 +1,11 @@
 import React from "react";
 import { MACRO_NODES, NODE_KINDS, nodeById } from "@/lib/macro/graph";
 import RouteEdge from "@/components/macro/RouteEdge";
+import TacticalOverlay from "@/components/macro/TacticalOverlay";
 
 // SVG war-table view of the node-and-route graph. Click a node to set the
 // column's origin, click a second to plot the march; camps mark each nightfall.
-export default function MacroGraphMap({ routes, origin, dest, plan, onNodeClick }) {
+export default function MacroGraphMap({ routes, origin, dest, plan, onNodeClick, overlay }) {
   const onPath = (a, b) =>
     plan?.legs?.some((l) => (l.from === a && l.to === b) || (l.from === b && l.to === a));
 
@@ -19,6 +20,9 @@ export default function MacroGraphMap({ routes, origin, dest, plan, onNodeClick 
       {routes.map((route, i) => (
         <RouteEdge key={i} route={route} highlighted={onPath(route[0], route[1])} />
       ))}
+
+      {/* Tactical intel layer — supply arteries & capture objectives */}
+      {overlay && <TacticalOverlay overlay={overlay} />}
 
       {/* Overnight camps along the plotted march */}
       {plan?.camps?.map((camp) => {
