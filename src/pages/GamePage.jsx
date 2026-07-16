@@ -29,6 +29,7 @@ import DoctrinePanel from "@/components/game/research/DoctrinePanel";
 import FortressBay from "@/components/game/fortress/FortressBay";
 import GameChat from "@/components/game/chat/GameChat";
 import { RESOURCE_KEYS, RESOURCE_META } from "@/lib/units";
+import { PLANETS } from "@/lib/macro/planets";
 
 export default function GamePage() {
   const { gameId } = useParams();
@@ -170,7 +171,7 @@ export default function GamePage() {
         <div className="cq-hazard absolute top-0 left-0 right-0" />
         <div>
           <h1 className="cq-display text-2xl leading-none">{game.name}</h1>
-          <p className="text-xs text-muted-foreground font-mono mt-0.5">TURN {game.turnNumber} · {game.mode === "campaign" ? "CAMPAIGN" : "MULTIPLAYER"}</p>
+          <p className="text-xs text-muted-foreground font-mono mt-0.5">TURN {game.turnNumber} · {game.mode === "campaign" ? "CAMPAIGN" : "MULTIPLAYER"} · {(PLANETS.find((p) => p.id === game.planetId)?.name || "Cindara").toUpperCase()}</p>
         </div>
         <div className="flex gap-2 flex-wrap ml-auto items-center">
           {game.factions.map((f) => (

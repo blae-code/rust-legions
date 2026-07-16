@@ -1406,11 +1406,13 @@ Deno.serve(async (req) => {
 
     // ----- createGame -----
     if (action === 'createGame') {
-      const { name, mode = 'multiplayer', mapId, mapData, factionId, humanCount = 2, npcConfigs = [], campaignWinCondition } = body;
+      const { name, mode = 'multiplayer', mapId, mapData, factionId, humanCount = 2, npcConfigs = [], campaignWinCondition, planetId } = body;
       let tiles;
+      let mapPlanet = null;
       if (mapId) {
         const m = await svc.entities.GameMap.get(mapId);
         tiles = m.tiles;
+        mapPlanet = m.planetId || null;
       } else if (mapData?.tiles) {
         tiles = mapData.tiles;
       } else {
@@ -1447,6 +1449,7 @@ Deno.serve(async (req) => {
 
       const game = await svc.entities.Game.create({
         name: name || 'Unnamed Front', mode, status: 'lobby', mapId: mapId || null, tiles,
+        planetId: planetId || mapPlanet || 'cindara',
         factionSlots: slots, turnOrder: slots.map((s) => s.slotIndex), currentTurnIndex: 0,
         turnNumber: 1, territoryStates: {}, treasuries: {}, combatLog: [],
         campaignWinCondition: campaignWinCondition || {}, hostUserId: user.id,
@@ -1523,6 +1526,7 @@ Deno.serve(async (req) => {
         id: game.id, name: game.name, mode: game.mode, status: game.status,
         turnNumber: game.turnNumber, currentSlot: currentSlotIdx,
         weather: game.weather || 'clear',
+        planetId: game.planetId || 'cindara',
         isMyTurn: active && game.factionSlots?.[currentSlotIdx]?.userId === user.id,
         mySlot,
         myResources: mySlot !== null ? getTreasury(game, mySlot) : null,

@@ -7,6 +7,7 @@ import { Loader2, Trash2 } from "lucide-react";
 import HexBoard from "@/components/hexmap/HexBoard";
 import { NEIGHBOR_DIRS, keyOf } from "@/lib/hex";
 import { TERRAIN_RESOURCE } from "@/lib/units";
+import { PLANETS } from "@/lib/macro/planets";
 
 const TERRAINS = ["plains", "hills", "forest", "marsh", "highlands"];
 const RESOURCES = [
@@ -23,6 +24,7 @@ export default function MapEditor() {
   const [mapName, setMapName] = useState("");
   const [description, setDescription] = useState("");
   const [playerCount, setPlayerCount] = useState(2);
+  const [planetId, setPlanetId] = useState("cindara");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [nextId, setNextId] = useState(1);
@@ -67,7 +69,7 @@ export default function MapEditor() {
         adjacentIds: NEIGHBOR_DIRS.map(([dq, dr]) => occupied.get(keyOf(t.q + dq, t.r + dr))).filter(Boolean).map((n) => n.id),
       }));
       await base44.entities.GameMap.create({
-        name: mapName, description, tiles: withAdj, recommendedPlayerCount: playerCount, isPublished: true,
+        name: mapName, description, tiles: withAdj, recommendedPlayerCount: playerCount, planetId, isPublished: true,
       });
       navigate("/maps");
     } catch (e) {
@@ -140,6 +142,12 @@ export default function MapEditor() {
             <h3 className="cq-label">Publish Map</h3>
             <Input placeholder="Map name" value={mapName} onChange={(e) => setMapName(e.target.value)} className="bg-input border-border text-sm font-heading tracking-wide" />
             <Input placeholder="Description" value={description} onChange={(e) => setDescription(e.target.value)} className="bg-input border-border text-sm" />
+            <div>
+              <label className="text-xs text-muted-foreground">Theater world</label>
+              <select value={planetId} onChange={(e) => setPlanetId(e.target.value)} className="w-full bg-input border border-border rounded-sm p-1.5 text-xs text-secondary-foreground mt-1 font-heading tracking-wide">
+                {PLANETS.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </div>
             <div>
               <label className="text-xs text-muted-foreground">Recommended players</label>
               <select value={playerCount} onChange={(e) => setPlayerCount(Number(e.target.value))} className="w-full bg-input border border-border rounded-sm p-1.5 text-xs text-secondary-foreground mt-1 font-heading tracking-wide">

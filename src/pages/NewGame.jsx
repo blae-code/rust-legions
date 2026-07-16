@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Loader2, RefreshCw } from "lucide-react";
 import HexBoard from "@/components/hexmap/HexBoard";
+import PlanetPicker from "@/components/setup/PlanetPicker";
 
 const DOCTRINE_OPTS = ["aggressive", "economic", "defensive"];
 
@@ -20,6 +21,7 @@ export default function NewGame() {
   const [mapSource, setMapSource] = useState(preselectedMapId ? "library" : "generate");
   const [maps, setMaps] = useState([]);
   const [mapId, setMapId] = useState(preselectedMapId || "");
+  const [planetId, setPlanetId] = useState("cindara");
   const [genPreview, setGenPreview] = useState(null);
   const [generating, setGenerating] = useState(false);
   const [tileCount, setTileCount] = useState(26);
@@ -73,6 +75,7 @@ export default function NewGame() {
         npcConfigs: npcs.map((d) => ({ doctrine: d })),
       };
       if (isCampaign) payload.campaignWinCondition = { type: winType, value: Number(winValue) };
+      payload.planetId = planetId;
       if (mapSource === "library") payload.mapId = mapId;
       else payload.mapData = genPreview;
       const res = await base44.functions.invoke("gameEngine", payload);
@@ -157,7 +160,8 @@ export default function NewGame() {
       </div>
 
       <div className="cq-panel p-5 space-y-3">
-        <div className="flex gap-2">
+        <PlanetPicker value={planetId} onChange={setPlanetId} />
+        <div className="flex gap-2 border-t border-border pt-3">
           <button onClick={() => setMapSource("generate")} className={`text-xs font-heading uppercase tracking-[0.2em] px-3 py-1.5 rounded-sm ${mapSource === "generate" ? "bg-brass/15 text-brass-bright border-b-2 border-brass" : "text-muted-foreground"}`}>Generate Map</button>
           <button onClick={() => setMapSource("library")} className={`text-xs font-heading uppercase tracking-[0.2em] px-3 py-1.5 rounded-sm ${mapSource === "library" ? "bg-brass/15 text-brass-bright border-b-2 border-brass" : "text-muted-foreground"}`}>From Library</button>
         </div>
@@ -183,7 +187,15 @@ export default function NewGame() {
           </div>
         ) : (
           <div className="space-y-3">
-            <select value={mapId} onChange={(e) => setMapId(e.target.value)} className="w-full bg-input border border-border rounded-sm p-2 text-sm text-secondary-foreground font-heading tracking-wide">
+            <select
+              value={mapId}
+              onChange={(e) => {
+                setMapId(e.target.value);
+                const m = maps.find((x) => x.id === e.target.value);
+                if (m?.planetId) setPlanetId(m.planetId);
+              }}
+              className="w-full bg-input border border-border rounded-sm p-2 text-sm text-secondary-foreground font-heading tracking-wide"
+            >
               <option value="">Select a map…</option>
               {maps.map((m) => <option key={m.id} value={m.id}>{m.name} ({m.tiles?.length} zones, {m.recommendedPlayerCount}p)</option>)}
             </select>

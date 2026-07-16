@@ -8,6 +8,10 @@
     "description": {
       "type": "string"
     },
+    "planetId": {
+      "type": "string",
+      "default": "cindara"
+    },
     "tiles": {
       "type": "array",
       "items": {

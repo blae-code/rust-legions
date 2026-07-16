@@ -25,6 +25,10 @@
     "mapId": {
       "type": "string"
     },
+    "planetId": {
+      "type": "string",
+      "default": "cindara"
+    },
     "weather": {
       "type": "string",
       "default": "clear"

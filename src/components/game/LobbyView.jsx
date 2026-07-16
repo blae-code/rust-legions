@@ -3,6 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Copy, Check } from "lucide-react";
 import GameChat from "@/components/game/chat/GameChat";
+import { PLANETS } from "@/lib/macro/planets";
 
 export default function LobbyView({ game, onJoin, onStart, busy, error }) {
   const [myFactions, setMyFactions] = useState([]);
@@ -31,7 +32,10 @@ export default function LobbyView({ game, onJoin, onStart, busy, error }) {
       <div className="cq-panel p-6 relative overflow-hidden">
         <div className="cq-hazard absolute top-0 left-0 right-0" />
         <h2 className="cq-display text-3xl mb-1 mt-1">{game.name}</h2>
-        <p className="cq-label mb-4">Staging area — waiting for commanders</p>
+        <p className="cq-label mb-4">
+          Staging area — waiting for commanders
+          {" · "}Theater: {PLANETS.find((p) => p.id === game.planetId)?.name || "Cindara"}
+        </p>
         <div className="space-y-2">
           {game.factions.map((f) => (
             <div key={f.slotIndex} className="flex items-center gap-3 border border-border bg-secondary/30 rounded-sm p-3">
