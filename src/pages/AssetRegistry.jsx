@@ -1,6 +1,8 @@
 import React from "react";
 import { IMAGE_LIBRARY, IMAGE_CATEGORIES, libraryStats, HOUSE_STYLE } from "@/lib/imageLibrary";
 import AssetCategorySection from "@/components/assets/AssetCategorySection";
+import AudioAssetSection from "@/components/assets/AudioAssetSection";
+import { AUDIO_LIBRARY, AUDIO_CATEGORIES, audioLibraryStats, AUDIO_HOUSE_STYLE } from "@/lib/audioLibrary";
 
 export default function AssetRegistry() {
   const stats = libraryStats();
@@ -34,6 +36,32 @@ export default function AssetRegistry() {
       {Object.entries(IMAGE_CATEGORIES).map(([key, meta]) => (
         <AssetCategorySection key={key} id={key} meta={meta}
           assets={IMAGE_LIBRARY.filter((a) => a.category === key)} />
+      ))}
+
+      {/* ---- Sound & Score Registry ---- */}
+      <div className="cq-panel cq-brackets relative overflow-hidden p-5">
+        <div className="cq-hazard absolute top-0 left-0 right-0" />
+        <p className="cq-label text-rust pt-1">Ministry of War · Signals &amp; Gramophone Directorate</p>
+        <h1 className="cq-display text-3xl">The Sound Registry</h1>
+        <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
+          The master catalog of every recording the war effort requires. Entries marked{" "}
+          <span className="text-rust">Awaiting Recording</span> carry a full generation brief for future production.
+        </p>
+        {(() => { const s = audioLibraryStats(); return (
+          <div className="flex flex-wrap gap-4 mt-3 font-mono text-[10px] text-secondary-foreground tracking-widest">
+            <span>RECORDINGS COMMISSIONED: {s.total}</span>
+            <span className="text-olive">DELIVERED: {s.delivered}</span>
+            <span className="text-brass">OUTSTANDING: {s.total - s.delivered}</span>
+          </div>
+        ); })()}
+        <p className="font-mono text-[9px] text-muted-foreground/70 mt-3 border-l-2 border-brass/40 pl-2 max-w-3xl leading-relaxed">
+          HOUSE SOUND (APPENDED TO EVERY BRIEF): {AUDIO_HOUSE_STYLE}
+        </p>
+      </div>
+
+      {Object.entries(AUDIO_CATEGORIES).map(([key, meta]) => (
+        <AudioAssetSection key={key} id={`audio_${key}`} meta={meta}
+          assets={AUDIO_LIBRARY.filter((a) => a.category === key)} />
       ))}
     </div>
   );

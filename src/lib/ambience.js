@@ -1,18 +1,36 @@
-// Menu soundtrack — Gustav Holst, "The Planets: I. Mars, the Bringer of War" (1914).
-// Public-domain recording by the Skidmore College Orchestra, courtesy of Musopen
-// (hosted on Wikimedia Commons). Loops throughout the pregame session; the user
-// holds full control (on/off + volume), persisted in localStorage.
+// Menu soundtrack — a rotating playlist of public-domain orchestral recordings
+// (Musopen / US service band recordings hosted on Wikimedia Commons).
+// Pieces play in sequence and loop back to the start; the user holds full
+// control (on/off + volume + skip), persisted in localStorage.
 
-const OGG_URL = "https://upload.wikimedia.org/wikipedia/commons/5/54/Gustav_Holst_-_the_planets%2C_op._32_-_i._mars%2C_the_bringer_of_war.ogg";
-const MP3_URL = "https://upload.wikimedia.org/wikipedia/commons/transcoded/5/54/Gustav_Holst_-_the_planets%2C_op._32_-_i._mars%2C_the_bringer_of_war.ogg/Gustav_Holst_-_the_planets%2C_op._32_-_i._mars%2C_the_bringer_of_war.ogg.mp3";
+const FP = (f) => "https://commons.wikimedia.org/wiki/Special:FilePath/" + f;
+
+export const PLAYLIST = [
+  { title: "HOLST · MARS, THE BRINGER OF WAR", url: "https://upload.wikimedia.org/wikipedia/commons/5/54/Gustav_Holst_-_the_planets%2C_op._32_-_i._mars%2C_the_bringer_of_war.ogg" },
+  { title: "MUSSORGSKY · NIGHT ON BALD MOUNTAIN", url: FP("Modest_Mussorgsky_-_night_on_bald_mountain.ogg") },
+  { title: "HOLST · JUPITER, THE BRINGER OF JOLLITY", url: FP("Gustav_Holst_-_the_planets,_op._32_-_iv._jupiter,_the_bringer_of_jollity.ogg") },
+  { title: "GRIEG · IN THE HALL OF THE MOUNTAIN KING", url: FP("Musopen_-_In_the_Hall_Of_The_Mountain_King.ogg") },
+  { title: "HOLST · MERCURY, THE WINGED MESSENGER", url: FP("Holst_The_Planets_Mercury.ogg") },
+];
 
 const MUSIC_ON_KEY = "cq_music_on";
 const MUSIC_VOL_KEY = "cq_music_vol";
 const DEFAULT_VOLUME = 0.35;
 
 let track = null;
-let fadeTimer = null;
+let trackIdx = Math.floor(Math.random() * PLAYLIST.length); // vary the opening piece per visit
 let suppressed = false; // true while an active war is on screen
+
+const listeners = new Set();
+const notify = () => listeners.forEach((cb) => cb());
+// Subscribe to score state changes (track started/stopped) — returns unsubscribe
+export function onScoreChange(cb) {
+  listeners.add(cb);
+  return () => listeners.delete(cb);
+}
+export function currentTrackTitle() {
+  return track ? PLAYLIST[trackIdx].title : null;
+}
 
 export function musicEnabled() {
   return localStorage.getItem(MUSIC_ON_KEY) !== "0";
@@ -26,7 +44,7 @@ export function musicVolume() {
 export function setMusicVolume(v) {
   localStorage.setItem(MUSIC_VOL_KEY, String(v));
   if (track) {
-    clearInterval(fadeTimer);
+    clearInterval(track._fade);
     track.volume = v;
   }
 }
@@ -37,14 +55,16 @@ export function setMusicEnabled(on) {
   else stopScore();
 }
 
+// Each audio element carries its own fade timer, so a new track starting can
+// never cancel an old track's fade-out (which used to leave ghosts playing).
 const fadeTo = (audio, target, ms, onDone) => {
-  clearInterval(fadeTimer);
+  clearInterval(audio._fade);
   const step = (target - audio.volume) / (ms / 80);
-  fadeTimer = setInterval(() => {
+  audio._fade = setInterval(() => {
     const v = audio.volume + step;
     if ((step > 0 && v >= target) || (step < 0 && v <= target)) {
       audio.volume = target;
-      clearInterval(fadeTimer);
+      clearInterval(audio._fade);
       onDone?.();
     } else {
       audio.volume = v;
@@ -52,21 +72,47 @@ const fadeTo = (audio, target, ms, onDone) => {
   }, 80);
 };
 
-// Start the looping score (idempotent). Browsers require a user gesture first —
-// call again from unlockAmbience if the initial attempt is blocked.
-export function startScore() {
-  if (track || suppressed || !musicEnabled()) return;
+function playIndex(i, attempts = 0) {
+  if (suppressed || !musicEnabled() || attempts >= PLAYLIST.length) return;
+  trackIdx = ((i % PLAYLIST.length) + PLAYLIST.length) % PLAYLIST.length;
   try {
-    const audio = new Audio();
-    audio.src = audio.canPlayType("audio/ogg; codecs=vorbis") ? OGG_URL : MP3_URL;
-    audio.loop = true;
+    const audio = new Audio(PLAYLIST[trackIdx].url);
     audio.preload = "auto";
     audio.volume = 0;
+    audio.onended = () => {
+      if (track !== audio) return;
+      track = null;
+      playIndex(trackIdx + 1);
+    };
+    audio.onerror = () => {
+      if (track !== audio) return;
+      track = null;
+      playIndex(trackIdx + 1, attempts + 1); // skip unplayable recordings
+    };
     const p = audio.play();
     if (p?.catch) p.catch(() => { /* autoplay blocked — retried on first gesture */ });
     fadeTo(audio, musicVolume(), 4000);
     track = audio;
+    notify();
   } catch { /* audio unavailable */ }
+}
+
+// Start the rotating score (idempotent). Browsers require a user gesture first —
+// call again from unlockAmbience if the initial attempt is blocked.
+export function startScore() {
+  if (track || suppressed || !musicEnabled()) return;
+  playIndex(trackIdx);
+}
+
+// Advance to the next piece in the rotation immediately
+export function skipScore() {
+  if (!track) return;
+  const audio = track;
+  track = null;
+  clearInterval(audio._fade);
+  audio.pause();
+  audio.src = "";
+  playIndex(trackIdx + 1);
 }
 
 // Call on the first pointer/key input — satisfies autoplay policy
@@ -89,6 +135,7 @@ export function stopScore() {
     audio.pause();
     audio.src = "";
   });
+  notify();
 }
 
 // Active battles silence the score without touching the user's preference

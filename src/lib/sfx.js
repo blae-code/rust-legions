@@ -137,16 +137,17 @@ const SOUNDS = {
     tone(c, { freq: 140, freqEnd: 70, duration: 0.18, gain: 0.05, type: "square", dirty: true, delay: 0.2 }); // drawer slam
     noise(c, { duration: 0.08, gain: 0.02, filterType: "bandpass", freq: 1800, delay: 0.2 });
   },
-  // Menu hover — dry valve-radio crackle
+  // Menu hover — dry mechanical tick, a pawl passing a gear tooth (no tonal beep)
   hover(c) {
-    noise(c, { duration: 0.05, gain: 0.02, filterType: "bandpass", freq: 1500, dirty: true });
-    tone(c, { freq: 880, freqEnd: 620, duration: 0.04, gain: 0.012, type: "square" });
+    noise(c, { duration: 0.022, gain: 0.035, filterType: "bandpass", freq: 3400 }); // tick transient
+    tone(c, { freq: 180, freqEnd: 140, duration: 0.03, gain: 0.014, type: "sine" }); // faint body knock
   },
-  // Menu select — heavy breaker lever thrown home
+  // Menu select — solid mechanical switch: sharp click, low thock, latch settling
   select(c) {
-    tone(c, { freq: 200, freqEnd: 90, duration: 0.14, gain: 0.055, type: "square", dirty: true });
-    clank(c, { base: 380, duration: 0.16, gain: 0.03, delay: 0.05 });
-    noise(c, { duration: 0.12, gain: 0.015, filterType: "highpass", freq: 4000, delay: 0.1 }); // contact hiss
+    noise(c, { duration: 0.018, gain: 0.07, filterType: "highpass", freq: 3200 }); // click transient
+    tone(c, { freq: 165, freqEnd: 70, duration: 0.09, gain: 0.06, type: "sine" }); // thock body
+    noise(c, { duration: 0.05, gain: 0.028, filterType: "bandpass", freq: 850, freqEnd: 380, delay: 0.012 }); // housing knock
+    clank(c, { base: 640, duration: 0.06, gain: 0.011, delay: 0.05 }); // latch settle
   },
   // End turn — field telegraph key, then the orders stamp slams the ledger
   endTurn(c) {

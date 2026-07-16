@@ -8,6 +8,11 @@ import BackdropReel from "@/components/home/BackdropReel";
 const BACKDROP_REELS = [
   "https://media.base44.com/videos/public/6a58196dcd485ecc774cae1b/5ad99560d_Trench_Front_Loop.mp4",
   "https://media.base44.com/videos/public/6a58196dcd485ecc774cae1b/c21462f14_generated_video.mp4",
+  "https://media.base44.com/videos/public/6a58196dcd485ecc774cae1b/abd89b870_Fortress_March_Loop.mp4",
+  "https://media.base44.com/videos/public/6a58196dcd485ecc774cae1b/65441df87_Rain_Trench_Loop.mp4",
+  "https://media.base44.com/videos/public/6a58196dcd485ecc774cae1b/660812b1e_Foundry_Ruins_Loop.mp4",
+  "https://media.base44.com/videos/public/6a58196dcd485ecc774cae1b/375aea70a_Fog_Convoy_Loop.mp4",
+  "https://media.base44.com/videos/public/6a58196dcd485ecc774cae1b/6643b9f16_Searchlights_Loop.mp4",
 ];
 
 // Mid-ground silhouette skyline — derricks, smokestacks, ruined gantries
