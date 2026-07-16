@@ -1188,6 +1188,12 @@ Deno.serve(async (req) => {
       return Response.json({ ok: true });
     }
 
+    // Ship the after-action summary to the master Google Sheet when a game just concluded
+    const logIfComplete = async () => {
+      if (game.status !== 'complete' || game.loggedToSheet) return;
+      try { await base44.functions.invoke('logGameToSheet', { gameId: game.id }); } catch { /* record-keeping must never block play */ }
+    };
+
     // ----- In-turn actions -----
     const requireMyTurn = () => {
       if (game.status !== 'active') throw new Error('Game is not active');
@@ -1283,6 +1289,7 @@ Deno.serve(async (req) => {
         combatLog: game.combatLog, status: game.status, winnerSlot: game.winnerSlot,
         statHistory: game.statHistory,
       });
+      await logIfComplete();
       return Response.json({ ok: true, outcome });
     }
 
@@ -1365,6 +1372,7 @@ Deno.serve(async (req) => {
       }
       if (game.status !== 'active') recordSnapshot(game);
       await persistWar();
+      await logIfComplete();
       return Response.json({ ok: true, ...result });
     }
 
@@ -1407,6 +1415,7 @@ Deno.serve(async (req) => {
       if (b.attacker.choice && b.defender.choice) resolveBattleRound(game, b);
       if (game.status !== 'active') recordSnapshot(game);
       await persistWar();
+      await logIfComplete();
       return Response.json({ ok: true, resolved: !game.activeBattle });
     }
 
@@ -1466,6 +1475,7 @@ Deno.serve(async (req) => {
         currentTurnIndex: game.currentTurnIndex, turnNumber: game.turnNumber,
         status: game.status, winnerSlot: game.winnerSlot, statHistory: game.statHistory,
       });
+      await logIfComplete();
       return Response.json({ ok: true });
     }
 

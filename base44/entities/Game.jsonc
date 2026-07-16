@@ -109,6 +109,10 @@
     },
     "winnerSlot": {
       "type": "integer"
+    },
+    "loggedToSheet": {
+      "type": "boolean",
+      "default": false
     }
   },
   "required": [
