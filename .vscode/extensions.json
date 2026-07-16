@@ -1,0 +1,11 @@
+{
+  // Recommended extensions for Rust Legions development.
+  // VS Code will prompt to install these when you open the folder.
+  "recommendations": [
+    "dbaeumer.vscode-eslint",        // ESLint (matches the repo's eslint.config.js)
+    "bradlc.vscode-tailwindcss",     // Tailwind CSS IntelliSense (design tokens + classes)
+    "denoland.vscode-deno",          // Deno LSP for the Base44 backend functions
+    "esbenp.prettier-vscode",        // Prettier (optional formatting)
+    "dsznajder.es7-react-js-snippets" // React snippets
+  ]
+}

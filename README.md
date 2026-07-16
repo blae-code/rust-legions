@@ -34,6 +34,7 @@ docs/                Project documentation (see below)
 ```
 
 **Project documentation:**
+- `docs/LOCAL_SETUP.md` — clone-to-running walkthrough for local development in VS Code
 - `CLAUDE.md` — warm-handoff overview: conventions, invariants, workflows (**read this first if contributing**)
 - `docs/VISION.md` — design north star: lore, mobile-base redesign, expansion roadmap
 - `docs/GAME_RULES.md` — the complete numeric ruleset (as currently implemented)
@@ -43,6 +44,10 @@ docs/                Project documentation (see below)
 Use this repository to run and edit the app locally, then publish changes back through Base44.
 
 Any change pushed to the repo will also be reflected in the Base44 Builder.
+
+> **New here?** For a full clone-to-running walkthrough — including VS Code
+> extension setup and why the Deno backend is scoped separately from the React
+> frontend — see [`docs/LOCAL_SETUP.md`](docs/LOCAL_SETUP.md).
 
 ## Prerequisites
 
