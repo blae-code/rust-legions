@@ -26,6 +26,7 @@ export default function HexBoard({
   ghosts = [],
   onGhostClick,
   maxHeight = 560,
+  overlay = null,
 }) {
   const { viewBox, bounds } = useMemo(() => {
     const all = [...tiles, ...ghosts];
@@ -122,6 +123,32 @@ export default function HexBoard({
                 <polygon points={hexPoints(x, y, HEX_SIZE - 1.2)} fill={ownerColor} fillOpacity="0.45" className="pointer-events-none" />
                 <polygon points={hexPoints(x, y, HEX_SIZE - 4.5)} fill="none" stroke={ownerColor} strokeWidth="1.8" strokeOpacity="0.9" className="pointer-events-none" />
               </>
+            )}
+            {/* Overlay: territory control */}
+            {!hidden && overlay === "control" && !tile.isSea && (
+              <polygon
+                points={hexPoints(x, y, HEX_SIZE - 1.2)}
+                fill={ownerColor || "#3B342D"}
+                fillOpacity={ownerColor ? 0.6 : 0.55}
+                className="pointer-events-none"
+              />
+            )}
+            {/* Overlay: resource production zones */}
+            {!hidden && overlay === "production" && !tile.isSea && (
+              tile.baseIncome > 0 ? (
+                <polygon
+                  points={hexPoints(x, y, HEX_SIZE - 1.2)}
+                  fill={RES_COLOR[TERRAIN_RESOURCE[tile.terrain] || "manpower"]}
+                  fillOpacity={Math.min(0.28 + tile.baseIncome * 0.14 + (tile.resourceBonus ? 0.15 : 0), 0.8)}
+                  className="pointer-events-none"
+                />
+              ) : (
+                <polygon points={hexPoints(x, y, HEX_SIZE - 1.2)} fill="#0c0a09" fillOpacity="0.5" className="pointer-events-none" />
+              )
+            )}
+            {/* Overlay: dim seas */}
+            {!hidden && overlay && tile.isSea && (
+              <polygon points={hexPoints(x, y, HEX_SIZE - 1.2)} fill="#0c0a09" fillOpacity="0.45" className="pointer-events-none" />
             )}
             {/* Capital double ring */}
             {!hidden && tile.isCapital && (

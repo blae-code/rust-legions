@@ -11,6 +11,7 @@ import CombatLog from "@/components/game/CombatLog";
 import BuildPanel from "@/components/game/BuildPanel";
 import LobbyView from "@/components/game/LobbyView";
 import WarChronicle from "@/components/game/WarChronicle";
+import OverlayToggle from "@/components/game/OverlayToggle";
 import { RESOURCE_KEYS, RESOURCE_META } from "@/lib/units";
 
 export default function GamePage() {
@@ -20,6 +21,7 @@ export default function GamePage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [sound, setSound] = useState(sfxEnabled());
+  const [overlay, setOverlay] = useState(null);
   const pollRef = useRef(null);
 
   const refresh = useCallback(async () => {
@@ -135,10 +137,14 @@ export default function GamePage() {
             ⁜ TACTICAL THEATER · LIVE FEED ⁜
           </div>
           <div className="relative">
+            <div className="px-2 pb-2">
+              <OverlayToggle overlay={overlay} onChange={setOverlay} factions={game.factions} />
+            </div>
             <HexBoard
               tiles={game.tiles}
               slotColors={slotColors}
               selectedId={selectedId}
+              overlay={overlay}
               onTileClick={(t) => setSelectedId(t.id === selectedId ? null : t.id)}
             />
           </div>
