@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { UNIT_TYPES, UNIT_KEYS, RESOURCE_LABELS, TERRAIN_RESOURCE, RESOURCE_META } from "@/lib/units";
 import UnitStepper from "./UnitStepper";
+import CombatOdds from "./CombatOdds";
 
 export default function TilePanel({ game, tile, onMove, onAttack, onBombard, busy }) {
   const [targetId, setTargetId] = useState(null);
@@ -94,6 +95,7 @@ export default function TilePanel({ game, tile, onMove, onAttack, onBombard, bus
 
           {target && (
             <div className="space-y-1 pt-1">
+              {!targetIsMine && <CombatOdds game={game} fromTile={tile} target={target} />}
               {availableUnits.map((k) => (
                 <UnitStepper
                   key={k}

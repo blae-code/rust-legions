@@ -47,6 +47,11 @@ export default function BattleView({ battle, busy, onChoose }) {
               {battle.terrainBonus > 0 && <>{battle.terrain?.toUpperCase()} TERRAIN +{battle.terrainBonus} DEF</>}
             </p>
           )}
+          {(battle.attacker?.elevMod || 0) !== 0 && (
+            <p className="font-mono text-[9px] text-steel mt-0.5">
+              {battle.attacker.elevMod < 0 ? "UPHILL ASSAULT — ATTACKER −1" : "DOWNHILL ATTACK — ATTACKER +1"}
+            </p>
+          )}
           {battle.weather && battle.weather !== "clear" && (
             <p className="font-mono text-[9px] text-brass mt-0.5">
               {WEATHER_META[battle.weather]?.icon} {WEATHER_META[battle.weather]?.label.toUpperCase()} — {battle.weather === "rain" ? "ATTACKER −1" : battle.weather === "fog" ? "DEFENDER −1" : "AIRCRAFT GROUNDED"}

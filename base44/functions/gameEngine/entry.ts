@@ -16,6 +16,15 @@ const WEATHER_TYPES = {
   storm: { label: 'Thunderstorm', weight: 15 },
 };
 const ROUGH_TERRAIN = ['mountains', 'highlands', 'marsh'];
+
+// Elevation tiers — attacking uphill is punished, striking downhill rewarded
+const TERRAIN_ELEVATION = { mountains: 3, highlands: 2, hills: 1 };
+const elevOf = (tile) => (tile && !tile.isSea ? TERRAIN_ELEVATION[tile.terrain] || 0 : 0);
+// Attacker modifier for the slope of the assault
+const slopeMod = (fromTile, toTile) => {
+  const d = elevOf(toTile) - elevOf(fromTile);
+  return d > 0 ? -1 : d < 0 ? 1 : 0;
+};
 function rollWeather() {
   const total = Object.values(WEATHER_TYPES).reduce((s, w) => s + w.weight, 0);
   let r = Math.random() * total;
@@ -426,7 +435,10 @@ function doAttack(game, slotIdx, fromTileId, toTileId, committed) {
   const attM = slotMods(attSlot);
   const defM = defSlot ? slotMods(defSlot) : {};
   const capBonus = defSlot && defSlot.capitalTileId === toTileId ? (defM.capitalDefense || 0) : 0;
-  const result = resolveCombat(committed, toSt.units, attSlot.traits || [], defSlot?.traits || [], fortLevel(toSt) + capBonus + (weather === 'fog' ? -1 : 0), attM.unitStat || {}, defM.unitStat || {}, weather === 'rain' ? -1 : 0);
+  const terrDef = toTile.isSea ? 0 : (TERRAIN_BATTLE_MODS[toTile.terrain] || 0);
+  const attSlope = toTile.isSea ? 0 : slopeMod(fromTile, toTile);
+  const attFlat = (weather === 'rain' ? -1 : 0) + attSlope;
+  const result = resolveCombat(committed, toSt.units, attSlot.traits || [], defSlot?.traits || [], fortLevel(toSt) + capBonus + terrDef + (weather === 'fog' ? -1 : 0), attM.unitStat || {}, defM.unitStat || {}, attFlat);
 
   let outcome;
   if (result.defenderWiped && totalUnits(result.att) > 0) {
@@ -464,6 +476,7 @@ function doAttack(game, slotIdx, fromTileId, toTileId, committed) {
     rounds: result.rounds,
     attLosses: result.attLosses,
     defLosses: result.defLosses,
+    modifiers: { terrain: terrDef, elevation: attSlope, weather, fort: fortLevel(toSt) + capBonus },
     outcome,
   });
 
@@ -870,6 +883,7 @@ function createBattle(game, slotIdx, army, toTileId) {
   const attGeneral = (attSlotObj.generals || []).find((g) => g.id === army.generalId) || { name: 'Field Officer', strategy: 9, leadership: 9 };
   const capBonus = defSlotObj && defSlotObj.capitalTileId === toTileId ? (slotMods(defSlotObj).capitalDefense || 0) : 0;
   const terrainBonus = TERRAIN_BATTLE_MODS[toTile.terrain] || 0;
+  const eMod = slopeMod(fromTile, toTile);
   const attTrait = traitByKey(attGeneral.trait);
   const defTrait = traitByKey(defGeneral?.trait);
   const attRank = armyRank(army.battles || 0);
@@ -885,6 +899,7 @@ function createBattle(game, slotIdx, army, toTileId) {
       signature: attTrait?.signature || null, sigCooldown: 0, vetBonus: attRank.bonus, rank: attRank.label,
       supplyPenalty: attSupplied ? 0 : -2,
       weatherPenalty: weather === 'rain' ? -1 : 0,
+      elevMod: eMod,
       design: army.design || null,
     },
     defender: {
@@ -909,6 +924,8 @@ function createBattle(game, slotIdx, army, toTileId) {
   if (!defSupplied) game.activeBattle.log.push(`The defenders of ${toTile.name} are under siege — stores run thin (−2).`);
   if (weather === 'rain') game.activeBattle.log.push('Driving rain turns the field to mud — the assault bogs down (attacker −1).');
   if (weather === 'fog') game.activeBattle.log.push('Heavy fog cloaks the assault columns — the defense fires blind (defender −1).');
+  if (eMod < 0) game.activeBattle.log.push(`The assault climbs uphill into ${toTile.name} — the grade favors the defense (attacker −1).`);
+  if (eMod > 0) game.activeBattle.log.push(`${attGeneral.name} strikes downhill — momentum carries the assault (attacker +1).`);
   // Defenders are committed to the battle; the zone stands empty until it resolves
   game.armies = (game.armies || []).filter((a) => !absorbed.some((x) => x.id === a.id));
   st.units = {};
@@ -920,7 +937,7 @@ function battleSkill(side, other) {
   const m = MANEUVERS[side.choice];
   const ratio = Math.max(forcePoints(side.units), 1) / Math.max(forcePoints(other.units), 1);
   const strengthMod = Math.max(Math.min(Math.round(Math.log2(ratio) * 2), 4), -4);
-  return side.strategy + m.skill + strengthMod + (side.fortBonus || 0) + (side.terrainBonus || 0) + (side.vetBonus || 0) + (side.nextBonus || 0) + (side.supplyPenalty || 0) + (side.weatherPenalty || 0) + ((side.design || {}).skill || 0);
+  return side.strategy + m.skill + strengthMod + (side.fortBonus || 0) + (side.terrainBonus || 0) + (side.vetBonus || 0) + (side.nextBonus || 0) + (side.supplyPenalty || 0) + (side.weatherPenalty || 0) + (side.elevMod || 0) + ((side.design || {}).skill || 0);
 }
 
 function finishBattle(game, b, attackerWon) {
@@ -1230,7 +1247,7 @@ Deno.serve(async (req) => {
         const defOwnerObj = ab.defender.slot !== null && ab.defender.slot !== undefined ? game.factionSlots[ab.defender.slot] : null;
         const myRole = game.factionSlots[ab.attacker.slot]?.userId === user.id ? 'attacker' : defOwnerObj?.userId === user.id ? 'defender' : null;
         if (myRole) {
-          const sideView = (s, fac) => ({ faction: fac, general: s.generalName, strategy: s.strategy, units: s.units, morale: Math.max(s.morale, 0), losses: s.losses, chosen: !!s.choice, signature: s.signature || null, sigCooldown: s.sigCooldown || 0, vetBonus: s.vetBonus || 0, rank: s.rank || null, design: s.design?.name || null });
+          const sideView = (s, fac) => ({ faction: fac, general: s.generalName, strategy: s.strategy, units: s.units, morale: Math.max(s.morale, 0), losses: s.losses, chosen: !!s.choice, signature: s.signature || null, sigCooldown: s.sigCooldown || 0, vetBonus: s.vetBonus || 0, rank: s.rank || null, elevMod: s.elevMod || 0, design: s.design?.name || null });
           battle = {
             tileName: ab.tileName, round: ab.round, myRole, terrain: ab.terrain || null, weather: ab.weather || 'clear', terrainBonus: ab.defender.terrainBonus || 0,
             attacker: sideView(ab.attacker, game.factionSlots[ab.attacker.slot]?.factionName),
@@ -1678,7 +1695,7 @@ Deno.serve(async (req) => {
       fromSt.lastBombardTurn = game.turnNumber;
       // Each gun rolls — hits on 3 or less. Casualties only; bombardment never captures ground.
       let hits = 0;
-      const hitOn = (game.weather || 'clear') === 'rain' ? 2 : 3;
+      const hitOn = ((game.weather || 'clear') === 'rain' ? 2 : 3) + (elevOf(fromTile) > elevOf(toTile) ? 1 : 0);
       for (let i = 0; i < (fromSt.units.artillery || 0); i++) if (roll() <= hitOn) hits++;
       const destroyed = Math.min(hits, totalUnits(toSt.units));
       removeCasualties(toSt.units, destroyed);
