@@ -2,8 +2,12 @@ import React from "react";
 
 export default function CombatLog({ entries = [] }) {
   return (
-    <div className="cq-panel p-4">
-      <h3 className="cq-label mb-2">Field Reports</h3>
+    <div className="cq-panel cq-brackets p-4">
+      <div className="flex items-center gap-2 mb-2">
+        <h3 className="cq-label">Field Reports</h3>
+        <div className="h-px flex-1 bg-gradient-to-r from-border to-transparent" />
+        <span className="w-1.5 h-1.5 rounded-full bg-rust text-rust cq-lamp animate-pulse" />
+      </div>
       <div className="space-y-1.5 max-h-52 overflow-y-auto text-xs">
         {entries.length === 0 && <p className="text-muted-foreground">No engagements reported.</p>}
         {[...entries].reverse().map((e, i) => (

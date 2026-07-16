@@ -73,17 +73,18 @@ export default function GamePage() {
   return (
     <div className="space-y-4">
       {/* Command bar */}
-      <div className="cq-panel px-4 py-3 flex flex-wrap items-center gap-3">
+      <div className="cq-panel relative overflow-hidden px-4 pt-4 pb-3 flex flex-wrap items-center gap-3">
+        <div className="cq-hazard absolute top-0 left-0 right-0" />
         <div>
           <h1 className="cq-display text-2xl leading-none">{game.name}</h1>
           <p className="text-xs text-muted-foreground font-mono mt-0.5">TURN {game.turnNumber} · {game.mode === "campaign" ? "CAMPAIGN" : "MULTIPLAYER"}</p>
         </div>
         <div className="flex gap-2 flex-wrap ml-auto items-center">
           {game.factions.map((f) => (
-            <div key={f.slotIndex} className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded-sm border font-heading tracking-wide ${
-              game.currentSlot === f.slotIndex && game.status === "active" ? "border-brass bg-brass/10" : "border-transparent"
+            <div key={f.slotIndex} className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded-sm border font-heading tracking-wide bg-secondary/40 ${
+              game.currentSlot === f.slotIndex && game.status === "active" ? "border-brass bg-brass/15" : "border-border"
             } ${f.eliminated ? "opacity-40 line-through" : ""}`}>
-              <div className="w-2.5 h-2.5 rounded-full ring-1 ring-black/50" style={{ background: f.color }} />
+              <div className={`w-2.5 h-2.5 rounded-full ring-1 ring-black/50 ${game.currentSlot === f.slotIndex && game.status === "active" ? "cq-lamp" : ""}`} style={{ background: f.color, color: f.color }} />
               <span className="text-secondary-foreground">{f.factionName}{f.isNPC && <span className="text-muted-foreground"> (NPC)</span>}</span>
             </div>
           ))}
@@ -113,19 +114,29 @@ export default function GamePage() {
       {error && <p className="text-xs text-rust font-mono">{error}</p>}
 
       <div className="grid lg:grid-cols-[1fr_320px] gap-4">
-        <div className="cq-panel p-2 bg-gradient-to-b from-card to-background">
-          <HexBoard
-            tiles={game.tiles}
-            slotColors={slotColors}
-            selectedId={selectedId}
-            onTileClick={(t) => setSelectedId(t.id === selectedId ? null : t.id)}
-          />
+        <div className="cq-panel cq-brackets relative overflow-hidden p-2 pt-6">
+          <div className="absolute inset-0 cq-board" />
+          <div className="absolute inset-0 cq-scanlines opacity-25" />
+          <div className="absolute top-2 left-1/2 -translate-x-1/2 font-mono text-[9px] text-brass/60 tracking-[0.35em] pointer-events-none whitespace-nowrap cq-flicker">
+            ⁜ TACTICAL THEATER · LIVE FEED ⁜
+          </div>
+          <div className="relative">
+            <HexBoard
+              tiles={game.tiles}
+              slotColors={slotColors}
+              selectedId={selectedId}
+              onTileClick={(t) => setSelectedId(t.id === selectedId ? null : t.id)}
+            />
+          </div>
         </div>
         <div className="space-y-4">
           {game.status === "active" && game.myResources && (
-            <div className={`rounded border px-4 py-2.5 space-y-1.5 ${game.isMyTurn ? "border-brass/50 bg-brass/10" : "border-border bg-card"}`}>
+            <div className={`relative overflow-hidden rounded border px-4 py-2.5 space-y-1.5 ${game.isMyTurn ? "border-brass/50 bg-brass/10" : "border-border bg-card"}`}>
               {game.isMyTurn && (
-                <p className="text-xs text-brass-bright font-heading uppercase tracking-[0.2em]">Your turn, Commander</p>
+                <>
+                  <div className="cq-hazard absolute top-0 left-0 right-0" />
+                  <p className="text-xs text-brass-bright font-heading uppercase tracking-[0.2em] pt-1">Your turn, Commander</p>
+                </>
               )}
               <div className="flex justify-between text-xs font-mono text-secondary-foreground">
                 {RESOURCE_KEYS.map((k) => (

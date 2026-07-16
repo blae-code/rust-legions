@@ -42,7 +42,7 @@ export default function PurchasePanel({ game, onPurchase, busy }) {
   const mixedDomains = wantsSea && landSelected.length > 0;
 
   return (
-    <div className="cq-panel p-4 space-y-2">
+    <div className="cq-panel cq-brackets p-4 space-y-2">
       <div className="flex justify-between items-center">
         <h3 className="cq-label">Requisition Units</h3>
         <span className="text-[10px] font-mono text-muted-foreground">{game.myArmyPoints}/{game.myArmyCap} pts</span>

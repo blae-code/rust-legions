@@ -6,13 +6,16 @@ const RES_SHORT = { manpower: "M", steel: "S", fuel: "F" };
 const RES_COLOR = { manpower: "#C9B88A", steel: "#9FA8B5", fuel: "#C79A6B" };
 
 const TERRAIN_FILL = {
-  plains: "#57503A",
-  forest: "#3B4A33",
-  hills: "#5A4C38",
-  mountains: "#4E4A52",
-  industrial: "#4A403A",
+  plains: "#565039",
+  deltas: "#4A5540",
+  forest: "#37432E",
+  hills: "#5C4A32",
+  highlands: "#544A38",
+  mountains: "#49454C",
+  marsh: "#3E4938",
+  industrial: "#443A32",
 };
-const NEUTRAL = "#4A4540";
+const NEUTRAL = "#48433D";
 const RESOURCE_ICONS = { oil_field: "⛽", coal_depot: "⚒", iron_foundry: "🏭" };
 
 export default function HexBoard({
@@ -24,16 +27,19 @@ export default function HexBoard({
   onGhostClick,
   maxHeight = 560,
 }) {
-  const { viewBox } = useMemo(() => {
+  const { viewBox, bounds } = useMemo(() => {
     const all = [...tiles, ...ghosts];
-    if (all.length === 0) return { viewBox: "-100 -100 200 200" };
+    if (all.length === 0) return { viewBox: "-100 -100 200 200", bounds: null };
     const pts = all.map((t) => axialToPixel(t.q, t.r));
     const pad = HEX_SIZE * 1.5;
     const minX = Math.min(...pts.map((p) => p.x)) - pad;
     const maxX = Math.max(...pts.map((p) => p.x)) + pad;
     const minY = Math.min(...pts.map((p) => p.y)) - pad;
     const maxY = Math.max(...pts.map((p) => p.y)) + pad;
-    return { viewBox: `${minX} ${minY} ${maxX - minX} ${maxY - minY}` };
+    return {
+      viewBox: `${minX} ${minY} ${maxX - minX} ${maxY - minY}`,
+      bounds: { minX, minY, w: maxX - minX, h: maxY - minY },
+    };
   }, [tiles, ghosts]);
 
   const terrainFor = (tile) => {
@@ -45,9 +51,17 @@ export default function HexBoard({
     <svg viewBox={viewBox} className="w-full" style={{ maxHeight }}>
       <defs>
         <linearGradient id="hxSea" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#1D2B36" />
-          <stop offset="100%" stopColor="#16212B" />
+          <stop offset="0%" stopColor="#1A2630" />
+          <stop offset="100%" stopColor="#111A22" />
         </linearGradient>
+        <filter id="hxGrain">
+          <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" stitchTiles="stitch" />
+          <feColorMatrix type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.7 0" />
+        </filter>
+        <radialGradient id="hxVignette" cx="0.5" cy="0.5" r="0.72">
+          <stop offset="55%" stopColor="#000" stopOpacity="0" />
+          <stop offset="100%" stopColor="#000" stopOpacity="0.45" />
+        </radialGradient>
         <pattern id="hxFog" width="7" height="7" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
           <rect width="7" height="7" fill="#1B1713" />
           <line x1="0" y1="0" x2="0" y2="7" stroke="#26201B" strokeWidth="3" />
@@ -126,7 +140,7 @@ export default function HexBoard({
                 )}
                 {units > 0 && (
                   <>
-                    <rect x={x - 9} y={y + 8} width="18" height="12" rx="2" fill="#0c0a09" opacity="0.85" className="pointer-events-none" />
+                    <rect x={x - 9} y={y + 8} width="18" height="12" rx="2" fill="#0c0a09" opacity="0.85" stroke="#E0A32E" strokeOpacity="0.35" strokeWidth="0.6" className="pointer-events-none" />
                     <text x={x} y={y + 17} textAnchor="middle" fontSize="9" fontWeight="bold" fontFamily="'IBM Plex Mono', monospace" fill="#E0A32E" className="pointer-events-none select-none">
                       {units}
                     </text>
@@ -162,6 +176,14 @@ export default function HexBoard({
           </g>
         );
       })}
+
+      {/* Worn film grain + battlefield vignette */}
+      {bounds && (
+        <>
+          <rect x={bounds.minX} y={bounds.minY} width={bounds.w} height={bounds.h} filter="url(#hxGrain)" opacity="0.16" className="pointer-events-none" />
+          <rect x={bounds.minX} y={bounds.minY} width={bounds.w} height={bounds.h} fill="url(#hxVignette)" className="pointer-events-none" />
+        </>
+      )}
     </svg>
   );
 }

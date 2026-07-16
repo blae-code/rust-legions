@@ -38,7 +38,7 @@ export default function TilePanel({ game, tile, onMove, onAttack, busy }) {
   };
 
   return (
-    <div className="cq-panel p-4 space-y-3">
+    <div className="cq-panel cq-brackets p-4 space-y-3">
       <div>
         <h3 className="font-heading font-semibold text-lg uppercase tracking-wide text-foreground">
           {tile.isCapital && <span className="text-brass-bright">★ </span>}{tile.name}

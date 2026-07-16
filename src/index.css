@@ -197,6 +197,15 @@
   .cq-lamp {
     box-shadow: 0 0 6px 1px currentColor;
   }
+
+  /* War-table map surface */
+  .cq-board {
+    background:
+      radial-gradient(ellipse at 50% 25%, hsl(38 45% 35% / 0.07), transparent 60%),
+      repeating-linear-gradient(0deg, transparent 0 23px, hsl(38 30% 45% / 0.045) 23px 24px),
+      repeating-linear-gradient(90deg, transparent 0 23px, hsl(38 30% 45% / 0.045) 23px 24px),
+      linear-gradient(180deg, hsl(26 20% 8%), hsl(26 24% 4%));
+  }
 }
 
 @keyframes cq-ticker {
