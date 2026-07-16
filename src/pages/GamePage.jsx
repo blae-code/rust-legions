@@ -18,6 +18,7 @@ import MusterPanel from "@/components/game/MusterPanel";
 import BattleView from "@/components/game/BattleView";
 import BattleReport from "@/components/game/BattleReport";
 import ProbePanel from "@/components/game/ProbePanel";
+import DispatchArchive from "@/components/game/DispatchArchive";
 import { RESOURCE_KEYS, RESOURCE_META } from "@/lib/units";
 
 export default function GamePage() {
@@ -240,6 +241,7 @@ export default function GamePage() {
           />
           <BuildPanel game={game} tile={selectedTile} busy={busy} onBuild={(tileId, buildingType) => act({ action: "build", tileId, buildingType })} />
           <PurchasePanel game={game} busy={busy} onPurchase={(tileId, units) => act({ action: "purchaseUnits", tileId, units })} />
+          <DispatchArchive archives={game.battleArchives} />
           <CombatLog entries={game.combatLog} />
         </div>
       </div>

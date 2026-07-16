@@ -858,12 +858,18 @@ function finishBattle(game, b, attackerWon) {
     attacker: sideReport(b.attacker, attSlotObj.factionName),
     defender: sideReport(b.defender, defSlotObj ? defSlotObj.factionName : 'Neutral garrison'),
   };
+  // File the full round-by-round record in the game's dispatch archive
+  game.lastBattle.history = b.history || [];
+  game.battleArchives = game.battleArchives || [];
+  game.battleArchives.push(game.lastBattle);
+  if (game.battleArchives.length > 15) game.battleArchives.shift();
   game.activeBattle = null;
   checkEliminations(game); checkWin(game); checkCampaignWin(game);
 }
 
 function resolveBattleRound(game, b) {
   const A = b.attacker, D = b.defender;
+  const aL0 = A.losses, dL0 = D.losses;
   // Tally maneuvers for the post-battle report
   for (const s of [A, D]) {
     s.maneuvers = s.maneuvers || {};
@@ -909,6 +915,14 @@ function resolveBattleRound(game, b) {
     if (m?.signature) s.sigCooldown = m.cooldown || 3;
     else if ((s.sigCooldown || 0) > 0) s.sigCooldown--;
   }
+  // Archive this round's orders for the dispatch file
+  b.history = b.history || [];
+  b.history.push({
+    round: b.round,
+    att: { maneuver: A.choice, losses: A.losses - aL0, morale: Math.max(A.morale, 0), remaining: totalUnits(A.units) },
+    def: { maneuver: D.choice, losses: D.losses - dL0, morale: Math.max(D.morale, 0), remaining: totalUnits(D.units) },
+    text: b.log[b.log.length - 1] || '',
+  });
   A.choice = null; D.choice = null;
   b.round++;
   const aDead = totalUnits(A.units) === 0, dDead = totalUnits(D.units) === 0;
@@ -1118,6 +1132,9 @@ Deno.serve(async (req) => {
         myGenerals: (mySlotObj?.generals || []).map((g) => ({ ...g, traitLabel: traitByKey(g.trait)?.label || null })),
         generalCost: RECRUIT_GENERAL_COST,
         battle,
+        battleArchives: (game.battleArchives || []).filter((x) =>
+          game.factionSlots[x.attackerSlot]?.userId === user.id ||
+          (x.defenderSlot !== null && x.defenderSlot !== undefined && game.factionSlots[x.defenderSlot]?.userId === user.id)),
         battleReport: (() => {
           const lb = game.lastBattle;
           if (!lb) return null;
@@ -1348,6 +1365,7 @@ Deno.serve(async (req) => {
       factionSlots: game.factionSlots, armies: game.armies || [],
       combatLog: game.combatLog, activeBattle: game.activeBattle || null,
       lastBattle: game.lastBattle || null,
+      battleArchives: game.battleArchives || [],
       status: game.status, winnerSlot: game.winnerSlot, statHistory: game.statHistory,
     });
 

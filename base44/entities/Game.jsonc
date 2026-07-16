@@ -82,6 +82,13 @@
       ],
       "additionalProperties": true
     },
+    "battleArchives": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
     "lastSeen": {
       "type": "object",
       "additionalProperties": true
