@@ -3,12 +3,24 @@ import { Button } from "@/components/ui/button";
 import { Flag } from "lucide-react";
 import { ARMY_UNIT_KEYS, REGIMENT_LABELS } from "@/lib/massCombat";
 import GeneralPortrait from "@/components/game/GeneralPortrait";
+import { base44 } from "@/api/base44Client";
+import { compileDesign } from "@/lib/armyDesign";
+import { costString } from "@/lib/units";
 
 export default function MusterPanel({ game, tile, busy, onMuster }) {
   const [levy, setLevy] = useState({});
   const [generalId, setGeneralId] = useState("");
+  const [designs, setDesigns] = useState([]);
+  const [designId, setDesignId] = useState("");
 
   useEffect(() => { setLevy({}); setGeneralId(""); }, [tile?.id]);
+
+  useEffect(() => {
+    (async () => {
+      const me = await base44.auth.me();
+      setDesigns(await base44.entities.ArmyDesign.filter({ created_by_id: me.id }, "-updated_date"));
+    })().catch(() => {});
+  }, []);
 
   if (!tile || tile.visible === false || tile.isSea || !game.isMyTurn) return null;
   const st = tile.state || {};
@@ -57,7 +69,20 @@ export default function MusterPanel({ game, tile, busy, onMuster }) {
         </select>
       </div>
       {chosen === "recruit" && !canAffordRecruit && <p className="text-[10px] text-rust font-mono">Insufficient manpower to commission a general.</p>}
-      <Button size="sm" disabled={disabled} onClick={() => onMuster(tile.id, levy, chosen)} className="w-full bg-brass hover:bg-brass-bright text-primary-foreground font-heading uppercase text-xs tracking-[0.2em]">
+      {designs.length > 0 && (
+        <select
+          value={designId}
+          onChange={(e) => setDesignId(e.target.value)}
+          className="w-full bg-input border border-border rounded-sm text-xs px-2 py-1.5 text-secondary-foreground font-mono"
+        >
+          <option value="">Standard pattern — no design</option>
+          {designs.map((d) => {
+            const cost = costString(compileDesign(d).cost);
+            return <option key={d.id} value={d.id}>{d.name}{cost !== "Free" ? ` — +${cost}` : ""}</option>;
+          })}
+        </select>
+      )}
+      <Button size="sm" disabled={disabled} onClick={() => onMuster(tile.id, levy, chosen, designId || null)} className="w-full bg-brass hover:bg-brass-bright text-primary-foreground font-heading uppercase text-xs tracking-[0.2em]">
         Muster Army
       </Button>
     </div>

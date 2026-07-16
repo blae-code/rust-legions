@@ -1,0 +1,50 @@
+{
+  "name": "ArmyDesign",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "formation": {
+      "type": "string",
+      "enum": [
+        "line",
+        "vanguard",
+        "skirmish",
+        "column"
+      ],
+      "default": "line"
+    },
+    "weapon": {
+      "type": "string",
+      "enum": [
+        "rifles",
+        "trench_guns",
+        "mortars"
+      ],
+      "default": "rifles"
+    },
+    "armor": {
+      "type": "string",
+      "enum": [
+        "standard",
+        "plated",
+        "scout"
+      ],
+      "default": "standard"
+    },
+    "support": {
+      "type": "string",
+      "enum": [
+        "none",
+        "medics",
+        "signals",
+        "commissars"
+      ],
+      "default": "none"
+    }
+  },
+  "required": [
+    "name"
+  ]
+}

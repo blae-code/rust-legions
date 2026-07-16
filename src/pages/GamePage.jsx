@@ -227,7 +227,7 @@ export default function GamePage() {
             game={game}
             tile={selectedTile}
             busy={busy}
-            onMuster={(tileId, regiments, generalId) => act({ action: "musterArmy", tileId, regiments, generalId })}
+            onMuster={(tileId, regiments, generalId, designId) => act({ action: "musterArmy", tileId, regiments, generalId, designId })}
           />
           <ProbePanel game={game} tile={selectedTile} busy={busy} onProbe={probe} />
           <TilePanel

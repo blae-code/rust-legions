@@ -1,13 +1,14 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Map, PenTool, ChevronRight } from "lucide-react";
+import { Map, PenTool, Shield, ChevronRight } from "lucide-react";
 
 const WAR_ROOM_IMG = "https://media.base44.com/images/public/6a58196dcd485ecc774cae1b/0b44e3267_generated_image.png";
 
 const TOOLS = [
   { to: "/maps", icon: Map, title: "Map Library", desc: "Survey every registered theater of war — browse and preview published fronts." },
   { to: "/map-editor", icon: PenTool, title: "Cartography Bureau", desc: "Draft new battlegrounds tile by tile and commit them to the archive." },
+  { to: "/army-designer", icon: Shield, title: "Army Design Bureau", desc: "Draft doctrine patterns — formation, weapons, armor and support — for your field armies." },
 ];
 
 export default function ToolsSection() {

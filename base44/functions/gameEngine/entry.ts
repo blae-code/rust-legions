@@ -572,6 +572,45 @@ const GENERAL_LAST = ['Vance', 'Odt', 'Krael', 'Morvane', 'Stahl', 'Redgrave', '
 const DOCTRINE_EPITHET = { aggressive: 'the Unrelenting', economic: 'the Provisioner', defensive: 'the Unbroken' };
 const RECRUIT_GENERAL_COST = { manpower: 4 };
 const PROBE_COST = { fuel: 1 };
+
+// ---------- Army designs (Stellaris-style templates; mirrors src/lib/armyDesign.js) ----------
+const DESIGN_OPTIONS = {
+  formation: {
+    line: {},
+    vanguard: { dmgOut: 1.2, dmgIn: 1.15 },
+    skirmish: { dmgOut: 0.85, dmgIn: 0.85 },
+    column: { dmgOut: 0.95, moraleIn: 0.85 },
+  },
+  weapon: {
+    rifles: {},
+    trench_guns: { dmgOut: 1.1, cost: { steel: 2 } },
+    mortars: { skill: 1, cost: { steel: 3 } },
+  },
+  armor: {
+    standard: {},
+    plated: { dmgIn: 0.85, cost: { steel: 3 } },
+    scout: { skill: 1, dmgIn: 1.1, cost: { fuel: 1 } },
+  },
+  support: {
+    none: {},
+    medics: { dmgIn: 0.9, cost: { manpower: 2 } },
+    signals: { skill: 1, cost: { fuel: 2 } },
+    commissars: { moraleIn: 0.8, cost: { manpower: 2 } },
+  },
+};
+
+function compileDesign(rec) {
+  const out = { skill: 0, dmgOut: 1, dmgIn: 1, moraleIn: 1, cost: emptyResources() };
+  for (const slot of Object.keys(DESIGN_OPTIONS)) {
+    const opt = DESIGN_OPTIONS[slot][rec[slot]] || {};
+    out.skill += opt.skill || 0;
+    out.dmgOut *= opt.dmgOut || 1;
+    out.dmgIn *= opt.dmgIn || 1;
+    out.moraleIn *= opt.moraleIn || 1;
+    for (const k of RESOURCE_KEYS) out.cost[k] += (opt.cost || {})[k] || 0;
+  }
+  return out;
+}
 const ARMY_UNIT_KEYS = ['riflemen', 'crawler', 'fighter'];
 const ARMY_ORDINALS = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th'];
 const d3 = () => 1 + Math.floor(Math.random() * 3);
@@ -694,13 +733,14 @@ function createBattle(game, slotIdx, army, toTileId) {
   // Fold garrison + any enemy field armies on the zone into one defense force
   const defUnits = { ...st.units };
   let defGeneral = null;
+  let defDesign = null;
   let defVetBattles = 0;
   const absorbed = [];
   for (const a of (game.armies || []).filter((a) => a.tileId === toTileId && a.owner !== slotIdx)) {
     for (const k of ARMY_UNIT_KEYS) defUnits[k] = (defUnits[k] || 0) + (a.regiments[k] || 0);
     defVetBattles = Math.max(defVetBattles, a.battles || 0);
     const g = (game.factionSlots[a.owner].generals || []).find((x) => x.id === a.generalId);
-    if (g && (!defGeneral || g.strategy > defGeneral.strategy)) defGeneral = g;
+    if (g && (!defGeneral || g.strategy > defGeneral.strategy)) { defGeneral = g; defDesign = a.design || null; }
     absorbed.push({ owner: a.owner, generalId: a.generalId, name: a.name, id: a.id });
   }
 
@@ -735,6 +775,7 @@ function createBattle(game, slotIdx, army, toTileId) {
       slot: slotIdx, armyId: army.id, armyName: army.name, generalName: attGeneral.name,
       strategy: attGeneral.strategy, units: { ...army.regiments }, morale: 100, choice: null, nextBonus: 0, losses: 0,
       signature: attTrait?.signature || null, sigCooldown: 0, vetBonus: attRank.bonus, rank: attRank.label,
+      design: army.design || null,
     },
     defender: {
       slot: defSlotIdx, absorbedArmies: absorbed,
@@ -743,6 +784,7 @@ function createBattle(game, slotIdx, army, toTileId) {
       units: defUnits, morale: 100, fortBonus: fortLevel(st) + capBonus, terrainBonus,
       generalId: defGeneral?.id || null,
       signature: defTrait?.signature || null, sigCooldown: 0, vetBonus: defRank.bonus, rank: defRank.label,
+      design: defDesign,
       choice: null, nextBonus: 0, losses: 0,
       interactive: defenderIsLive(game, defSlotObj),
     },
@@ -761,7 +803,7 @@ function battleSkill(side, other) {
   const m = MANEUVERS[side.choice];
   const ratio = Math.max(forcePoints(side.units), 1) / Math.max(forcePoints(other.units), 1);
   const strengthMod = Math.max(Math.min(Math.round(Math.log2(ratio) * 2), 4), -4);
-  return side.strategy + m.skill + strengthMod + (side.fortBonus || 0) + (side.terrainBonus || 0) + (side.vetBonus || 0) + (side.nextBonus || 0);
+  return side.strategy + m.skill + strengthMod + (side.fortBonus || 0) + (side.terrainBonus || 0) + (side.vetBonus || 0) + (side.nextBonus || 0) + ((side.design || {}).skill || 0);
 }
 
 function finishBattle(game, b, attackerWon) {
@@ -849,14 +891,14 @@ function resolveBattleRound(game, b) {
     const marginDiff = Math.min(Math.abs(aMargin - dMargin), 6);
     const wm = MANEUVERS[win.choice], lm = MANEUVERS[lose.choice];
     const lTotal = totalUnits(lose.units);
-    const lLoss = Math.min(Math.max(Math.round(lTotal * Math.min(0.07 + 0.06 * marginDiff, 0.45) * wm.dmgOut * lm.dmgIn), 1), lTotal);
+    const lLoss = Math.min(Math.max(Math.round(lTotal * Math.min(0.07 + 0.06 * marginDiff, 0.45) * wm.dmgOut * lm.dmgIn * ((win.design || {}).dmgOut || 1) * ((lose.design || {}).dmgIn || 1)), 1), lTotal);
     removeCasualties(lose.units, lLoss);
     lose.losses += lLoss;
     const wTotal = totalUnits(win.units);
-    const wLoss = Math.min(Math.round(wTotal * 0.05 * lm.dmgOut * wm.dmgIn), wTotal);
+    const wLoss = Math.min(Math.round(wTotal * 0.05 * lm.dmgOut * wm.dmgIn * ((lose.design || {}).dmgOut || 1) * ((win.design || {}).dmgIn || 1)), wTotal);
     removeCasualties(win.units, wLoss);
     win.losses += wLoss;
-    lose.morale -= Math.round((10 + 5 * marginDiff) * wm.moraleOut);
+    lose.morale -= Math.round((10 + 5 * marginDiff) * wm.moraleOut * ((lose.design || {}).moraleIn || 1));
     win.morale -= wLoss > 0 ? 4 : 2;
     if (wm.nextBonus) win.nextBonus = wm.nextBonus;
     b.log.push(`R${b.round} — ${win.generalName}'s ${wm.label.toLowerCase()} carries the field: ${lLoss} enemy compan${lLoss === 1 ? 'y' : 'ies'} broken (morale ${Math.max(lose.morale, 0)}).`);
@@ -1050,7 +1092,7 @@ Deno.serve(async (req) => {
         const defOwnerObj = ab.defender.slot !== null && ab.defender.slot !== undefined ? game.factionSlots[ab.defender.slot] : null;
         const myRole = game.factionSlots[ab.attacker.slot]?.userId === user.id ? 'attacker' : defOwnerObj?.userId === user.id ? 'defender' : null;
         if (myRole) {
-          const sideView = (s, fac) => ({ faction: fac, general: s.generalName, strategy: s.strategy, units: s.units, morale: Math.max(s.morale, 0), losses: s.losses, chosen: !!s.choice, signature: s.signature || null, sigCooldown: s.sigCooldown || 0, vetBonus: s.vetBonus || 0, rank: s.rank || null });
+          const sideView = (s, fac) => ({ faction: fac, general: s.generalName, strategy: s.strategy, units: s.units, morale: Math.max(s.morale, 0), losses: s.losses, chosen: !!s.choice, signature: s.signature || null, sigCooldown: s.sigCooldown || 0, vetBonus: s.vetBonus || 0, rank: s.rank || null, design: s.design?.name || null });
           battle = {
             tileName: ab.tileName, round: ab.round, myRole, terrain: ab.terrain || null, terrainBonus: ab.defender.terrainBonus || 0,
             attacker: sideView(ab.attacker, game.factionSlots[ab.attacker.slot]?.factionName),
@@ -1068,6 +1110,7 @@ Deno.serve(async (req) => {
             id: a.id, owner: a.owner, tileId: a.tileId, name: a.name,
             strength: forcePoints(a.regiments),
             battles: a.battles || 0, rank: armyRank(a.battles || 0).label,
+            design: a.design?.name || null,
             regiments: a.owner === mySlot ? a.regiments : undefined,
             general: g ? (a.owner === mySlot ? { ...g, traitLabel: traitByKey(g.trait)?.label || null } : { name: g.name }) : null,
           };
@@ -1337,6 +1380,17 @@ Deno.serve(async (req) => {
         general = freeGenerals(game, slot).find((g) => g.id === generalId);
         if (!general) return Response.json({ error: 'That general is unavailable' }, { status: 400 });
       }
+      // Optional doctrine design — outfits the army for a resource surcharge
+      let design = null;
+      if (body.designId) {
+        const rec = await svc.entities.ArmyDesign.get(body.designId).catch(() => null);
+        if (!rec || rec.created_by_id !== user.id) return Response.json({ error: 'Army design not found' }, { status: 400 });
+        design = compileDesign(rec);
+        design.name = rec.name;
+        const dTreasury = getTreasury(game, slotIdx);
+        if (!canAfford(dTreasury, design.cost)) return Response.json({ error: 'Insufficient resources to outfit this design' }, { status: 400 });
+        pay(dTreasury, design.cost);
+      }
       for (const k of ARMY_UNIT_KEYS) st.units[k] = (st.units[k] || 0) - (regiments[k] || 0);
       game.armies = game.armies || [];
       slot.armiesRaised = (slot.armiesRaised || 0) + 1;
@@ -1345,6 +1399,7 @@ Deno.serve(async (req) => {
         name: `${ARMY_ORDINALS[Math.min(slot.armiesRaised - 1, 8)]} Field Army`,
         generalId: general.id,
         battles: 0,
+        design: design ? { name: design.name, skill: design.skill, dmgOut: design.dmgOut, dmgIn: design.dmgIn, moraleIn: design.moraleIn } : null,
         regiments: Object.fromEntries(ARMY_UNIT_KEYS.map((k) => [k, regiments[k] || 0])),
       };
       game.armies.push(army);

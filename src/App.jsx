@@ -14,6 +14,7 @@ import GamePage from './pages/GamePage';
 import FactionBuilder from './pages/FactionBuilder';
 import MapEditor from './pages/MapEditor';
 import MapLibrary from './pages/MapLibrary';
+import ArmyDesigner from './pages/ArmyDesigner';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -49,6 +50,7 @@ const AuthenticatedApp = () => {
         <Route path="/faction-builder" element={<FactionBuilder />} />
         <Route path="/map-editor" element={<MapEditor />} />
         <Route path="/maps" element={<MapLibrary />} />
+        <Route path="/army-designer" element={<ArmyDesigner />} />
       </Route>
       <Route path="*" element={<PageNotFound />} />
     </Routes>
