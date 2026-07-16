@@ -20,6 +20,7 @@ import BattleView from "@/components/game/BattleView";
 import BattleReport from "@/components/game/BattleReport";
 import ProbePanel from "@/components/game/ProbePanel";
 import DispatchArchive from "@/components/game/DispatchArchive";
+import CombatResolution from "@/components/game/CombatResolution";
 import WeatherBadge from "@/components/game/WeatherBadge";
 import DiplomacyPanel from "@/components/game/diplomacy/DiplomacyPanel";
 import DoctrinePanel from "@/components/game/research/DoctrinePanel";
@@ -37,6 +38,7 @@ export default function GamePage() {
   const [sound, setSound] = useState(sfxEnabled());
   const [overlay, setOverlay] = useState(null);
   const [report, setReport] = useState(null);
+  const [resolution, setResolution] = useState(null);
   const [mapFx, setMapFx] = useState(null);
   const [showDiplomacy, setShowDiplomacy] = useState(false);
   const [showDoctrine, setShowDoctrine] = useState(false);
@@ -76,7 +78,8 @@ export default function GamePage() {
     setBusy(true);
     setError("");
     try {
-      await base44.functions.invoke("gameEngine", { gameId, ...payload });
+      const res = await base44.functions.invoke("gameEngine", { gameId, ...payload });
+      if (payload.action === "attack" && res.data?.report) setResolution(res.data.report);
       const sfxMap = { moveUnits: "move", attack: "attack", bombard: "attack", build: "build", purchaseUnits: "purchase", endTurn: "endTurn", musterArmy: "purchase", reinforceArmy: "purchase", moveArmy: "move", battleChoice: "attack", disbandArmy: "move", proposeDiplomacy: "purchase", respondDiplomacy: "purchase", installModule: "build", moveBase: "move" };
       if (sfxMap[payload.action]) playSfx(sfxMap[payload.action]);
       if ((payload.action === "attack" || payload.action === "bombard") && payload.toTileId) {
@@ -322,6 +325,7 @@ export default function GamePage() {
 
       <DiplomacyPanel open={showDiplomacy} onClose={() => setShowDiplomacy(false)} game={game} busy={busy} onAction={act} />
       <DoctrinePanel open={showDoctrine} onClose={() => setShowDoctrine(false)} research={game.myResearch} busy={busy} onSetFocus={setResearchFocus} game={game} onUnlock={unlockItem} />
+      <CombatResolution report={resolution} onClose={() => setResolution(null)} />
       <BattleView battle={game.battle} busy={busy} onChoose={(maneuver) => act({ action: "battleChoice", maneuver })} />
       {!game.battle && <BattleReport report={report} onClose={() => setReport(null)} />}
     </div>

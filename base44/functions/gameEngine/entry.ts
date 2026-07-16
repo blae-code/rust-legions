@@ -566,7 +566,10 @@ function doAttack(game, slotIdx, fromTileId, toTileId, committed) {
   const terrDef = toTile.isSea ? 0 : (TERRAIN_BATTLE_MODS[toTile.terrain] || 0);
   const attSlope = toTile.isSea ? 0 : slopeMod(fromTile, toTile);
   const attFlat = (weather === 'rain' || weather === 'snow' ? -1 : 0) + attSlope;
-  const result = resolveCombat(committed, toSt.units, attSlot.traits || [], defSlot?.traits || [], fortLevel(toSt) + capBonus + terrDef + baseDefenseAt(game, toSt.owner, toTileId) + (weather === 'fog' ? -1 : 0), attM.unitStat || {}, defM.unitStat || {}, attFlat);
+  // Snapshot the defending fortress-base before combat — it may be wrecked on capture
+  const defBaseDefense = baseDefenseAt(game, toSt.owner, toTileId);
+  const defBaseModules = defBaseDefense > 0 ? { ...(game.factionSlots[toSt.owner]?.base?.modules || {}) } : null;
+  const result = resolveCombat(committed, toSt.units, attSlot.traits || [], defSlot?.traits || [], fortLevel(toSt) + capBonus + terrDef + defBaseDefense + (weather === 'fog' ? -1 : 0), attM.unitStat || {}, defM.unitStat || {}, attFlat);
 
   let outcome;
   if (result.defenderWiped && totalUnits(result.att) > 0) {
@@ -605,7 +608,8 @@ function doAttack(game, slotIdx, fromTileId, toTileId, committed) {
     rounds: result.rounds,
     attLosses: result.attLosses,
     defLosses: result.defLosses,
-    modifiers: { terrain: terrDef, elevation: attSlope, weather, fort: fortLevel(toSt) + capBonus },
+    modifiers: { terrain: terrDef, elevation: attSlope, weather, fort: fortLevel(toSt) + capBonus, baseDefense: defBaseDefense },
+    baseModules: defBaseModules,
     outcome,
   });
 
@@ -1691,7 +1695,8 @@ Deno.serve(async (req) => {
         statHistory: game.statHistory,
       });
       await logIfComplete();
-      return Response.json({ ok: true, outcome });
+      const report = [...game.combatLog].reverse().find((e) => e.type === 'combat') || null;
+      return Response.json({ ok: true, outcome, report });
     }
 
     // ----- Mass combat: muster / march / battle -----
