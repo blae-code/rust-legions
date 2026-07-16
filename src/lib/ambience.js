@@ -1,109 +1,65 @@
-// Ambient war-front score — a slow, dark drone with a wind bed (Web Audio, no assets).
-// Replaces the old thunder/artillery one-shots: sustained tones synthesize convincingly,
-// percussive booms do not.
+// Menu soundtrack — Gustav Holst, "The Planets: I. Mars, the Bringer of War" (1914).
+// Public-domain recording by the Skidmore College Orchestra, courtesy of Musopen
+// (hosted on Wikimedia Commons). Loops continuously; respects the SFX mute toggle.
 import { sfxEnabled } from "@/lib/sfx";
 
-let ctx = null;
-let score = null;
+const OGG_URL = "https://upload.wikimedia.org/wikipedia/commons/5/54/Gustav_Holst_-_the_planets%2C_op._32_-_i._mars%2C_the_bringer_of_war.ogg";
+const MP3_URL = "https://upload.wikimedia.org/wikipedia/commons/transcoded/5/54/Gustav_Holst_-_the_planets%2C_op._32_-_i._mars%2C_the_bringer_of_war.ogg/Gustav_Holst_-_the_planets%2C_op._32_-_i._mars%2C_the_bringer_of_war.ogg.mp3";
 
-const ac = () => {
-  if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
-  return ctx;
-};
+const TARGET_VOLUME = 0.35;
+let track = null;
+let fadeTimer = null;
 
-// Browsers require a user gesture before audio — call on first pointer/key input
-export function unlockAmbience() {
-  try {
-    const c = ac();
-    if (c.state === "suspended") c.resume().then(() => startScore());
-    else startScore();
-  } catch { /* audio unavailable */ }
-}
-
-const loopedNoise = (c) => {
-  const buf = c.createBuffer(1, c.sampleRate * 4, c.sampleRate);
-  const data = buf.getChannelData(0);
-  for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
-  const src = c.createBufferSource();
-  src.buffer = buf;
-  src.loop = true;
-  return src;
-};
-
-// Start the continuous menu score (idempotent)
-export function startScore() {
-  try {
-    if (score || !sfxEnabled()) return;
-    const c = ac();
-    if (c.state !== "running") return;
-    const t = c.currentTime;
-
-    const master = c.createGain();
-    master.gain.setValueAtTime(0.0001, t);
-    master.gain.exponentialRampToValueAtTime(0.07, t + 5); // slow fade-in
-    master.connect(c.destination);
-
-    const nodes = [master];
-
-    // Dark drone — root, fifth, and a detuned octave breathing against each other
-    const voices = [
-      { freq: 55, type: "sine", gain: 0.5 },      // A1 root
-      { freq: 82.4, type: "sine", gain: 0.3 },    // E2 fifth
-      { freq: 110.4, type: "triangle", gain: 0.12 }, // detuned octave shimmer
-    ];
-    for (const v of voices) {
-      const osc = c.createOscillator();
-      osc.type = v.type;
-      osc.frequency.value = v.freq;
-      const g = c.createGain();
-      g.gain.value = v.gain;
-      // Very slow breathing on each voice, offset so the chord never sits still
-      const lfo = c.createOscillator();
-      lfo.frequency.value = 0.03 + Math.random() * 0.04;
-      const lfoG = c.createGain();
-      lfoG.gain.value = v.gain * 0.35;
-      lfo.connect(lfoG).connect(g.gain);
-      osc.connect(g).connect(master);
-      osc.start(t);
-      lfo.start(t);
-      nodes.push(osc, lfo);
+const fadeTo = (audio, target, ms, onDone) => {
+  clearInterval(fadeTimer);
+  const step = (target - audio.volume) / (ms / 80);
+  fadeTimer = setInterval(() => {
+    const v = audio.volume + step;
+    if ((step > 0 && v >= target) || (step < 0 && v <= target)) {
+      audio.volume = target;
+      clearInterval(fadeTimer);
+      onDone?.();
+    } else {
+      audio.volume = v;
     }
+  }, 80);
+};
 
-    // Wind bed — band-limited noise, swelling gently
-    const wind = loopedNoise(c);
-    const bp = c.createBiquadFilter();
-    bp.type = "bandpass";
-    bp.frequency.value = 420;
-    bp.Q.value = 0.6;
-    const wg = c.createGain();
-    wg.gain.value = 0.05;
-    const windLfo = c.createOscillator();
-    windLfo.frequency.value = 0.07;
-    const windLfoG = c.createGain();
-    windLfoG.gain.value = 0.028;
-    windLfo.connect(windLfoG).connect(wg.gain);
-    wind.connect(bp).connect(wg).connect(master);
-    wind.start(t);
-    windLfo.start(t);
-    nodes.push(wind, windLfo);
-
-    score = { master, nodes };
+// Start the looping score (idempotent). Browsers require a user gesture first —
+// call again from unlockAmbience if the initial attempt is blocked.
+export function startScore() {
+  if (track || !sfxEnabled()) return;
+  try {
+    const audio = new Audio();
+    audio.src = audio.canPlayType("audio/ogg; codecs=vorbis") ? OGG_URL : MP3_URL;
+    audio.loop = true;
+    audio.preload = "auto";
+    audio.volume = 0;
+    const p = audio.play();
+    if (p?.catch) p.catch(() => { /* autoplay blocked — retried on first gesture */ });
+    fadeTo(audio, TARGET_VOLUME, 4000);
+    track = audio;
   } catch { /* audio unavailable */ }
 }
 
-// Fade out and tear down the score
+// Call on the first pointer/key input — satisfies autoplay policy
+export function unlockAmbience() {
+  if (!sfxEnabled()) return;
+  if (!track) { startScore(); return; }
+  if (track.paused) {
+    const p = track.play();
+    if (p?.catch) p.catch(() => { /* still blocked */ });
+    fadeTo(track, TARGET_VOLUME, 4000);
+  }
+}
+
+// Fade out and release the track
 export function stopScore() {
-  if (!score) return;
-  try {
-    const c = ac();
-    const t = c.currentTime;
-    score.master.gain.cancelScheduledValues(t);
-    score.master.gain.setValueAtTime(Math.max(score.master.gain.value, 0.0001), t);
-    score.master.gain.exponentialRampToValueAtTime(0.0001, t + 1.2);
-    const nodes = score.nodes;
-    setTimeout(() => {
-      for (const n of nodes) { try { n.stop?.(); } catch { /* already stopped */ } try { n.disconnect(); } catch { /* detached */ } }
-    }, 1400);
-  } catch { /* audio unavailable */ }
-  score = null;
+  if (!track) return;
+  const audio = track;
+  track = null;
+  fadeTo(audio, 0, 1200, () => {
+    audio.pause();
+    audio.src = "";
+  });
 }
