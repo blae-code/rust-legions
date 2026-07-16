@@ -1,7 +1,8 @@
 import React, { useRef, useState, useEffect } from "react";
 import { playThunder, playArtillery, unlockAmbience } from "@/lib/ambience";
 
-const BG_URL = "https://media.base44.com/images/public/6a58196dcd485ecc774cae1b/277b8e155_generated_image.png";
+const BG_POSTER = "https://media.base44.com/images/public/6a58196dcd485ecc774cae1b/277b8e155_generated_image.png";
+const BG_VIDEO = "https://media.base44.com/videos/public/6a58196dcd485ecc774cae1b/ce3308be3_Storm_Front_Loop.mp4";
 
 // Mid-ground silhouette skyline — derricks, smokestacks, ruined gantries
 const Skyline = () => (
@@ -143,10 +144,16 @@ export default function StormFront25D() {
 
   return (
     <div className="absolute inset-0 overflow-hidden" aria-hidden="true">
-      {/* Far plane — painted storm-dusk landscape */}
-      <div
-        className="absolute inset-0 bg-cover bg-center"
-        style={{ backgroundImage: `url(${BG_URL})`, ...layer(-8) }}
+      {/* Far plane — living storm-dusk landscape on loop */}
+      <video
+        className="absolute inset-0 w-full h-full object-cover"
+        style={layer(-8)}
+        src={BG_VIDEO}
+        poster={BG_POSTER}
+        autoPlay
+        loop
+        muted
+        playsInline
       />
 
       {/* Lightning strike — cloud-lit sky wash, optional bolt, brief ground glare */}
