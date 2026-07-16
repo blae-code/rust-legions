@@ -5,6 +5,7 @@ import { pos3 } from "@/lib/terrain3d";
 import TerrainTile from "./TerrainTile";
 import ArmyFlag3D from "./ArmyFlag3D";
 import DriftingHaze from "./DriftingHaze";
+import TileFX from "./TileFX";
 
 // 3D war-table board — drop-in replacement for the SVG HexBoard in the game view
 export default function HexBoard3D({
@@ -16,6 +17,7 @@ export default function HexBoard3D({
   armies = [],
   selectedArmyId,
   onArmyClick,
+  fx = null,
   height = 560,
 }) {
   const { center, extent } = useMemo(() => {
@@ -93,6 +95,13 @@ export default function HexBoard3D({
             );
           })}
         </Suspense>
+
+        {fx && (() => {
+          const t = tiles.find((x) => x.id === fx.tileId);
+          if (!t) return null;
+          const [x, , z] = pos3(t.q, t.r);
+          return <TileFX key={fx.key} position={[x, 0.35, z]} />;
+        })()}
 
         <DriftingHaze center={center} extent={extent} />
 

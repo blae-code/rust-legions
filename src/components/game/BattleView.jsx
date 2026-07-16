@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Loader2 } from "lucide-react";
 import BattleForce from "@/components/game/BattleForce";
+import BattleDiorama from "@/components/game/BattleDiorama";
 import BattleSparks from "@/components/game/BattleSparks";
 import { ALL_MANEUVERS, MANEUVER_KEYS, SIGNATURE_MANEUVERS, SIGNATURE_COOLDOWNS } from "@/lib/massCombat";
 
@@ -46,6 +47,8 @@ export default function BattleView({ battle, busy, onChoose }) {
             </p>
           )}
         </div>
+
+        <BattleDiorama attacker={battle.attacker} defender={battle.defender} fx={fx} />
 
         <div className="flex gap-3 mb-4">
           <BattleForce side={battle.attacker} title="Attacker" accent="#C9752E" isMe={iAmAttacker} />

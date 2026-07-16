@@ -31,6 +31,7 @@ export default function GamePage() {
   const [sound, setSound] = useState(sfxEnabled());
   const [overlay, setOverlay] = useState(null);
   const [report, setReport] = useState(null);
+  const [mapFx, setMapFx] = useState(null);
   const pollRef = useRef(null);
   const prevBattleRef = useRef(false);
 
@@ -64,6 +65,9 @@ export default function GamePage() {
       await base44.functions.invoke("gameEngine", { gameId, ...payload });
       const sfxMap = { moveUnits: "move", attack: "attack", bombard: "attack", build: "build", purchaseUnits: "purchase", endTurn: "endTurn", musterArmy: "purchase", reinforceArmy: "purchase", moveArmy: "move", battleChoice: "attack", disbandArmy: "move" };
       if (sfxMap[payload.action]) playSfx(sfxMap[payload.action]);
+      if ((payload.action === "attack" || payload.action === "bombard") && payload.toTileId) {
+        setMapFx({ tileId: payload.toTileId, key: Date.now() });
+      }
       await refresh();
     } catch (e) {
       setError(e.response?.data?.error || "Order failed");
@@ -181,6 +185,7 @@ export default function GamePage() {
                 slotColors={slotColors}
                 selectedId={selectedId}
                 overlay={overlay}
+                fx={mapFx}
                 armies={game.armies || []}
                 selectedArmyId={selectedArmyId}
                 onArmyClick={(a) => {
