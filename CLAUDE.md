@@ -76,9 +76,10 @@ Built and live: territorial conquest, typed economy, buildings, 5 unit types, ga
 
 **The committed direction (NOT yet built — see `docs/VISION.md` for full detail):**
 - **v2.x Mobile Bases redesign:** permanent capitals replaced by modular mobile fortress-bases (module slots altering speed/defense/economy/auras); bases captured only by committed ground troops (boarding assaults); permanent settlements become neutral minor polities; buried precursor tech with dig sites, relics, and a "restore humanity" victory condition.
+- **Political Ideology Lifepath (in-game):** decrees triggered by turns/events during a war, shifting four ideology axes (Authority, Economy, Creed, Mobilization) with real mechanical impacts, constitutional thresholds, and diplomatic weight — fully designed in `docs/VISION.md` §5.
 - **Air expansion** (Sky Captain-inspired aerial theater) and **Sea expansion** (Waterworld/Foxhole-naval theater) planned after that, in order.
 
-**Known gaps — near-term candidates, scope not yet locked** (full analysis in `docs/VISION.md` §5.1):
+**Known gaps — near-term candidates, scope not yet locked** (full analysis in `docs/VISION.md` §6.1):
 1. Sea transport — "convoy" action ferrying armies between friendly coasts (biggest hole; full naval theater stays in the Sea expansion)
 2. Minimal diplomacy — offer truce / declare war, NPC acceptance driven by disposition
 3. Resource exchange — lossy war market (~3:1) and/or player trade offers

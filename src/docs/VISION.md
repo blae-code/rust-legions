@@ -68,7 +68,55 @@ Precursor relics (see §4) can grant **unique modules** that cannot be built, on
 - **Relics:** grant unique base modules, one-off powers, or victory progress. Fought over, stolen when a base falls.
 - **Victory:** assembling enough precursor tech to "restore humanity" — the intended primary win condition post-redesign.
 
-## 5. Expansion Roadmap
+## 5. The Political Ideology Lifepath (in-game)
+
+The pre-game BattleTech-style lifepath (faction creation) extends **into play**: the empire keeps living its lifepath. At defined moments during a war, the player is handed a political dilemma — a **Decree** — a choice about the nature of the empire, with real, permanent mechanical consequences. Choices accumulate into an ideology that shapes the faction's bonuses, options, and how others see it.
+
+### 5.1 Ideology axes
+
+Four axes, each ranging −3 … +3, starting at 0 (or seeded by faction lifepath/doctrine):
+
+| Axis | Pole (−) | Pole (+) |
+| --- | --- | --- |
+| **Authority** | Council Rule | Iron Autocracy |
+| **Economy** | War Communalism (command) | Charter Syndicates (market) |
+| **Creed** | Reclaimer (humanity saves itself) | Restorationist (precursor tech is salvation) |
+| **Mobilization** | Citizen Levy | Professional Corps |
+
+The Creed axis is the lore spine — it ties directly to the precursor-tech hunt (§4) and gains most of its teeth in v2.x.
+
+### 5.2 Triggers — "Sessions of the Assembly"
+
+- **Scheduled sessions:** a decree every N turns (cadence ~4–5, tunable per map size).
+- **Event sessions:** fired by history — first enemy territory captured, capital/base threatened, a battle lost badly (≥50% losses), a faction eliminated, treasury crisis (a resource at 0 for 2+ turns), first relic found (v2.x).
+- One pending decree at a time, presented at the start of the player's turn; it must be resolved before `endTurn` (or auto-resolves to the neutral option after a grace turn).
+- **NPCs resolve decrees silently** by doctrine (aggressive → Autocracy/Professional lean, economic → Market lean, defensive → Council/Levy lean), so their ideologies drift too.
+
+### 5.3 Decrees — structure and example impacts
+
+Each decree offers 2–3 choices; each choice shifts 1–2 axes by ±1 and applies immediate and/or ongoing effects. Illustrative (numbers to be balanced at implementation):
+
+- **The Conscription Question** — *Universal Levy* (Mobilization −1: +1 Manpower income, riflemen −1 def) / *The Professional Standard* (Mobilization +1: riflemen +1 def, +1 MP cost) / *Mercenary Charters* (Economy +1: generals cost −1 MP to commission, −5 NPC dispositions).
+- **Emergency Powers** — *Grant the Marshal Absolute Command* (Authority +1: +1 strategy to your supreme commander, rally maneuvers restore −5 less morale) / *Preserve the Council* (Authority −1: +10 NPC dispositions, better truce acceptance once diplomacy exists).
+- **The Foundry Accords** — *Nationalize the Foundries* (Economy −1: +1 Steel income, worse war-market rates once the market exists) / *Charter the Syndicates* (Economy +1: better market rates, fortifications cost +1 Steel).
+- **The Reliquary Question** (v2.x) — *Consecrate the Find* (Creed +1: faster excavation, lab modules cheaper) / *Break It for Parts* (Creed −1: immediate resource windfall, victory-progress penalty).
+
+**Constitutional thresholds:** reaching ±2 on an axis locks in a passive "constitutional" bonus and **gates future decree options** — path dependency, exactly like the creation lifepath. An Iron Autocracy cannot later pick council-flavored options without a costly reform decree.
+
+**Diplomatic weight:** ideology distance modifies dispositions — NPCs (and later settlements/players) warm to ideologically similar empires and cool toward opposites.
+
+### 5.4 Data & surfaces (implementation notes)
+
+- State lives per game: `Game.factionSlots[i].ideology = { axes, resolved[], pendingDecree }` — server-authoritative in `gameEngine` (`getState` exposes the pending decree; new `resolveDecree` action applies a choice).
+- UI: a full-screen ministry-styled **"Decree of the Assembly"** modal (same visual family as patch dispatches), plus a compact Ideology panel showing axis positions and constitutional bonuses.
+- Every resolution writes a combat-log event ("By decree of the Third Assembly, …") — decrees become chapters in the War Chronicle.
+- Effects plug into the existing modifier pipeline (`compileMods` / trait bonuses), not a parallel system.
+
+### 5.5 Open questions
+
+Cadence tuning per map size; whether ideology is seeded from the creation lifepath; per-game only vs. any meta-persistence; the balance budget per decree (each choice should be a real trade, never strictly better); how auto-resolve behaves for players who go dark.
+
+## 6. Expansion Roadmap
 
 Shipped and planned content, in order. Each expansion arrives as Field Amendment patch dispatches (see the Patch workflow in `CLAUDE.md`).
 
@@ -79,7 +127,7 @@ Shipped and planned content, in order. Each expansion arrives as Field Amendment
 | **Expansion: AIR** | *Sky Captain-inspired* | Aerial theater: airships and sky-fortresses, air lanes/altitude as a movement layer, air piracy, possibly airborne mobile bases. Rocketeer/pulp-aviation flavor grafted onto the dieselpunk base. |
 | **Expansion: SEA** | *Waterworld / Foxhole-naval-inspired* | Ocean theater: naval mobile bases (floating fortress flotillas), sea-borne settlements, amphibious operations, deep-sea precursor vaults. Resolves the current sea-transport gap as a full expansion rather than a patch. |
 
-### 5.1 Known Gaps (near-term candidates, independent of the big expansions)
+### 6.1 Known Gaps (near-term candidates, independent of the big expansions)
 
 Holes the current systems imply but don't cover. These can ship as vanilla-era patches or fold into the phases above — scope to be locked with the user before building.
 
@@ -96,7 +144,7 @@ Holes the current systems imply but don't cover. These can ship as vanilla-era p
 6. **Field Manual.** The rules live in the maintainer's head and scattered tooltips — combat math, weather, supply, veterancy, maneuvers. An **in-game codex page** in the same ministry styling as the patch dispatches, so players can actually learn the game. Pairs naturally with patches ("see amended §4.2"); `docs/GAME_RULES.md` is the source text.
 7. **Turn notifications.** Async multiplayer only works if players know it's their turn — an **email nudge to registered players when the baton passes** (Base44 SendEmail reaches registered app users).
 
-## 6. Open Design Questions
+## 7. Open Design Questions
 
 To resolve before/while implementing v2.x:
 
@@ -109,7 +157,7 @@ To resolve before/while implementing v2.x:
 7. Which vanilla victory conditions survive (map control demoted? capital-domination becomes base-domination?)
 8. How existing maps and the map editor represent dig sites and settlements
 
-## 7. Working Agreement
+## 8. Working Agreement
 
 - **Docs first, then code:** design pivots land in this file before implementation begins.
 - Implementation of v2.x has **not started** — the vanilla rules remain fully authoritative in play.
