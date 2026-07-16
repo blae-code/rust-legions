@@ -1,5 +1,6 @@
 import React from "react";
 import GeneralPortrait from "@/components/game/GeneralPortrait";
+import { MEDALS } from "@/lib/medals";
 
 export default function GeneralBadge({ general }) {
   if (!general) return null;
@@ -17,6 +18,23 @@ export default function GeneralBadge({ general }) {
             STRATEGY {general.strategy} · LEADERSHIP {general.leadership}
             {(general.victories || 0) > 0 && <span className="text-olive"> · {general.victories} VICTOR{general.victories === 1 ? "Y" : "IES"}</span>}
             {general.supreme && <span className="text-brass"> · SUPREME COMMANDER</span>}
+          </p>
+        )}
+        {(general.medals || []).length > 0 && (
+          <p className="flex gap-1 mt-0.5">
+            {general.medals.map((key) => {
+              const m = MEDALS[key];
+              if (!m) return null;
+              return (
+                <span
+                  key={key}
+                  title={`${m.label} — ${m.desc}`}
+                  className="inline-flex items-center justify-center w-4 h-4 text-[10px] leading-none text-brass-bright border border-brass/50 rounded-full bg-brass/10 cursor-help"
+                >
+                  {m.icon}
+                </span>
+              );
+            })}
           </p>
         )}
       </div>
