@@ -113,6 +113,9 @@
     "loggedToSheet": {
       "type": "boolean",
       "default": false
+    },
+    "chronicleDocUrl": {
+      "type": "string"
     }
   },
   "required": [

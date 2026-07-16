@@ -1190,8 +1190,13 @@ Deno.serve(async (req) => {
 
     // Ship the after-action summary to the master Google Sheet when a game just concluded
     const logIfComplete = async () => {
-      if (game.status !== 'complete' || game.loggedToSheet) return;
-      try { await base44.functions.invoke('logGameToSheet', { gameId: game.id }); } catch { /* record-keeping must never block play */ }
+      if (game.status !== 'complete') return;
+      if (!game.loggedToSheet) {
+        try { await base44.functions.invoke('logGameToSheet', { gameId: game.id }); } catch { /* record-keeping must never block play */ }
+      }
+      if (!game.chronicleDocUrl) {
+        try { await base44.functions.invoke('exportChronicleToDoc', { gameId: game.id }); } catch { /* record-keeping must never block play */ }
+      }
     };
 
     // ----- In-turn actions -----
