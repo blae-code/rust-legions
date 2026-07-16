@@ -2,10 +2,11 @@ import React from "react";
 import { X } from "lucide-react";
 import { DOCTRINE_BRANCHES, TECHS, techsByBranch } from "@/lib/doctrine";
 import TechCard from "@/components/game/research/TechCard";
+import ArmoryPanel from "@/components/game/research/ArmoryPanel";
 
 // The Doctrine Directorate — set research focus at any time, even off-turn.
 // One research point accrues each time a full round of turns completes.
-export default function DoctrinePanel({ open, onClose, research, busy, onSetFocus }) {
+export default function DoctrinePanel({ open, onClose, research, busy, onSetFocus, game, onUnlock }) {
   if (!open || !research) return null;
   const focusTech = research.focus ? TECHS[research.focus] : null;
 
@@ -43,6 +44,8 @@ export default function DoctrinePanel({ open, onClose, research, busy, onSetFocu
             </div>
           ))}
         </div>
+
+        {game && onUnlock && <ArmoryPanel game={game} busy={busy} onUnlock={onUnlock} />}
       </div>
     </div>
   );

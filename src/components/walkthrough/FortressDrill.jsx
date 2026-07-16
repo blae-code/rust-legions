@@ -15,7 +15,7 @@ export default function FortressDrill({ modules, onChange }) {
         <div key={family}>
           <p className="cq-label mb-1.5">{meta.icon} {meta.label} — <span className="normal-case tracking-normal">{meta.blurb}</span></p>
           <div className="grid sm:grid-cols-2 gap-1.5">
-            {Object.entries(BASE_MODULES).filter(([, m]) => m.slot === family).map(([key, m]) => {
+            {Object.entries(BASE_MODULES).filter(([, m]) => m.slot === family && !m.unlock).map(([key, m]) => {
               const active = modules[family] === key;
               return (
                 <button key={key}

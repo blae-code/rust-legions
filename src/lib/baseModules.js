@@ -13,6 +13,10 @@ export const BASE_MODULES = {
   salvage_refinery: { slot: "industry", label: "Salvage Refinery", cost: { steel: 4, fuel: 2 }, income: { fuel: 2 }, desc: "+2 Fuel income while the base stands on your ground" },
   arc_smelters: { slot: "industry", label: "Arc Smelters", cost: { steel: 6, manpower: 2 }, income: { steel: 2 }, desc: "+2 Steel income while the base stands on your ground" },
   habitat_decks: { slot: "industry", label: "Habitat Decks", cost: { steel: 5 }, income: { manpower: 2 }, desc: "+2 Manpower income while the base stands on your ground" },
+  // Prototype modules — must first be certified in the State Armory (off-turn research)
+  citadel_plate: { slot: "armor", label: "Citadel Plate", cost: { steel: 12, fuel: 3 }, defense: 6, unlock: true, desc: "+6 defense when the base's zone is attacked (prototype)" },
+  juggernaut_reactors: { slot: "engine", label: "Juggernaut Reactors", cost: { steel: 8, fuel: 8 }, moves: 1, allTerrain: true, moveCost: 1, unlock: true, desc: "All-terrain, and each march burns only 1 Fuel (prototype)" },
+  munitions_works: { slot: "industry", label: "Munitions Works", cost: { steel: 8, manpower: 3 }, income: { manpower: 1, steel: 1, fuel: 1 }, unlock: true, desc: "+1 of every resource while the base stands on your ground (prototype)" },
 };
 
 export const BASE_MOVE_COST = { fuel: 2 };

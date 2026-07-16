@@ -450,6 +450,10 @@ const BASE_MODULES = {
   salvage_refinery: { slot: 'industry', label: 'Salvage Refinery', cost: { steel: 4, fuel: 2 }, income: { fuel: 2 } },
   arc_smelters: { slot: 'industry', label: 'Arc Smelters', cost: { steel: 6, manpower: 2 }, income: { steel: 2 } },
   habitat_decks: { slot: 'industry', label: 'Habitat Decks', cost: { steel: 5 }, income: { manpower: 2 } },
+  // Prototype modules — must be unlocked via off-turn armory research (concurrentPlay)
+  citadel_plate: { slot: 'armor', label: 'Citadel Plate', cost: { steel: 12, fuel: 3 }, defense: 6, unlock: true },
+  juggernaut_reactors: { slot: 'engine', label: 'Juggernaut Reactors', cost: { steel: 8, fuel: 8 }, moves: 1, allTerrain: true, moveCost: 1, unlock: true },
+  munitions_works: { slot: 'industry', label: 'Munitions Works', cost: { steel: 8, manpower: 3 }, income: { manpower: 1, steel: 1, fuel: 1 }, unlock: true },
 };
 const BASE_MOVE_COST = { fuel: 2 };
 // Older games predate bases — spawn one on the capital the first time it is needed
@@ -1441,6 +1445,7 @@ Deno.serve(async (req) => {
         suppliedTiles: [...mySupplied],
         myCosts: mySlot !== null && active ? effectiveCosts(game, mySlot) : null,
         myResearch: mySlot !== null ? (mySlotObj.research || { focus: null, progress: {}, completed: [] }) : null,
+        myUnlocks: mySlot !== null ? (mySlotObj.unlocks || []) : null,
         isHost: game.hostUserId === user.id,
         campaignWinCondition: game.campaignWinCondition,
         factions: (game.factionSlots || []).map((s) => ({
@@ -1945,6 +1950,7 @@ Deno.serve(async (req) => {
       if (!base) return Response.json({ error: 'Your fortress-base has been lost' }, { status: 400 });
       const mod = BASE_MODULES[body.moduleKey];
       if (!mod) return Response.json({ error: 'Unknown module' }, { status: 400 });
+      if (mod.unlock && !(slot.unlocks || []).includes(body.moduleKey)) return Response.json({ error: 'That prototype has not been certified by your researchers' }, { status: 400 });
       base.modules = base.modules || {};
       if (base.modules[mod.slot] === body.moduleKey) return Response.json({ error: 'That module is already installed' }, { status: 400 });
       const treasury = getTreasury(game, slotIdx);
@@ -1975,8 +1981,9 @@ Deno.serve(async (req) => {
       if (ROUGH_TERRAIN.includes(toTile.terrain) && !engine.allTerrain) return Response.json({ error: 'That ground is too rough — only Leviathan Turbines can cross it' }, { status: 400 });
       if ((game.weather || 'clear') === 'snow') return Response.json({ error: 'The great engines freeze in the snowfall — the base cannot move this turn' }, { status: 400 });
       const treasury = getTreasury(game, slotIdx);
-      if (!canAfford(treasury, BASE_MOVE_COST)) return Response.json({ error: 'Insufficient fuel to fire the great engines' }, { status: 400 });
-      pay(treasury, BASE_MOVE_COST);
+      const marchCost = { fuel: engine.moveCost || BASE_MOVE_COST.fuel };
+      if (!canAfford(treasury, marchCost)) return Response.json({ error: 'Insufficient fuel to fire the great engines' }, { status: 400 });
+      pay(treasury, marchCost);
       base.tileId = body.toTileId;
       base.movedTurn = game.turnNumber;
       game.combatLog.push({ turn: game.turnNumber, type: 'event', text: `${slot.factionName}'s fortress-base grinds into ${toTile.name}.` });

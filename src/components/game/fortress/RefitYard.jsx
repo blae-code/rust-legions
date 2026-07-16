@@ -45,6 +45,7 @@ export default function RefitYard({ open, onClose, base, game, busy, onAction })
             <RefitBay key={family} family={family}
               installedKey={base.modules?.[family] || null}
               selectedKey={pending[family] || null}
+              unlocks={game.myUnlocks || []}
               onSelect={(key) => setPending((p) => ({ ...p, [family]: key }))} />
           ))}
         </div>
