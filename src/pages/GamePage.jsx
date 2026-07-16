@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
-import { Loader2, Volume2, VolumeX, Handshake, FlaskConical } from "lucide-react";
+import { Loader2, Volume2, VolumeX, Handshake, FlaskConical, Warehouse } from "lucide-react";
+import EconomyDashboard from "@/components/game/economy/EconomyDashboard";
 import { playSfx, sfxEnabled, setSfxEnabled } from "@/lib/sfx";
 import { setScoreSuppressed } from "@/lib/ambience";
 import HexBoard3D from "@/components/hexmap3d/HexBoard3D";
@@ -45,6 +46,7 @@ export default function GamePage() {
   const [mapFx, setMapFx] = useState(null);
   const [showDiplomacy, setShowDiplomacy] = useState(false);
   const [showDoctrine, setShowDoctrine] = useState(false);
+  const [showEconomy, setShowEconomy] = useState(false);
   const pollRef = useRef(null);
   const prevBattleRef = useRef(false);
 
@@ -194,6 +196,15 @@ export default function GamePage() {
             {!game.myResearch.focus && <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-rust cq-lamp text-rust" />}
           </button>
         )}
+        {game.status === "active" && game.myResources && (
+          <button
+            onClick={() => setShowEconomy(true)}
+            title="Quartermaster's Ledger — economy & supply"
+            className="p-1.5 rounded-sm border border-border text-muted-foreground hover:text-brass-bright hover:border-brass/50 transition-colors"
+          >
+            <Warehouse className="w-3.5 h-3.5" />
+          </button>
+        )}
         {game.status === "active" && game.diplomacy && (
           <button
             onClick={() => setShowDiplomacy(true)}
@@ -330,6 +341,7 @@ export default function GamePage() {
         </div>
       </div>
 
+      <EconomyDashboard open={showEconomy} onClose={() => setShowEconomy(false)} game={game} />
       <DiplomacyPanel open={showDiplomacy} onClose={() => setShowDiplomacy(false)} game={game} busy={busy} onAction={act} />
       <DoctrinePanel open={showDoctrine} onClose={() => setShowDoctrine(false)} research={game.myResearch} busy={busy} onSetFocus={setResearchFocus} game={game} onUnlock={unlockItem} />
       <CombatResolution report={resolution} onClose={() => setResolution(null)} />
