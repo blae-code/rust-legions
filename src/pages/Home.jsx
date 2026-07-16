@@ -12,6 +12,7 @@ import DispatchTicker from "@/components/home/DispatchTicker";
 import HudTelemetry from "@/components/home/HudTelemetry";
 import IntelBrief from "@/components/home/IntelBrief";
 import StandingOrders from "@/components/home/StandingOrders";
+import InductionExperience from "@/components/induction/InductionExperience";
 
 export default function Home() {
   const { user } = useUser();
@@ -19,18 +20,16 @@ export default function Home() {
   const [factions, setFactions] = useState(null);
   const [profile, setProfile] = useState(null);
   const [sound, setSound] = useState(sfxEnabled());
+  const [needsInduction, setNeedsInduction] = useState(false);
 
   useEffect(() => {
     if (!user) return;
     base44.functions.invoke("gameEngine", { action: "listMyGames" }).then((r) => setGames(r.data.games));
     base44.entities.Faction.filter({ created_by_id: user.id }).then(setFactions);
-    // Lazily ensure a UserProfile exists
-    base44.entities.UserProfile.filter({ created_by_id: user.id }).then(async (profiles) => {
-      if (profiles.length === 0) {
-        setProfile(await base44.entities.UserProfile.create({ displayName: user.full_name || user.email }));
-      } else {
-        setProfile(profiles[0]);
-      }
+    // First login: no profile yet — run the commissioning ceremony instead of silent creation
+    base44.entities.UserProfile.filter({ created_by_id: user.id }).then((profiles) => {
+      if (profiles.length === 0) setNeedsInduction(true);
+      else setProfile(profiles[0]);
     });
   }, [user]);
 
@@ -43,7 +42,11 @@ export default function Home() {
   return (
     <div className="relative h-[100dvh] overflow-hidden bg-background">
       <StormFront25D />
-      <BootSequence />
+      {needsInduction && user ? (
+        <InductionExperience user={user} onComplete={(p) => { setProfile(p); setNeedsInduction(false); }} />
+      ) : (
+        <BootSequence />
+      )}
       {/* Readability + CRT atmosphere over the 3D table */}
       <div className="absolute inset-0 bg-gradient-to-r from-background/90 via-background/55 to-background/30 pointer-events-none" />
       <div className="absolute inset-0 cq-scanlines opacity-20 pointer-events-none" />
