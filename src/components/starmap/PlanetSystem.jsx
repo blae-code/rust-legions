@@ -8,7 +8,7 @@ import NodeMarker from "@/components/starmap/NodeMarker";
 import MarchTrail from "@/components/starmap/MarchTrail";
 
 // A whole world: rotating surface + its full node network + route arcs
-export default function PlanetSystem({ planet, position, selected, onSelect, hoveredId, onHoverNode, origin, dest, plan, onNodeClick }) {
+export default function PlanetSystem({ planet, position, selected, onSelect, hoveredId, onHoverNode, origin, dest, plan, onNodeClick, menuNodeId, menuOptionsFor, onCloseMenu, baseNodeId }) {
   const spinner = useRef();
   useFrame((_, dt) => { if (spinner.current) spinner.current.rotation.y += dt * planet.spin; });
   return (
@@ -25,6 +25,10 @@ export default function PlanetSystem({ planet, position, selected, onSelect, hov
             hovered={hoveredId === n.id}
             isOrigin={n.id === origin}
             isDest={n.id === dest}
+            isBase={n.id === baseNodeId}
+            menuOpen={n.id === menuNodeId}
+            menuOptions={n.id === menuNodeId ? menuOptionsFor(planet, n) : null}
+            onCloseMenu={onCloseMenu}
             onHover={(node) => onHoverNode(node ? { ...node, planetName: planet.name } : null)}
             onClick={(node) => onNodeClick(planet, node)}
           />

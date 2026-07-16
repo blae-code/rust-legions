@@ -1,6 +1,6 @@
 import React, { useState, useRef, useMemo } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Flag, Crosshair, Anchor, Ban, RotateCcw } from "lucide-react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { Stars, OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
@@ -32,6 +32,8 @@ export default function StarMap() {
   const [selectedId, setSelectedId] = useState(PLANETS[0].id);
   const [hovered, setHovered] = useState(null);
   const [march, setMarch] = useState({ planetId: null, origin: null, dest: null });
+  const [menu, setMenu] = useState(null); // { planetId, nodeId }
+  const [base, setBase] = useState(null); // { planetId, nodeId } — anchored fortress-base
   const controls = useRef();
   const idx = PLANETS.findIndex((p) => p.id === selectedId);
   const selected = PLANETS[idx];
@@ -44,14 +46,36 @@ export default function StarMap() {
     return found ? planMarch(found.path, DAY_RATE, marchPlanet.routes) : null;
   }, [march, marchPlanet]);
 
-  // Two clicks plot a march: first sets the origin, second the objective
+  // Clicking a node opens (or closes) its radial orders menu
   const onNodeClick = (planet, node) => {
     setSelectedId(planet.id);
-    setMarch((m) => {
-      if (m.planetId === planet.id && m.origin === node.id) return { planetId: null, origin: null, dest: null };
-      if (m.planetId !== planet.id || !m.origin || m.dest) return { planetId: planet.id, origin: node.id, dest: null };
-      return { ...m, dest: node.id };
-    });
+    setMenu((m) => (m && m.planetId === planet.id && m.nodeId === node.id ? null : { planetId: planet.id, nodeId: node.id }));
+  };
+  const closeMenu = () => setMenu(null);
+  const clearMarch = () => setMarch({ planetId: null, origin: null, dest: null });
+
+  // Smart flow — only orders that are actually eligible for the column & base appear
+  const menuOptionsFor = (planet, node) => {
+    const done = (fn) => () => { fn(); closeMenu(); };
+    const opts = [];
+    const sameWorld = march.planetId === planet.id;
+    const stagedHere = sameWorld && march.origin === node.id;
+    const marching = sameWorld && march.origin && !march.dest;
+    if (marching && !stagedHere) {
+      opts.push({ key: "objective", label: "March Here", icon: Crosshair, act: done(() => setMarch((m) => ({ ...m, dest: node.id }))) });
+      opts.push({ key: "restage", label: "Restage Column", icon: RotateCcw, act: done(() => setMarch({ planetId: planet.id, origin: node.id, dest: null })) });
+    } else if (stagedHere && !march.dest) {
+      opts.push({ key: "standdown", label: "Stand Down", icon: Ban, tone: "rust", act: done(clearMarch) });
+    } else {
+      opts.push({ key: "stage", label: "Stage Column", icon: Flag, act: done(() => setMarch({ planetId: planet.id, origin: node.id, dest: null })) });
+    }
+    if (sameWorld && march.dest) {
+      opts.push({ key: "clearplot", label: "Clear Plot", icon: Ban, tone: "rust", act: done(clearMarch) });
+    }
+    const baseHere = base && base.planetId === planet.id && base.nodeId === node.id;
+    if (baseHere) opts.push({ key: "weigh", label: "Weigh Anchor", icon: Anchor, tone: "rust", act: done(() => setBase(null)) });
+    else opts.push({ key: "anchor", label: "Anchor Base", icon: Anchor, act: done(() => setBase({ planetId: planet.id, nodeId: node.id })) });
+    return opts;
   };
   const nodeName = (id) => marchPlanet?.nodes.find((n) => n.id === id)?.name || "";
 
@@ -66,7 +90,7 @@ export default function StarMap() {
             <p className="cq-label text-rust">Astrocartography Directorate</p>
             <h1 className="cq-display text-3xl">The Star Chart</h1>
             <p className="font-mono text-[10px] text-muted-foreground tracking-widest mt-1">
-              THREE WORLDS · {PLANETS.reduce((s, p) => s + p.nodes.length, 0)} CHARTED SETTLEMENTS · CLICK TWO SETTLEMENTS TO PLOT A MARCH
+              THREE WORLDS · {PLANETS.reduce((s, p) => s + p.nodes.length, 0)} CHARTED SETTLEMENTS · CLICK A SETTLEMENT FOR ORDERS
             </p>
           </div>
           <div className="flex gap-1.5">
@@ -98,13 +122,17 @@ export default function StarMap() {
                   planet={p}
                   position={POSITIONS[i]}
                   selected={p.id === selectedId}
-                  onSelect={setSelectedId}
+                  onSelect={(id) => { setSelectedId(id); closeMenu(); }}
                   hoveredId={hovered?.id || null}
                   onHoverNode={setHovered}
                   origin={march.planetId === p.id ? march.origin : null}
                   dest={march.planetId === p.id ? march.dest : null}
                   plan={march.planetId === p.id ? plan : null}
                   onNodeClick={onNodeClick}
+                  menuNodeId={menu?.planetId === p.id ? menu.nodeId : null}
+                  menuOptionsFor={menuOptionsFor}
+                  onCloseMenu={closeMenu}
+                  baseNodeId={base?.planetId === p.id ? base.nodeId : null}
                 />
               ))}
               <Rig controlsRef={controls} focus={focus} />
@@ -126,7 +154,12 @@ export default function StarMap() {
             )}
             {march.origin && !march.dest && (
               <p className="font-mono text-[9px] text-brass mt-1 border-t border-border pt-1">
-                ▸ COLUMN STAGED AT {nodeName(march.origin).toUpperCase()} — CLICK AN OBJECTIVE
+                ▸ COLUMN STAGED AT {nodeName(march.origin).toUpperCase()} — CLICK AN OBJECTIVE FOR ORDERS
+              </p>
+            )}
+            {base && (
+              <p className="font-mono text-[9px] text-brass mt-1 border-t border-border pt-1">
+                ⌂ FORTRESS-BASE ANCHORED AT {(PLANETS.find((p) => p.id === base.planetId)?.nodes.find((n) => n.id === base.nodeId)?.name || "").toUpperCase()} · {(PLANETS.find((p) => p.id === base.planetId)?.name || "").toUpperCase()}
               </p>
             )}
             {plan && (
