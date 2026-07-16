@@ -1,11 +1,11 @@
-# Conquest Tactics — Complete Ruleset (v1.0.0 "The Vanilla Front")
+# Conquest Tactics — Complete Ruleset (v1.x "The Vanilla Front" era)
 
 Authoritative source: `base44/functions/gameEngine/entry.ts`. Frontend mirrors in `src/lib/`.
 Any change here must be applied in both places and filed as a Patch dispatch.
 
-> **Note:** this document describes the game **as currently implemented**. A major redesign is planned
-> (mobile fortress-bases replacing permanent capitals, precursor-tech victory, settlements as minor
-> polities) — see `docs/VISION.md`. Until that ships, these vanilla rules are fully authoritative.
+> **Note:** this document describes the game **as currently implemented**. The full v2.x redesign
+> (macro map, precursor-tech victory, settlements as minor polities) is still ahead — see `docs/VISION.md` —
+> but a **vanilla-era slice of mobile fortress-bases has already shipped** (§18). These rules are fully authoritative.
 
 ## 1. Victory Conditions
 
@@ -210,3 +210,58 @@ Doctrines: **aggressive**, **economic**, **defensive**.
 - Visible: your tiles + adjacent, your armies' tiles + adjacent. Everything else returns position/sea-flag only.
 - Combat log truncated to last 30 entries during play; full log on completion (feeds the War Chronicle).
 - Battle archives: last **15** battles' round-by-round dispatch records, visible only to participants.
+
+## 17. Diplomacy — The Envoy Desk (v1.1.0 "The Envoy Accords")
+
+- **Proposals** (in-turn action `proposeDiplomacy`; one envoy per target faction per turn): `truce` (ceasefire, **5 turns**), `nap` (non-aggression pact, **10 turns**), `trade` (resource exchange).
+- Accords forbid attack, army engagement, and bombardment between the parties; lapse is announced in the combat log and hostilities may resume.
+- **Trade valuation:** manpower ×1, steel ×1.5, fuel ×1.5.
+- **NPC acceptance** (driven by disposition `d`, −100…+100): truce if `d ≥ −15`; NAP if `d ≥ 10`; trade if your offer value ≥ 1.15× what you ask and the NPC can cover it.
+- **Disposition shifts:** accord signed +10 · trade concluded +6 · envoy refused −3 · attacked −8 · bombarded −5. NPC dispositions are seeded from the player's lifepath `npcDispositions` ± `pariah_state`.
+- Human targets receive pending offers (`respondDiplomacy` accept/decline, usable off-turn). Trade voids if either side can no longer cover it.
+- Accords ledger + last 8 trades are exposed in `getState.diplomacy`.
+
+## 18. Mobile Fortress-Bases (vanilla-era slice)
+
+Each faction owns exactly one fortress-base, spawned on its capital at game start (legacy games get one lazily). The hull itself grants **+1 defense** to its zone; it is a **prime supply hub** wherever it stands on friendly ground.
+
+- **Module bays** (one module per bay; install/swap via `installModule`, any number per turn while it's your turn):
+
+| Bay | Module | Cost | Effect |
+| --- | --- | --- | --- |
+| Armor | Riveted Plating | 5 St | +2 zone defense |
+| | Bulwark Hull | 9 St + 2 F | +4 zone defense |
+| | Citadel Plate ★ | 12 St + 3 F | +6 zone defense |
+| Engine | Crawler Drives | 4 St + 3 F | move 1 zone/turn (open ground) |
+| | Leviathan Turbines | 6 St + 6 F | move 1 zone/turn, crosses rough terrain |
+| | Juggernaut Reactors ★ | 8 St + 8 F | all-terrain, march costs 1 Fuel instead of 2 |
+| Industry | Salvage Refinery | 4 St + 2 F | +2 Fuel income |
+| | Arc Smelters | 6 St + 2 MP | +2 Steel income |
+| | Habitat Decks | 5 St | +2 Manpower income |
+| | Munitions Works ★ | 8 St + 3 MP | +1 of every resource |
+
+★ = prototype — must first be certified in the State Armory (§20). Industry income applies only while the base stands on the owner's ground.
+
+- **Movement** (`moveBase`): requires an engine module; 1 adjacent friendly zone per turn; costs **2 Fuel** (1 with Juggernaut Reactors); rough terrain (mountains/highlands/marsh) needs an all-terrain engine; blocked entirely in snow and while a battle is active.
+- **Loss:** if the base's zone is captured by another faction, the base is **wrecked permanently** (`baseLost`) — it is never rebuilt. Its defense bonus and the module snapshot appear in the combat record.
+
+## 19. Doctrine Research (Directorate of War Sciences)
+
+- Each human faction sets one **research focus**; focus may be set/changed **at any time, including off-turn** (`concurrentPlay.setResearchFocus`).
+- **1 research point accrues per completed full turn cycle** while a focus is set. On completion the tech's mods merge permanently into the slot's compiled mods and the focus clears.
+- Three branches, three tiers each (linear prerequisites within a branch):
+
+| Branch | Tier 1 (3 pts) | Tier 2 (4 pts) | Tier 3 (6 pts) |
+| --- | --- | --- | --- |
+| Armament | Standardized Calibers (+1 rifle atk) | Hardened Plate (+1 crawler def) | Combined Arms (+1 crawler & fighter atk) |
+| Industry | Rationalized Foundries (+1 Steel) | Synthetic Fuel (+1 Fuel) | Total Mobilization (+1 MP, +20 army cap) |
+| Logistics | Field Kitchens (+10 army cap) | Motorized Supply (+1 supply range) | General Staff Academy (+1 capital def, +1 rifle def) |
+
+NPCs do not research.
+
+## 20. The State Armory (off-turn unlocks)
+
+One-time treasury purchases via `concurrentPlay.unlockItem`, usable **at any time** (concurrent play — never touches contested state):
+
+- **Fortress prototypes** (certify a ★ module for the Refit Yard): Citadel Plate 6 St + 2 MP · Juggernaut Reactors 5 St + 4 F · Munitions Works 6 St + 3 F. Certification is separate from (and cheaper than) the later install cost.
+- **Ideology decrees** (bonus applies immediately via slot mods): War Bonds 3 MP + 2 F (+1 Steel income) · Fuel Rationing Act 4 St + 2 MP (+1 Fuel income) · Universal Levy 3 St + 3 MP (+15 army cap) · Hearth & Bulwark 5 St + 2 MP (+1 capital def, +1 rifle def).

@@ -42,6 +42,10 @@ The game is positioned as a **live-service title**: v1.0.0 is "The Vanilla Front
    - `src/lib/pointBuy.js` — faction perk definitions
    - `src/lib/combatMods.js` — terrain/elevation combat modifiers
    - `src/lib/weather.js` — weather metadata and effect descriptions
+   - `src/lib/baseModules.js` — fortress-base module catalog & hull stats
+   - `src/lib/doctrine.js` — research tree (also mirrored in `concurrentPlay`)
+   - `src/lib/armory.js` — State Armory unlock catalog (also mirrored in `concurrentPlay`)
+   - `src/lib/diplomacy.js` — pact durations/labels and trade valuation
 
 **Any rules change must be applied to both sides**, and should also be filed as a Patch dispatch (below). The server always wins — the frontend mirrors are cosmetic/UX only.
 
@@ -60,33 +64,33 @@ Every player-facing gameplay change should ship with a patch note:
 - Fonts: `font-display` (Bebas Neue — big stencil headings), `font-heading` (Barlow Condensed — labels/buttons, uppercase + tracking), `font-body` (Barlow), `font-mono` (IBM Plex Mono — telemetry/readouts).
 - Reusable component classes (defined in `src/index.css`): `cq-panel` (riveted steel plate), `cq-hazard` (hazard-stripe divider), `cq-label` (stenciled section label), `cq-display` (stencil heading), `cq-tag`, `cq-brackets` (corner brackets), `cq-metal` (worn-metal button surface), `cq-stamp` (rubber stamp), `cq-scanlines`, `cq-vignette`, plus many FX keyframe classes (`cq-shake`, `cq-arty-flash`, `cq-lightning`, `cq-rain`, `cq-ember`, etc.).
 - **Voice:** all UI copy is in-world military-ministry English ("Issue orders, General", "War Ministry Communiqué"). Keep new copy in that voice.
-- **Audio:** all SFX are synthesized at runtime via Web Audio (`src/lib/sfx.js` — grit/overdrive stage; `src/lib/ambience.js` — thunder/artillery ambience). No audio assets. Respect the `sfxEnabled()` toggle.
+- **Audio:** SFX are synthesized at runtime via Web Audio (`src/lib/sfx.js` — mechanical clicks/levers with a grit/overdrive stage; respect the `sfxEnabled()` toggle). The menu score is a **rotating 5-piece public-domain orchestral playlist** (`src/lib/ambience.js`, sourced from Wikimedia Commons) with a persistent `MusicController` (bottom-right, mounted in `src/components/Layout.jsx`) — on/off, volume, skip, all persisted in localStorage; battles suppress it via `setScoreSuppressed`. Prefer melodic/atmospheric beds over high-intensity SFX triggers. Future recordings are catalogued with generation briefs in `src/lib/audioLibrary.js` (Sound Registry on `/asset-registry`).
+- **Video backdrops:** the home menu plays a rotating reel of locked-off cinematic loops (`BackdropReel` inside `StormFront25D`) — new patches append clips to `BACKDROP_REELS`; distant artillery stays tiny and silent, camera never moves.
 - **Immersion first:** menus and docs are diegetic (dispatch files, dossiers, communiqués), not plain web pages.
 
 ## Key Runtime Flows
 
-- **All gameplay goes through one backend function:** `gameEngine` — an action-dispatch API (`{ action: "getState" | "attack" | ... , gameId, ...params }`). The frontend never mutates `Game` records directly. See `docs/ARCHITECTURE.md` for the full action catalog.
+- **All gameplay goes through one backend function:** `gameEngine` — an action-dispatch API (`{ action: "getState" | "attack" | ... , gameId, ...params }`). The frontend never mutates `Game` records directly. See `docs/ARCHITECTURE.md` for the full action catalog. Exception: **off-turn planning** (research focus, armory unlocks) goes through `concurrentPlay`, which only touches uncontested per-slot state; Field Wire chat writes `ChatMessage` records directly.
 - **State polling:** `GamePage` polls `getState` every 4s (2.5s during battles). `getState` doubles as a presence heartbeat (`lastSeen`), which drives live-vs-AI battle defense (defender is "live" if seen < 60s ago).
 - **Fog of war** is enforced server-side: `getState` returns only tiles visible to the caller.
 - **Game completion side-effects:** on completion, `gameEngine` invokes `logGameToSheet` (Google Sheets) and `exportChronicleToDoc` (Google Docs) — both must never block play (errors swallowed).
 
 ## Current Scope Status (as of 2026-07-16)
 
-Built and live: territorial conquest, typed economy, buildings, 5 unit types, garrison combat, mass battles (generals, maneuvers, morale, signatures, veterancy, medals), supply/logistics, weather, terrain/elevation modifiers, artillery bombardment, recon probes, army designs, faction point-buy + lifepath, NPC AI (3 doctrines), campaign mode, dispatch archive, war charts, patch-notes system.
+Built and live: territorial conquest, typed economy, buildings, 5 unit types, garrison combat, mass battles (generals, maneuvers, morale, signatures, veterancy, medals) with a post-battle combat-resolution screen, supply/logistics, weather, terrain/elevation modifiers, artillery bombardment, recon probes, army designs, faction point-buy + lifepath, NPC AI (3 doctrines), campaign mode, dispatch archive, war charts, patch-notes system, **diplomacy (Envoy Desk: truces/NAPs/trades, accords ledger, NPC dispositions)**, **mobile fortress-bases (vanilla slice: 3 module bays, refit yard, base movement, wreck-on-capture)**, **doctrine research tree + State Armory off-turn unlocks (`concurrentPlay`)**, Field Wire chat, Field Induction tutorial (`/walkthrough`), **Macro March Lab** (`/macro-lab` — v2.x graph-movement prototype with day-rate itineraries and a tactical overlay), Asset Registry (`/asset-registry` — image plates + sound registry with generation prompts), rotating menu soundtrack + video backdrop reels.
 
 **The committed direction (NOT yet built — see `docs/VISION.md` for full detail):**
 - **v2.x Mobile Bases redesign:** permanent capitals replaced by modular mobile fortress-bases (module slots altering speed/defense/economy/auras); bases captured only by committed ground troops (boarding assaults); permanent settlements become neutral minor polities; buried precursor tech with dig sites, relics, and a "restore humanity" victory condition.
 - **Political Ideology Lifepath (in-game):** decrees triggered by turns/events during a war, shifting four ideology axes (Authority, Economy, Creed, Mobilization) with real mechanical impacts, constitutional thresholds, and diplomatic weight — fully designed in `docs/VISION.md` §5.
 - **Air expansion** (Sky Captain-inspired aerial theater) and **Sea expansion** (Waterworld/Foxhole-naval theater) planned after that, in order.
 
-**Known gaps — near-term candidates, scope not yet locked** (full analysis in `docs/VISION.md` §6.1):
+**Known gaps — near-term candidates, scope not yet locked** (full analysis in `docs/VISION.md` §7.1):
 1. Sea transport — "convoy" action ferrying armies between friendly coasts (biggest hole; full naval theater stays in the Sea expansion)
-2. Minimal diplomacy — offer truce / declare war, NPC acceptance driven by disposition
-3. Resource exchange — lossy war market (~3:1) and/or player trade offers
-4. Stalemate protection — optional turn deadline with auto-skip + max-turn scored victory (land + production)
-5. Speed/initiative system — **in-or-out decision pending**; pairs with v2.x engine modules
-6. Field Manual — in-game codex page, ministry styling, sourced from `docs/GAME_RULES.md`
-7. Turn notifications — email nudge to registered players when the baton passes
+2. Neutral war market — lossy resource conversion (~3:1) for games with no willing trade partner (player-to-player trade already shipped)
+3. Stalemate protection — optional turn deadline with auto-skip + max-turn scored victory (land + production)
+4. Field Manual — in-game codex page, ministry styling, sourced from `docs/GAME_RULES.md` (major lore/onboarding gap)
+5. Turn notifications — email nudge to registered players when the baton passes
+6. Precursor-tech gameplay (dig sites, relics) and unique lore for neutral settlements — awaiting v2.x
 
 Do not start implementing v2.x or expansion content without explicit user go-ahead — the docs-first working agreement in `docs/VISION.md` applies.
 
@@ -98,3 +102,5 @@ Do not start implementing v2.x or expansion content without explicit user go-ahe
 - The `Game` entity is a large single document — `gameEngine` mutates the in-memory object then persists selected fields. When adding state, remember to add it to the relevant `Game.update(...)` persistence calls (see `persistWar()` for the war-related field set).
 - Tailwind class names must appear as literal strings in source (no template-built class names) or the build purges them.
 - Old 2D board (`src/components/hexmap/HexBoard.jsx`) is legacy; the live board is `src/components/hexmap3d/HexBoard3D.jsx`.
+- `concurrentPlay` duplicates the tech/armory catalogs from `gameEngine` (no local imports between functions) — a rules change there touches **three** files: `gameEngine`, `concurrentPlay`, and the `src/lib/` mirror.
+- The menu score playlist (`src/lib/ambience.js`) streams from Wikimedia Commons `Special:FilePath` URLs — verify a file exists on Commons before adding to `PLAYLIST`.

@@ -1,6 +1,6 @@
 # Conquest Tactics — Design Vision & Roadmap
 
-This is the creative north star for the project. `docs/GAME_RULES.md` describes what is *currently implemented* (the v1.0.0 "Vanilla Front"); this document describes where the game is *going*. When the two conflict, this document wins for future work — but nothing here is implemented until it ships as a Field Amendment (patch) and the rules doc is updated.
+This is the creative north star for the project. `docs/GAME_RULES.md` describes what is *currently implemented* (the v1.x "Vanilla Front" era); this document describes where the game is *going*. When the two conflict, this document wins for future work — but nothing here is implemented until it ships as a Field Amendment (patch) and the rules doc is updated.
 
 ## 1. High Concept
 
@@ -11,7 +11,7 @@ A dieselpunk grand-strategy game where the great powers are not nations rooted i
 - **Mortal Engines / Stellaris "Nomads"** — mobile fortress-bases as the seat of power
 - **Stellaris** — modular customization, doctrine-driven factions, personality-rich AI
 - **Twilight Imperium / Stellaris ground combat** — capturing a base requires committed troops, not just firepower
-- **Foxhole / Iron Harvest** — gritty dieselpunk logistics warfare (already the visual identity)
+- **Foxhole / Iron Harvest / Dust Front** — gritty dieselpunk logistics warfare (already the visual identity: near-monochrome ash-grey + signal red)
 - **Sky Captain and the World of Tomorrow** — the planned Air expansion
 - **Waterworld / Foxhole naval** — the planned Sea expansion
 
@@ -27,6 +27,12 @@ A dieselpunk grand-strategy game where the great powers are not nations rooted i
 
 The single largest planned change to the vanilla rules: **permanent capitals are replaced by mobile fortress-bases.**
 
+> **Status: a vanilla-era slice has SHIPPED.** Every faction now owns a fortress-base with three module
+> bays (armor / engine / industry), a Refit Yard, prototype modules certified via the off-turn State
+> Armory, base movement across friendly ground, prime-supply-hub status, and wreck-on-capture
+> (see `docs/GAME_RULES.md` §18–§20). Still unbuilt from this section: boarding assaults, base loss
+> replacing the capital rules, module stripping, aura/lab/hangar module families, and NPC base AI.
+
 ### 3.1 What a mobile base is
 - Each faction has exactly one — its capital, factory, supply heart, and home, on treads.
 - It occupies a tile and can **move across the map** (slowly — this is a fortress, not a jeep).
@@ -34,13 +40,13 @@ The single largest planned change to the vanilla rules: **permanent capitals are
 - Its loss is the gravest thing that can happen to a faction.
 
 ### 3.2 Modularity (the Stellaris part)
-Bases have **module slots**. Modules are installed/swapped at cost and alter the base's abilities and its empire-wide impact. Candidate module families (design space, not final):
+Bases have **module slots**. Modules are installed/swapped at cost and alter the base's abilities and its empire-wide impact. Candidate module families (design space, not final; armor/engine/industry shipped):
 
 | Family | Example effects |
 | --- | --- |
-| **Engines** | base movement rate, rough-terrain traversal |
-| **Armament** | base defense/attack values, bombardment capability |
-| **Industry** | income bonuses, unit cost reduction, on-board production |
+| **Engines** ✓ | base movement rate, rough-terrain traversal |
+| **Armament** (partial ✓ as Armor) | base defense/attack values, bombardment capability |
+| **Industry** ✓ | income bonuses, unit cost reduction, on-board production |
 | **Hangar / Barracks** | garrison capacity, muster-from-base, army cap bonus |
 | **Laboratory** | precursor-tech excavation speed, relic analysis |
 | **Habitat** | manpower income, general recruitment quality |
@@ -49,13 +55,13 @@ Bases have **module slots**. Modules are installed/swapped at cost and alter the
 Precursor relics (see §4) can grant **unique modules** that cannot be built, only found.
 
 ### 3.3 Capturing a base (the Twilight Imperium part)
-- A base **cannot be taken by bombardment or attrition alone** — it must be stormed by committed ground troops (a boarding assault: a special mass-battle type fought deck by deck).
+- A base **cannot be taken by bombardment or attrition alone** — it must be stormed by committed ground troops (a boarding assault: a special mass-battle type fought deck by deck). *(Current vanilla behavior: the base is simply wrecked when its zone is captured — the boarding assault replaces this.)*
 - A captured base changes hands or is salvaged — captured modules may be stripped, transferred, or destroyed (design decision pending).
 - **Open question:** does losing your base eliminate the faction, or leave a crippled nomad remnant with a chance to retake it? (Leaning: crippled remnant with a grace period — more dramatic.)
 
 ### 3.4 Knock-on effects on vanilla rules (must be resolved when implementing)
 - **Capital income rule** ("capital lost ⇒ no income") becomes a base rule.
-- **Supply networks** currently anchor to capitals/forts/barracks — the base becomes the primary, moving anchor.
+- **Supply networks** currently anchor to capitals/forts/barracks — the base becomes the primary, moving anchor (it is already *a* hub; it must become *the* anchor).
 - **Map-control victory (60%)** may be demoted or replaced: for nomads, holding dirt matters less than holding *tech*. A relic-based victory ("restore humanity") likely becomes the headline win condition.
 - **Permanent settlements** replace neutral garrison tiles: minor polities with a disposition, tradeable/raidable/coercible, that harvest their tile's resources.
 - **NPC AI** must learn to move its base, install modules, and race for dig sites.
@@ -69,6 +75,11 @@ Precursor relics (see §4) can grant **unique modules** that cannot be built, on
 - **Victory:** assembling enough precursor tech to "restore humanity" — the intended primary win condition post-redesign.
 
 ## 5. The Macro Map: Graph Under the Hood, Painterly World on Top
+
+> **Status: prototype live.** The **Macro March Lab** (`/macro-lab`, `src/lib/macro/`, `src/components/macro/`)
+> implements the graph model client-side: node-and-route map, day-rate Dijkstra itineraries with overnight
+> camps (slowest ground element sets the pace), and a tactical overlay (supply-artery betweenness analysis +
+> ranked capture objectives). It is a sandbox only — nothing is wired into `gameEngine` yet.
 
 **Decision (locked):** the hex grid is retired as the player-facing world model. It is replaced by a **Total War / Mount & Blade-style continuous macro map** driven by a **node-and-route graph** on the server. The player never sees a hex — only a painterly war-table map with named places, roads, and marching columns. This is the spine of the v2.x redesign: mobile bases only make sense on a map built for movement.
 
@@ -118,6 +129,11 @@ Why hybrid: full free-position movement (true M&B) makes turn-based server valid
 
 The pre-game BattleTech-style lifepath (faction creation) extends **into play**: the empire keeps living its lifepath. At defined moments during a war, the player is handed a political dilemma — a **Decree** — a choice about the nature of the empire, with real, permanent mechanical consequences. Choices accumulate into an ideology that shapes the faction's bonuses, options, and how others see it.
 
+> **Status: seed shipped.** The State Armory's "Ideology Decrees" (War Bonds, Fuel Rationing, Universal
+> Levy, Hearth & Bulwark — `docs/GAME_RULES.md` §20) are the first purchasable decrees, but they are
+> flat unlocks: no axes, no triggered Assembly sessions, no path dependency yet. The full system below
+> replaces them (or absorbs them as Economy/Mobilization-axis choices).
+
 ### 6.1 Ideology axes
 
 Four axes, each ranging −3 … +3, starting at 0 (or seeded by faction lifepath/doctrine):
@@ -143,7 +159,7 @@ The Creed axis is the lore spine — it ties directly to the precursor-tech hunt
 Each decree offers 2–3 choices; each choice shifts 1–2 axes by ±1 and applies immediate and/or ongoing effects. Illustrative (numbers to be balanced at implementation):
 
 - **The Conscription Question** — *Universal Levy* (Mobilization −1: +1 Manpower income, riflemen −1 def) / *The Professional Standard* (Mobilization +1: riflemen +1 def, +1 MP cost) / *Mercenary Charters* (Economy +1: generals cost −1 MP to commission, −5 NPC dispositions).
-- **Emergency Powers** — *Grant the Marshal Absolute Command* (Authority +1: +1 strategy to your supreme commander, rally maneuvers restore −5 less morale) / *Preserve the Council* (Authority −1: +10 NPC dispositions, better truce acceptance once diplomacy exists).
+- **Emergency Powers** — *Grant the Marshal Absolute Command* (Authority +1: +1 strategy to your supreme commander, rally maneuvers restore −5 less morale) / *Preserve the Council* (Authority −1: +10 NPC dispositions, better truce acceptance).
 - **The Foundry Accords** — *Nationalize the Foundries* (Economy −1: +1 Steel income, worse war-market rates once the market exists) / *Charter the Syndicates* (Economy +1: better market rates, fortifications cost +1 Steel).
 - **The Reliquary Question** (v2.x) — *Consecrate the Find* (Creed +1: faster excavation, lab modules cheaper) / *Break It for Parts* (Creed −1: immediate resource windfall, victory-progress penalty).
 
@@ -168,8 +184,8 @@ Shipped and planned content, in order. Each expansion arrives as Field Amendment
 
 | Phase | Name | Contents |
 | --- | --- | --- |
-| **v1.x (shipped)** | The Vanilla Front | Everything in `docs/GAME_RULES.md` |
-| **v2.x (next major)** | Mobile Bases & Macro Map redesign | §3–§5 above: mobile fortress-bases, modules, boarding assaults, permanent settlements as minor polities, precursor tech & relic victory, and the graph-based macro map with day-rate movement (one turn = one day) |
+| **v1.x (shipped, ongoing)** | The Vanilla Front | Everything in `docs/GAME_RULES.md` — including the shipped diplomacy (§17), fortress-base slice (§18), research tree (§19), and State Armory (§20) |
+| **v2.x (next major)** | Mobile Bases & Macro Map redesign | §3–§5 above: full mobile-base rules (boarding assaults, base-loss consequences, remaining module families), permanent settlements as minor polities, precursor tech & relic victory, and the graph-based macro map with day-rate movement (one turn = one day) |
 | **Expansion: AIR** | *Sky Captain-inspired* | Aerial theater: airships and sky-fortresses, air lanes/altitude as a movement layer, air piracy, possibly airborne mobile bases. Rocketeer/pulp-aviation flavor grafted onto the dieselpunk base. |
 | **Expansion: SEA** | *Waterworld / Foxhole-naval-inspired* | Ocean theater: naval mobile bases (floating fortress flotillas), sea-borne settlements, amphibious operations, deep-sea precursor vaults. Resolves the current sea-transport gap as a full expansion rather than a patch. |
 
@@ -185,26 +201,27 @@ Holes the current systems imply but don't cover. These can ship as vanilla-era p
 4. **Stalemate protection.** Nothing ends a war that grinds — no turn limit, no scored victory, and no timer if a multiplayer opponent goes dark. Fix: an **optional turn deadline with auto-skip**, plus a **max-turn scored victory** (land + production).
 5. **Speed/initiative system** — unit speed stats and the battle initiative display have shipped; the mechanical half (initiative-ordered casualties, speed auras) is **now folded into §5**: day-rate marching and interception are where speed pays off. Deferred to v2.x with the macro map.
 
-**Tooling gaps (support, not rules):**
+**Tooling / lore gaps (support, not rules):**
 
-6. **Field Manual.** The rules live in the maintainer's head and scattered tooltips — combat math, weather, supply, veterancy, maneuvers. An **in-game codex page** in the same ministry styling as the patch dispatches, so players can actually learn the game. Pairs naturally with patches ("see amended §4.2"); `docs/GAME_RULES.md` is the source text.
+6. **Field Manual.** The rules live in the maintainer's head and scattered tooltips — combat math, weather, supply, veterancy, maneuvers. An **in-game codex page** in the same ministry styling as the patch dispatches, so players can actually learn the game. Pairs naturally with patches ("see amended §4.2"); `docs/GAME_RULES.md` is the source text. Also the natural home for the lore bible (§2), which currently has no in-game surface — the precursor hunt and neutral settlements have no narrative representation in play.
 7. **Turn notifications.** Async multiplayer only works if players know it's their turn — an **email nudge to registered players when the baton passes** (Base44 SendEmail reaches registered app users).
 
 ## 8. Open Design Questions
 
 To resolve before/while implementing v2.x:
 
-1. Base movement rate and cost (per turn? fuel-fed? terrain limits?)
-2. Module slot count, install costs, and swap timing (in-field vs at-settlement?)
+1. Base movement rate and cost at macro scale (the vanilla slice uses 1 zone / 2 Fuel per turn — does this survive the day-rate model?)
+2. Remaining module families (hangar, lab, habitat, aura), slot count growth, and swap timing (in-field vs at-settlement?)
 3. Boarding assault mechanics — reuse the mass-battle maneuver engine with a "decks" twist, or a new resolution system?
-4. Base loss: elimination vs crippled-remnant grace period (leaning remnant)
+4. Base loss: elimination vs crippled-remnant grace period (leaning remnant; vanilla currently wrecks the base permanently)
 5. Settlement interaction verbs: trade / coerce (tribute) / raid / garrison — and how NPC dispositions extend to settlements
 6. Relic count/pacing per map size; excavation turns; how contested digs resolve
 7. Which vanilla victory conditions survive (map control demoted? capital-domination becomes base-domination?)
-8. How existing maps and the map editor represent dig sites and settlements
+8. How the graph map editor represents dig sites and settlements
+9. How the Armory's flat ideology decrees fold into the axis-based Assembly system (§6)
 
 ## 9. Working Agreement
 
 - **Docs first, then code:** design pivots land in this file before implementation begins.
-- Implementation of v2.x has **not started** — the vanilla rules remain fully authoritative in play.
+- Implementation of the v2.x macro map has **not started server-side** — the vanilla hex rules remain fully authoritative in play; `/macro-lab` is a client-side sandbox.
 - Every shipped slice updates `docs/GAME_RULES.md`, the `src/lib/` mirrors, and files a Patch dispatch.

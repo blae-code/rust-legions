@@ -5,7 +5,7 @@
 ### Game (one document per war — the entire live game state)
 - `name`, `mode` (`multiplayer` | `campaign`), `status` (`lobby` | `active` | `complete`), `hostUserId`, `winnerSlot`
 - `mapId`, `tiles[]` (hex tiles: `id`, `q`, `r`, `name`, `terrain`, `isSea`, `isCapital`, `baseIncome`, `resourceBonus`, `adjacentIds[]`)
-- `factionSlots[]`: per-player slot — `slotIndex`, `userId`, `factionId`, `factionName`, `isNPC`, `doctrine`, `traits[]`, `pointBuy[]`, `mods` (compiled perks), `color`, `capitalTileId`, `eliminated`, `generals[]`, `armiesRaised`, `dispositions` (NPC only)
+- `factionSlots[]`: per-player slot — `slotIndex`, `userId`, `factionId`, `factionName`, `isNPC`, `doctrine`, `traits[]`, `pointBuy[]`, `mods` (compiled perks + research/decrees), `color`, `capitalTileId`, `eliminated`, `generals[]`, `armiesRaised`, `dispositions` (NPC only), `research{focus, progress, completed}`, `unlocks[]` (armory), `base{tileId, modules, movedTurn}` / `baseLost` (fortress-base)
 - `turnOrder[]`, `currentTurnIndex`, `turnNumber`, `weather`
 - `territoryStates{tileId}`: `owner` (slotIndex|null), `units{unitKey: count}`, `buildings[{type, level, pending}]`, `lastBombardTurn`
 - `treasuries{slotIndex}`: `{manpower, steel, fuel}`
@@ -13,6 +13,7 @@
 - `activeBattle` (live mass battle state) / `lastBattle` (after-action report) / `battleArchives[]` (last 15 reports w/ round history)
 - `lastSeen{userId: ISO}` — presence heartbeats
 - `combatLog[]` (typed entries: `combat`, `capture`, `event`), `statHistory[]` (per-turn control/production snapshots)
+- `diplomacy{relations, offers[], lastProposal, tradeLog[]}` — accords keyed `"a-b"` with `{status, since, until}`
 - `campaignWinCondition{type, value}`, `loggedToSheet`, `chronicleDocUrl`
 
 ### Other entities
@@ -21,6 +22,7 @@
 - **ArmyDesign** — doctrine template: `name`, `formation`, `weapon`, `armor`, `support` (per-user via `created_by_id`)
 - **UserProfile** — `displayName`, `avatarUrl`, `gamesPlayed`, `gamesWon`, `campaignsCompleted`, `mapsCreated`, `isAdmin`
 - **Patch** — live-service dispatch: `version`, `codename`, `title`, `summary` (markdown), `releaseDate`, `isPublished`, `changes[{category, title, description, impact}]`
+- **ChatMessage** — Field Wire chat: `gameId`, `authorName`, `text` (written directly from the frontend; realtime via `subscribe`)
 - **User** — built-in Base44 entity (do not create records; `role` is `admin`/`user`)
 
 ## Backend Functions (`base44/functions/*/entry.ts`)
@@ -46,11 +48,16 @@ Action-dispatch over POST body `{ action, gameId?, ...params }`. Frontend calls 
 | `battleChoice` | gameId, maneuver | Issue secret orders for the active battle |
 | `bombard` | fromTileId, toTileId | Artillery barrage |
 | `probe` | tileId | Recon — returns partial `intel` |
-| `endTurn` | gameId | Advance turn; NPCs play inline; weather rolls per cycle |
+| `installModule` | moduleKey | Refit a fortress-base bay (prototypes need armory unlock) |
+| `moveBase` | toTileId | Crawl the fortress-base 1 friendly zone (engine + fuel) |
+| `proposeDiplomacy` | targetSlot, kind (`truce`/`nap`/`trade`), give, want | Dispatch an envoy (NPCs decide inline) |
+| `respondDiplomacy` | offerId, accept | Accept/decline a pending offer (usable off-turn) |
+| `endTurn` | gameId | Advance turn; NPCs play inline; weather + research tick per cycle |
 
 Turn enforcement via `requireMyTurn()`; most army actions blocked while `activeBattle` exists. On completion, fires `logGameToSheet` + `exportChronicleToDoc` (non-blocking).
 
 ### Other functions
+- **concurrentPlay** — off-turn ("concurrent play") actions that never touch contested state: `setResearchFocus` (doctrine tree) and `unlockItem` (State Armory prototypes/decrees). Callable at any time by any seated player.
 - **generateMap** — procedural hex map generation (used by NewGame/MapEditor)
 - **synthesizeFaction** — LLM synthesis of faction lore/traits from lifepath choices (InvokeLLM)
 - **logGameToSheet** — appends completed-game summary to a master Google Sheet (googlesheets connector)
@@ -61,26 +68,36 @@ Connectors authorized: `googlesheets`, `googledocs` (shared mode, builder's acco
 ## Frontend Structure
 
 ### Routing (`src/App.jsx`)
-`/` Home · `/new-game` · `/game/:gameId` · `/faction-builder` · `/map-editor` · `/maps` · `/army-designer` · `/patch-notes` — all wrapped in `src/components/Layout.jsx`. Auth template pages at `/login` etc.
+`/` Home · `/new-game` · `/game/:gameId` · `/faction-builder` · `/map-editor` · `/maps` · `/army-designer` · `/patch-notes` · `/asset-registry` · `/macro-lab` · `/walkthrough` — all wrapped in `src/components/Layout.jsx` (which also mounts the persistent `MusicController`). Auth template pages at `/login` etc.
 
 ### Pages
 - **Home** — 100dvh three-column command deck: `StormFront25D` video backdrop (locked-off trench-front loop + live lightning/artillery FX), `GameMenu` order plates, `FrontCard` game list, dossier/intel/ticker panels, `BootSequence`, ambient audio unlock.
 - **GamePage** — the war room: command bar (factions, weather badge, resources, end turn), `HexBoard3D` tactical theater, side panels (`ArmyPanel`, `MusterPanel`, `ProbePanel`, `TilePanel`, `BuildPanel`, `PurchasePanel`, `DispatchArchive`, `CombatLog`), `WarCharts`, modal `BattleView` (+ `BattleDiorama` animated combat) and `BattleReport`. Polls `getState` (4s / 2.5s in battle).
+- **GamePage side systems** — `DoctrinePanel` (research tree + `ArmoryPanel`), `FortressBay`/`RefitYard` (base modules & movement), `DiplomacyPanel` (Envoy Desk: offers, accords ledger, trade log), `GameChat` (Field Wire), `CombatResolution` (post-battle losses screen).
 - **NewGame / MapLibrary / MapEditor / FactionBuilder / ArmyDesigner / PatchNotes** — setup & meta tools.
+- **Walkthrough** — 5-step "Field Induction" interactive tutorial (base refitting, ideology, treads primer).
+- **MacroLab** — sandbox for the v2.x node-and-route macro map: Dijkstra day-rate march planning plus a tactical overlay (supply arteries via all-pairs betweenness, top-5 capture objectives).
+- **AssetRegistry** — Illustration Directorate (image plates, `src/lib/imageLibrary.js`) + Sound Registry (`src/lib/audioLibrary.js`); every asset carries a generation-ready prompt and delivery status.
 
 ### Component directories
-- `src/components/home/` — command-deck panels & 2.5D backdrop
-- `src/components/game/` — in-game panels, battle UI, sprites (`sprites/UnitSprite.jsx`)
+- `src/components/home/` — command-deck panels & 2.5D backdrop (`StormFront25D` + `BackdropReel` rotating video playlist)
+- `src/components/game/` — in-game panels, battle UI, sprites; subdirs: `diplomacy/`, `fortress/`, `research/`, `chat/`
+- `src/components/macro/` — macro-map lab: `MacroGraphMap`, `RouteEdge`, `MarchPlanner`, `TacticalOverlay`
+- `src/components/walkthrough/`, `src/components/induction/` — Field Induction tutorial & commissioning
+- `src/components/assets/` — asset registry cards (image + audio)
+- `src/components/audio/MusicController.jsx` — persistent soundtrack controls (mounted in Layout)
 - `src/components/hexmap3d/` — Three.js board: `HexBoard3D`, `TerrainTile`, `TileDecor`, `TileLabels`, `ArmyFlag3D`, `Weather3D` (3D rain/fog/snow/lightning), `TileFX`, `DriftingHaze`
 - `src/components/patch/` — patch dispatch display + admin composer (`patchMeta.js` category codes)
 - `src/components/faction/`, `src/components/army/` — builder sub-UIs
 - `src/components/ui/` — shadcn primitives (button/panel variants restyled dieselpunk)
 
 ### Frontend libraries (`src/lib/`)
-- `sfx.js` — synthesized Web Audio SFX w/ grit distortion; `playSfx(name)`, `sfxEnabled()`/`setSfxEnabled()`
-- `ambience.js` — thunder/artillery ambience; `unlockAmbience()` on first gesture
+- `sfx.js` — synthesized Web Audio SFX (mechanical clicks/levers w/ grit distortion); `playSfx(name)`, `sfxEnabled()`/`setSfxEnabled()`
+- `ambience.js` — rotating 5-piece public-domain orchestral score (Wikimedia Commons); playlist, per-track fades, `startScore`/`stopScore`/`skipScore`, `setScoreSuppressed` (battles), `unlockAmbience()` on first gesture
 - `hex.js` — axial hex math · `terrain3d.js` — 3D terrain palette/geometry
-- Rules mirrors (**keep in sync with gameEngine** — see CLAUDE.md): `units.js`, `massCombat.js`, `armyDesign.js`, `pointBuy.js`, `combatMods.js`, `weather.js`
+- `macro/` — v2.x lab: `graph.js` (nodes/routes), `march.js` (day-rate Dijkstra itineraries), `overlay.js` (supply-artery + objective analysis)
+- `imageLibrary.js` / `imagePlates.js` / `audioLibrary.js` — asset registries with generation prompts and delivery status
+- Rules mirrors (**keep in sync with gameEngine** — see CLAUDE.md): `units.js`, `massCombat.js`, `armyDesign.js`, `pointBuy.js`, `combatMods.js`, `weather.js`, `baseModules.js`, `doctrine.js`, `armory.js`, `diplomacy.js`
 - `lifepath.js` — faction lifepath stages · `medals.js` · `generalPortraits.js`
 - `AuthContext.jsx`, `query-client.js`, `utils.js`, `app-params.js` — platform plumbing (do not modify casually)
 
