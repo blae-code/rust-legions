@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { UNIT_TYPES, UNIT_KEYS, RESOURCE_LABELS, TERRAIN_RESOURCE, RESOURCE_META } from "@/lib/units";
 import UnitStepper from "./UnitStepper";
 
-export default function TilePanel({ game, tile, onMove, onAttack, busy }) {
+export default function TilePanel({ game, tile, onMove, onAttack, onBombard, busy }) {
   const [targetId, setTargetId] = useState(null);
   const [qty, setQty] = useState({});
 
@@ -105,6 +105,16 @@ export default function TilePanel({ game, tile, onMove, onAttack, busy }) {
               >
                 {targetIsMine ? "Move Units" : "Attack"}
               </Button>
+              {!targetIsMine && !target.isSea && (state.units.artillery || 0) > 0 && (
+                <Button
+                  variant="outline"
+                  disabled={busy || (game.myResources?.fuel || 0) < 1}
+                  onClick={() => { onBombard(tile.id, targetId); setTargetId(null); setQty({}); }}
+                  className="w-full font-heading uppercase tracking-[0.2em] text-xs"
+                >
+                  ☄ Bombard · 1 FL
+                </Button>
+              )}
             </div>
           )}
         </div>

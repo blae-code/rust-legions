@@ -61,7 +61,7 @@ export default function GamePage() {
     setError("");
     try {
       await base44.functions.invoke("gameEngine", { gameId, ...payload });
-      const sfxMap = { moveUnits: "move", attack: "attack", build: "build", purchaseUnits: "purchase", endTurn: "endTurn", musterArmy: "purchase", moveArmy: "move", battleChoice: "attack", disbandArmy: "move" };
+      const sfxMap = { moveUnits: "move", attack: "attack", bombard: "attack", build: "build", purchaseUnits: "purchase", endTurn: "endTurn", musterArmy: "purchase", moveArmy: "move", battleChoice: "attack", disbandArmy: "move" };
       if (sfxMap[payload.action]) playSfx(sfxMap[payload.action]);
       await refresh();
     } catch (e) {
@@ -236,6 +236,7 @@ export default function GamePage() {
             busy={busy}
             onMove={(from, to, units) => act({ action: "moveUnits", fromTileId: from, toTileId: to, units })}
             onAttack={(from, to, units) => act({ action: "attack", fromTileId: from, toTileId: to, units })}
+            onBombard={(from, to) => act({ action: "bombard", fromTileId: from, toTileId: to })}
           />
           <BuildPanel game={game} tile={selectedTile} busy={busy} onBuild={(tileId, buildingType) => act({ action: "build", tileId, buildingType })} />
           <PurchasePanel game={game} busy={busy} onPurchase={(tileId, units) => act({ action: "purchaseUnits", tileId, units })} />

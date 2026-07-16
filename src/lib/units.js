@@ -18,9 +18,10 @@ export const UNIT_TYPES = {
   crawler: { key: "crawler", label: "Diesel Crawler", points: 12, cost: { steel: 3, fuel: 2 }, attack: 3, defense: 2, domain: "land", deployAt: "foundry" },
   gunboat: { key: "gunboat", label: "Ironclad Gunboat", points: 10, cost: { steel: 3, fuel: 1 }, attack: 2, defense: 2, domain: "sea", deployAt: "foundry" },
   fighter: { key: "fighter", label: "Prop Fighter", points: 15, cost: { steel: 2, fuel: 3 }, attack: 3, defense: 1, domain: "air", deployAt: "airstrip" },
+  artillery: { key: "artillery", label: "Siege Artillery", points: 10, cost: { steel: 3, manpower: 1 }, attack: 1, defense: 1, domain: "land", deployAt: "foundry" },
 };
 
-export const UNIT_KEYS = ["riflemen", "crawler", "gunboat", "fighter"];
+export const UNIT_KEYS = ["riflemen", "crawler", "gunboat", "fighter", "artillery"];
 
 export const BUILDINGS = {
   barracks: { key: "barracks", label: "Barracks", cost: { steel: 4 }, upgradeCost: { steel: 6 }, desc: "Deploys Riflemen · +1 Manpower per level" },

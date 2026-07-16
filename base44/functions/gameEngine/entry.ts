@@ -13,9 +13,10 @@ const UNITS = {
   crawler: { points: 12, cost: { steel: 3, fuel: 2 }, attack: 3, defense: 2, domain: 'land', deployAt: 'foundry' },
   gunboat: { points: 10, cost: { steel: 3, fuel: 1 }, attack: 2, defense: 2, domain: 'sea', deployAt: 'foundry' },
   fighter: { points: 15, cost: { steel: 2, fuel: 3 }, attack: 3, defense: 1, domain: 'air', deployAt: 'airstrip' },
+  artillery: { points: 10, cost: { steel: 3, manpower: 1 }, attack: 1, defense: 1, domain: 'land', deployAt: 'foundry' },
 };
-const UNIT_KEYS = ['riflemen', 'crawler', 'gunboat', 'fighter'];
-const CASUALTY_ORDER = ['riflemen', 'crawler', 'gunboat', 'fighter'];
+const UNIT_KEYS = ['riflemen', 'crawler', 'gunboat', 'fighter', 'artillery'];
+const CASUALTY_ORDER = ['riflemen', 'crawler', 'gunboat', 'artillery', 'fighter'];
 
 const BUILDINGS = {
   barracks: { cost: { steel: 4 }, upgradeCost: { steel: 6 } },
@@ -1422,6 +1423,40 @@ Deno.serve(async (req) => {
       await persistWar();
       await logIfComplete();
       return Response.json({ ok: true, resolved: !game.activeBattle });
+    }
+
+    // ----- Artillery bombardment: shell an adjacent enemy zone without risking troops -----
+    if (action === 'bombard') {
+      const slotIdx = requireMyTurn();
+      if (game.activeBattle) return Response.json({ error: 'Resolve the ongoing battle first' }, { status: 400 });
+      const { fromTileId, toTileId } = body;
+      const fromSt = game.territoryStates[fromTileId];
+      const toSt = game.territoryStates[toTileId];
+      const fromTile = game.tiles.find((t) => t.id === fromTileId);
+      const toTile = game.tiles.find((t) => t.id === toTileId);
+      if (!fromTile || !toTile || !fromSt || !toSt) return Response.json({ error: 'Invalid tiles' }, { status: 400 });
+      if (fromSt.owner !== slotIdx) return Response.json({ error: 'You do not control the firing zone' }, { status: 400 });
+      if ((fromSt.units.artillery || 0) <= 0) return Response.json({ error: 'No artillery emplaced in this zone' }, { status: 400 });
+      if (toSt.owner === slotIdx) return Response.json({ error: 'Cannot shell your own territory' }, { status: 400 });
+      if (toTile.isSea) return Response.json({ error: 'Artillery cannot shell sea zones' }, { status: 400 });
+      if (!fromTile.adjacentIds.includes(toTileId)) return Response.json({ error: 'Target zone is out of range' }, { status: 400 });
+      if (fromSt.lastBombardTurn === game.turnNumber) return Response.json({ error: 'These guns have already fired this turn' }, { status: 400 });
+      const treasury = getTreasury(game, slotIdx);
+      if (!canAfford(treasury, { fuel: 1 })) return Response.json({ error: 'Insufficient fuel for a barrage' }, { status: 400 });
+      pay(treasury, { fuel: 1 });
+      fromSt.lastBombardTurn = game.turnNumber;
+      // Each gun rolls — hits on 3 or less. Casualties only; bombardment never captures ground.
+      let hits = 0;
+      for (let i = 0; i < (fromSt.units.artillery || 0); i++) if (roll() <= 3) hits++;
+      const destroyed = Math.min(hits, totalUnits(toSt.units));
+      removeCasualties(toSt.units, destroyed);
+      const attName = game.factionSlots[slotIdx].factionName;
+      game.combatLog.push({
+        turn: game.turnNumber, type: 'event',
+        text: `${attName}'s artillery bombards ${toTile.name} — ${destroyed === 0 ? 'the shells fall wide' : `${destroyed} enemy compan${destroyed === 1 ? 'y is' : 'ies are'} destroyed`}.`,
+      });
+      await svc.entities.Game.update(game.id, { territoryStates: game.territoryStates, treasuries: game.treasuries, combatLog: game.combatLog });
+      return Response.json({ ok: true, destroyed, resources: treasury });
     }
 
     // ----- Reconnaissance probe -----
