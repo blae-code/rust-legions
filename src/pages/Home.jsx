@@ -39,7 +39,7 @@ export default function Home() {
     null;
 
   return (
-    <div className="relative h-screen overflow-hidden bg-background">
+    <div className="relative h-[100dvh] overflow-hidden bg-background">
       <WarTable3D />
       <BootSequence />
       {/* Readability + CRT atmosphere over the 3D table */}
@@ -53,7 +53,7 @@ export default function Home() {
           <div className="flex items-center gap-2 text-brass font-display text-xl tracking-[0.25em] uppercase">
             <Shield className="w-5 h-5" /> Conquest
           </div>
-          <HudTelemetry />
+          <div className="hidden md:block"><HudTelemetry /></div>
           <p className="font-mono text-[10px] text-muted-foreground tracking-widest hidden sm:block cq-flicker">
             ⁜ SECURE CHANNEL · CMDR {(user?.full_name || user?.email || "").split(" ")[0]?.toUpperCase()} ⁜
           </p>
@@ -64,9 +64,9 @@ export default function Home() {
         </div>
 
         {/* Command deck — everything fits the viewport; panels scroll internally */}
-        <div className="flex-1 min-h-0 grid lg:grid-cols-[1.1fr_minmax(320px,380px)] xl:grid-cols-[1.05fr_minmax(300px,360px)_minmax(260px,300px)] gap-5 pt-4 overflow-y-auto lg:overflow-visible">
+        <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[1.1fr_minmax(320px,380px)] xl:grid-cols-[1.05fr_minmax(300px,360px)_minmax(260px,300px)] gap-4 xl:gap-5 pt-4 overflow-y-auto lg:overflow-hidden">
           {/* Left: title + main menu + rotating intel */}
-          <div className="flex flex-col min-h-0">
+          <div className="flex flex-col min-h-0 lg:overflow-y-auto lg:pr-1">
             <p className="cq-label text-rust mb-1.5">The continent burns · A commander is wanted</p>
             <div className="relative inline-block self-start">
               <h1 className="cq-display text-5xl sm:text-6xl leading-[0.9]">
@@ -96,7 +96,7 @@ export default function Home() {
                 NO ENGAGEMENTS ON RECORD — OPEN A NEW OPERATION
               </p>
             ) : (
-              <div className="space-y-2.5 flex-1 min-h-0 overflow-y-auto pr-1">
+              <div className="space-y-2.5 flex-1 min-h-0 overflow-y-auto pr-1 max-h-[45vh] lg:max-h-none">
                 {games.map((g, i) => (
                   <FrontCard key={g.id} game={g} index={i} />
                 ))}
@@ -109,7 +109,7 @@ export default function Home() {
           </div>
 
           {/* Right rail: dossier + standing orders */}
-          <div className="hidden xl:flex flex-col gap-4 min-h-0">
+          <div className="hidden xl:flex flex-col gap-4 min-h-0 overflow-y-auto">
             <DossierPanel profile={profile} factionCount={factions?.length} />
             <StandingOrders />
             <div className="flex-1" />
