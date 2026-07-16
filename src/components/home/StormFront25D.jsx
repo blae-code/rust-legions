@@ -1,7 +1,15 @@
 import React, { useRef, useState, useEffect } from "react";
 import { playThunder, playArtillery, unlockAmbience } from "@/lib/ambience";
+import BackdropReel from "@/components/home/BackdropReel";
 
-const BG_VIDEO = "https://media.base44.com/videos/public/6a58196dcd485ecc774cae1b/5ad99560d_Trench_Front_Loop.mp4";
+// The war-front reel playlist — clips play in sequence with a crossfade,
+// so total loop length is the sum of all reels (~14s and growing).
+// PATCH HOOK: when a new patch lands, append its reel here
+// (e.g. an aircraft flyover clip for the air expansion, ships for the naval one).
+const BACKDROP_REELS = [
+  "https://media.base44.com/videos/public/6a58196dcd485ecc774cae1b/5ad99560d_Trench_Front_Loop.mp4",
+  "https://media.base44.com/videos/public/6a58196dcd485ecc774cae1b/c21462f14_generated_video.mp4",
+];
 
 // Mid-ground silhouette skyline — derricks, smokestacks, ruined gantries
 const Skyline = () => (
@@ -143,16 +151,8 @@ export default function StormFront25D() {
 
   return (
     <div className="absolute inset-0 overflow-hidden" aria-hidden="true">
-      {/* Far plane — living storm-dusk landscape on loop */}
-      <video
-        className="absolute inset-0 w-full h-full object-cover"
-        style={layer(-8)}
-        src={BG_VIDEO}
-        autoPlay
-        loop
-        muted
-        playsInline
-      />
+      {/* Far plane — living storm-dusk landscape, rotating reel playlist */}
+      <BackdropReel reels={BACKDROP_REELS} style={layer(-8)} />
 
       {/* Lightning strike — cloud-lit sky wash, optional bolt, brief ground glare */}
       {strike && (
