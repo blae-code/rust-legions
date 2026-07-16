@@ -2,7 +2,9 @@
 
 ## Project Context
 
-This is a Base44 app repository. Treat it as user-owned application code, keep changes focused on the user's request, and preserve existing project conventions.
+This is **Conquest Tactics**, a turn-based dieselpunk strategy game built as a Base44 app. Treat it as user-owned application code, keep changes focused on the user's request, and preserve existing project conventions.
+
+**Read `CLAUDE.md` first** — it is the project handoff document (architecture, conventions, and the critical backend/frontend rules-sync invariant). Granular references: `docs/GAME_RULES.md` (full ruleset) and `docs/ARCHITECTURE.md` (data model, API catalog, file map).
 
 Start with `README.md` for local setup, environment variables, and publish workflow.
 

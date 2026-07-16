@@ -1,4 +1,11 @@
-# Base44 Project
+# Conquest Tactics
+
+A turn-based dieselpunk grand-strategy game for 2–4 players — hex-tile territorial conquest with fog of war, typed resource economy, mass battles led by named generals, live multiplayer, and solo campaigns against doctrine-driven NPC factions. Built on the Base44 platform.
+
+**Project documentation:**
+- `CLAUDE.md` — warm-handoff overview: conventions, invariants, workflows
+- `docs/GAME_RULES.md` — the complete numeric ruleset
+- `docs/ARCHITECTURE.md` — data model, backend API, frontend structure
 
 Use this repository to run and edit the app locally, then publish changes back through Base44.
 
