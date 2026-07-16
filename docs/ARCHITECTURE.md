@@ -1,4 +1,4 @@
-# Conquest Tactics — Architecture Reference
+# Rust Legions — Architecture Reference
 
 ## Data Model (Base44 entities, `base44/entities/*.jsonc`)
 

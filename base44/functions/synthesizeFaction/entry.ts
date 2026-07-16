@@ -10,7 +10,7 @@ Deno.serve(async (req) => {
     const { choices, doctrine } = body;
     if (!choices || !doctrine) return Response.json({ error: 'choices and doctrine are required' }, { status: 400 });
 
-    const prompt = `You are the narrative engine for "Conquest", a gritty dieselpunk turn-based strategy game inspired by Foxhole and Iron Harvest (worn metal, mud, diesel fumes, WWI-era industrial war machinery — no magic, no modern tech).
+    const prompt = `You are the narrative engine for "Rust Legions", a gritty dieselpunk turn-based strategy game inspired by Foxhole and Iron Harvest (worn metal, mud, diesel fumes, WWI-era industrial war machinery — no magic, no modern tech).
 
 A player has completed a lifepath faction builder. Their choices, in order:
 ${JSON.stringify(choices, null, 2)}

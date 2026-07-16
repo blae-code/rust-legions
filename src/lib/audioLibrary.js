@@ -1,5 +1,5 @@
 // ============================================================
-// CONQUEST TACTICS — MASTER AUDIO LIBRARY
+// RUST LEGIONS — MASTER AUDIO LIBRARY
 // The single source of truth for every sound asset the app needs.
 // Each entry is a placeholder "recording": when audio is produced or
 // sourced, set its `url`. Entries without a url show "Awaiting Recording"

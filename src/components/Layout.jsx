@@ -36,7 +36,7 @@ export default function Layout() {
         <div className="relative max-w-md w-full text-center cq-panel p-10">
           <div className="cq-hazard absolute top-0 left-0 right-0 rounded-t" />
           <Shield className="w-12 h-12 mx-auto text-brass mb-4" />
-          <h1 className="cq-display text-4xl mb-1">Conquest Tactics</h1>
+          <h1 className="cq-display text-4xl mb-1">Rust Legions</h1>
           <p className="text-muted-foreground mb-6 font-heading tracking-wide">Enlist to command your faction on the front.</p>
           <Button
             className="bg-brass hover:bg-brass-bright text-primary-foreground font-heading tracking-[0.2em] uppercase w-full"
@@ -63,7 +63,7 @@ export default function Layout() {
         <div className="cq-hazard" />
         <div className="max-w-7xl mx-auto px-4 h-14 flex items-center gap-6">
           <Link to="/" className="flex items-center gap-2 text-brass font-display text-xl tracking-[0.2em] uppercase">
-            <Shield className="w-5 h-5" /> Conquest
+            <Shield className="w-5 h-5" /> Rust Legions
           </Link>
           <span className="cq-tag border-rust/60 text-rust whitespace-nowrap hidden md:inline-flex" title="This game is under active development">⚠ Dev Build</span>
           <nav className="flex gap-1 overflow-x-auto">

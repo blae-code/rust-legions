@@ -1,5 +1,5 @@
 // ============================================================
-// CONQUEST TACTICS — MASTER IMAGE LIBRARY
+// RUST LEGIONS — MASTER IMAGE LIBRARY
 // The single source of truth for every art asset the app needs.
 // Each entry is a placeholder "plate": when an image is produced,
 // set its `url`. Components read via getImage(key) and fall back

@@ -1,4 +1,4 @@
-# Conquest Tactics — Complete Ruleset (v1.x "The Vanilla Front" era)
+# Rust Legions — Complete Ruleset (v1.x "The Vanilla Front" era)
 
 Authoritative source: `base44/functions/gameEngine/entry.ts`. Frontend mirrors in `src/lib/`.
 Any change here must be applied in both places and filed as a Patch dispatch.

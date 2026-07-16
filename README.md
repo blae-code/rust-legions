@@ -1,4 +1,4 @@
-# Conquest Tactics
+# Rust Legions
 
 A turn-based **dieselpunk grand-strategy game** for 2–4 players — hex-tile territorial conquest with fog of war, a typed resource economy, and round-by-round mass battles led by named generals. Supports live multiplayer and solo campaigns against personality-driven NPC factions. Built on the [Base44](https://base44.com) platform.
 

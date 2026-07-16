@@ -1,4 +1,4 @@
-# Conquest Tactics — Design Vision & Roadmap
+# Rust Legions — Design Vision & Roadmap
 
 This is the creative north star for the project. `docs/GAME_RULES.md` describes what is *currently implemented* (the v1.x "Vanilla Front" era); this document describes where the game is *going*. When the two conflict, this document wins for future work — but nothing here is implemented until it ships as a Field Amendment (patch) and the rules doc is updated.
 

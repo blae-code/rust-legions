@@ -54,7 +54,7 @@ export default function HeroSection({ firstName }) {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.35, duration: 0.7 }}
         >
-          Conquest<br />Tactics
+          Rust<br />Legions
         </motion.h1>
         <motion.p
           className="text-sm sm:text-base text-secondary-foreground font-heading tracking-wide mt-3 max-w-xl"

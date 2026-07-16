@@ -1,10 +1,10 @@
-# CLAUDE.md — Conquest Tactics
+# CLAUDE.md — Rust Legions
 
 Warm-handoff context for working on this repository. Read this first; the granular references live in `docs/`.
 
 ## What This Is
 
-**Conquest Tactics** is a turn-based dieselpunk grand-strategy game (2–4 players) built on the **Base44 platform**. Players conquer hex-tile territories under fog of war, manage a typed resource economy, raise field armies under named generals, and fight round-by-round mass battles with secret simultaneous maneuvers. It supports live multiplayer, solo campaigns against doctrine-driven NPC factions, custom faction creation via a lifepath wizard, a map editor, and an Army Design Bureau for doctrine templates.
+**Rust Legions** is a turn-based dieselpunk grand-strategy game (2–4 players) built on the **Base44 platform**. Players conquer hex-tile territories under fog of war, manage a typed resource economy, raise field armies under named generals, and fight round-by-round mass battles with secret simultaneous maneuvers. It supports live multiplayer, solo campaigns against doctrine-driven NPC factions, custom faction creation via a lifepath wizard, a map editor, and an Army Design Bureau for doctrine templates.
 
 The game is positioned as a **live-service title**: v1.0.0 is "The Vanilla Front" baseline, and all future gameplay changes are published as in-game "Field Amendment" patch dispatches (see Patch workflow below).
 

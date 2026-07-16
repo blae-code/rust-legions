@@ -55,7 +55,7 @@ export default function Home() {
         {/* HUD top strip */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-brass font-display text-xl tracking-[0.25em] uppercase">
-            <Shield className="w-5 h-5" /> Conquest
+            <Shield className="w-5 h-5" /> Rust Legions
           </div>
           <div className="hidden md:block"><HudTelemetry /></div>
           <div className="flex items-center gap-3">
@@ -77,8 +77,8 @@ export default function Home() {
             <p className="cq-label text-rust mb-1.5">The continent burns · A commander is wanted</p>
             <div className="relative inline-block self-start">
               <h1 className="cq-display text-5xl sm:text-6xl leading-[0.9]">
-                Conquest<br />
-                <span className="text-brass-bright">Tactics</span>
+                Rust<br />
+                <span className="text-brass-bright">Legions</span>
               </h1>
               <span className="cq-stamp absolute -right-10 -top-2 text-xs whitespace-nowrap">Under Development</span>
             </div>
