@@ -62,6 +62,7 @@ export default function Layout() {
           <Link to="/" className="flex items-center gap-2 text-brass font-display text-xl tracking-[0.2em] uppercase">
             <Shield className="w-5 h-5" /> Conquest
           </Link>
+          <span className="cq-tag border-rust/60 text-rust whitespace-nowrap hidden md:inline-flex" title="This game is under active development">⚠ Dev Build</span>
           <nav className="flex gap-1 overflow-x-auto">
             {NAV.map((n) => (
               <Link

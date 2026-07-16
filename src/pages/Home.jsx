@@ -58,10 +58,14 @@ export default function Home() {
           {/* Title + main menu */}
           <div>
             <p className="cq-label text-rust mb-2">The continent burns · A commander is wanted</p>
-            <h1 className="cq-display text-6xl sm:text-7xl leading-[0.9]">
-              Conquest<br />
-              <span className="text-brass-bright">Tactics</span>
-            </h1>
+            <div className="relative inline-block">
+              <h1 className="cq-display text-6xl sm:text-7xl leading-[0.9]">
+                Conquest<br />
+                <span className="text-brass-bright">Tactics</span>
+              </h1>
+              <span className="cq-stamp absolute -right-8 -top-3 text-xs sm:text-sm whitespace-nowrap">Under Development</span>
+            </div>
+            <p className="font-mono text-[9px] text-rust/90 tracking-[0.25em] mt-2">⚠ FIELD TRIAL BUILD — SYSTEMS SUBJECT TO CHANGE WITHOUT NOTICE</p>
             <div className="cq-hazard w-40 mt-4" />
             <GameMenu continueGame={continueGame} />
           </div>
