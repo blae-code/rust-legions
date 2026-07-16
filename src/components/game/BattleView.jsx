@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { Loader2 } from "lucide-react";
 import BattleForce from "@/components/game/BattleForce";
 import BattleSparks from "@/components/game/BattleSparks";
-import { ALL_MANEUVERS, MANEUVER_KEYS, SIGNATURE_MANEUVERS } from "@/lib/massCombat";
+import { ALL_MANEUVERS, MANEUVER_KEYS, SIGNATURE_MANEUVERS, SIGNATURE_COOLDOWNS } from "@/lib/massCombat";
 
 export default function BattleView({ battle, busy, onChoose }) {
   const [fx, setFx] = useState(0);
@@ -27,7 +27,8 @@ export default function BattleView({ battle, busy, onChoose }) {
   const iAmAttacker = battle.myRole === "attacker";
   const mySide = iAmAttacker ? battle.attacker : battle.defender;
   const maneuverKeys = [...MANEUVER_KEYS];
-  if (mySide.signature && !mySide.sigUsed && SIGNATURE_MANEUVERS[mySide.signature]) maneuverKeys.push(mySide.signature);
+  if (mySide.signature && SIGNATURE_MANEUVERS[mySide.signature]) maneuverKeys.push(mySide.signature);
+  const sigCooldown = mySide.sigCooldown || 0;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
@@ -63,15 +64,25 @@ export default function BattleView({ battle, busy, onChoose }) {
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {maneuverKeys.map((key) => {
                 const sig = !!SIGNATURE_MANEUVERS[key];
+                const onCooldown = sig && sigCooldown > 0;
                 return (
                   <button
                     key={key}
-                    disabled={busy}
+                    disabled={busy || onCooldown}
                     onClick={() => onChoose(key)}
-                    className={`text-left border rounded-sm p-2.5 transition-colors disabled:opacity-50 ${sig ? "border-brass/70 bg-brass/10 hover:bg-brass/20" : "border-border hover:border-brass/70 hover:bg-brass/10"}`}
+                    className={`text-left border rounded-sm p-2.5 transition-colors disabled:opacity-50 ${
+                      onCooldown ? "border-rust/50 bg-rust/5 cursor-not-allowed" : sig ? "border-brass/70 bg-brass/10 hover:bg-brass/20" : "border-border hover:border-brass/70 hover:bg-brass/10"
+                    }`}
                   >
-                    <p className={`text-xs font-heading font-semibold tracking-wide ${sig ? "text-brass-bright" : "text-secondary-foreground"}`}>{ALL_MANEUVERS[key].icon} {ALL_MANEUVERS[key].label}</p>
+                    <p className={`text-xs font-heading font-semibold tracking-wide ${onCooldown ? "text-muted-foreground" : sig ? "text-brass-bright" : "text-secondary-foreground"}`}>{ALL_MANEUVERS[key].icon} {ALL_MANEUVERS[key].label}</p>
                     <p className="text-[9px] font-mono text-muted-foreground mt-0.5 leading-snug">{ALL_MANEUVERS[key].desc}</p>
+                    {sig && (
+                      onCooldown ? (
+                        <p className="text-[9px] font-mono text-rust mt-1 tracking-widest">⚙ RECHARGING · {sigCooldown} ROUND{sigCooldown === 1 ? "" : "S"}</p>
+                      ) : (
+                        <p className="text-[9px] font-mono text-brass/70 mt-1 tracking-widest">COOLDOWN AFTER USE · {SIGNATURE_COOLDOWNS[key] || 3} ROUNDS</p>
+                      )
+                    )}
                   </button>
                 );
               })}

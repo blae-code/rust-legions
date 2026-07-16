@@ -586,11 +586,11 @@ const MANEUVERS = {
   flank: { label: 'Flanking Maneuver', skill: -1, dmgOut: 1.3, dmgIn: 0.8, moraleOut: 1.5 },
   feint: { label: 'Feint', skill: 1, dmgOut: 0.3, dmgIn: 0.7, moraleOut: 0.8, nextBonus: 2 },
   rally: { label: 'Rally the Ranks', skill: 0, dmgOut: 0.2, dmgIn: 0.9, moraleOut: 0.5, rally: 20 },
-  // Signature maneuvers — unlocked by a general's trait, once per battle
-  relentless_pursuit: { label: 'Relentless Pursuit', skill: -1, dmgOut: 1.5, dmgIn: 1.2, moraleOut: 1.9, signature: true },
-  ambush: { label: 'Staged Ambush', skill: 2, dmgOut: 1.3, dmgIn: 0.7, moraleOut: 1.2, signature: true },
-  iron_wall: { label: 'Iron Wall', skill: 3, dmgOut: 0.3, dmgIn: 0.35, moraleOut: 0.6, signature: true },
-  inspiring_charge: { label: 'Inspiring Charge', skill: 0, dmgOut: 1.1, dmgIn: 1.0, moraleOut: 1.2, rally: 20, signature: true },
+  // Signature maneuvers — unlocked by a general's trait; cooldown scales with intensity
+  relentless_pursuit: { label: 'Relentless Pursuit', skill: -1, dmgOut: 1.5, dmgIn: 1.2, moraleOut: 1.9, signature: true, cooldown: 4 },
+  ambush: { label: 'Staged Ambush', skill: 2, dmgOut: 1.3, dmgIn: 0.7, moraleOut: 1.2, signature: true, cooldown: 3 },
+  iron_wall: { label: 'Iron Wall', skill: 3, dmgOut: 0.3, dmgIn: 0.35, moraleOut: 0.6, signature: true, cooldown: 3 },
+  inspiring_charge: { label: 'Inspiring Charge', skill: 0, dmgOut: 1.1, dmgIn: 1.0, moraleOut: 1.2, rally: 20, signature: true, cooldown: 2 },
 };
 
 // Terrain gives the defender a battle-skill edge
@@ -628,7 +628,6 @@ function creditVictory(game, slotIdx, generalId) {
 
 function setChoice(side, maneuver) {
   side.choice = maneuver;
-  if (MANEUVERS[maneuver]?.signature) side.sigUsed = true;
 }
 
 function supremeCommander(slot) {
@@ -661,7 +660,7 @@ function generalFate(game, armyLike) {
 }
 
 function aiManeuver(side, doctrine = 'defensive') {
-  if (side.signature && !side.sigUsed && (side.morale < 55 || Math.random() < 0.25)) return side.signature;
+  if (side.signature && (side.sigCooldown || 0) === 0 && (side.morale < 55 || Math.random() < 0.25)) return side.signature;
   if (side.morale < 35 && Math.random() < 0.5) return 'rally';
   const table = {
     aggressive: ['all_out_attack', 'attack', 'flank', 'attack'],
@@ -734,7 +733,7 @@ function createBattle(game, slotIdx, army, toTileId) {
     attacker: {
       slot: slotIdx, armyId: army.id, armyName: army.name, generalName: attGeneral.name,
       strategy: attGeneral.strategy, units: { ...army.regiments }, morale: 100, choice: null, nextBonus: 0, losses: 0,
-      signature: attTrait?.signature || null, sigUsed: false, vetBonus: attRank.bonus, rank: attRank.label,
+      signature: attTrait?.signature || null, sigCooldown: 0, vetBonus: attRank.bonus, rank: attRank.label,
     },
     defender: {
       slot: defSlotIdx, absorbedArmies: absorbed,
@@ -742,7 +741,7 @@ function createBattle(game, slotIdx, army, toTileId) {
       strategy: defGeneral ? defGeneral.strategy : 9,
       units: defUnits, morale: 100, fortBonus: fortLevel(st) + capBonus, terrainBonus,
       generalId: defGeneral?.id || null,
-      signature: defTrait?.signature || null, sigUsed: false, vetBonus: defRank.bonus, rank: defRank.label,
+      signature: defTrait?.signature || null, sigCooldown: 0, vetBonus: defRank.bonus, rank: defRank.label,
       choice: null, nextBonus: 0, losses: 0,
       interactive: defenderIsLive(game, defSlotObj),
     },
@@ -860,6 +859,12 @@ function resolveBattleRound(game, b) {
     win.morale -= wLoss > 0 ? 4 : 2;
     if (wm.nextBonus) win.nextBonus = wm.nextBonus;
     b.log.push(`R${b.round} — ${win.generalName}'s ${wm.label.toLowerCase()} carries the field: ${lLoss} enemy compan${lLoss === 1 ? 'y' : 'ies'} broken (morale ${Math.max(lose.morale, 0)}).`);
+  }
+  // Signature cooldowns — firing one locks it for its intensity-based recovery period
+  for (const s of [A, D]) {
+    const m = MANEUVERS[s.choice];
+    if (m?.signature) s.sigCooldown = m.cooldown || 3;
+    else if ((s.sigCooldown || 0) > 0) s.sigCooldown--;
   }
   A.choice = null; D.choice = null;
   b.round++;
@@ -1044,7 +1049,7 @@ Deno.serve(async (req) => {
         const defOwnerObj = ab.defender.slot !== null && ab.defender.slot !== undefined ? game.factionSlots[ab.defender.slot] : null;
         const myRole = game.factionSlots[ab.attacker.slot]?.userId === user.id ? 'attacker' : defOwnerObj?.userId === user.id ? 'defender' : null;
         if (myRole) {
-          const sideView = (s, fac) => ({ faction: fac, general: s.generalName, strategy: s.strategy, units: s.units, morale: Math.max(s.morale, 0), losses: s.losses, chosen: !!s.choice, signature: s.signature || null, sigUsed: !!s.sigUsed, vetBonus: s.vetBonus || 0, rank: s.rank || null });
+          const sideView = (s, fac) => ({ faction: fac, general: s.generalName, strategy: s.strategy, units: s.units, morale: Math.max(s.morale, 0), losses: s.losses, chosen: !!s.choice, signature: s.signature || null, sigCooldown: s.sigCooldown || 0, vetBonus: s.vetBonus || 0, rank: s.rank || null });
           battle = {
             tileName: ab.tileName, round: ab.round, myRole, terrain: ab.terrain || null, terrainBonus: ab.defender.terrainBonus || 0,
             attacker: sideView(ab.attacker, game.factionSlots[ab.attacker.slot]?.factionName),
@@ -1387,8 +1392,11 @@ Deno.serve(async (req) => {
       if (!isAtt && !isDef) return Response.json({ error: 'You are not a party to this battle' }, { status: 403 });
       const side = isAtt ? b.attacker : b.defender;
       if (side.choice) return Response.json({ error: 'Orders already issued for this round' }, { status: 400 });
-      if (MANEUVERS[maneuver].signature && (side.signature !== maneuver || side.sigUsed)) {
+      if (MANEUVERS[maneuver].signature && side.signature !== maneuver) {
         return Response.json({ error: 'That signature maneuver is not available' }, { status: 400 });
+      }
+      if (MANEUVERS[maneuver].signature && (side.sigCooldown || 0) > 0) {
+        return Response.json({ error: `Your signature maneuver is recovering — ${side.sigCooldown} round${side.sigCooldown === 1 ? '' : 's'} remaining` }, { status: 400 });
       }
       setChoice(side, maneuver);
       // Auto-command the defense when it is not live (NPC, neutral, or offline commander)

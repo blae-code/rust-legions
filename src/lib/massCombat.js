@@ -14,6 +14,14 @@ export const SIGNATURE_MANEUVERS = {
   inspiring_charge: { label: "Inspiring Charge", icon: "🎺", desc: "Signature of the Firebrand — press the attack while rallying morale (+20)." },
 };
 
+// Recovery period (rounds) after firing a signature maneuver — scales with intensity
+export const SIGNATURE_COOLDOWNS = {
+  relentless_pursuit: 4,
+  ambush: 3,
+  iron_wall: 3,
+  inspiring_charge: 2,
+};
+
 export const ALL_MANEUVERS = { ...MANEUVERS, ...SIGNATURE_MANEUVERS };
 
 export const MANEUVER_KEYS = Object.keys(MANEUVERS);
