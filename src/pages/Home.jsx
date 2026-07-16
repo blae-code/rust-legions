@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import useUser from "@/hooks/useUser";
 import { Shield, Loader2 } from "lucide-react";
-import WarTable3D from "@/components/home/WarTable3D";
+import WarTable25D from "@/components/home/WarTable25D";
 import BootSequence from "@/components/home/BootSequence";
 import GameMenu from "@/components/home/GameMenu";
 import DossierPanel from "@/components/home/DossierPanel";
@@ -40,7 +40,7 @@ export default function Home() {
 
   return (
     <div className="relative h-[100dvh] overflow-hidden bg-background">
-      <WarTable3D />
+      <WarTable25D />
       <BootSequence />
       {/* Readability + CRT atmosphere over the 3D table */}
       <div className="absolute inset-0 bg-gradient-to-r from-background/90 via-background/55 to-background/30 pointer-events-none" />

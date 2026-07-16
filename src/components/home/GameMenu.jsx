@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { playSfx } from "@/lib/sfx";
 
-// Main-menu navigation — big game-style entries with hover/select audio
+// Main-menu navigation — stamped metal order plates with 2.5D depth
 export default function GameMenu({ continueGame }) {
   const items = [
     continueGame && { to: `/game/${continueGame.id}`, label: "Continue War", sub: continueGame.name, hot: true },
@@ -15,30 +15,41 @@ export default function GameMenu({ continueGame }) {
   ].filter(Boolean);
 
   return (
-    <nav className="mt-6 space-y-0.5">
+    <nav className="mt-5 space-y-2 max-w-md" style={{ perspective: "900px" }}>
       {items.map((item, i) => (
         <motion.div
           key={item.to}
-          initial={{ opacity: 0, x: -30 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.15 + i * 0.08, duration: 0.4 }}
+          initial={{ opacity: 0, x: -40, rotateY: -12 }}
+          animate={{ opacity: 1, x: 0, rotateY: 0 }}
+          transition={{ delay: 0.15 + i * 0.08, duration: 0.45 }}
         >
           <Link
             to={item.to}
             onMouseEnter={() => playSfx("hover")}
             onClick={() => playSfx("select")}
-            className={`group flex items-baseline gap-3 border-l-2 pl-4 py-1.5 transition-all hover:pl-6 ${
-              item.hot ? "border-brass" : "border-transparent hover:border-brass"
-            }`}
+            className={`cq-metal group relative flex items-center gap-3 rounded-sm border pl-3 pr-4 py-2 transition-all duration-200
+              hover:translate-x-1.5 hover:-translate-y-0.5 hover:shadow-[0_6px_16px_rgba(0,0,0,0.6)]
+              ${item.hot
+                ? "border-brass/70 bg-brass/10 shadow-[0_4px_12px_rgba(0,0,0,0.55)]"
+                : "border-border bg-card/70 hover:border-brass/60"}`}
+            style={{ clipPath: "polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)" }}
           >
-            <span className={`cq-display text-xl sm:text-2xl transition-colors ${
-              item.hot ? "text-brass-bright" : "text-foreground/80 group-hover:text-brass-bright"
-            }`}>
-              {item.label}
+            {/* Riveted edge strip */}
+            <span className={`self-stretch w-1 rounded-full shrink-0 ${item.hot ? "bg-brass cq-lamp text-brass" : "bg-border group-hover:bg-brass/70"} transition-colors`} />
+            <span className={`font-mono text-[10px] tracking-widest w-6 shrink-0 ${item.hot ? "text-brass-bright" : "text-muted-foreground/70"}`}>
+              {String(i + 1).padStart(2, "0")}
             </span>
-            <span className="hidden sm:inline font-mono text-[10px] text-muted-foreground tracking-widest opacity-0 group-hover:opacity-100 transition-opacity truncate">
-              {item.sub?.toUpperCase()}
+            <span className="min-w-0">
+              <span className={`cq-display block text-lg sm:text-xl leading-tight transition-colors ${
+                item.hot ? "text-brass-bright" : "text-foreground/85 group-hover:text-brass-bright"
+              }`}>
+                {item.label}
+              </span>
+              <span className="block font-mono text-[9px] text-muted-foreground tracking-[0.18em] truncate">
+                {item.sub?.toUpperCase()}
+              </span>
             </span>
+            <span className="ml-auto font-display text-brass/0 group-hover:text-brass/80 transition-colors text-lg shrink-0">▸</span>
           </Link>
         </motion.div>
       ))}

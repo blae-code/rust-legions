@@ -292,6 +292,37 @@
   pointer-events: none;
 }
 
+/* Rising ember mote for the 2.5D war-front backdrop */
+.cq-ember {
+  position: absolute;
+  bottom: -4px;
+  width: 3px;
+  height: 3px;
+  border-radius: 9999px;
+  background: hsl(38 80% 55%);
+  box-shadow: 0 0 5px 1px hsl(38 80% 50% / 0.7);
+  opacity: 0;
+  animation: cq-ember-rise 9s linear infinite;
+  pointer-events: none;
+}
+@keyframes cq-ember-rise {
+  0% { transform: translate(0, 0) scale(1); opacity: 0; }
+  8% { opacity: 0.9; }
+  60% { opacity: 0.6; }
+  100% { transform: translate(28px, -78vh) scale(0.3); opacity: 0; }
+}
+
+/* Sweeping searchlight cone over the backdrop */
+.cq-searchlight {
+  background: conic-gradient(from 190deg at 70% -10%, transparent 0deg, hsl(41 78% 58% / 0.10) 6deg, transparent 14deg);
+  animation: cq-searchlight-sweep 16s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+@keyframes cq-searchlight-sweep {
+  from { transform: rotate(-14deg); }
+  to { transform: rotate(16deg); }
+}
+
 @keyframes cq-flicker {
   0%, 100% { opacity: 1; }
   92% { opacity: 1; }
