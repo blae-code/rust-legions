@@ -16,6 +16,7 @@ import WarCharts from "@/components/game/charts/WarCharts";
 import ArmyPanel from "@/components/game/ArmyPanel";
 import MusterPanel from "@/components/game/MusterPanel";
 import BattleView from "@/components/game/BattleView";
+import BattleReport from "@/components/game/BattleReport";
 import { RESOURCE_KEYS, RESOURCE_META } from "@/lib/units";
 
 export default function GamePage() {
@@ -27,7 +28,9 @@ export default function GamePage() {
   const [error, setError] = useState("");
   const [sound, setSound] = useState(sfxEnabled());
   const [overlay, setOverlay] = useState(null);
+  const [report, setReport] = useState(null);
   const pollRef = useRef(null);
+  const prevBattleRef = useRef(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -39,6 +42,13 @@ export default function GamePage() {
   }, [gameId]);
 
   const battleActive = !!game?.battle;
+
+  // Surface the after-action report when a battle we were watching concludes
+  useEffect(() => {
+    if (prevBattleRef.current && !battleActive && game?.battleReport) setReport(game.battleReport);
+    prevBattleRef.current = battleActive;
+  }, [battleActive, game?.battleReport]);
+
   useEffect(() => {
     refresh();
     pollRef.current = setInterval(refresh, battleActive ? 2500 : 4000);
@@ -216,6 +226,7 @@ export default function GamePage() {
       </div>
 
       <BattleView battle={game.battle} busy={busy} onChoose={(maneuver) => act({ action: "battleChoice", maneuver })} />
+      {!game.battle && <BattleReport report={report} onClose={() => setReport(null)} />}
     </div>
   );
 }

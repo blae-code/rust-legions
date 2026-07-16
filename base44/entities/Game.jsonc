@@ -75,6 +75,13 @@
       ],
       "additionalProperties": true
     },
+    "lastBattle": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": true
+    },
     "lastSeen": {
       "type": "object",
       "additionalProperties": true

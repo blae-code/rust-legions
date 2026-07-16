@@ -802,12 +802,30 @@ function finishBattle(game, b, attackerWon) {
     defender: defSlotObj ? defSlotObj.factionName : 'Neutral garrison',
     tileName: b.tileName, rounds: b.round - 1, attLosses: b.attacker.losses, defLosses: b.defender.losses, outcome,
   });
+  // Post-battle after-action report
+  const sideReport = (s, fac) => ({
+    faction: fac, general: s.generalName, losses: s.losses, remaining: totalUnits(s.units),
+    morale: Math.max(s.morale, 0), rank: s.rank || null, maneuvers: s.maneuvers || {},
+  });
+  game.lastBattle = {
+    id: b.id, turn: game.turnNumber, tileName: b.tileName, terrain: b.terrain,
+    terrainBonus: b.defender.terrainBonus || 0, fortBonus: b.defender.fortBonus || 0,
+    rounds: b.round - 1, outcome,
+    attackerSlot: b.attacker.slot, defenderSlot: b.defender.slot,
+    attacker: sideReport(b.attacker, attSlotObj.factionName),
+    defender: sideReport(b.defender, defSlotObj ? defSlotObj.factionName : 'Neutral garrison'),
+  };
   game.activeBattle = null;
   checkEliminations(game); checkWin(game); checkCampaignWin(game);
 }
 
 function resolveBattleRound(game, b) {
   const A = b.attacker, D = b.defender;
+  // Tally maneuvers for the post-battle report
+  for (const s of [A, D]) {
+    s.maneuvers = s.maneuvers || {};
+    s.maneuvers[s.choice] = (s.maneuvers[s.choice] || 0) + 1;
+  }
   const aMargin = battleSkill(A, D) - roll3d6();
   const dMargin = battleSkill(D, A) - roll3d6();
   A.nextBonus = 0; D.nextBonus = 0;
@@ -1050,6 +1068,13 @@ Deno.serve(async (req) => {
         myGenerals: (mySlotObj?.generals || []).map((g) => ({ ...g, traitLabel: traitByKey(g.trait)?.label || null })),
         generalCost: RECRUIT_GENERAL_COST,
         battle,
+        battleReport: (() => {
+          const lb = game.lastBattle;
+          if (!lb) return null;
+          const isParty = game.factionSlots[lb.attackerSlot]?.userId === user.id ||
+            (lb.defenderSlot !== null && lb.defenderSlot !== undefined && game.factionSlots[lb.defenderSlot]?.userId === user.id);
+          return isParty ? lb : null;
+        })(),
         id: game.id, name: game.name, mode: game.mode, status: game.status,
         turnNumber: game.turnNumber, currentSlot: currentSlotIdx,
         isMyTurn: active && game.factionSlots?.[currentSlotIdx]?.userId === user.id,
@@ -1260,6 +1285,7 @@ Deno.serve(async (req) => {
       territoryStates: game.territoryStates, treasuries: game.treasuries,
       factionSlots: game.factionSlots, armies: game.armies || [],
       combatLog: game.combatLog, activeBattle: game.activeBattle || null,
+      lastBattle: game.lastBattle || null,
       status: game.status, winnerSlot: game.winnerSlot, statHistory: game.statHistory,
     });
 
