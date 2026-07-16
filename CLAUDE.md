@@ -78,13 +78,14 @@ Built and live: territorial conquest, typed economy, buildings, 5 unit types, ga
 - **v2.x Mobile Bases redesign:** permanent capitals replaced by modular mobile fortress-bases (module slots altering speed/defense/economy/auras); bases captured only by committed ground troops (boarding assaults); permanent settlements become neutral minor polities; buried precursor tech with dig sites, relics, and a "restore humanity" victory condition.
 - **Air expansion** (Sky Captain-inspired aerial theater) and **Sea expansion** (Waterworld/Foxhole-naval theater) planned after that, in order.
 
-**Smaller items discussed but not scheduled** (slot into the phases above where they fit):
-1. Speed/initiative system — unit speed stats, general speed auras, initiative-ordered casualty application, speed-based macro movement (pairs with engine modules)
-2. Player diplomacy (pairs with settlements-as-polities)
-3. Resource exchange / war market
-4. Stalemate protection (turn limits, scored victory, turn timers)
-5. In-game Field Manual (rules codex)
-6. Turn notifications (email nudges)
+**Known gaps — near-term candidates, scope not yet locked** (full analysis in `docs/VISION.md` §5.1):
+1. Sea transport — "convoy" action ferrying armies between friendly coasts (biggest hole; full naval theater stays in the Sea expansion)
+2. Minimal diplomacy — offer truce / declare war, NPC acceptance driven by disposition
+3. Resource exchange — lossy war market (~3:1) and/or player trade offers
+4. Stalemate protection — optional turn deadline with auto-skip + max-turn scored victory (land + production)
+5. Speed/initiative system — **in-or-out decision pending**; pairs with v2.x engine modules
+6. Field Manual — in-game codex page, ministry styling, sourced from `docs/GAME_RULES.md`
+7. Turn notifications — email nudge to registered players when the baton passes
 
 Do not start implementing v2.x or expansion content without explicit user go-ahead — the docs-first working agreement in `docs/VISION.md` applies.
 

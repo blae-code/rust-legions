@@ -79,7 +79,22 @@ Shipped and planned content, in order. Each expansion arrives as Field Amendment
 | **Expansion: AIR** | *Sky Captain-inspired* | Aerial theater: airships and sky-fortresses, air lanes/altitude as a movement layer, air piracy, possibly airborne mobile bases. Rocketeer/pulp-aviation flavor grafted onto the dieselpunk base. |
 | **Expansion: SEA** | *Waterworld / Foxhole-naval-inspired* | Ocean theater: naval mobile bases (floating fortress flotillas), sea-borne settlements, amphibious operations, deep-sea precursor vaults. Resolves the current sea-transport gap as a full expansion rather than a patch. |
 
-Smaller pending items from earlier scope discussions (speed/initiative, diplomacy, resource market, stalemate protection, field manual, turn notifications) slot into these phases where they fit — e.g. initiative pairs naturally with engine modules; diplomacy pairs with settlements-as-polities.
+### 5.1 Known Gaps (near-term candidates, independent of the big expansions)
+
+Holes the current systems imply but don't cover. These can ship as vanilla-era patches or fold into the phases above — scope to be locked with the user before building.
+
+**Rules gaps:**
+
+1. **Sea transport / amphibious invasion — the biggest hole in the map game.** Field armies can't enter sea zones and land units can't cross water, so on maps with islands or split continents whole theaters are unreachable except by gunboat skirmishing. Minimal fix: a transport ship, or a **"convoy" action** that ferries an army/garrison between friendly-adjacent coasts. The full naval theater (floating bases, sea settlements) remains the Sea expansion — the convoy is the stopgap.
+2. **Player diplomacy.** NPCs have dispositions toward players, but players have zero tools — no truces, non-aggression pacts, or trades, so 3–4 faction games are pure free-for-alls. Even a minimal version — **offer truce / declare war, with NPC acceptance driven by disposition** — turns them into real geopolitics. Pairs with settlements-as-polities in v2.x.
+3. **Resource exchange.** Treasuries dead-end: a steel-rich faction with no fuel just stalls. Fix: a **war market** (lossy conversion, e.g. 3:1) and/or trade offers between players.
+4. **Stalemate protection.** Nothing ends a war that grinds — no turn limit, no scored victory, and no timer if a multiplayer opponent goes dark. Fix: an **optional turn deadline with auto-skip**, plus a **max-turn scored victory** (land + production).
+5. **Speed/initiative system** — sketched earlier (unit speed stats, general speed auras, initiative-ordered casualties, speed-based macro movement), still unbuilt. **Decision pending: in or out of near-term scope** — it pairs naturally with v2.x engine modules, which argues for deferring it.
+
+**Tooling gaps (support, not rules):**
+
+6. **Field Manual.** The rules live in the maintainer's head and scattered tooltips — combat math, weather, supply, veterancy, maneuvers. An **in-game codex page** in the same ministry styling as the patch dispatches, so players can actually learn the game. Pairs naturally with patches ("see amended §4.2"); `docs/GAME_RULES.md` is the source text.
+7. **Turn notifications.** Async multiplayer only works if players know it's their turn — an **email nudge to registered players when the baton passes** (Base44 SendEmail reaches registered app users).
 
 ## 6. Open Design Questions
 
