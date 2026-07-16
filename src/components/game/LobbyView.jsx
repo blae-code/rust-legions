@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Copy, Check } from "lucide-react";
+import GameChat from "@/components/game/chat/GameChat";
 
 export default function LobbyView({ game, onJoin, onStart, busy, error }) {
   const [myFactions, setMyFactions] = useState([]);
@@ -85,6 +86,8 @@ export default function LobbyView({ game, onJoin, onStart, busy, error }) {
           )}
         </div>
       </div>
+
+      <GameChat gameId={game.id} myName={game.factions.find((f) => f.isMe)?.factionName || "Commander"} />
     </div>
   );
 }

@@ -23,6 +23,7 @@ import WeatherBadge from "@/components/game/WeatherBadge";
 import DiplomacyPanel from "@/components/game/diplomacy/DiplomacyPanel";
 import DoctrinePanel from "@/components/game/research/DoctrinePanel";
 import FortressBay from "@/components/game/fortress/FortressBay";
+import GameChat from "@/components/game/chat/GameChat";
 import { RESOURCE_KEYS, RESOURCE_META } from "@/lib/units";
 
 export default function GamePage() {
@@ -292,6 +293,9 @@ export default function GamePage() {
           <PurchasePanel game={game} busy={busy} onPurchase={(tileId, units) => act({ action: "purchaseUnits", tileId, units })} />
           <DispatchArchive archives={game.battleArchives} />
           <CombatLog entries={game.combatLog} />
+          {game.mySlot !== null && game.mySlot !== undefined && (
+            <GameChat gameId={game.id} myName={game.factions.find((f) => f.isMe)?.factionName || "Commander"} />
+          )}
         </div>
       </div>
 
