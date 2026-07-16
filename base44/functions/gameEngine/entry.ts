@@ -554,11 +554,33 @@ function npcTakeTurn(game, slotIdx) {
   }
 }
 
+// ---------- Turn stat snapshots ----------
+function recordSnapshot(game) {
+  if (!game.statHistory) game.statHistory = [];
+  const snap = { turn: game.turnNumber, control: {}, production: {} };
+  for (const slot of game.factionSlots) {
+    const key = String(slot.slotIndex);
+    if (slot.eliminated) {
+      snap.control[key] = 0;
+      snap.production[key] = { manpower: 0, steel: 0, fuel: 0 };
+    } else {
+      snap.control[key] = Math.round(landControlPct(game, slot.slotIndex));
+      snap.production[key] = factionProduction(game, slot.slotIndex);
+    }
+  }
+  const i = game.statHistory.findIndex((s) => s.turn === snap.turn);
+  if (i >= 0) game.statHistory[i] = snap; else game.statHistory.push(snap);
+  if (game.statHistory.length > 200) game.statHistory.shift();
+}
+
 function advanceTurn(game) {
   let guard = 0;
   while (guard++ < 20 && game.status === 'active') {
     game.currentTurnIndex = (game.currentTurnIndex + 1) % game.turnOrder.length;
-    if (game.currentTurnIndex === 0) game.turnNumber++;
+    if (game.currentTurnIndex === 0) {
+      game.turnNumber++;
+      recordSnapshot(game);
+    }
     const slotIdx = game.turnOrder[game.currentTurnIndex];
     const slot = game.factionSlots[slotIdx];
     if (slot.eliminated) continue;
@@ -700,6 +722,7 @@ Deno.serve(async (req) => {
         })),
         tiles: visibleStateFor(game, mySlot),
         combatLog: game.status === 'complete' ? (game.combatLog || []) : (game.combatLog || []).slice(-30),
+        statHistory: game.statHistory || [],
         winnerSlot: game.winnerSlot,
         winnerName: game.winnerSlot !== undefined && game.winnerSlot !== null ? game.factionSlots?.[game.winnerSlot]?.factionName : null,
       });
@@ -772,10 +795,12 @@ Deno.serve(async (req) => {
       game.territoryStates = states;
       game.combatLog.push({ turn: 1, type: 'event', text: 'War has been declared. The front ignites.' });
       collectIncome(game, game.turnOrder[0]);
+      recordSnapshot(game);
 
       await svc.entities.Game.update(game.id, {
         status: 'active', tiles: game.tiles, factionSlots: game.factionSlots,
         territoryStates: game.territoryStates, treasuries: game.treasuries, combatLog: game.combatLog,
+        statHistory: game.statHistory,
       });
       return Response.json({ ok: true });
     }
@@ -869,9 +894,11 @@ Deno.serve(async (req) => {
       } catch (e) {
         return Response.json({ error: e.message }, { status: 400 });
       }
+      if (game.status !== 'active') recordSnapshot(game);
       await svc.entities.Game.update(game.id, {
         territoryStates: game.territoryStates, factionSlots: game.factionSlots,
         combatLog: game.combatLog, status: game.status, winnerSlot: game.winnerSlot,
+        statHistory: game.statHistory,
       });
       return Response.json({ ok: true, outcome });
     }
@@ -880,11 +907,12 @@ Deno.serve(async (req) => {
       requireMyTurn();
       checkCampaignWin(game);
       if (game.status === 'active') advanceTurn(game);
+      if (game.status !== 'active') recordSnapshot(game);
       await svc.entities.Game.update(game.id, {
         territoryStates: game.territoryStates, factionSlots: game.factionSlots,
         treasuries: game.treasuries, combatLog: game.combatLog,
         currentTurnIndex: game.currentTurnIndex, turnNumber: game.turnNumber,
-        status: game.status, winnerSlot: game.winnerSlot,
+        status: game.status, winnerSlot: game.winnerSlot, statHistory: game.statHistory,
       });
       return Response.json({ ok: true });
     }

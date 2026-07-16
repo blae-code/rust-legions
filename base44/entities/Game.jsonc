@@ -68,6 +68,13 @@
         "additionalProperties": true
       }
     },
+    "statHistory": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
     "campaignWinCondition": {
       "type": "object",
       "additionalProperties": true

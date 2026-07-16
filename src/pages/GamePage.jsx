@@ -12,6 +12,7 @@ import BuildPanel from "@/components/game/BuildPanel";
 import LobbyView from "@/components/game/LobbyView";
 import WarChronicle from "@/components/game/WarChronicle";
 import OverlayToggle from "@/components/game/OverlayToggle";
+import WarCharts from "@/components/game/charts/WarCharts";
 import { RESOURCE_KEYS, RESOURCE_META } from "@/lib/units";
 
 export default function GamePage() {
@@ -130,24 +131,27 @@ export default function GamePage() {
       {error && <p className="text-xs text-rust font-mono">{error}</p>}
 
       <div className="grid lg:grid-cols-[1fr_320px] gap-4">
-        <div className="cq-panel cq-brackets relative overflow-hidden p-2 pt-6">
-          <div className="absolute inset-0 cq-board" />
-          <div className="absolute inset-0 cq-scanlines opacity-25" />
-          <div className="absolute top-2 left-1/2 -translate-x-1/2 font-mono text-[9px] text-brass/60 tracking-[0.35em] pointer-events-none whitespace-nowrap cq-flicker">
-            ⁜ TACTICAL THEATER · LIVE FEED ⁜
-          </div>
-          <div className="relative">
-            <div className="px-2 pb-2">
-              <OverlayToggle overlay={overlay} onChange={setOverlay} factions={game.factions} />
+        <div className="space-y-4">
+          <div className="cq-panel cq-brackets relative overflow-hidden p-2 pt-6">
+            <div className="absolute inset-0 cq-board" />
+            <div className="absolute inset-0 cq-scanlines opacity-25" />
+            <div className="absolute top-2 left-1/2 -translate-x-1/2 font-mono text-[9px] text-brass/60 tracking-[0.35em] pointer-events-none whitespace-nowrap cq-flicker">
+              ⁜ TACTICAL THEATER · LIVE FEED ⁜
             </div>
-            <HexBoard
-              tiles={game.tiles}
-              slotColors={slotColors}
-              selectedId={selectedId}
-              overlay={overlay}
-              onTileClick={(t) => setSelectedId(t.id === selectedId ? null : t.id)}
-            />
+            <div className="relative">
+              <div className="px-2 pb-2">
+                <OverlayToggle overlay={overlay} onChange={setOverlay} factions={game.factions} />
+              </div>
+              <HexBoard
+                tiles={game.tiles}
+                slotColors={slotColors}
+                selectedId={selectedId}
+                overlay={overlay}
+                onTileClick={(t) => setSelectedId(t.id === selectedId ? null : t.id)}
+              />
+            </div>
           </div>
+          <WarCharts history={game.statHistory} factions={game.factions} />
         </div>
         <div className="space-y-4">
           {game.status === "active" && game.myResources && (
