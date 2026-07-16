@@ -156,4 +156,63 @@
   .cq-tag {
     @apply inline-flex items-center font-heading uppercase tracking-widest text-[10px] px-2 py-0.5 rounded-sm border;
   }
+
+  /* CRT scanline overlay */
+  .cq-scanlines {
+    background-image: repeating-linear-gradient(0deg, transparent 0 3px, hsl(0 0% 0% / 0.18) 3px 4px);
+    pointer-events: none;
+  }
+
+  /* Vignette overlay */
+  .cq-vignette {
+    background: radial-gradient(ellipse at center, transparent 45%, hsl(0 0% 0% / 0.55) 100%);
+    pointer-events: none;
+  }
+
+  /* Corner brackets */
+  .cq-brackets {
+    position: relative;
+  }
+  .cq-brackets::before,
+  .cq-brackets::after {
+    content: "";
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    border-color: hsl(var(--brass) / 0.6);
+    border-style: solid;
+    pointer-events: none;
+  }
+  .cq-brackets::before { top: 4px; left: 4px; border-width: 1px 0 0 1px; }
+  .cq-brackets::after { bottom: 4px; right: 4px; border-width: 0 1px 1px 0; }
+
+  /* Wire ticker marquee */
+  .cq-ticker-track {
+    display: flex;
+    width: max-content;
+    animation: cq-ticker 40s linear infinite;
+  }
+
+  /* Status lamp glow */
+  .cq-lamp {
+    box-shadow: 0 0 6px 1px currentColor;
+  }
+}
+
+@keyframes cq-ticker {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+@keyframes cq-flicker {
+  0%, 100% { opacity: 1; }
+  92% { opacity: 1; }
+  93% { opacity: 0.75; }
+  94% { opacity: 1; }
+  97% { opacity: 0.85; }
+  98% { opacity: 1; }
+}
+
+.cq-flicker {
+  animation: cq-flicker 7s infinite;
 }
