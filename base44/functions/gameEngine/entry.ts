@@ -570,6 +570,7 @@ const GENERAL_FIRST = ['Aldric', 'Vessa', 'Korin', 'Maren', 'Dain', 'Ottil', 'Ry
 const GENERAL_LAST = ['Vance', 'Odt', 'Krael', 'Morvane', 'Stahl', 'Redgrave', 'Voss', 'Harrow', 'Calder', 'Brandt'];
 const DOCTRINE_EPITHET = { aggressive: 'the Unrelenting', economic: 'the Provisioner', defensive: 'the Unbroken' };
 const RECRUIT_GENERAL_COST = { manpower: 4 };
+const PROBE_COST = { fuel: 1 };
 const ARMY_UNIT_KEYS = ['riflemen', 'crawler', 'fighter'];
 const ARMY_ORDINALS = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th'];
 const d3 = () => 1 + Math.floor(Math.random() * 3);
@@ -1399,6 +1400,50 @@ Deno.serve(async (req) => {
       if (game.status !== 'active') recordSnapshot(game);
       await persistWar();
       return Response.json({ ok: true, resolved: !game.activeBattle });
+    }
+
+    // ----- Reconnaissance probe -----
+    if (action === 'probe') {
+      const slotIdx = requireMyTurn();
+      if (game.activeBattle) return Response.json({ error: 'Resolve the ongoing battle first' }, { status: 400 });
+      const tile = game.tiles.find((t) => t.id === body.tileId);
+      const st = game.territoryStates[body.tileId];
+      if (!tile || !st || tile.isSea) return Response.json({ error: 'Invalid probe target' }, { status: 400 });
+      if (st.owner === slotIdx) return Response.json({ error: 'You already hold that zone' }, { status: 400 });
+      const adjacent = tile.adjacentIds.some((aid) => game.territoryStates[aid]?.owner === slotIdx) ||
+        (game.armies || []).some((a) => a.owner === slotIdx && tile.adjacentIds.includes(a.tileId));
+      if (!adjacent) return Response.json({ error: 'Scouts can only probe zones adjacent to your lines' }, { status: 400 });
+      const treasury = getTreasury(game, slotIdx);
+      if (!canAfford(treasury, PROBE_COST)) return Response.json({ error: 'Insufficient fuel to mount a patrol' }, { status: 400 });
+      pay(treasury, PROBE_COST);
+      // Scouts bring back partial intel — each detail has a chance of being observed
+      const seen = (p) => Math.random() < p;
+      const garrison = {};
+      for (const k of UNIT_KEYS) garrison[k] = seen(0.7) ? (st.units[k] || 0) : null;
+      const armies = (game.armies || []).filter((a) => a.tileId === body.tileId && a.owner !== slotIdx).map((a) => {
+        const g = (game.factionSlots[a.owner].generals || []).find((x) => x.id === a.generalId);
+        return {
+          name: a.name,
+          regiments: Object.fromEntries(ARMY_UNIT_KEYS.map((k) => [k, seen(0.6) ? (a.regiments[k] || 0) : null])),
+          rank: seen(0.7) ? armyRank(a.battles || 0).label : null,
+          general: g ? {
+            name: g.name,
+            trait: seen(0.5) ? (traitByKey(g.trait)?.label || null) : null,
+            strategy: seen(0.5) ? g.strategy : null,
+          } : null,
+        };
+      });
+      const intel = {
+        tileName: tile.name, terrain: tile.terrain,
+        owner: st.owner !== null && st.owner !== undefined ? game.factionSlots[st.owner].factionName : 'Neutral garrison',
+        garrison,
+        fortLevel: seen(0.7) ? fortLevel(st) : null,
+        buildings: seen(0.6) ? activeBuildings(st).map((b) => b.type) : null,
+        armies,
+      };
+      game.combatLog.push({ turn: game.turnNumber, type: 'event', text: `${game.factionSlots[slotIdx].factionName} scouts probe ${tile.name}.` });
+      await svc.entities.Game.update(game.id, { treasuries: game.treasuries, combatLog: game.combatLog });
+      return Response.json({ ok: true, intel, resources: treasury });
     }
 
     if (action === 'endTurn') {

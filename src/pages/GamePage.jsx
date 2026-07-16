@@ -17,6 +17,7 @@ import ArmyPanel from "@/components/game/ArmyPanel";
 import MusterPanel from "@/components/game/MusterPanel";
 import BattleView from "@/components/game/BattleView";
 import BattleReport from "@/components/game/BattleReport";
+import ProbePanel from "@/components/game/ProbePanel";
 import { RESOURCE_KEYS, RESOURCE_META } from "@/lib/units";
 
 export default function GamePage() {
@@ -67,6 +68,22 @@ export default function GamePage() {
       setError(e.response?.data?.error || "Order failed");
     }
     setBusy(false);
+  };
+
+  const probe = async (tileId) => {
+    setBusy(true);
+    setError("");
+    try {
+      const res = await base44.functions.invoke("gameEngine", { gameId, action: "probe", tileId });
+      playSfx("move");
+      await refresh();
+      setBusy(false);
+      return res.data.intel;
+    } catch (e) {
+      setError(e.response?.data?.error || "Probe failed");
+      setBusy(false);
+      return null;
+    }
   };
 
   if (!game) {
@@ -212,6 +229,7 @@ export default function GamePage() {
             busy={busy}
             onMuster={(tileId, regiments, generalId) => act({ action: "musterArmy", tileId, regiments, generalId })}
           />
+          <ProbePanel game={game} tile={selectedTile} busy={busy} onProbe={probe} />
           <TilePanel
             game={game}
             tile={selectedTile}
