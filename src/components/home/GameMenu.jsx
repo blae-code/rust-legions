@@ -8,6 +8,7 @@ export default function GameMenu({ continueGame }) {
   const items = [
     continueGame && { to: `/game/${continueGame.id}`, label: "Continue War", sub: continueGame.name, hot: true },
     { to: "/new-game", label: "New Operation", sub: "Open a fresh front on the continent" },
+    { to: "/walkthrough", label: "Field Induction", sub: "Recruit drill — fortress-bases & ideology" },
     { to: "/faction-builder", label: "Faction Foundry", sub: "Forge a banner through the lifepath" },
     { to: "/army-designer", label: "Army Design Bureau", sub: "Draft doctrine patterns for your armies" },
     { to: "/map-editor", label: "Cartography Bureau", sub: "Draft new battlegrounds tile by tile" },

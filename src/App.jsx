@@ -18,6 +18,7 @@ import ArmyDesigner from './pages/ArmyDesigner';
 import PatchNotes from './pages/PatchNotes';
 import AssetRegistry from './pages/AssetRegistry';
 import MacroLab from './pages/MacroLab';
+import Walkthrough from './pages/Walkthrough';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -57,6 +58,7 @@ const AuthenticatedApp = () => {
         <Route path="/patch-notes" element={<PatchNotes />} />
         <Route path="/asset-registry" element={<AssetRegistry />} />
         <Route path="/macro-lab" element={<MacroLab />} />
+        <Route path="/walkthrough" element={<Walkthrough />} />
       </Route>
       <Route path="*" element={<PageNotFound />} />
     </Routes>
