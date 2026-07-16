@@ -54,6 +54,7 @@ export const PLATE_URLS = {
   mod_salvage_refinery: B + "bf9acecff_generated_image.png",
   mod_arc_smelters: B + "9de9c6a7e_generated_image.png",
   mod_habitat_decks: B + "ef5beaec7_generated_image.png",
+  mod_citadel_plate: B + "2ad82ed3f_generated_image.png",
   // Buildings
   bld_barracks: B + "f636ce573_generated_image.png",
   bld_foundry: B + "8c51d6278_generated_image.png",
@@ -80,6 +81,13 @@ export const PLATE_URLS = {
   res_manpower: B + "17eead034_generated_image.png",
   res_steel: B + "8d3b4f307_generated_image.png",
   res_fuel: B + "e21c5a0ed_generated_image.png",
+  res_oil_field: B + "70318eed0_generated_image.png",
+  // Gap-analysis additions (2026-07) — one example delivered per new category
+  decree_war_bonds: B + "c3fd8625a_generated_image.png",
+  tech_combined_arms: B + "43cb5e563_generated_image.png",
+  design_vanguard: B + "64534ca99_generated_image.png",
+  dip_trade_manifest: B + "1bee4aaa5_generated_image.png",
+  rank_elite: B + "1f83fbea3_generated_image.png",
   // Medals
   medal_iron_hammer: B + "682569a76_generated_image.png",
   medal_brass_star: B + "084b61e98_generated_image.png",
@@ -92,6 +100,7 @@ export const PLATE_URLS = {
   mnv_flank: B + "52ae9c1f7_generated_image.png",
   mnv_feint: B + "ecb6945dd_generated_image.png",
   mnv_rally: B + "337682abc_generated_image.png",
+  mnv_relentless_pursuit: B + "4a83ced29_generated_image.png",
   // Effect textures
   fx_explosion: B + "10b002581_generated_image.png",
   fx_muzzle: B + "02443bfd4_generated_image.png",
