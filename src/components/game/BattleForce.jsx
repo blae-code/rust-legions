@@ -10,6 +10,11 @@ export default function BattleForce({ side, title, accent, isMe }) {
         {side.general?.toUpperCase()} · STRATEGY {side.strategy}
         {side.rank && side.rank !== "Green" && <span className="text-brass"> · {side.rank.toUpperCase()} +{side.vetBonus}</span>}
       </p>
+      {side.vehicle && (
+        <p className="font-mono text-[9px] text-brass/80 -mt-1.5 mb-2 truncate cursor-help" title={side.vehicle.effect}>
+          ⚙ {side.vehicle.label.toUpperCase()}
+        </p>
+      )}
       <div className="space-y-0.5 text-[11px] font-mono text-secondary-foreground">
         {ARMY_UNIT_KEYS.map((k) => (side.units?.[k] || 0) > 0 && (
           <div key={k} className="flex justify-between"><span className="text-muted-foreground">{REGIMENT_LABELS[k]}</span><span>×{side.units[k]}</span></div>

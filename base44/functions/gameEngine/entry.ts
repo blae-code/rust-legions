@@ -863,6 +863,17 @@ const GENERAL_TRAITS = [
 const DOCTRINE_TRAIT = { aggressive: 'butcher', economic: 'fox', defensive: 'bulwark' };
 const traitByKey = (k) => GENERAL_TRAITS.find((t) => t.key === k) || null;
 
+// Command vehicles — a general is no mere foot officer: each fights from a
+// specialized machine suited to their specialty (mirrors src/lib/commandVehicles.js)
+const COMMAND_VEHICLES = {
+  butcher: { key: 'mauler', label: '"Mauler" Assault Crawler', effect: '+10% damage dealt', dmgOut: 1.1 },
+  fox: { key: 'vixen', label: '"Vixen" Scout Autocar', effect: '+1 battle skill', skill: 1 },
+  bulwark: { key: 'redoubt', label: '"Redoubt" Armored Wagon', effect: '−10% damage taken', dmgIn: 0.9 },
+  firebrand: { key: 'clarion', label: '"Clarion" Signal Wagon', effect: '−15% morale damage taken', moraleIn: 0.85 },
+};
+const SUPREME_VEHICLE = { key: 'paramount', label: '"Paramount" Command Land-Train', effect: '+1 battle skill · −10% morale damage taken', skill: 1, moraleIn: 0.9 };
+const vehicleOf = (g) => (!g || !g.id ? null : g.supreme ? SUPREME_VEHICLE : COMMAND_VEHICLES[g.trait] || null);
+
 // Army veterancy — battles survived harden a field army
 const VETERANCY = [
   { min: 5, label: 'Elite', bonus: 3 },
@@ -1035,6 +1046,7 @@ function createBattle(game, slotIdx, army, toTileId) {
       slot: slotIdx, armyId: army.id, armyName: army.name, generalName: attGeneral.name, generalId: attGeneral.id || null,
       strategy: attGeneral.strategy, units: { ...army.regiments }, morale: 100, choice: null, nextBonus: 0, losses: 0,
       signature: attTrait?.signature || null, sigCooldown: 0, vetBonus: attRank.bonus, rank: attRank.label,
+      vehicle: vehicleOf(attGeneral),
       supplyPenalty: attSupplied ? 0 : -2,
       weatherPenalty: weather === 'rain' || weather === 'snow' ? -1 : 0,
       elevMod: eMod,
@@ -1047,6 +1059,7 @@ function createBattle(game, slotIdx, army, toTileId) {
       units: defUnits, morale: 100, fortBonus: fortLevel(st) + capBonus + baseDefenseAt(game, defSlotIdx, toTileId), terrainBonus,
       generalId: defGeneral?.id || null,
       signature: defTrait?.signature || null, sigCooldown: 0, vetBonus: defRank.bonus, rank: defRank.label,
+      vehicle: vehicleOf(defGeneral),
       supplyPenalty: defSupplied ? 0 : -2,
       weatherPenalty: weather === 'fog' ? -1 : 0,
       design: defDesign,
@@ -1058,6 +1071,9 @@ function createBattle(game, slotIdx, army, toTileId) {
     weather,
     log: [`The ${army.name} under ${attGeneral.name} engages at ${toTile.name}${terrainBonus > 0 ? ` — the ${toTile.terrain} favors the defense (+${terrainBonus})` : ''}.`],
   };
+  const attVeh = vehicleOf(attGeneral), defVeh = vehicleOf(defGeneral);
+  if (attVeh) game.activeBattle.log.push(`${attGeneral.name} directs the assault from the ${attVeh.label}.`);
+  if (defVeh) game.activeBattle.log.push(`${defGeneral.name} anchors the defense from the ${defVeh.label}.`);
   if (!attSupplied) game.activeBattle.log.push(`${attGeneral.name}'s columns fight cut off from supply — every shell is rationed (−2).`);
   if (!defSupplied) game.activeBattle.log.push(`The defenders of ${toTile.name} are under siege — stores run thin (−2).`);
   if (weather === 'rain') game.activeBattle.log.push('Driving rain turns the field to mud — the assault bogs down (attacker −1).');
@@ -1076,7 +1092,7 @@ function battleSkill(side, other) {
   const m = MANEUVERS[side.choice];
   const ratio = Math.max(forcePoints(side.units), 1) / Math.max(forcePoints(other.units), 1);
   const strengthMod = Math.max(Math.min(Math.round(Math.log2(ratio) * 2), 4), -4);
-  return side.strategy + m.skill + strengthMod + (side.fortBonus || 0) + (side.terrainBonus || 0) + (side.vetBonus || 0) + (side.nextBonus || 0) + (side.supplyPenalty || 0) + (side.weatherPenalty || 0) + (side.elevMod || 0) + ((side.design || {}).skill || 0);
+  return side.strategy + m.skill + strengthMod + (side.fortBonus || 0) + (side.terrainBonus || 0) + (side.vetBonus || 0) + (side.nextBonus || 0) + (side.supplyPenalty || 0) + (side.weatherPenalty || 0) + (side.elevMod || 0) + ((side.design || {}).skill || 0) + ((side.vehicle || {}).skill || 0);
 }
 
 function finishBattle(game, b, attackerWon) {
@@ -1172,14 +1188,14 @@ function resolveBattleRound(game, b) {
     const marginDiff = Math.min(Math.abs(aMargin - dMargin), 6);
     const wm = MANEUVERS[win.choice], lm = MANEUVERS[lose.choice];
     const lTotal = totalUnits(lose.units);
-    const lLoss = Math.min(Math.max(Math.round(lTotal * Math.min(0.07 + 0.06 * marginDiff, 0.45) * wm.dmgOut * lm.dmgIn * ((win.design || {}).dmgOut || 1) * ((lose.design || {}).dmgIn || 1)), 1), lTotal);
+    const lLoss = Math.min(Math.max(Math.round(lTotal * Math.min(0.07 + 0.06 * marginDiff, 0.45) * wm.dmgOut * lm.dmgIn * ((win.design || {}).dmgOut || 1) * ((lose.design || {}).dmgIn || 1) * ((win.vehicle || {}).dmgOut || 1) * ((lose.vehicle || {}).dmgIn || 1)), 1), lTotal);
     removeCasualties(lose.units, lLoss);
     lose.losses += lLoss;
     const wTotal = totalUnits(win.units);
-    const wLoss = Math.min(Math.round(wTotal * 0.05 * lm.dmgOut * wm.dmgIn * ((lose.design || {}).dmgOut || 1) * ((win.design || {}).dmgIn || 1)), wTotal);
+    const wLoss = Math.min(Math.round(wTotal * 0.05 * lm.dmgOut * wm.dmgIn * ((lose.design || {}).dmgOut || 1) * ((win.design || {}).dmgIn || 1) * ((lose.vehicle || {}).dmgOut || 1) * ((win.vehicle || {}).dmgIn || 1)), wTotal);
     removeCasualties(win.units, wLoss);
     win.losses += wLoss;
-    lose.morale -= Math.round((10 + 5 * marginDiff) * wm.moraleOut * ((lose.design || {}).moraleIn || 1));
+    lose.morale -= Math.round((10 + 5 * marginDiff) * wm.moraleOut * ((lose.design || {}).moraleIn || 1) * ((lose.vehicle || {}).moraleIn || 1));
     win.morale -= wLoss > 0 ? 4 : 2;
     if (wm.nextBonus) win.nextBonus = wm.nextBonus;
     b.log.push(`R${b.round} — ${win.generalName}'s ${wm.label.toLowerCase()} carries the field: ${lLoss} enemy compan${lLoss === 1 ? 'y' : 'ies'} broken (morale ${Math.max(lose.morale, 0)}).`);
@@ -1398,7 +1414,7 @@ Deno.serve(async (req) => {
         const defOwnerObj = ab.defender.slot !== null && ab.defender.slot !== undefined ? game.factionSlots[ab.defender.slot] : null;
         const myRole = game.factionSlots[ab.attacker.slot]?.userId === user.id ? 'attacker' : defOwnerObj?.userId === user.id ? 'defender' : null;
         if (myRole) {
-          const sideView = (s, fac) => ({ faction: fac, general: s.generalName, strategy: s.strategy, units: s.units, morale: Math.max(s.morale, 0), losses: s.losses, chosen: !!s.choice, signature: s.signature || null, sigCooldown: s.sigCooldown || 0, vetBonus: s.vetBonus || 0, rank: s.rank || null, elevMod: s.elevMod || 0, design: s.design?.name || null });
+          const sideView = (s, fac) => ({ faction: fac, general: s.generalName, strategy: s.strategy, units: s.units, morale: Math.max(s.morale, 0), losses: s.losses, chosen: !!s.choice, signature: s.signature || null, sigCooldown: s.sigCooldown || 0, vetBonus: s.vetBonus || 0, rank: s.rank || null, elevMod: s.elevMod || 0, design: s.design?.name || null, vehicle: s.vehicle ? { label: s.vehicle.label, effect: s.vehicle.effect } : null });
           battle = {
             tileName: ab.tileName, round: ab.round, myRole, terrain: ab.terrain || null, weather: ab.weather || 'clear', terrainBonus: ab.defender.terrainBonus || 0,
             attacker: sideView(ab.attacker, game.factionSlots[ab.attacker.slot]?.factionName),
@@ -1419,10 +1435,10 @@ Deno.serve(async (req) => {
             inSupply: a.owner === mySlot ? mySupplied.has(a.tileId) : undefined,
             design: a.design?.name || null,
             regiments: a.owner === mySlot ? a.regiments : undefined,
-            general: g ? (a.owner === mySlot ? { ...g, traitLabel: traitByKey(g.trait)?.label || null } : { name: g.name }) : null,
+            general: g ? (a.owner === mySlot ? { ...g, traitLabel: traitByKey(g.trait)?.label || null, vehicle: vehicleOf(g) } : { name: g.name }) : null,
           };
         }),
-        myGenerals: (mySlotObj?.generals || []).map((g) => ({ ...g, traitLabel: traitByKey(g.trait)?.label || null })),
+        myGenerals: (mySlotObj?.generals || []).map((g) => ({ ...g, traitLabel: traitByKey(g.trait)?.label || null, vehicle: vehicleOf(g) })),
         generalCost: RECRUIT_GENERAL_COST,
         battle,
         battleArchives: (game.battleArchives || []).filter((x) =>
