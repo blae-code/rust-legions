@@ -4,7 +4,8 @@ A turn-based dieselpunk grand-strategy game for 2–4 players — hex-tile terri
 
 **Project documentation:**
 - `CLAUDE.md` — warm-handoff overview: conventions, invariants, workflows
-- `docs/GAME_RULES.md` — the complete numeric ruleset
+- `docs/VISION.md` — design north star: lore, mobile-base redesign, expansion roadmap
+- `docs/GAME_RULES.md` — the complete numeric ruleset (as currently implemented)
 - `docs/ARCHITECTURE.md` — data model, backend API, frontend structure
 
 Use this repository to run and edit the app locally, then publish changes back through Base44.

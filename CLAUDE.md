@@ -8,12 +8,15 @@ Warm-handoff context for working on this repository. Read this first; the granul
 
 The game is positioned as a **live-service title**: v1.0.0 is "The Vanilla Front" baseline, and all future gameplay changes are published as in-game "Field Amendment" patch dispatches (see Patch workflow below).
 
+**The long-term vision goes further than the vanilla rules:** the game is pivoting toward *nomadic factions in modular mobile fortress-bases* (Mortal Engines / Stellaris Nomads) hunting buried precursor technology on an abandoned world, with Air and Sea expansions planned. **Read `docs/VISION.md` before designing any new gameplay feature** — new work should align with that direction, not entrench the permanent-capital model.
+
 ## Documentation Map
 
 | Doc | Contents |
 | --- | --- |
 | `CLAUDE.md` (this file) | Handoff overview, conventions, invariants, workflows |
-| `docs/GAME_RULES.md` | The complete, numeric ruleset — every stat, cost, modifier, and formula |
+| `docs/VISION.md` | Design north star — lore bible, mobile-base redesign, expansion roadmap (Air, Sea) |
+| `docs/GAME_RULES.md` | The complete, numeric ruleset **as currently implemented** — every stat, cost, modifier, and formula |
 | `docs/ARCHITECTURE.md` | File map, data model, backend API catalog, frontend structure |
 | `README.md` | Local dev setup, Base44 CLI, publish workflow |
 | `AGENTS.md` | Base44 platform conventions for coding agents |
@@ -71,16 +74,19 @@ Every player-facing gameplay change should ship with a patch note:
 
 Built and live: territorial conquest, typed economy, buildings, 5 unit types, garrison combat, mass battles (generals, maneuvers, morale, signatures, veterancy, medals), supply/logistics, weather, terrain/elevation modifiers, artillery bombardment, recon probes, army designs, faction point-buy + lifepath, NPC AI (3 doctrines), campaign mode, dispatch archive, war charts, patch-notes system.
 
-**Discussed but NOT built (pending scope decisions):**
-1. Speed/initiative system — unit speed stats, general speed auras, initiative-ordered casualty application in battles, speed-based macro-map movement points (design sketched in chat, approved direction unclear)
-2. Sea transport / amphibious invasion (field armies currently cannot cross sea zones)
-3. Player diplomacy (truces, pacts, trades)
-4. Resource exchange / war market
-5. Stalemate protection (turn limits, scored victory, turn timers with auto-skip)
-6. In-game Field Manual (rules codex)
-7. Turn notifications (email nudges)
+**The committed direction (NOT yet built — see `docs/VISION.md` for full detail):**
+- **v2.x Mobile Bases redesign:** permanent capitals replaced by modular mobile fortress-bases (module slots altering speed/defense/economy/auras); bases captured only by committed ground troops (boarding assaults); permanent settlements become neutral minor polities; buried precursor tech with dig sites, relics, and a "restore humanity" victory condition.
+- **Air expansion** (Sky Captain-inspired aerial theater) and **Sea expansion** (Waterworld/Foxhole-naval theater) planned after that, in order.
 
-Do not build these without user confirmation — they are options on the table, not commitments.
+**Smaller items discussed but not scheduled** (slot into the phases above where they fit):
+1. Speed/initiative system — unit speed stats, general speed auras, initiative-ordered casualty application, speed-based macro movement (pairs with engine modules)
+2. Player diplomacy (pairs with settlements-as-polities)
+3. Resource exchange / war market
+4. Stalemate protection (turn limits, scored victory, turn timers)
+5. In-game Field Manual (rules codex)
+6. Turn notifications (email nudges)
+
+Do not start implementing v2.x or expansion content without explicit user go-ahead — the docs-first working agreement in `docs/VISION.md` applies.
 
 ## Gotchas
 

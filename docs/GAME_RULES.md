@@ -3,6 +3,10 @@
 Authoritative source: `base44/functions/gameEngine/entry.ts`. Frontend mirrors in `src/lib/`.
 Any change here must be applied in both places and filed as a Patch dispatch.
 
+> **Note:** this document describes the game **as currently implemented**. A major redesign is planned
+> (mobile fortress-bases replacing permanent capitals, precursor-tech victory, settlements as minor
+> polities) — see `docs/VISION.md`. Until that ships, these vanilla rules are fully authoritative.
+
 ## 1. Victory Conditions
 
 - **Map control:** hold ≥ **60%** of land zones at the start of your turn (`MAP_CONTROL_PCT`).
