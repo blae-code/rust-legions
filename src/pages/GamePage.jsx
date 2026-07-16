@@ -4,6 +4,7 @@ import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Loader2, Volume2, VolumeX, Handshake, FlaskConical } from "lucide-react";
 import { playSfx, sfxEnabled, setSfxEnabled } from "@/lib/sfx";
+import { setScoreSuppressed } from "@/lib/ambience";
 import HexBoard3D from "@/components/hexmap3d/HexBoard3D";
 import TilePanel from "@/components/game/TilePanel";
 import PurchasePanel from "@/components/game/PurchasePanel";
@@ -52,6 +53,12 @@ export default function GamePage() {
   }, [gameId]);
 
   const battleActive = !!game?.battle;
+
+  // The pregame score keeps playing through the lobby; it yields once the war is live
+  useEffect(() => {
+    setScoreSuppressed(!!game && game.status !== "lobby");
+  }, [game?.status]);
+  useEffect(() => () => setScoreSuppressed(false), []);
 
   // Surface the after-action report when a battle we were watching concludes
   useEffect(() => {

@@ -4,6 +4,7 @@ import { base44 } from "@/api/base44Client";
 import useUser from "@/hooks/useUser";
 import { Button } from "@/components/ui/button";
 import { Shield } from "lucide-react";
+import MusicController from "@/components/audio/MusicController";
 
 const HERO_IMG = "https://media.base44.com/images/public/6a58196dcd485ecc774cae1b/ca29f8b58_generated_image.png";
 
@@ -51,11 +52,17 @@ export default function Layout() {
   // The command HQ is a full-screen game menu — no web chrome there
   const isMenu = location.pathname === "/";
   if (isMenu) {
-    return <Outlet />;
+    return (
+      <>
+        <Outlet />
+        <MusicController />
+      </>
+    );
   }
 
   return (
     <div className="min-h-screen">
+      <MusicController />
       <header className="sticky top-0 z-40 border-b border-border bg-card/95 backdrop-blur-sm">
         <div className="cq-hazard" />
         <div className="max-w-7xl mx-auto px-4 h-14 flex items-center gap-6">

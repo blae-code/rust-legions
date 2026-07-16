@@ -1,5 +1,4 @@
 import React, { useRef, useState, useEffect } from "react";
-import { unlockAmbience, startScore, stopScore } from "@/lib/ambience";
 import BackdropReel from "@/components/home/BackdropReel";
 
 // The war-front reel playlist — clips play in sequence with a crossfade,
@@ -99,19 +98,7 @@ export default function StormFront25D() {
     };
   }, []);
 
-  // Unlock audio on the first user gesture (browser autoplay policy) and start the score;
-  // fade it out when the front leaves the screen
-  useEffect(() => {
-    startScore();
-    const unlock = () => unlockAmbience();
-    window.addEventListener("pointerdown", unlock);
-    window.addEventListener("keydown", unlock);
-    return () => {
-      window.removeEventListener("pointerdown", unlock);
-      window.removeEventListener("keydown", unlock);
-      stopScore();
-    };
-  }, []);
+  // The menu score is owned by the app-wide MusicController in the layout.
 
   // Lightning — random strikes in the distant clouds; thunder arrives late
   useEffect(() => {
