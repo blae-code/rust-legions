@@ -230,6 +230,15 @@
   }
 }
 
+/* Gramophone VU meter bars — bounce while the score plays */
+.cq-vu {
+  animation: cq-vu 0.8s ease-in-out infinite alternate;
+}
+@keyframes cq-vu {
+  from { height: 3px; }
+  to { height: 12px; }
+}
+
 @keyframes cq-ticker {
   from { transform: translateX(0); }
   to { transform: translateX(-50%); }
