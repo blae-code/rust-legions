@@ -1,0 +1,42 @@
+{
+  // ─── Deno (Base44 backend functions only) ───────────────────────────────
+  // This repo mixes a Vite/React frontend (Node-style) with Deno backend
+  // functions under base44/functions. Enabling Deno globally breaks the
+  // frontend, so scope the Deno language server to the functions folder only.
+  // The rest of the repo is handled by VS Code's built-in TS/JS server.
+  "deno.enable": false,
+  "deno.enablePaths": ["base44/functions"],
+  "deno.unstable": true,
+
+  // ─── ESLint ─────────────────────────────────────────────────────────────
+  "eslint.validate": ["javascript", "javascriptreact"],
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit"
+  },
+
+  // ─── Tailwind CSS IntelliSense ──────────────────────────────────────────
+  // Enable class suggestions inside cn()/clsx()/cva() helpers and JSX.
+  "tailwindCSS.experimental.classRegex": [
+    ["cva\\(([^)]*)\\)", "[\"'`]([^\"'`]*).*?[\"'`]"],
+    ["cx\\(([^)]*)\\)", "(?:'|\"|`)([^']*)(?:'|\"|`)"]
+  ],
+  "editor.quickSuggestions": {
+    "strings": "on"
+  },
+
+  // ─── Editor / files ─────────────────────────────────────────────────────
+  "files.eol": "\n",
+  "files.exclude": {
+    "**/node_modules": true,
+    "**/dist": true
+  },
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/dist": true,
+    "**/package-lock.json": true
+  },
+  // Treat Base44 .jsonc schemas as JSON with comments.
+  "files.associations": {
+    "*.jsonc": "jsonc"
+  }
+}
