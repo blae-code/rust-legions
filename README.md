@@ -1,12 +1,44 @@
 # Conquest Tactics
 
-A turn-based dieselpunk grand-strategy game for 2–4 players — hex-tile territorial conquest with fog of war, typed resource economy, mass battles led by named generals, live multiplayer, and solo campaigns against doctrine-driven NPC factions. Built on the Base44 platform.
+A turn-based **dieselpunk grand-strategy game** for 2–4 players — hex-tile territorial conquest with fog of war, a typed resource economy, and round-by-round mass battles led by named generals. Supports live multiplayer and solo campaigns against personality-driven NPC factions. Built on the [Base44](https://base44.com) platform.
+
+## Features
+
+- **Territorial conquest** on a 3D hex board with fog of war, supply lines, weather, terrain and elevation modifiers
+- **Typed economy** (Manpower / Steel / Fuel), buildings, artillery bombardment and recon probes
+- **Mass battles** — named generals with traits, command vehicles, secret simultaneous maneuvers, morale, veterancy and medals
+- **Mobile fortress-bases** — modular armor/engine/industry bays, refit yards, and movement on the great treads
+- **Diplomacy** — truces, non-aggression pacts and trade via the Envoy Desk, with dynamic NPC dispositions
+- **AI-driven NPC factions** — three doctrines with distinct play styles, plus a background AI herald that writes in-character radio broadcasts ("Signals Intercepts") each turn
+- **Faction creation** — BattleTech-style lifepath wizard with LLM-synthesized lore, plus GURPS-style point-buy perks
+- **Off-turn planning** — doctrine research tree and State Armory unlocks playable while waiting for your turn
+- **Meta tools** — map editor, Army Design Bureau, patch-notes live-service system, Field Induction tutorial
+- **v2.x prototypes** — Macro March Lab (graph-based day-rate movement) and the Star Chart (3D planetary map with radial node orders)
+- **Immersive presentation** — 2.5D cinematic menu backdrops, synthesized Web Audio SFX, rotating orchestral score
+
+## Tech Stack
+
+- **Frontend:** React 18 + Vite, Tailwind CSS + shadcn/ui, three.js / @react-three/fiber (3D boards & star chart), framer-motion, recharts
+- **Backend:** Base44 BaaS — JSON-schema entities (`base44/entities/`) and Deno HTTP functions (`base44/functions/`), including the single authoritative `gameEngine` rules API
+- **Integrations:** LLM synthesis (faction lore, NPC broadcasts), Google Sheets / Docs campaign logging
+
+## Repository Structure
+
+```
+base44/entities/     Entity JSON schemas (Game, Faction, GameMap, NpcDispatch, ...)
+base44/functions/    Deno backend functions (gameEngine, concurrentPlay, npcHerald, ...)
+src/pages/           Route pages (Home, GamePage, StarMap, FactionBuilder, ...)
+src/components/      Focused UI components (game/, hexmap3d/, starmap/, macro/, home/, ...)
+src/lib/             Frontend rules mirrors, audio engines, macro-map math
+docs/                Project documentation (see below)
+```
 
 **Project documentation:**
-- `CLAUDE.md` — warm-handoff overview: conventions, invariants, workflows
+- `CLAUDE.md` — warm-handoff overview: conventions, invariants, workflows (**read this first if contributing**)
 - `docs/VISION.md` — design north star: lore, mobile-base redesign, expansion roadmap
 - `docs/GAME_RULES.md` — the complete numeric ruleset (as currently implemented)
 - `docs/ARCHITECTURE.md` — data model, backend API, frontend structure
+- `AGENTS.md` — Base44 platform conventions for coding agents
 
 Use this repository to run and edit the app locally, then publish changes back through Base44.
 

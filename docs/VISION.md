@@ -79,7 +79,10 @@ Precursor relics (see §4) can grant **unique modules** that cannot be built, on
 > **Status: prototype live.** The **Macro March Lab** (`/macro-lab`, `src/lib/macro/`, `src/components/macro/`)
 > implements the graph model client-side: node-and-route map, day-rate Dijkstra itineraries with overnight
 > camps (slowest ground element sets the pace), and a tactical overlay (supply-artery betweenness analysis +
-> ranked capture objectives). It is a sandbox only — nothing is wired into `gameEngine` yet.
+> ranked capture objectives). The **Star Chart** (`/star-map`, `src/components/starmap/`) extends the prototype
+> to three procedurally seeded 3D worlds — settlements pinned to planet surfaces, radial node orders menus
+> (stage column / march / anchor base), and great-circle march trails with daily camps. Both are sandboxes
+> only — nothing is wired into `gameEngine` yet.
 
 **Decision (locked):** the hex grid is retired as the player-facing world model. It is replaced by a **Total War / Mount & Blade-style continuous macro map** driven by a **node-and-route graph** on the server. The player never sees a hex — only a painterly war-table map with named places, roads, and marching columns. This is the spine of the v2.x redesign: mobile bases only make sense on a map built for movement.
 
