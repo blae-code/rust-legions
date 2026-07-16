@@ -19,18 +19,19 @@ export default function MapLibrary() {
     <div className="space-y-4">
       <div className="flex flex-wrap justify-between items-center gap-3">
         <div>
-          <h1 className="text-2xl font-bold uppercase tracking-widest text-stone-100">Map Library</h1>
-          <p className="text-sm text-stone-500">Theaters of war, built by commanders.</p>
+          <p className="cq-label">Cartography Division</p>
+          <h1 className="cq-display text-4xl">Map Library</h1>
+          <p className="text-sm text-muted-foreground font-heading tracking-wide">Theaters of war, built by commanders.</p>
         </div>
         <Link to="/map-editor">
-          <Button variant="outline" className="border-stone-700 text-stone-400 text-xs uppercase tracking-wider">Build a Map</Button>
+          <Button variant="outline" className="border-border text-muted-foreground hover:text-foreground text-xs font-heading uppercase tracking-[0.2em]">Build a Map</Button>
         </Link>
       </div>
 
       {maps === null ? (
-        <div className="flex justify-center py-16"><Loader2 className="w-8 h-8 animate-spin text-stone-600" /></div>
+        <div className="flex justify-center py-16"><Loader2 className="w-8 h-8 animate-spin text-muted-foreground" /></div>
       ) : maps.length === 0 ? (
-        <p className="text-sm text-stone-600 border border-dashed border-stone-800 rounded-lg p-10 text-center">
+        <p className="text-sm text-muted-foreground border border-dashed border-border rounded p-10 text-center font-heading tracking-wide">
           The library is empty. Build a map or generate one when starting a game.
         </p>
       ) : (
@@ -40,27 +41,27 @@ export default function MapLibrary() {
               <button
                 key={m.id}
                 onClick={() => setPreviewId(m.id)}
-                className={`w-full text-left border rounded-lg p-3 ${previewId === m.id ? "border-amber-700 bg-amber-950/10" : "border-stone-800 bg-[#1C1714] hover:border-stone-600"}`}
+                className={`w-full text-left border rounded-sm p-3 transition-colors ${previewId === m.id ? "border-brass bg-brass/10" : "border-border bg-card hover:border-steel"}`}
               >
-                <p className="font-bold text-stone-200 text-sm">{m.name}</p>
-                <p className="text-xs text-stone-500">{m.tiles?.length} zones · {m.recommendedPlayerCount} players</p>
-                {m.description && <p className="text-[11px] text-stone-600 mt-1 line-clamp-2">{m.description}</p>}
+                <p className="font-heading font-semibold tracking-wide text-foreground text-sm">{m.name}</p>
+                <p className="text-xs text-muted-foreground font-mono">{m.tiles?.length} zones · {m.recommendedPlayerCount} players</p>
+                {m.description && <p className="text-[11px] text-muted-foreground/70 mt-1 line-clamp-2">{m.description}</p>}
               </button>
             ))}
           </div>
-          <div className="border border-stone-800 bg-stone-950 rounded-lg p-3">
+          <div className="cq-panel p-3 bg-gradient-to-b from-card to-background">
             {preview ? (
               <div className="space-y-3">
                 <div className="flex justify-between items-center">
-                  <h2 className="font-bold text-stone-200">{preview.name}</h2>
+                  <h2 className="font-heading font-semibold text-lg tracking-wide text-foreground">{preview.name}</h2>
                   <Link to={`/new-game?mapId=${preview.id}`}>
-                    <Button size="sm" className="bg-red-900 hover:bg-red-800 text-xs uppercase tracking-wider">Play This Map</Button>
+                    <Button size="sm" className="bg-rust hover:bg-destructive text-destructive-foreground text-xs font-heading uppercase tracking-[0.2em]">Play This Map</Button>
                   </Link>
                 </div>
                 <HexBoard tiles={preview.tiles} maxHeight={480} />
               </div>
             ) : (
-              <p className="text-sm text-stone-600 text-center py-16">Select a map to preview it.</p>
+              <p className="text-sm text-muted-foreground text-center py-16 font-heading tracking-wide">Select a map to preview it.</p>
             )}
           </div>
         </div>

@@ -89,20 +89,23 @@ export default function NewGame() {
 
   return (
     <div className="max-w-3xl mx-auto space-y-5">
-      <h1 className="text-2xl font-bold uppercase tracking-widest text-stone-100">Open a New Front</h1>
+      <div>
+        <p className="cq-label">War Ministry · Directive</p>
+        <h1 className="cq-display text-4xl">Open a New Front</h1>
+      </div>
 
-      <div className="border border-stone-800 bg-[#1C1714] rounded-lg p-5 space-y-4">
+      <div className="cq-panel p-5 space-y-4">
         <div>
-          <label className="text-xs uppercase tracking-wider text-stone-500">Operation Name</label>
-          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Operation Ironfall" className="bg-stone-900 border-stone-700 mt-1" />
+          <label className="cq-label">Operation Name</label>
+          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Operation Ironfall" className="bg-input border-border mt-1 font-heading tracking-wide" />
         </div>
 
         <div>
-          <label className="text-xs uppercase tracking-wider text-stone-500">Your Faction</label>
+          <label className="cq-label">Your Faction</label>
           {factions.length === 0 ? (
-            <p className="text-xs text-stone-500 mt-1">No factions yet — forge one in the Faction Builder first.</p>
+            <p className="text-xs text-muted-foreground mt-1">No factions yet — forge one in the Faction Builder first.</p>
           ) : (
-            <select value={factionId} onChange={(e) => setFactionId(e.target.value)} className="w-full bg-stone-900 border border-stone-700 rounded p-2 text-sm mt-1 text-stone-300">
+            <select value={factionId} onChange={(e) => setFactionId(e.target.value)} className="w-full bg-input border border-border rounded-sm p-2 text-sm mt-1 text-secondary-foreground font-heading tracking-wide">
               {factions.map((f) => <option key={f.id} value={f.id}>{f.factionName}</option>)}
             </select>
           )}
@@ -110,34 +113,34 @@ export default function NewGame() {
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="text-xs uppercase tracking-wider text-stone-500">Human Commanders</label>
-            <select value={humanCount} onChange={(e) => { setHumanCount(Number(e.target.value)); setNpcs(npcs.slice(0, 4 - Number(e.target.value))); }} className="w-full bg-stone-900 border border-stone-700 rounded p-2 text-sm mt-1 text-stone-300">
+            <label className="cq-label">Human Commanders</label>
+            <select value={humanCount} onChange={(e) => { setHumanCount(Number(e.target.value)); setNpcs(npcs.slice(0, 4 - Number(e.target.value))); }} className="w-full bg-input border border-border rounded-sm p-2 text-sm mt-1 text-secondary-foreground font-heading tracking-wide">
               {[1, 2, 3, 4].map((n) => <option key={n} value={n}>{n}{n === 1 ? " (solo campaign)" : ""}</option>)}
             </select>
           </div>
           <div>
-            <label className="text-xs uppercase tracking-wider text-stone-500">NPC Factions ({npcs.length})</label>
+            <label className="cq-label">NPC Factions ({npcs.length})</label>
             <div className="flex gap-1 mt-1 flex-wrap">
               {npcs.map((d, i) => (
-                <select key={i} value={d} onChange={(e) => setNpcs(npcs.map((x, j) => (j === i ? e.target.value : x)))} className="bg-stone-900 border border-stone-700 rounded p-1.5 text-xs text-stone-300">
+                <select key={i} value={d} onChange={(e) => setNpcs(npcs.map((x, j) => (j === i ? e.target.value : x)))} className="bg-input border border-border rounded-sm p-1.5 text-xs text-secondary-foreground font-heading tracking-wide">
                   {DOCTRINE_OPTS.map((o) => <option key={o} value={o}>{o}</option>)}
                 </select>
               ))}
               {totalSlots < 4 && (
-                <Button size="sm" variant="outline" className="border-stone-700 text-xs h-8" onClick={() => setNpcs([...npcs, "aggressive"])}>+ NPC</Button>
+                <Button size="sm" variant="outline" className="border-border text-xs h-8 font-heading" onClick={() => setNpcs([...npcs, "aggressive"])}>+ NPC</Button>
               )}
               {npcs.length > (isCampaign ? 1 : 0) && (
-                <Button size="sm" variant="outline" className="border-stone-700 text-xs h-8" onClick={() => setNpcs(npcs.slice(0, -1))}>−</Button>
+                <Button size="sm" variant="outline" className="border-border text-xs h-8" onClick={() => setNpcs(npcs.slice(0, -1))}>−</Button>
               )}
             </div>
           </div>
         </div>
 
         {isCampaign && (
-          <div className="grid grid-cols-2 gap-4 border-t border-stone-800 pt-3">
+          <div className="grid grid-cols-2 gap-4 border-t border-border pt-3">
             <div>
-              <label className="text-xs uppercase tracking-wider text-amber-700">Campaign Victory Condition</label>
-              <select value={winType} onChange={(e) => setWinType(e.target.value)} className="w-full bg-stone-900 border border-stone-700 rounded p-2 text-sm mt-1 text-stone-300">
+              <label className="cq-label text-brass">Campaign Victory Condition</label>
+              <select value={winType} onChange={(e) => setWinType(e.target.value)} className="w-full bg-input border border-border rounded-sm p-2 text-sm mt-1 text-secondary-foreground font-heading tracking-wide">
                 <option value="capitals">Capture all capitals</option>
                 <option value="survive">Survive N turns</option>
                 <option value="territory">Control % of territory</option>
@@ -145,47 +148,47 @@ export default function NewGame() {
             </div>
             {winType !== "capitals" && (
               <div>
-                <label className="text-xs uppercase tracking-wider text-stone-500">{winType === "survive" ? "Turns" : "Percent"}</label>
-                <Input type="number" value={winValue} onChange={(e) => setWinValue(e.target.value)} className="bg-stone-900 border-stone-700 mt-1" />
+                <label className="cq-label">{winType === "survive" ? "Turns" : "Percent"}</label>
+                <Input type="number" value={winValue} onChange={(e) => setWinValue(e.target.value)} className="bg-input border-border mt-1" />
               </div>
             )}
           </div>
         )}
       </div>
 
-      <div className="border border-stone-800 bg-[#1C1714] rounded-lg p-5 space-y-3">
+      <div className="cq-panel p-5 space-y-3">
         <div className="flex gap-2">
-          <button onClick={() => setMapSource("generate")} className={`text-xs uppercase tracking-wider px-3 py-1.5 rounded ${mapSource === "generate" ? "bg-amber-900/40 text-amber-400" : "text-stone-500"}`}>Generate Map</button>
-          <button onClick={() => setMapSource("library")} className={`text-xs uppercase tracking-wider px-3 py-1.5 rounded ${mapSource === "library" ? "bg-amber-900/40 text-amber-400" : "text-stone-500"}`}>From Library</button>
+          <button onClick={() => setMapSource("generate")} className={`text-xs font-heading uppercase tracking-[0.2em] px-3 py-1.5 rounded-sm ${mapSource === "generate" ? "bg-brass/15 text-brass-bright border-b-2 border-brass" : "text-muted-foreground"}`}>Generate Map</button>
+          <button onClick={() => setMapSource("library")} className={`text-xs font-heading uppercase tracking-[0.2em] px-3 py-1.5 rounded-sm ${mapSource === "library" ? "bg-brass/15 text-brass-bright border-b-2 border-brass" : "text-muted-foreground"}`}>From Library</button>
         </div>
 
         {mapSource === "generate" ? (
           <div className="space-y-3">
             <div className="flex items-end gap-3">
               <div>
-                <label className="text-xs uppercase tracking-wider text-stone-500">Territories</label>
-                <Input type="number" min={12} max={60} value={tileCount} onChange={(e) => setTileCount(Number(e.target.value))} className="bg-stone-900 border-stone-700 w-24 mt-1" />
+                <label className="cq-label">Territories</label>
+                <Input type="number" min={12} max={60} value={tileCount} onChange={(e) => setTileCount(Number(e.target.value))} className="bg-input border-border w-24 mt-1" />
               </div>
-              <Button onClick={generate} disabled={generating} variant="outline" className="border-amber-800 text-amber-500 uppercase text-xs tracking-wider">
+              <Button onClick={generate} disabled={generating} variant="outline" className="border-brass/60 text-brass-bright hover:bg-brass/10 font-heading uppercase text-xs tracking-[0.2em]">
                 {generating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <RefreshCw className="w-4 h-4 mr-2" />}
                 {genPreview ? "Regenerate" : "Generate"}
               </Button>
             </div>
             {genPreview && (
-              <div className="bg-stone-950 rounded p-2">
-                <p className="text-xs text-stone-500 mb-1">{genPreview.name} · {genPreview.tiles.length} zones</p>
+              <div className="bg-background rounded-sm border border-border p-2">
+                <p className="text-xs text-muted-foreground font-mono mb-1">{genPreview.name} · {genPreview.tiles.length} zones</p>
                 <HexBoard tiles={genPreview.tiles} maxHeight={300} />
               </div>
             )}
           </div>
         ) : (
           <div className="space-y-3">
-            <select value={mapId} onChange={(e) => setMapId(e.target.value)} className="w-full bg-stone-900 border border-stone-700 rounded p-2 text-sm text-stone-300">
+            <select value={mapId} onChange={(e) => setMapId(e.target.value)} className="w-full bg-input border border-border rounded-sm p-2 text-sm text-secondary-foreground font-heading tracking-wide">
               <option value="">Select a map…</option>
               {maps.map((m) => <option key={m.id} value={m.id}>{m.name} ({m.tiles?.length} zones, {m.recommendedPlayerCount}p)</option>)}
             </select>
             {mapId && maps.find((m) => m.id === mapId) && (
-              <div className="bg-stone-950 rounded p-2">
+              <div className="bg-background rounded-sm border border-border p-2">
                 <HexBoard tiles={maps.find((m) => m.id === mapId).tiles} maxHeight={300} />
               </div>
             )}
@@ -193,8 +196,8 @@ export default function NewGame() {
         )}
       </div>
 
-      {error && <p className="text-sm text-red-400">{error}</p>}
-      <Button disabled={!canCreate || creating} onClick={create} className="w-full bg-red-900 hover:bg-red-800 uppercase tracking-widest">
+      {error && <p className="text-sm text-rust font-mono">{error}</p>}
+      <Button disabled={!canCreate || creating} onClick={create} className="w-full bg-rust hover:bg-destructive text-destructive-foreground font-heading uppercase tracking-[0.3em] h-11 text-sm">
         {creating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null} Muster Forces
       </Button>
     </div>

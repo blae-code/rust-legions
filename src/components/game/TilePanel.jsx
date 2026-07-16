@@ -38,34 +38,34 @@ export default function TilePanel({ game, tile, onMove, onAttack, busy }) {
   };
 
   return (
-    <div className="border border-stone-800 bg-[#1C1714] rounded-lg p-4 space-y-3">
+    <div className="cq-panel p-4 space-y-3">
       <div>
-        <h3 className="font-bold uppercase tracking-wider text-stone-100">
-          {tile.isCapital && "★ "}{tile.name}
+        <h3 className="font-heading font-semibold text-lg uppercase tracking-wide text-foreground">
+          {tile.isCapital && <span className="text-brass-bright">★ </span>}{tile.name}
         </h3>
-        <p className="text-xs text-stone-500">
-          {tile.isSea ? "Sea zone" : `${tile.terrain} · Income ${tile.baseIncome}`}
-          {tile.resourceBonus && ` · ${RESOURCE_LABELS[tile.resourceBonus]}`}
+        <p className="text-xs text-muted-foreground font-mono">
+          {tile.isSea ? "SEA ZONE" : `${tile.terrain?.toUpperCase()} · INCOME ${tile.baseIncome}`}
+          {tile.resourceBonus && ` · ${RESOURCE_LABELS[tile.resourceBonus].toUpperCase()}`}
         </p>
-        <p className="text-xs mt-1" style={{ color: ownerFaction?.color || "#a8a29e" }}>
+        <p className="text-xs mt-1 font-heading tracking-wide" style={{ color: ownerFaction?.color || "hsl(30 9% 54%)" }}>
           {ownerFaction ? `Held by ${ownerFaction.factionName}` : tile.isSea ? "Open waters" : "Neutral garrison"}
         </p>
       </div>
 
       {UNIT_KEYS.some((k) => state.units[k] > 0) && (
-        <div className="text-xs space-y-0.5">
+        <div className="text-xs space-y-0.5 border-t border-border pt-2">
           {UNIT_KEYS.filter((k) => state.units[k] > 0).map((k) => (
-            <div key={k} className="flex justify-between text-stone-300">
-              <span>{UNIT_TYPES[k].label}</span>
-              <span className="font-mono">{state.units[k]}</span>
+            <div key={k} className="flex justify-between text-secondary-foreground">
+              <span className="font-heading tracking-wide">{UNIT_TYPES[k].label}</span>
+              <span className="font-mono text-brass-bright">{state.units[k]}</span>
             </div>
           ))}
         </div>
       )}
 
       {canAct && availableUnits.length > 0 && (
-        <div className="border-t border-stone-800 pt-3 space-y-2">
-          <p className="text-xs uppercase tracking-wider text-stone-500">Deploy to adjacent zone</p>
+        <div className="border-t border-border pt-3 space-y-2">
+          <p className="cq-label">Deploy to adjacent zone</p>
           <div className="flex flex-wrap gap-1">
             {adjacentTiles.map((t) => {
               const owner = t.state?.owner;
@@ -75,8 +75,8 @@ export default function TilePanel({ game, tile, onMove, onAttack, busy }) {
                 <button
                   key={t.id}
                   onClick={() => setTargetId(t.id === targetId ? null : t.id)}
-                  className={`text-[11px] px-2 py-1 rounded border ${
-                    targetId === t.id ? "border-amber-500 text-amber-400" : "border-stone-700 text-stone-400 hover:border-stone-500"
+                  className={`text-[11px] font-heading tracking-wide px-2 py-1 rounded-sm border transition-colors ${
+                    targetId === t.id ? "border-brass text-brass-bright bg-brass/10" : "border-border text-muted-foreground hover:border-steel"
                   }`}
                 >
                   {hidden ? "Unknown zone" : t.name} {!hidden && (mine ? "· yours" : owner !== null && owner !== undefined ? "· enemy" : "· neutral")}
@@ -99,8 +99,8 @@ export default function TilePanel({ game, tile, onMove, onAttack, busy }) {
               <Button
                 disabled={busy || !UNIT_KEYS.some((k) => (qty[k] || 0) > 0)}
                 onClick={submit}
-                className={`w-full mt-2 uppercase tracking-wider text-xs ${
-                  targetIsMine ? "bg-stone-700 hover:bg-stone-600" : "bg-red-900 hover:bg-red-800"
+                className={`w-full mt-2 font-heading uppercase tracking-[0.2em] text-xs ${
+                  targetIsMine ? "bg-secondary hover:bg-muted text-secondary-foreground" : "bg-rust hover:bg-destructive text-destructive-foreground"
                 }`}
               >
                 {targetIsMine ? "Move Units" : "Attack"}

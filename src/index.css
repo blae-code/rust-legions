@@ -1,85 +1,95 @@
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow+Condensed:wght@400;500;600;700&family=Barlow:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 0 0% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 0 0% 3.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 3.9%;
-    --primary: 0 0% 9%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 0 0% 96.1%;
-    --secondary-foreground: 0 0% 9%;
-    --muted: 0 0% 96.1%;
-    --muted-foreground: 0 0% 45.1%;
-    --accent: 0 0% 96.1%;
-    --accent-foreground: 0 0% 9%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 89.8%;
-    --input: 0 0% 89.8%;
-    --ring: 0 0% 3.9%;
-    --chart-1: 12 76% 61%;
-    --chart-2: 173 58% 39%;
-    --chart-3: 197 37% 24%;
-    --chart-4: 43 74% 66%;
+    --background: 26 24% 6%;
+    --foreground: 35 22% 87%;
+    --card: 25 20% 10%;
+    --card-foreground: 35 22% 87%;
+    --popover: 25 20% 9%;
+    --popover-foreground: 35 22% 87%;
+    --primary: 38 65% 48%;
+    --primary-foreground: 26 30% 8%;
+    --secondary: 25 14% 16%;
+    --secondary-foreground: 35 18% 80%;
+    --muted: 25 14% 13%;
+    --muted-foreground: 30 9% 54%;
+    --accent: 25 14% 16%;
+    --accent-foreground: 38 65% 60%;
+    --destructive: 5 58% 40%;
+    --destructive-foreground: 35 22% 92%;
+    --border: 26 14% 18%;
+    --input: 26 14% 20%;
+    --ring: 38 65% 48%;
+    --chart-1: 38 65% 48%;
+    --chart-2: 8 55% 42%;
+    --chart-3: 75 15% 35%;
+    --chart-4: 210 10% 40%;
     --chart-5: 27 87% 67%;
-    --radius: 0.5rem;
-    --font-heading: ui-sans-serif, system-ui, sans-serif;
-    --font-body: ui-sans-serif, system-ui, sans-serif;
-    --font-display: ui-sans-serif, system-ui, sans-serif;
-    --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --radius: 0.25rem;
+    --brass: 38 65% 48%;
+    --brass-bright: 41 78% 58%;
+    --rust: 8 55% 42%;
+    --olive: 75 14% 35%;
+    --steel: 210 10% 42%;
+    --font-heading: 'Barlow Condensed', ui-sans-serif, system-ui, sans-serif;
+    --font-body: 'Barlow', ui-sans-serif, system-ui, sans-serif;
+    --font-display: 'Bebas Neue', 'Barlow Condensed', sans-serif;
+    --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    --sidebar-background: 25 20% 8%;
+    --sidebar-foreground: 35 18% 80%;
+    --sidebar-primary: 38 65% 48%;
+    --sidebar-primary-foreground: 26 30% 8%;
+    --sidebar-accent: 25 14% 14%;
+    --sidebar-accent-foreground: 35 18% 80%;
+    --sidebar-border: 26 14% 18%;
+    --sidebar-ring: 38 65% 48%;
   }
 
   .dark {
-    --background: 0 0% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 0 0% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 0 0% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 0 0% 9%;
-    --secondary: 0 0% 14.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 0 0% 14.9%;
-    --muted-foreground: 0 0% 63.9%;
-    --accent: 0 0% 14.9%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 14.9%;
-    --input: 0 0% 14.9%;
-    --ring: 0 0% 83.1%;
-    --chart-1: 220 70% 50%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --background: 26 24% 6%;
+    --foreground: 35 22% 87%;
+    --card: 25 20% 10%;
+    --card-foreground: 35 22% 87%;
+    --popover: 25 20% 9%;
+    --popover-foreground: 35 22% 87%;
+    --primary: 38 65% 48%;
+    --primary-foreground: 26 30% 8%;
+    --secondary: 25 14% 16%;
+    --secondary-foreground: 35 18% 80%;
+    --muted: 25 14% 13%;
+    --muted-foreground: 30 9% 54%;
+    --accent: 25 14% 16%;
+    --accent-foreground: 38 65% 60%;
+    --destructive: 5 58% 40%;
+    --destructive-foreground: 35 22% 92%;
+    --border: 26 14% 18%;
+    --input: 26 14% 20%;
+    --ring: 38 65% 48%;
+    --chart-1: 38 65% 48%;
+    --chart-2: 8 55% 42%;
+    --chart-3: 75 15% 35%;
+    --chart-4: 210 10% 40%;
+    --chart-5: 27 87% 67%;
+    --brass: 38 65% 48%;
+    --brass-bright: 41 78% 58%;
+    --rust: 8 55% 42%;
+    --olive: 75 14% 35%;
+    --steel: 210 10% 42%;
+    --sidebar-background: 25 20% 8%;
+    --sidebar-foreground: 35 18% 80%;
+    --sidebar-primary: 38 65% 48%;
+    --sidebar-primary-foreground: 26 30% 8%;
+    --sidebar-accent: 25 14% 14%;
+    --sidebar-accent-foreground: 35 18% 80%;
+    --sidebar-border: 26 14% 18%;
+    --sidebar-ring: 38 65% 48%;
   }
 }
-
-
 
 @layer base {
   * {
@@ -88,5 +98,62 @@
 
   body {
     @apply bg-background text-foreground font-body;
+    background-image:
+      radial-gradient(ellipse at 20% -10%, hsl(38 65% 48% / 0.05), transparent 55%),
+      radial-gradient(ellipse at 90% 110%, hsl(8 55% 42% / 0.05), transparent 50%),
+      repeating-linear-gradient(0deg, transparent 0 2px, hsl(0 0% 0% / 0.12) 2px 4px);
+    background-attachment: fixed;
+  }
+}
+
+@layer components {
+  /* Riveted steel panel */
+  .cq-panel {
+    @apply relative bg-card border border-border rounded;
+    background-image: linear-gradient(180deg, hsl(35 22% 100% / 0.03), transparent 30%);
+    box-shadow: 0 2px 8px hsl(0 0% 0% / 0.5), inset 0 1px 0 hsl(35 22% 100% / 0.04);
+  }
+  .cq-panel::before,
+  .cq-panel::after {
+    content: "";
+    position: absolute;
+    top: 6px;
+    width: 4px;
+    height: 4px;
+    border-radius: 9999px;
+    background: hsl(var(--border));
+    box-shadow: inset 0 1px 1px hsl(0 0% 0% / 0.7), 0 1px 0 hsl(35 22% 100% / 0.06);
+  }
+  .cq-panel::before { left: 6px; }
+  .cq-panel::after { right: 6px; }
+
+  /* Hazard stripe divider */
+  .cq-hazard {
+    height: 4px;
+    background: repeating-linear-gradient(
+      -45deg,
+      hsl(var(--brass)) 0 10px,
+      hsl(26 24% 8%) 10px 20px
+    );
+    opacity: 0.85;
+  }
+
+  /* Stenciled section label */
+  .cq-label {
+    @apply font-heading uppercase text-muted-foreground;
+    letter-spacing: 0.25em;
+    font-size: 0.7rem;
+  }
+
+  /* Big stencil display heading */
+  .cq-display {
+    @apply font-display uppercase text-foreground;
+    letter-spacing: 0.12em;
+    text-shadow: 0 2px 0 hsl(0 0% 0% / 0.6);
+  }
+
+  /* Brass-edged tag */
+  .cq-tag {
+    @apply inline-flex items-center font-heading uppercase tracking-widest text-[10px] px-2 py-0.5 rounded-sm border;
   }
 }

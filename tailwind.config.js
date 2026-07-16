@@ -43,6 +43,13 @@ module.exports = {
   			border: 'hsl(var(--border))',
   			input: 'hsl(var(--input))',
   			ring: 'hsl(var(--ring))',
+  			brass: {
+  				DEFAULT: 'hsl(var(--brass))',
+  				bright: 'hsl(var(--brass-bright))'
+  			},
+  			rust: 'hsl(var(--rust))',
+  			olive: 'hsl(var(--olive))',
+  			steel: 'hsl(var(--steel))',
   			chart: {
   				'1': 'hsl(var(--chart-1))',
   				'2': 'hsl(var(--chart-2))',

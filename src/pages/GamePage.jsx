@@ -47,7 +47,7 @@ export default function GamePage() {
   if (!game) {
     return (
       <div className="flex justify-center py-20">
-        {error ? <p className="text-red-400">{error}</p> : <Loader2 className="w-8 h-8 animate-spin text-stone-600" />}
+        {error ? <p className="text-rust">{error}</p> : <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />}
       </div>
     );
   }
@@ -70,28 +70,29 @@ export default function GamePage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-3 border border-stone-800 bg-[#1C1714] rounded-lg px-4 py-3">
+      {/* Command bar */}
+      <div className="cq-panel px-4 py-3 flex flex-wrap items-center gap-3">
         <div>
-          <h1 className="font-bold uppercase tracking-widest text-stone-100">{game.name}</h1>
-          <p className="text-xs text-stone-500">Turn {game.turnNumber} · {game.mode === "campaign" ? "Campaign" : "Multiplayer"}</p>
+          <h1 className="cq-display text-2xl leading-none">{game.name}</h1>
+          <p className="text-xs text-muted-foreground font-mono mt-0.5">TURN {game.turnNumber} · {game.mode === "campaign" ? "CAMPAIGN" : "MULTIPLAYER"}</p>
         </div>
         <div className="flex gap-2 flex-wrap ml-auto items-center">
           {game.factions.map((f) => (
-            <div key={f.slotIndex} className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded border ${
-              game.currentSlot === f.slotIndex && game.status === "active" ? "border-amber-700" : "border-transparent"
+            <div key={f.slotIndex} className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded-sm border font-heading tracking-wide ${
+              game.currentSlot === f.slotIndex && game.status === "active" ? "border-brass bg-brass/10" : "border-transparent"
             } ${f.eliminated ? "opacity-40 line-through" : ""}`}>
-              <div className="w-2.5 h-2.5 rounded-full" style={{ background: f.color }} />
-              <span className="text-stone-300">{f.factionName}{f.isNPC && <span className="text-stone-600"> (NPC)</span>}</span>
+              <div className="w-2.5 h-2.5 rounded-full ring-1 ring-black/50" style={{ background: f.color }} />
+              <span className="text-secondary-foreground">{f.factionName}{f.isNPC && <span className="text-muted-foreground"> (NPC)</span>}</span>
             </div>
           ))}
         </div>
         {game.status === "active" && (
           game.isMyTurn ? (
-            <Button size="sm" disabled={busy} onClick={() => act({ action: "endTurn" })} className="bg-amber-800 hover:bg-amber-700 uppercase text-xs tracking-wider">
+            <Button size="sm" disabled={busy} onClick={() => act({ action: "endTurn" })} className="bg-brass hover:bg-brass-bright text-primary-foreground font-heading uppercase text-xs tracking-[0.2em]">
               End Turn
             </Button>
           ) : (
-            <span className="text-xs text-stone-500 flex items-center gap-2">
+            <span className="text-xs text-muted-foreground flex items-center gap-2 font-heading tracking-wide">
               <Loader2 className="w-3 h-3 animate-spin" /> {currentFaction?.factionName}'s turn
             </span>
           )
@@ -99,17 +100,18 @@ export default function GamePage() {
       </div>
 
       {game.status === "complete" && (
-        <div className="border border-amber-800 bg-amber-950/30 rounded-lg p-4 text-center">
-          <p className="uppercase tracking-widest text-amber-400 font-bold">
+        <div className="relative cq-panel border-brass/70 p-5 text-center overflow-hidden">
+          <div className="cq-hazard absolute top-0 left-0 right-0" />
+          <p className="cq-display text-2xl text-brass-bright">
             {game.winnerName ? `${game.winnerName} has won the war` : "The war has ended"}
           </p>
         </div>
       )}
 
-      {error && <p className="text-xs text-red-400">{error}</p>}
+      {error && <p className="text-xs text-rust font-mono">{error}</p>}
 
       <div className="grid lg:grid-cols-[1fr_320px] gap-4">
-        <div className="border border-stone-800 bg-stone-950 rounded-lg p-2">
+        <div className="cq-panel p-2 bg-gradient-to-b from-card to-background">
           <HexBoard
             tiles={game.tiles}
             slotColors={slotColors}
@@ -119,8 +121,11 @@ export default function GamePage() {
         </div>
         <div className="space-y-4">
           {game.isMyTurn && game.status === "active" && (
-            <div className="border border-amber-900/50 bg-amber-950/20 rounded-lg px-4 py-2 text-xs text-amber-400 uppercase tracking-wider">
-              Your turn, Commander — treasury {game.myTreasury}₪
+            <div className="relative overflow-hidden rounded border border-brass/50 bg-brass/10 px-4 py-2.5">
+              <div className="cq-hazard absolute left-0 top-0 bottom-0 w-1 h-auto" style={{ height: "100%" }} />
+              <p className="text-xs text-brass-bright font-heading uppercase tracking-[0.2em]">
+                Your turn, Commander — treasury <span className="font-mono">{game.myTreasury}₪</span>
+              </p>
             </div>
           )}
           <TilePanel

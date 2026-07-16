@@ -78,12 +78,13 @@ export default function MapEditor() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-bold uppercase tracking-widest text-stone-100">Map Editor</h1>
-        <p className="text-sm text-stone-500">Click dashed hexes to add zones. Click a zone to edit it. Place at least {playerCount} capitals.</p>
+        <p className="cq-label">Cartography Division · Drafting Table</p>
+        <h1 className="cq-display text-4xl">Map Editor</h1>
+        <p className="text-sm text-muted-foreground font-heading tracking-wide">Click dashed hexes to add zones. Click a zone to edit it. Place at least {playerCount} capitals.</p>
       </div>
 
       <div className="grid lg:grid-cols-[1fr_300px] gap-4">
-        <div className="border border-stone-800 bg-stone-950 rounded-lg p-2">
+        <div className="cq-panel p-2 bg-gradient-to-b from-card to-background">
           <HexBoard
             tiles={tiles.map((t) => ({ ...t, visible: true }))}
             selectedId={selectedId}
@@ -95,37 +96,37 @@ export default function MapEditor() {
 
         <div className="space-y-4">
           {selected && (
-            <div className="border border-stone-800 bg-[#1C1714] rounded-lg p-4 space-y-3">
+            <div className="cq-panel p-4 space-y-3">
               <div className="flex justify-between items-center">
-                <h3 className="text-xs uppercase tracking-wider text-stone-500">Zone Properties</h3>
-                <Button size="sm" variant="ghost" onClick={removeTile} className="h-6 text-red-500 hover:text-red-400 p-1">
+                <h3 className="cq-label">Zone Properties</h3>
+                <Button size="sm" variant="ghost" onClick={removeTile} className="h-6 text-rust hover:text-destructive p-1">
                   <Trash2 className="w-3.5 h-3.5" />
                 </Button>
               </div>
-              <Input value={selected.name} onChange={(e) => updateTile({ name: e.target.value })} className="bg-stone-900 border-stone-700 text-sm" />
-              <label className="flex items-center gap-2 text-xs text-stone-400">
+              <Input value={selected.name} onChange={(e) => updateTile({ name: e.target.value })} className="bg-input border-border text-sm font-heading tracking-wide" />
+              <label className="flex items-center gap-2 text-xs text-secondary-foreground font-heading tracking-wide">
                 <input type="checkbox" checked={selected.isSea} onChange={(e) => updateTile({ isSea: e.target.checked, isCapital: false, baseIncome: e.target.checked ? 0 : 2, resourceBonus: null, terrain: e.target.checked ? "sea" : "plains" })} />
                 Sea zone
               </label>
               {!selected.isSea && (
                 <>
-                  <label className="flex items-center gap-2 text-xs text-stone-400">
+                  <label className="flex items-center gap-2 text-xs text-secondary-foreground font-heading tracking-wide">
                     <input type="checkbox" checked={selected.isCapital} onChange={(e) => updateTile({ isCapital: e.target.checked })} />
                     Capital ★
                   </label>
                   <div>
-                    <label className="text-xs text-stone-500">Terrain</label>
-                    <select value={selected.terrain} onChange={(e) => updateTile({ terrain: e.target.value })} className="w-full bg-stone-900 border border-stone-700 rounded p-1.5 text-xs text-stone-300 mt-1">
+                    <label className="text-xs text-muted-foreground">Terrain</label>
+                    <select value={selected.terrain} onChange={(e) => updateTile({ terrain: e.target.value })} className="w-full bg-input border border-border rounded-sm p-1.5 text-xs text-secondary-foreground mt-1 font-heading tracking-wide">
                       {TERRAINS.map((t) => <option key={t} value={t}>{t}</option>)}
                     </select>
                   </div>
                   <div>
-                    <label className="text-xs text-stone-500">Base income: {selected.baseIncome}</label>
-                    <input type="range" min={1} max={5} value={selected.baseIncome} onChange={(e) => updateTile({ baseIncome: Number(e.target.value) })} className="w-full" />
+                    <label className="text-xs text-muted-foreground">Base income: <span className="font-mono text-brass-bright">{selected.baseIncome}</span></label>
+                    <input type="range" min={1} max={5} value={selected.baseIncome} onChange={(e) => updateTile({ baseIncome: Number(e.target.value) })} className="w-full accent-[hsl(var(--brass))]" />
                   </div>
                   <div>
-                    <label className="text-xs text-stone-500">Resource</label>
-                    <select value={selected.resourceBonus || ""} onChange={(e) => updateTile({ resourceBonus: e.target.value || null })} className="w-full bg-stone-900 border border-stone-700 rounded p-1.5 text-xs text-stone-300 mt-1">
+                    <label className="text-xs text-muted-foreground">Resource</label>
+                    <select value={selected.resourceBonus || ""} onChange={(e) => updateTile({ resourceBonus: e.target.value || null })} className="w-full bg-input border border-border rounded-sm p-1.5 text-xs text-secondary-foreground mt-1 font-heading tracking-wide">
                       {RESOURCES.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
                     </select>
                   </div>
@@ -134,19 +135,19 @@ export default function MapEditor() {
             </div>
           )}
 
-          <div className="border border-stone-800 bg-[#1C1714] rounded-lg p-4 space-y-3">
-            <h3 className="text-xs uppercase tracking-wider text-stone-500">Publish Map</h3>
-            <Input placeholder="Map name" value={mapName} onChange={(e) => setMapName(e.target.value)} className="bg-stone-900 border-stone-700 text-sm" />
-            <Input placeholder="Description" value={description} onChange={(e) => setDescription(e.target.value)} className="bg-stone-900 border-stone-700 text-sm" />
+          <div className="cq-panel p-4 space-y-3">
+            <h3 className="cq-label">Publish Map</h3>
+            <Input placeholder="Map name" value={mapName} onChange={(e) => setMapName(e.target.value)} className="bg-input border-border text-sm font-heading tracking-wide" />
+            <Input placeholder="Description" value={description} onChange={(e) => setDescription(e.target.value)} className="bg-input border-border text-sm" />
             <div>
-              <label className="text-xs text-stone-500">Recommended players</label>
-              <select value={playerCount} onChange={(e) => setPlayerCount(Number(e.target.value))} className="w-full bg-stone-900 border border-stone-700 rounded p-1.5 text-xs text-stone-300 mt-1">
+              <label className="text-xs text-muted-foreground">Recommended players</label>
+              <select value={playerCount} onChange={(e) => setPlayerCount(Number(e.target.value))} className="w-full bg-input border border-border rounded-sm p-1.5 text-xs text-secondary-foreground mt-1 font-heading tracking-wide">
                 {[2, 3, 4].map((n) => <option key={n} value={n}>{n}</option>)}
               </select>
             </div>
-            <p className="text-[11px] text-stone-600">{tiles.length} zones · {capitals} capitals {capitals < playerCount && <span className="text-yellow-600">(need {playerCount})</span>}</p>
-            {error && <p className="text-xs text-red-400">{error}</p>}
-            <Button disabled={!mapName || tiles.length < 8 || capitals < playerCount || saving} onClick={save} className="w-full bg-amber-800 hover:bg-amber-700 text-xs uppercase tracking-wider">
+            <p className="text-[11px] text-muted-foreground font-mono">{tiles.length} zones · {capitals} capitals {capitals < playerCount && <span className="text-brass-bright">(need {playerCount})</span>}</p>
+            {error && <p className="text-xs text-rust font-mono">{error}</p>}
+            <Button disabled={!mapName || tiles.length < 8 || capitals < playerCount || saving} onClick={save} className="w-full bg-brass hover:bg-brass-bright text-primary-foreground text-xs font-heading uppercase tracking-[0.2em]">
               {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />} Publish to Library
             </Button>
           </div>

@@ -23,10 +23,10 @@ export default function PurchasePanel({ game, onPurchase, busy }) {
   const canBuy = total > 0 && total <= game.myTreasury && tileId && placeOptions.some((t) => t.id === tileId);
 
   return (
-    <div className="border border-stone-800 bg-[#1C1714] rounded-lg p-4 space-y-2">
+    <div className="cq-panel p-4 space-y-2">
       <div className="flex justify-between items-center">
-        <h3 className="text-xs uppercase tracking-wider text-stone-500">Requisition Units</h3>
-        <span className="text-sm font-mono text-amber-400">{game.myTreasury}₪</span>
+        <h3 className="cq-label">Requisition Units</h3>
+        <span className="text-sm font-mono text-brass-bright">{game.myTreasury}₪</span>
       </div>
       {UNIT_KEYS.map((k) => (
         <UnitStepper
@@ -40,7 +40,7 @@ export default function PurchasePanel({ game, onPurchase, busy }) {
       <select
         value={tileId}
         onChange={(e) => setTileId(e.target.value)}
-        className="w-full bg-stone-900 border border-stone-700 rounded text-xs p-2 text-stone-300"
+        className="w-full bg-input border border-border rounded-sm text-xs p-2 text-secondary-foreground font-heading tracking-wide"
       >
         <option value="">Place at… {wantsSea ? "(sea zone)" : ""}</option>
         {placeOptions.map((t) => (
@@ -48,12 +48,12 @@ export default function PurchasePanel({ game, onPurchase, busy }) {
         ))}
       </select>
       <div className="flex justify-between items-center pt-1">
-        <span className={`text-xs font-mono ${total > game.myTreasury ? "text-red-400" : "text-stone-400"}`}>Cost: {total}₪</span>
+        <span className={`text-xs font-mono ${total > game.myTreasury ? "text-rust" : "text-muted-foreground"}`}>Cost: {total}₪</span>
         <Button
           size="sm"
           disabled={busy || !canBuy}
           onClick={() => { onPurchase(tileId, qty); setQty({}); setTileId(""); }}
-          className="bg-amber-800 hover:bg-amber-700 uppercase tracking-wider text-xs"
+          className="bg-brass hover:bg-brass-bright text-primary-foreground font-heading uppercase tracking-[0.2em] text-xs"
         >
           Purchase
         </Button>

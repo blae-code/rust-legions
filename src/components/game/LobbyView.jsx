@@ -27,17 +27,18 @@ export default function LobbyView({ game, onJoin, onStart, busy, error }) {
 
   return (
     <div className="max-w-2xl mx-auto space-y-4">
-      <div className="border border-stone-800 bg-[#1C1714] rounded-lg p-6">
-        <h2 className="text-xl font-bold uppercase tracking-widest text-stone-100 mb-1">{game.name}</h2>
-        <p className="text-xs text-stone-500 mb-4">Staging area — waiting for commanders</p>
+      <div className="cq-panel p-6 relative overflow-hidden">
+        <div className="cq-hazard absolute top-0 left-0 right-0" />
+        <h2 className="cq-display text-3xl mb-1 mt-1">{game.name}</h2>
+        <p className="cq-label mb-4">Staging area — waiting for commanders</p>
         <div className="space-y-2">
           {game.factions.map((f) => (
-            <div key={f.slotIndex} className="flex items-center gap-3 border border-stone-800 rounded p-3">
-              <div className="w-3 h-3 rounded-full" style={{ background: f.color }} />
-              <span className="text-sm text-stone-300 flex-1">
-                {f.factionName || <span className="text-stone-600 italic">Open slot — awaiting commander</span>}
+            <div key={f.slotIndex} className="flex items-center gap-3 border border-border bg-secondary/30 rounded-sm p-3">
+              <div className="w-3 h-3 rounded-full ring-1 ring-black/50" style={{ background: f.color }} />
+              <span className="text-sm font-heading tracking-wide text-secondary-foreground flex-1">
+                {f.factionName || <span className="text-muted-foreground italic">Open slot — awaiting commander</span>}
               </span>
-              <span className="text-[10px] uppercase tracking-wider text-stone-500">
+              <span className="cq-tag border-border text-muted-foreground">
                 {f.isNPC ? `NPC · ${f.doctrine}` : f.isMe ? "You" : f.isOpen ? "Open" : "Player"}
               </span>
             </div>
@@ -49,26 +50,26 @@ export default function LobbyView({ game, onJoin, onStart, busy, error }) {
             <select
               value={factionId}
               onChange={(e) => setFactionId(e.target.value)}
-              className="flex-1 bg-stone-900 border border-stone-700 rounded text-sm p-2 text-stone-300"
+              className="flex-1 bg-input border border-border rounded-sm text-sm p-2 text-secondary-foreground font-heading tracking-wide"
             >
               <option value="">Choose your faction…</option>
               {myFactions.map((f) => (
                 <option key={f.id} value={f.id}>{f.factionName}</option>
               ))}
             </select>
-            <Button disabled={!factionId || busy} onClick={() => onJoin(factionId)} className="bg-amber-800 hover:bg-amber-700 uppercase text-xs tracking-wider">
+            <Button disabled={!factionId || busy} onClick={() => onJoin(factionId)} className="bg-brass hover:bg-brass-bright text-primary-foreground font-heading uppercase text-xs tracking-[0.2em]">
               Join War
             </Button>
           </div>
         )}
         {!iAmIn && myFactions.length === 0 && (
-          <p className="text-xs text-stone-500 mt-2">You need a faction first — visit the Faction Builder.</p>
+          <p className="text-xs text-muted-foreground mt-2">You need a faction first — visit the Faction Builder.</p>
         )}
 
-        {error && <p className="text-xs text-red-400 mt-2">{error}</p>}
+        {error && <p className="text-xs text-rust mt-2 font-mono">{error}</p>}
 
         <div className="mt-4 flex gap-2">
-          <Button variant="outline" size="sm" onClick={copyLink} className="border-stone-700 text-stone-300 text-xs">
+          <Button variant="outline" size="sm" onClick={copyLink} className="border-border text-secondary-foreground text-xs font-heading tracking-wide">
             {copied ? <Check className="w-3 h-3 mr-1" /> : <Copy className="w-3 h-3 mr-1" />}
             {copied ? "Copied" : "Copy invite link"}
           </Button>
@@ -77,7 +78,7 @@ export default function LobbyView({ game, onJoin, onStart, busy, error }) {
               size="sm"
               disabled={openSlots > 0 || busy}
               onClick={onStart}
-              className="bg-red-900 hover:bg-red-800 uppercase text-xs tracking-wider ml-auto"
+              className="bg-rust hover:bg-destructive text-destructive-foreground font-heading uppercase text-xs tracking-[0.2em] ml-auto"
             >
               {openSlots > 0 ? `Waiting for ${openSlots} more` : "Declare War"}
             </Button>
