@@ -15,7 +15,7 @@ export default function GameMenu({ continueGame }) {
   ].filter(Boolean);
 
   return (
-    <nav className="mt-8 space-y-1">
+    <nav className="mt-6 space-y-0.5">
       {items.map((item, i) => (
         <motion.div
           key={item.to}
@@ -27,11 +27,11 @@ export default function GameMenu({ continueGame }) {
             to={item.to}
             onMouseEnter={() => playSfx("hover")}
             onClick={() => playSfx("select")}
-            className={`group flex items-baseline gap-3 border-l-2 pl-4 py-2 transition-all hover:pl-6 ${
+            className={`group flex items-baseline gap-3 border-l-2 pl-4 py-1.5 transition-all hover:pl-6 ${
               item.hot ? "border-brass" : "border-transparent hover:border-brass"
             }`}
           >
-            <span className={`cq-display text-2xl sm:text-3xl transition-colors ${
+            <span className={`cq-display text-xl sm:text-2xl transition-colors ${
               item.hot ? "text-brass-bright" : "text-foreground/80 group-hover:text-brass-bright"
             }`}>
               {item.label}

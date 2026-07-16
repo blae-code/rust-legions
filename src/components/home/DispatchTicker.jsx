@@ -13,7 +13,7 @@ const WIRES = [
 export default function DispatchTicker() {
   const line = WIRES.map((w) => `⁜ ${w}`).join("   ···   ") + "   ···   ";
   return (
-    <div className="-mx-4 border-b border-border bg-card/80 overflow-hidden flex items-center">
+    <div className="border border-border rounded-sm bg-card/80 overflow-hidden flex items-center">
       <div className="flex items-center gap-2 px-4 py-1.5 border-r border-border bg-secondary/60 shrink-0 z-10">
         <Radio className="w-3 h-3 text-rust animate-pulse" />
         <span className="font-mono text-[10px] text-brass-bright tracking-widest">WAR WIRE</span>
