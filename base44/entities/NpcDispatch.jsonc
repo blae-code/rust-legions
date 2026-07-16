@@ -1,0 +1,29 @@
+{
+  "name": "NpcDispatch",
+  "type": "object",
+  "properties": {
+    "gameId": {
+      "type": "string"
+    },
+    "turnNumber": {
+      "type": "integer"
+    },
+    "factionName": {
+      "type": "string"
+    },
+    "doctrine": {
+      "type": "string"
+    },
+    "mood": {
+      "type": "string"
+    },
+    "text": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "gameId",
+    "factionName",
+    "text"
+  ]
+}

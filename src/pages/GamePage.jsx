@@ -20,6 +20,7 @@ import BattleView from "@/components/game/BattleView";
 import BattleReport from "@/components/game/BattleReport";
 import ProbePanel from "@/components/game/ProbePanel";
 import DispatchArchive from "@/components/game/DispatchArchive";
+import NpcIntercepts from "@/components/game/NpcIntercepts";
 import CombatResolution from "@/components/game/CombatResolution";
 import CampaignSummary from "@/components/game/CampaignSummary";
 import WeatherBadge from "@/components/game/WeatherBadge";
@@ -319,6 +320,7 @@ export default function GamePage() {
           />
           <BuildPanel game={game} tile={selectedTile} busy={busy} onBuild={(tileId, buildingType) => act({ action: "build", tileId, buildingType })} />
           <PurchasePanel game={game} busy={busy} onPurchase={(tileId, units) => act({ action: "purchaseUnits", tileId, units })} />
+          <NpcIntercepts game={game} />
           <DispatchArchive archives={game.battleArchives} />
           <CombatLog entries={game.combatLog} />
           {game.mySlot !== null && game.mySlot !== undefined && (
