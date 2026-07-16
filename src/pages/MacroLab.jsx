@@ -46,6 +46,12 @@ export default function MacroLab() {
               NODE-AND-ROUTE GRAPH · 1 TURN = 1 DAY · SLOWEST GROUND ELEMENT SETS THE PACE
             </p>
           </div>
+          <Link
+            to="/star-map"
+            className="cq-metal inline-flex items-center gap-1.5 font-heading uppercase tracking-widest text-[10px] px-3 py-1.5 rounded-sm border border-brass/50 text-brass-bright hover:border-brass transition-colors"
+          >
+            ◈ The Star Chart
+          </Link>
           <button
             onClick={() => setShowOverlay(!showOverlay)}
             className={`cq-metal inline-flex items-center gap-1.5 font-heading uppercase tracking-widest text-[10px] px-3 py-1.5 rounded-sm border transition-colors ${
