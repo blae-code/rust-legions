@@ -21,6 +21,7 @@ import BattleReport from "@/components/game/BattleReport";
 import ProbePanel from "@/components/game/ProbePanel";
 import DispatchArchive from "@/components/game/DispatchArchive";
 import CombatResolution from "@/components/game/CombatResolution";
+import CampaignSummary from "@/components/game/CampaignSummary";
 import WeatherBadge from "@/components/game/WeatherBadge";
 import DiplomacyPanel from "@/components/game/diplomacy/DiplomacyPanel";
 import DoctrinePanel from "@/components/game/research/DoctrinePanel";
@@ -229,6 +230,8 @@ export default function GamePage() {
           </p>
         </div>
       )}
+
+      {game.status === "complete" && <CampaignSummary gameId={game.id} />}
 
       {game.status === "complete" && <WarChronicle entries={game.combatLog} />}
 

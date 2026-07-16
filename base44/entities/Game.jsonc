@@ -132,6 +132,10 @@
       "type": "boolean",
       "default": false
     },
+    "summaryLogged": {
+      "type": "boolean",
+      "default": false
+    },
     "chronicleDocUrl": {
       "type": "string"
     }
