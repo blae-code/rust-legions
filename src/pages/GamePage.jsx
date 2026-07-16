@@ -21,6 +21,7 @@ import ProbePanel from "@/components/game/ProbePanel";
 import DispatchArchive from "@/components/game/DispatchArchive";
 import WeatherBadge from "@/components/game/WeatherBadge";
 import DiplomacyPanel from "@/components/game/diplomacy/DiplomacyPanel";
+import FortressBay from "@/components/game/fortress/FortressBay";
 import { RESOURCE_KEYS, RESOURCE_META } from "@/lib/units";
 
 export default function GamePage() {
@@ -66,7 +67,7 @@ export default function GamePage() {
     setError("");
     try {
       await base44.functions.invoke("gameEngine", { gameId, ...payload });
-      const sfxMap = { moveUnits: "move", attack: "attack", bombard: "attack", build: "build", purchaseUnits: "purchase", endTurn: "endTurn", musterArmy: "purchase", reinforceArmy: "purchase", moveArmy: "move", battleChoice: "attack", disbandArmy: "move", proposeDiplomacy: "purchase", respondDiplomacy: "purchase" };
+      const sfxMap = { moveUnits: "move", attack: "attack", bombard: "attack", build: "build", purchaseUnits: "purchase", endTurn: "endTurn", musterArmy: "purchase", reinforceArmy: "purchase", moveArmy: "move", battleChoice: "attack", disbandArmy: "move", proposeDiplomacy: "purchase", respondDiplomacy: "purchase", installModule: "build", moveBase: "move" };
       if (sfxMap[payload.action]) playSfx(sfxMap[payload.action]);
       if ((payload.action === "attack" || payload.action === "bombard") && payload.toTileId) {
         setMapFx({ tileId: payload.toTileId, key: Date.now() });
@@ -236,6 +237,7 @@ export default function GamePage() {
               </div>
             </div>
           )}
+          <FortressBay game={game} busy={busy} onAction={act} />
           <ArmyPanel
             game={game}
             army={selectedArmy}

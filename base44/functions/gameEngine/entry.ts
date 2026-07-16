@@ -222,6 +222,7 @@ function effectiveCosts(game, slotIdx) {
 // Complete pending constructions, then collect typed income
 function collectIncome(game, slotIdx) {
   const slot = game.factionSlots[slotIdx];
+  ensureBase(game, slot);
   // Out-of-supply attrition — cut-off field armies wither at the start of each turn
   const supplied = computeSupply(game, slotIdx);
   for (const a of [...(game.armies || []).filter((x) => x.owner === slotIdx)]) {
@@ -248,6 +249,11 @@ function collectIncome(game, slotIdx) {
   prod.manpower += traitBonus(slot.traits, null, 'income_flat');
   const incomeMods = slotMods(slot).income || {};
   for (const k of RESOURCE_KEYS) prod[k] = Math.max(prod[k] + (incomeMods[k] || 0), 0);
+  // On-board industry works produce wherever the base stands on friendly ground
+  const bIncome = baseModule(slot.base, 'industry')?.income;
+  if (bIncome && slot.base && game.territoryStates[slot.base.tileId]?.owner === slotIdx) {
+    for (const k of RESOURCE_KEYS) prod[k] += bIncome[k] || 0;
+  }
   const treasury = getTreasury(game, slotIdx);
   for (const k of RESOURCE_KEYS) treasury[k] = (treasury[k] || 0) + prod[k];
 }
@@ -342,6 +348,9 @@ function computeSupply(game, slotIdx) {
     const st = game.territoryStates[t.id];
     if (st && isSupplySource(slotIdx, t, st)) { dist[t.id] = 0; queue.push(t.id); }
   }
+  // The fortress-base is a prime supply hub wherever it stands
+  const bTile = game.factionSlots[slotIdx]?.base?.tileId;
+  if (bTile && game.territoryStates[bTile]?.owner === slotIdx && dist[bTile] === undefined) { dist[bTile] = 0; queue.push(bTile); }
   while (queue.length > 0) {
     queue.sort((a, b) => dist[a] - dist[b]);
     const cur = queue.shift();
@@ -385,6 +394,43 @@ function shiftDisposition(game, npcSlotIdx, otherSlotIdx, delta) {
   npc.dispositions[k] = Math.max(Math.min((npc.dispositions[k] || 0) + delta, 100), -100);
 }
 const offerValue = (r = {}) => RESOURCE_KEYS.reduce((s, k) => s + (r[k] || 0) * RES_VALUE[k], 0);
+
+// ---------- Mobile fortress-bases (mirrors src/lib/baseModules.js) ----------
+const BASE_MODULES = {
+  riveted_plating: { slot: 'armor', label: 'Riveted Plating', cost: { steel: 5 }, defense: 2 },
+  bulwark_hull: { slot: 'armor', label: 'Bulwark Hull', cost: { steel: 9, fuel: 2 }, defense: 4 },
+  crawler_drives: { slot: 'engine', label: 'Crawler Drives', cost: { steel: 4, fuel: 3 }, moves: 1 },
+  leviathan_turbines: { slot: 'engine', label: 'Leviathan Turbines', cost: { steel: 6, fuel: 6 }, moves: 1, allTerrain: true },
+  salvage_refinery: { slot: 'industry', label: 'Salvage Refinery', cost: { steel: 4, fuel: 2 }, income: { fuel: 2 } },
+  arc_smelters: { slot: 'industry', label: 'Arc Smelters', cost: { steel: 6, manpower: 2 }, income: { steel: 2 } },
+  habitat_decks: { slot: 'industry', label: 'Habitat Decks', cost: { steel: 5 }, income: { manpower: 2 } },
+};
+const BASE_MOVE_COST = { fuel: 2 };
+// Older games predate bases — spawn one on the capital the first time it is needed
+function ensureBase(game, slot) {
+  if (!slot) return null;
+  if (!slot.base && !slot.baseLost && slot.capitalTileId && game.territoryStates?.[slot.capitalTileId]?.owner === slot.slotIndex) {
+    slot.base = { tileId: slot.capitalTileId, modules: {}, movedTurn: 0 };
+  }
+  return slot.base || null;
+}
+const baseModule = (base, slotName) => (base?.modules?.[slotName] ? BASE_MODULES[base.modules[slotName]] : null);
+// The hull itself is worth +1 defense; armor modules stack on top
+function baseDefenseAt(game, defSlotIdx, tileId) {
+  if (defSlotIdx === null || defSlotIdx === undefined) return 0;
+  const base = game.factionSlots[defSlotIdx]?.base;
+  if (!base || base.tileId !== tileId) return 0;
+  return 1 + (baseModule(base, 'armor')?.defense || 0);
+}
+function wreckBasesAt(game, tileId, newOwner) {
+  for (const s of game.factionSlots) {
+    if (s.base && s.base.tileId === tileId && s.slotIndex !== newOwner) {
+      s.base = null;
+      s.baseLost = true;
+      game.combatLog.push({ turn: game.turnNumber, type: 'event', text: `${s.factionName}'s fortress-base is overrun and burns where it stands.` });
+    }
+  }
+}
 
 // ---------- Combat ----------
 function rollHits(units, statKey, traits, flatBonus = 0, unitStatMods = {}) {
@@ -470,10 +516,11 @@ function doAttack(game, slotIdx, fromTileId, toTileId, committed) {
   const terrDef = toTile.isSea ? 0 : (TERRAIN_BATTLE_MODS[toTile.terrain] || 0);
   const attSlope = toTile.isSea ? 0 : slopeMod(fromTile, toTile);
   const attFlat = (weather === 'rain' || weather === 'snow' ? -1 : 0) + attSlope;
-  const result = resolveCombat(committed, toSt.units, attSlot.traits || [], defSlot?.traits || [], fortLevel(toSt) + capBonus + terrDef + (weather === 'fog' ? -1 : 0), attM.unitStat || {}, defM.unitStat || {}, attFlat);
+  const result = resolveCombat(committed, toSt.units, attSlot.traits || [], defSlot?.traits || [], fortLevel(toSt) + capBonus + terrDef + baseDefenseAt(game, toSt.owner, toTileId) + (weather === 'fog' ? -1 : 0), attM.unitStat || {}, defM.unitStat || {}, attFlat);
 
   let outcome;
   if (result.defenderWiped && totalUnits(result.att) > 0) {
+    wreckBasesAt(game, toTileId, slotIdx);
     toSt.owner = slotIdx;
     toSt.units = result.att;
     outcome = 'captured';
@@ -901,6 +948,7 @@ function createBattle(game, slotIdx, army, toTileId) {
 
   // Unopposed march — capture without a battle
   if (totalUnits(defUnits) === 0) {
+    wreckBasesAt(game, toTileId, slotIdx);
     st.owner = slotIdx;
     st.units = {};
     army.tileId = toTileId;
@@ -942,7 +990,7 @@ function createBattle(game, slotIdx, army, toTileId) {
       slot: defSlotIdx, absorbedArmies: absorbed,
       generalName: defGeneral ? defGeneral.name : 'Garrison Commander',
       strategy: defGeneral ? defGeneral.strategy : 9,
-      units: defUnits, morale: 100, fortBonus: fortLevel(st) + capBonus, terrainBonus,
+      units: defUnits, morale: 100, fortBonus: fortLevel(st) + capBonus + baseDefenseAt(game, defSlotIdx, toTileId), terrainBonus,
       generalId: defGeneral?.id || null,
       signature: defTrait?.signature || null, sigCooldown: 0, vetBonus: defRank.bonus, rank: defRank.label,
       supplyPenalty: defSupplied ? 0 : -2,
@@ -985,6 +1033,7 @@ function finishBattle(game, b, attackerWon) {
   const army = (game.armies || []).find((a) => a.id === b.attacker.armyId);
   let outcome;
   if (attackerWon) {
+    wreckBasesAt(game, b.tileId, b.attacker.slot);
     st.owner = b.attacker.slot;
     st.units = {};
     if (army) { army.tileId = b.tileId; army.regiments = b.attacker.units; army.battles = (army.battles || 0) + 1; }
@@ -1354,6 +1403,21 @@ Deno.serve(async (req) => {
         tiles: tilesOut,
         combatLog: game.status === 'complete' ? (game.combatLog || []) : (game.combatLog || []).slice(-30),
         statHistory: game.statHistory || [],
+        myBase: (() => {
+          if (mySlot === null) return null;
+          const base = ensureBase(game, game.factionSlots[mySlot]);
+          if (!base) return null;
+          const bt = game.tiles.find((t) => t.id === base.tileId);
+          return {
+            tileId: base.tileId, tileName: bt?.name || null, modules: base.modules || {},
+            movedThisTurn: base.movedTurn === game.turnNumber,
+            defense: 1 + (baseModule(base, 'armor')?.defense || 0),
+            income: baseModule(base, 'industry')?.income || null,
+            canMove: !!baseModule(base, 'engine'),
+            allTerrain: !!baseModule(base, 'engine')?.allTerrain,
+          };
+        })(),
+        bases: game.factionSlots.filter((s) => s.base && (s.slotIndex === mySlot || visibleTileIds.has(s.base.tileId))).map((s) => ({ slot: s.slotIndex, tileId: s.base.tileId, factionName: s.factionName, color: s.color })),
         diplomacy: mySlot !== null ? {
           stances: game.factionSlots.filter((s) => s.slotIndex !== mySlot).map((s) => {
             const rel = relationOf(game, mySlot, s.slotIndex);
@@ -1417,6 +1481,7 @@ Deno.serve(async (req) => {
         slot.armiesRaised = 0;
         const cap = capitals[i];
         slot.capitalTileId = cap.id;
+        slot.base = { tileId: cap.id, modules: {}, movedTurn: 0 };
         // Capitals start with an operational Barracks
         states[cap.id] = { owner: slot.slotIndex, units: { riflemen: 4, crawler: 2 }, buildings: [{ type: 'barracks', level: 1, pending: false }] };
         for (const aid of cap.adjacentIds) {
@@ -1814,6 +1879,53 @@ Deno.serve(async (req) => {
       game.combatLog.push({ turn: game.turnNumber, type: 'event', text: `${game.factionSlots[slotIdx].factionName} scouts probe ${tile.name}.` });
       await svc.entities.Game.update(game.id, { treasuries: game.treasuries, combatLog: game.combatLog });
       return Response.json({ ok: true, intel, resources: treasury });
+    }
+
+    // ----- Mobile fortress-base: module refits & the great treads -----
+    if (action === 'installModule') {
+      const slotIdx = requireMyTurn();
+      const slot = game.factionSlots[slotIdx];
+      const base = ensureBase(game, slot);
+      if (!base) return Response.json({ error: 'Your fortress-base has been lost' }, { status: 400 });
+      const mod = BASE_MODULES[body.moduleKey];
+      if (!mod) return Response.json({ error: 'Unknown module' }, { status: 400 });
+      base.modules = base.modules || {};
+      if (base.modules[mod.slot] === body.moduleKey) return Response.json({ error: 'That module is already installed' }, { status: 400 });
+      const treasury = getTreasury(game, slotIdx);
+      if (!canAfford(treasury, mod.cost)) return Response.json({ error: 'Insufficient resources for the refit' }, { status: 400 });
+      pay(treasury, mod.cost);
+      const old = base.modules[mod.slot];
+      base.modules[mod.slot] = body.moduleKey;
+      game.combatLog.push({ turn: game.turnNumber, type: 'event', text: `${slot.factionName}'s fortress-base is refitted — ${mod.label} ${old ? `replaces the ${BASE_MODULES[old]?.label || 'old fittings'}` : `installed in the ${mod.slot} bay`}.` });
+      await svc.entities.Game.update(game.id, { factionSlots: game.factionSlots, treasuries: game.treasuries, combatLog: game.combatLog });
+      return Response.json({ ok: true, resources: treasury });
+    }
+
+    if (action === 'moveBase') {
+      const slotIdx = requireMyTurn();
+      if (game.activeBattle) return Response.json({ error: 'Resolve the ongoing battle first' }, { status: 400 });
+      const slot = game.factionSlots[slotIdx];
+      const base = ensureBase(game, slot);
+      if (!base) return Response.json({ error: 'Your fortress-base has been lost' }, { status: 400 });
+      const engine = baseModule(base, 'engine');
+      if (!engine) return Response.json({ error: 'The base has no engine module — install Crawler Drives to get it moving' }, { status: 400 });
+      if (base.movedTurn === game.turnNumber) return Response.json({ error: 'The great treads have already ground forward this turn' }, { status: 400 });
+      const fromTile = game.tiles.find((t) => t.id === base.tileId);
+      const toTile = game.tiles.find((t) => t.id === body.toTileId);
+      const toSt = game.territoryStates[body.toTileId];
+      if (!toTile || !toSt || toTile.isSea) return Response.json({ error: 'Invalid destination' }, { status: 400 });
+      if (!fromTile?.adjacentIds?.includes(body.toTileId)) return Response.json({ error: 'The base can only crawl one zone per turn' }, { status: 400 });
+      if (toSt.owner !== slotIdx) return Response.json({ error: 'The base can only move through territory you control' }, { status: 400 });
+      if (ROUGH_TERRAIN.includes(toTile.terrain) && !engine.allTerrain) return Response.json({ error: 'That ground is too rough — only Leviathan Turbines can cross it' }, { status: 400 });
+      if ((game.weather || 'clear') === 'snow') return Response.json({ error: 'The great engines freeze in the snowfall — the base cannot move this turn' }, { status: 400 });
+      const treasury = getTreasury(game, slotIdx);
+      if (!canAfford(treasury, BASE_MOVE_COST)) return Response.json({ error: 'Insufficient fuel to fire the great engines' }, { status: 400 });
+      pay(treasury, BASE_MOVE_COST);
+      base.tileId = body.toTileId;
+      base.movedTurn = game.turnNumber;
+      game.combatLog.push({ turn: game.turnNumber, type: 'event', text: `${slot.factionName}'s fortress-base grinds into ${toTile.name}.` });
+      await svc.entities.Game.update(game.id, { factionSlots: game.factionSlots, treasuries: game.treasuries, combatLog: game.combatLog });
+      return Response.json({ ok: true, resources: treasury });
     }
 
     // ----- Diplomacy: envoys, accords & the war market -----
