@@ -21,6 +21,22 @@ let track = null;
 let trackIdx = Math.floor(Math.random() * PLAYLIST.length); // vary the opening piece per visit
 let suppressed = false; // true while an active war is on screen
 
+// Window-level registry of every live score element. Survives module reloads,
+// so muting can always silence tracks started by any earlier module instance.
+const REG = (window.__cqScoreReg = window.__cqScoreReg || new Set());
+const killAudio = (audio) => {
+  clearInterval(audio._fade);
+  audio.onended = null;
+  audio.onerror = null;
+  audio.pause();
+  audio.src = "";
+  REG.delete(audio);
+};
+// Hard-stop every registered element except `keep` (if given)
+const killGhosts = (keep) => {
+  REG.forEach((a) => { if (a !== keep) killAudio(a); });
+};
+
 const listeners = new Set();
 const notify = () => listeners.forEach((cb) => cb());
 // Subscribe to score state changes (track started/stopped) — returns unsubscribe
@@ -60,6 +76,11 @@ export function setMusicEnabled(on) {
 const fadeTo = (audio, target, ms, onDone) => {
   clearInterval(audio._fade);
   const step = (target - audio.volume) / (ms / 80);
+  if (Math.abs(step) < 0.0005) { // already at target — settle immediately
+    audio.volume = target;
+    onDone?.();
+    return;
+  }
   audio._fade = setInterval(() => {
     const v = audio.volume + step;
     if ((step > 0 && v >= target) || (step < 0 && v <= target)) {
@@ -89,10 +110,12 @@ function playIndex(i, attempts = 0) {
       track = null;
       playIndex(trackIdx + 1, attempts + 1); // skip unplayable recordings
     };
+    REG.add(audio);
     const p = audio.play();
     if (p?.catch) p.catch(() => { /* autoplay blocked — retried on first gesture */ });
     fadeTo(audio, musicVolume(), 4000);
     track = audio;
+    killGhosts(audio); // one voice only — silence anything left over
     notify();
   } catch { /* audio unavailable */ }
 }
@@ -109,9 +132,7 @@ export function skipScore() {
   if (!track) return;
   const audio = track;
   track = null;
-  clearInterval(audio._fade);
-  audio.pause();
-  audio.src = "";
+  killAudio(audio);
   playIndex(trackIdx + 1);
 }
 
@@ -126,15 +147,16 @@ export function unlockAmbience() {
   }
 }
 
-// Fade out and release the track
+// Fade out fast and release the track — silence is guaranteed even if the
+// fade is interrupted, and any stray elements are hard-stopped too.
 export function stopScore() {
-  if (!track) return;
   const audio = track;
   track = null;
-  fadeTo(audio, 0, 1200, () => {
-    audio.pause();
-    audio.src = "";
-  });
+  killGhosts(audio);
+  if (audio) {
+    fadeTo(audio, 0, 400, () => killAudio(audio));
+    setTimeout(() => killAudio(audio), 600); // hard stop, no matter what
+  }
   notify();
 }
 
