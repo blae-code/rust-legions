@@ -355,12 +355,12 @@
   100% { opacity: 0; }
 }
 
-/* Distant artillery muzzle flash on the horizon */
+/* Distant artillery muzzle flash on the horizon — tiny, miles away */
 .cq-arty-flash {
   position: absolute;
-  width: 20px;
-  height: 20px;
-  margin: -10px 0 0 -10px;
+  width: 11px;
+  height: 11px;
+  margin: -5px 0 0 -5px;
   border-radius: 9999px;
   background: radial-gradient(circle, hsl(45 100% 82%) 0%, hsl(30 95% 55%) 40%, transparent 70%);
   mix-blend-mode: screen;
@@ -376,11 +376,11 @@
 /* Lingering amber glow + smoke bloom where the battery fired */
 .cq-arty-glow {
   position: absolute;
-  width: 130px;
-  height: 60px;
-  margin: -34px 0 0 -65px;
+  width: 85px;
+  height: 36px;
+  margin: -20px 0 0 -42px;
   border-radius: 9999px;
-  background: radial-gradient(ellipse, hsl(28 85% 45% / 0.4), transparent 70%);
+  background: radial-gradient(ellipse, hsl(28 85% 45% / 0.25), transparent 70%);
   mix-blend-mode: screen;
   animation: cq-arty-linger 2.4s ease-out forwards;
   pointer-events: none;

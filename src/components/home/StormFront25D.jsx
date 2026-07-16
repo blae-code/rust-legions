@@ -1,8 +1,7 @@
 import React, { useRef, useState, useEffect } from "react";
 import { playThunder, playArtillery, unlockAmbience } from "@/lib/ambience";
 
-const BG_POSTER = "https://media.base44.com/images/public/6a58196dcd485ecc774cae1b/277b8e155_generated_image.png";
-const BG_VIDEO = "https://media.base44.com/videos/public/6a58196dcd485ecc774cae1b/ce3308be3_Storm_Front_Loop.mp4";
+const BG_VIDEO = "https://media.base44.com/videos/public/6a58196dcd485ecc774cae1b/5ad99560d_Trench_Front_Loop.mp4";
 
 // Mid-ground silhouette skyline — derricks, smokestacks, ruined gantries
 const Skyline = () => (
@@ -61,9 +60,9 @@ const Bolt = ({ x }) => (
   </svg>
 );
 
-// Artillery emplacement positions along the horizon (x%, y%)
+// Artillery emplacement positions deep on the horizon (x%, y%)
 const GUN_POSTS = [
-  [12, 63], [24, 61], [43, 64], [58, 62], [72, 63], [86, 61],
+  [12, 58], [24, 56], [43, 59], [58, 57], [72, 58], [86, 56],
 ];
 
 // 2.5D storm-front backdrop — painted dusk landscape, live lightning & artillery, ambient audio
@@ -149,7 +148,6 @@ export default function StormFront25D() {
         className="absolute inset-0 w-full h-full object-cover"
         style={layer(-8)}
         src={BG_VIDEO}
-        poster={BG_POSTER}
         autoPlay
         loop
         muted
