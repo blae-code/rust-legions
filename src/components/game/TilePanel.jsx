@@ -50,6 +50,13 @@ export default function TilePanel({ game, tile, onMove, onAttack, onBombard, bus
         <p className="text-xs mt-1 font-heading tracking-wide" style={{ color: ownerFaction?.color || "hsl(30 9% 54%)" }}>
           {ownerFaction ? `Held by ${ownerFaction.factionName}` : tile.isSea ? "Open waters" : "Neutral garrison"}
         </p>
+        {isMine && !tile.isSea && game.status === "active" && (
+          (game.suppliedTiles || []).includes(tile.id) ? (
+            <p className="font-mono text-[9px] text-olive mt-0.5">◈ IN SUPPLY</p>
+          ) : (
+            <p className="font-mono text-[9px] text-rust mt-0.5">⚠ CUT OFF FROM SUPPLY — NO CONSTRUCTION OR FRESH DEPLOYMENTS</p>
+          )
+        )}
       </div>
 
       {UNIT_KEYS.some((k) => state.units[k] > 0) && (

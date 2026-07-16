@@ -62,7 +62,7 @@ export default function GamePage() {
     setError("");
     try {
       await base44.functions.invoke("gameEngine", { gameId, ...payload });
-      const sfxMap = { moveUnits: "move", attack: "attack", bombard: "attack", build: "build", purchaseUnits: "purchase", endTurn: "endTurn", musterArmy: "purchase", moveArmy: "move", battleChoice: "attack", disbandArmy: "move" };
+      const sfxMap = { moveUnits: "move", attack: "attack", bombard: "attack", build: "build", purchaseUnits: "purchase", endTurn: "endTurn", musterArmy: "purchase", reinforceArmy: "purchase", moveArmy: "move", battleChoice: "attack", disbandArmy: "move" };
       if (sfxMap[payload.action]) playSfx(sfxMap[payload.action]);
       await refresh();
     } catch (e) {
@@ -223,6 +223,7 @@ export default function GamePage() {
             onMarch={(armyId, toTileId) => act({ action: "moveArmy", armyId, toTileId })}
             onEngage={(armyId, toTileId) => act({ action: "moveArmy", armyId, toTileId })}
             onDisband={(armyId) => { act({ action: "disbandArmy", armyId }); setSelectedArmyId(null); }}
+            onReinforce={(armyId, regiments) => act({ action: "reinforceArmy", armyId, regiments })}
           />
           <MusterPanel
             game={game}

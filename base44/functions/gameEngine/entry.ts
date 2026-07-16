@@ -197,6 +197,19 @@ function effectiveCosts(game, slotIdx) {
 // Complete pending constructions, then collect typed income
 function collectIncome(game, slotIdx) {
   const slot = game.factionSlots[slotIdx];
+  // Out-of-supply attrition — cut-off field armies wither at the start of each turn
+  const supplied = computeSupply(game, slotIdx);
+  for (const a of [...(game.armies || []).filter((x) => x.owner === slotIdx)]) {
+    if (supplied.has(a.tileId)) continue;
+    removeCasualties(a.regiments, 1);
+    if (totalUnits(a.regiments) === 0) {
+      game.armies = game.armies.filter((x) => x.id !== a.id);
+      generalFate(game, a);
+      game.combatLog.push({ turn: game.turnNumber, type: 'event', text: `The ${a.name} disintegrates — starved of supply.` });
+    } else {
+      game.combatLog.push({ turn: game.turnNumber, type: 'event', text: `The ${a.name} is cut off from supply and loses a company to attrition.` });
+    }
+  }
   // Constructions complete at the start of the owner's turn
   for (const st of Object.values(game.territoryStates)) {
     if (st.owner !== slotIdx) continue;
@@ -282,6 +295,42 @@ function checkCampaignWin(game) {
       game.winnerSlot = humanSlot.slotIndex;
     }
   }
+}
+
+// ---------- Supply & logistics ----------
+// Supply hubs: capitals, fortifications, barracks. Supply flows through contiguous
+// friendly land; rough terrain costs more logistics range to cross.
+const SUPPLY_RANGE = 4;
+const SUPPLY_MOVE_COST = { mountains: 2, marsh: 2, highlands: 2 };
+const supplyCost = (tile) => SUPPLY_MOVE_COST[tile.terrain] || 1;
+
+function isSupplySource(slotIdx, tile, st) {
+  if (!tile || tile.isSea || st.owner !== slotIdx) return false;
+  return !!tile.isCapital || hasBuilding(st, 'fortifications') || hasBuilding(st, 'barracks');
+}
+
+// Dijkstra from every supply hub through friendly land — returns the Set of supplied tile ids
+function computeSupply(game, slotIdx) {
+  const dist = {};
+  const queue = [];
+  for (const t of game.tiles) {
+    const st = game.territoryStates[t.id];
+    if (st && isSupplySource(slotIdx, t, st)) { dist[t.id] = 0; queue.push(t.id); }
+  }
+  while (queue.length > 0) {
+    queue.sort((a, b) => dist[a] - dist[b]);
+    const cur = queue.shift();
+    const tile = game.tiles.find((t) => t.id === cur);
+    for (const aid of tile?.adjacentIds || []) {
+      const at = game.tiles.find((t) => t.id === aid);
+      const ast = game.territoryStates[aid];
+      if (!at || at.isSea || !ast || ast.owner !== slotIdx) continue;
+      const nd = dist[cur] + supplyCost(at);
+      if (nd > SUPPLY_RANGE) continue;
+      if (dist[aid] === undefined || nd < dist[aid]) { dist[aid] = nd; queue.push(aid); }
+    }
+  }
+  return new Set(Object.keys(dist));
 }
 
 // ---------- Combat ----------
@@ -415,6 +464,7 @@ function doBuild(game, slotIdx, tileId, buildingType) {
   if (!def) throw new Error('Unknown building');
   if (tile.isSea) throw new Error('Cannot build at sea');
   if (st.owner !== slotIdx) throw new Error('You do not control that territory');
+  if (!computeSupply(game, slotIdx).has(tileId)) throw new Error('Zone is cut off from supply — engineers cannot reach it');
   if (!st.buildings) st.buildings = [];
   const treasury = getTreasury(game, slotIdx);
   const existing = st.buildings.find((b) => b.type === buildingType);
@@ -804,6 +854,8 @@ function createBattle(game, slotIdx, army, toTileId) {
   const defTrait = traitByKey(defGeneral?.trait);
   const attRank = armyRank(army.battles || 0);
   const defRank = armyRank(defVetBattles);
+  const attSupplied = computeSupply(game, slotIdx).has(army.tileId);
+  const defSupplied = defSlotIdx === null ? true : computeSupply(game, defSlotIdx).has(toTileId);
 
   game.activeBattle = {
     id: genId(), tileId: toTileId, tileName: toTile.name, fromTileId: army.tileId,
@@ -811,6 +863,7 @@ function createBattle(game, slotIdx, army, toTileId) {
       slot: slotIdx, armyId: army.id, armyName: army.name, generalName: attGeneral.name, generalId: attGeneral.id || null,
       strategy: attGeneral.strategy, units: { ...army.regiments }, morale: 100, choice: null, nextBonus: 0, losses: 0,
       signature: attTrait?.signature || null, sigCooldown: 0, vetBonus: attRank.bonus, rank: attRank.label,
+      supplyPenalty: attSupplied ? 0 : -2,
       design: army.design || null,
     },
     defender: {
@@ -820,6 +873,7 @@ function createBattle(game, slotIdx, army, toTileId) {
       units: defUnits, morale: 100, fortBonus: fortLevel(st) + capBonus, terrainBonus,
       generalId: defGeneral?.id || null,
       signature: defTrait?.signature || null, sigCooldown: 0, vetBonus: defRank.bonus, rank: defRank.label,
+      supplyPenalty: defSupplied ? 0 : -2,
       design: defDesign,
       choice: null, nextBonus: 0, losses: 0,
       interactive: defenderIsLive(game, defSlotObj),
@@ -828,6 +882,8 @@ function createBattle(game, slotIdx, army, toTileId) {
     terrain: toTile.terrain,
     log: [`The ${army.name} under ${attGeneral.name} engages at ${toTile.name}${terrainBonus > 0 ? ` — the ${toTile.terrain} favors the defense (+${terrainBonus})` : ''}.`],
   };
+  if (!attSupplied) game.activeBattle.log.push(`${attGeneral.name}'s columns fight cut off from supply — every shell is rationed (−2).`);
+  if (!defSupplied) game.activeBattle.log.push(`The defenders of ${toTile.name} are under siege — stores run thin (−2).`);
   // Defenders are committed to the battle; the zone stands empty until it resolves
   game.armies = (game.armies || []).filter((a) => !absorbed.some((x) => x.id === a.id));
   st.units = {};
@@ -839,7 +895,7 @@ function battleSkill(side, other) {
   const m = MANEUVERS[side.choice];
   const ratio = Math.max(forcePoints(side.units), 1) / Math.max(forcePoints(other.units), 1);
   const strengthMod = Math.max(Math.min(Math.round(Math.log2(ratio) * 2), 4), -4);
-  return side.strategy + m.skill + strengthMod + (side.fortBonus || 0) + (side.terrainBonus || 0) + (side.vetBonus || 0) + (side.nextBonus || 0) + ((side.design || {}).skill || 0);
+  return side.strategy + m.skill + strengthMod + (side.fortBonus || 0) + (side.terrainBonus || 0) + (side.vetBonus || 0) + (side.nextBonus || 0) + (side.supplyPenalty || 0) + ((side.design || {}).skill || 0);
 }
 
 function finishBattle(game, b, attackerWon) {
@@ -1135,6 +1191,7 @@ Deno.serve(async (req) => {
           await svc.entities.Game.update(game.id, { lastSeen: game.lastSeen });
         }
       }
+      const mySupplied = mySlot !== null && active ? computeSupply(game, mySlot) : new Set();
       const tilesOut = visibleStateFor(game, mySlot);
       const visibleTileIds = new Set(tilesOut.filter((t) => t.visible !== false).map((t) => t.id));
       const ab = game.activeBattle;
@@ -1161,6 +1218,7 @@ Deno.serve(async (req) => {
             id: a.id, owner: a.owner, tileId: a.tileId, name: a.name,
             strength: forcePoints(a.regiments),
             battles: a.battles || 0, rank: armyRank(a.battles || 0).label,
+            inSupply: a.owner === mySlot ? mySupplied.has(a.tileId) : undefined,
             design: a.design?.name || null,
             regiments: a.owner === mySlot ? a.regiments : undefined,
             general: g ? (a.owner === mySlot ? { ...g, traitLabel: traitByKey(g.trait)?.label || null } : { name: g.name }) : null,
@@ -1189,6 +1247,7 @@ Deno.serve(async (req) => {
         myArmyCap: mySlot !== null && active ? armyCap(game, mySlot) : 0,
         myLandControl: mySlot !== null && active ? Math.round(landControlPct(game, mySlot)) : 0,
         mapControlTarget: MAP_CONTROL_PCT,
+        suppliedTiles: [...mySupplied],
         myCosts: mySlot !== null && active ? effectiveCosts(game, mySlot) : null,
         isHost: game.hostUserId === user.id,
         campaignWinCondition: game.campaignWinCondition,
@@ -1351,6 +1410,7 @@ Deno.serve(async (req) => {
       const tile = game.tiles.find((t) => t.id === tileId);
       if (!tile || !st) return Response.json({ error: 'Invalid tile' }, { status: 400 });
       if (!tile.isSea && st.owner !== slotIdx) return Response.json({ error: 'You must place units on your own territory' }, { status: 400 });
+      if (!tile.isSea && !computeSupply(game, slotIdx).has(tileId)) return Response.json({ error: 'Zone is cut off from supply — fresh units cannot reach it' }, { status: 400 });
       const costs = effectiveCosts(game, slotIdx);
       const totalCost = emptyResources();
       let purchasePoints = 0;
@@ -1501,6 +1561,31 @@ Deno.serve(async (req) => {
       if (st.owner !== slotIdx) return Response.json({ error: 'An army can only disband on friendly soil' }, { status: 400 });
       for (const k of ARMY_UNIT_KEYS) st.units[k] = (st.units[k] || 0) + (army.regiments[k] || 0);
       game.armies = game.armies.filter((a) => a.id !== army.id);
+      await persistWar();
+      return Response.json({ ok: true });
+    }
+
+    // ----- Rearm & reinforce: feed garrison companies into a supplied field army -----
+    if (action === 'reinforceArmy') {
+      const slotIdx = requireMyTurn();
+      if (game.activeBattle) return Response.json({ error: 'Resolve the ongoing battle first' }, { status: 400 });
+      const { armyId, regiments = {} } = body;
+      const army = (game.armies || []).find((a) => a.id === armyId && a.owner === slotIdx);
+      if (!army) return Response.json({ error: 'Army not found' }, { status: 404 });
+      const st = game.territoryStates[army.tileId];
+      if (st.owner !== slotIdx) return Response.json({ error: 'Reinforcement requires friendly ground' }, { status: 400 });
+      if (!computeSupply(game, slotIdx).has(army.tileId)) return Response.json({ error: 'This zone is cut off from supply — no reinforcements can reach the army' }, { status: 400 });
+      let moved = 0;
+      for (const k of ARMY_UNIT_KEYS) {
+        const n = regiments[k] || 0;
+        if (n < 0 || n > (st.units[k] || 0)) return Response.json({ error: 'Not enough garrisoned troops' }, { status: 400 });
+        moved += n;
+      }
+      if (moved === 0) return Response.json({ error: 'No companies selected' }, { status: 400 });
+      for (const k of ARMY_UNIT_KEYS) {
+        st.units[k] = (st.units[k] || 0) - (regiments[k] || 0);
+        army.regiments[k] = (army.regiments[k] || 0) + (regiments[k] || 0);
+      }
       await persistWar();
       return Response.json({ ok: true });
     }

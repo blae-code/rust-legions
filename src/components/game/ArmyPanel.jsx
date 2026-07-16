@@ -3,8 +3,9 @@ import { Button } from "@/components/ui/button";
 import { Swords, MoveRight, Undo2 } from "lucide-react";
 import GeneralBadge from "@/components/game/GeneralBadge";
 import { ARMY_UNIT_KEYS, REGIMENT_LABELS } from "@/lib/massCombat";
+import ReinforceSection from "@/components/game/ReinforceSection";
 
-export default function ArmyPanel({ game, army, busy, onMarch, onEngage, onDisband }) {
+export default function ArmyPanel({ game, army, busy, onMarch, onEngage, onDisband, onReinforce }) {
   if (!army) return null;
   const tile = game.tiles.find((t) => t.id === army.tileId);
   const adjacent = (tile?.adjacentIds || [])
@@ -31,6 +32,9 @@ export default function ArmyPanel({ game, army, busy, onMarch, onEngage, onDisba
           FIELD STRENGTH {army.strength} PTS
           {army.rank && <span className={army.rank === "Green" ? "" : "text-brass"}> · {army.rank.toUpperCase()}{army.battles > 0 ? ` (${army.battles} BATTLES)` : ""}</span>}
         </p>
+        {army.inSupply === false && (
+          <p className="font-mono text-[9px] text-rust">⚠ CUT OFF FROM SUPPLY — ATTRITION EACH TURN, −2 IN BATTLE</p>
+        )}
       </div>
       {canAct && (
         <div className="space-y-1.5">
@@ -52,6 +56,7 @@ export default function ArmyPanel({ game, army, busy, onMarch, onEngage, onDisba
               </Button>
             );
           })}
+          {onFriendly && <ReinforceSection game={game} army={army} tile={tile} busy={busy} onReinforce={onReinforce} />}
           {onFriendly && (
             <Button size="sm" variant="ghost" disabled={busy} onClick={() => onDisband(army.id)} className="w-full justify-start text-muted-foreground font-heading text-xs tracking-wide">
               <Undo2 className="w-3 h-3 mr-2" /> Disband into garrison
