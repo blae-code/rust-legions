@@ -72,6 +72,13 @@
         "additionalProperties": true
       }
     },
+    "diplomacy": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": true
+    },
     "activeBattle": {
       "type": [
         "object",

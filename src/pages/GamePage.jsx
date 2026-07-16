@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
-import { Loader2, Volume2, VolumeX } from "lucide-react";
+import { Loader2, Volume2, VolumeX, Handshake } from "lucide-react";
 import { playSfx, sfxEnabled, setSfxEnabled } from "@/lib/sfx";
 import HexBoard3D from "@/components/hexmap3d/HexBoard3D";
 import TilePanel from "@/components/game/TilePanel";
@@ -20,6 +20,7 @@ import BattleReport from "@/components/game/BattleReport";
 import ProbePanel from "@/components/game/ProbePanel";
 import DispatchArchive from "@/components/game/DispatchArchive";
 import WeatherBadge from "@/components/game/WeatherBadge";
+import DiplomacyPanel from "@/components/game/diplomacy/DiplomacyPanel";
 import { RESOURCE_KEYS, RESOURCE_META } from "@/lib/units";
 
 export default function GamePage() {
@@ -33,6 +34,7 @@ export default function GamePage() {
   const [overlay, setOverlay] = useState(null);
   const [report, setReport] = useState(null);
   const [mapFx, setMapFx] = useState(null);
+  const [showDiplomacy, setShowDiplomacy] = useState(false);
   const pollRef = useRef(null);
   const prevBattleRef = useRef(false);
 
@@ -64,7 +66,7 @@ export default function GamePage() {
     setError("");
     try {
       await base44.functions.invoke("gameEngine", { gameId, ...payload });
-      const sfxMap = { moveUnits: "move", attack: "attack", bombard: "attack", build: "build", purchaseUnits: "purchase", endTurn: "endTurn", musterArmy: "purchase", reinforceArmy: "purchase", moveArmy: "move", battleChoice: "attack", disbandArmy: "move" };
+      const sfxMap = { moveUnits: "move", attack: "attack", bombard: "attack", build: "build", purchaseUnits: "purchase", endTurn: "endTurn", musterArmy: "purchase", reinforceArmy: "purchase", moveArmy: "move", battleChoice: "attack", disbandArmy: "move", proposeDiplomacy: "purchase", respondDiplomacy: "purchase" };
       if (sfxMap[payload.action]) playSfx(sfxMap[payload.action]);
       if ((payload.action === "attack" || payload.action === "bombard") && payload.toTileId) {
         setMapFx({ tileId: payload.toTileId, key: Date.now() });
@@ -137,6 +139,16 @@ export default function GamePage() {
           ))}
         </div>
         {game.status === "active" && <WeatherBadge weather={game.weather} />}
+        {game.status === "active" && game.diplomacy && (
+          <button
+            onClick={() => setShowDiplomacy(true)}
+            title="Envoy Desk — diplomacy"
+            className="relative p-1.5 rounded-sm border border-border text-muted-foreground hover:text-brass-bright hover:border-brass/50 transition-colors"
+          >
+            <Handshake className="w-3.5 h-3.5" />
+            {game.diplomacy.incoming.length > 0 && <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-rust cq-lamp text-rust" />}
+          </button>
+        )}
         <button
           onClick={() => { setSfxEnabled(!sound); setSound(!sound); }}
           title={sound ? "Mute battlefield audio" : "Enable battlefield audio"}
@@ -255,6 +267,7 @@ export default function GamePage() {
         </div>
       </div>
 
+      <DiplomacyPanel open={showDiplomacy} onClose={() => setShowDiplomacy(false)} game={game} busy={busy} onAction={act} />
       <BattleView battle={game.battle} busy={busy} onChoose={(maneuver) => act({ action: "battleChoice", maneuver })} />
       {!game.battle && <BattleReport report={report} onClose={() => setReport(null)} />}
     </div>

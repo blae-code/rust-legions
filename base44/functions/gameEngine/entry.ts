@@ -358,6 +358,34 @@ function computeSupply(game, slotIdx) {
   return new Set(Object.keys(dist));
 }
 
+// ---------- Diplomacy ----------
+const PACT_DURATIONS = { truce: 5, nap: 10 };
+const PACT_LABELS = { truce: 'ceasefire truce', nap: 'non-aggression pact' };
+const RES_VALUE = { manpower: 1, steel: 1.5, fuel: 1.5 };
+const relKey = (a, b) => (a < b ? `${a}-${b}` : `${b}-${a}`);
+function getDiplo(game) {
+  if (!game.diplomacy || typeof game.diplomacy !== 'object') game.diplomacy = {};
+  game.diplomacy.relations = game.diplomacy.relations || {};
+  game.diplomacy.offers = game.diplomacy.offers || [];
+  game.diplomacy.lastProposal = game.diplomacy.lastProposal || {};
+  return game.diplomacy;
+}
+function relationOf(game, a, b) {
+  const r = getDiplo(game).relations[relKey(a, b)];
+  if (!r) return null;
+  if (r.until !== null && r.until !== undefined && game.turnNumber >= r.until) return null;
+  return r;
+}
+const atPeace = (game, a, b) => !!relationOf(game, a, b);
+function shiftDisposition(game, npcSlotIdx, otherSlotIdx, delta) {
+  const npc = game.factionSlots[npcSlotIdx];
+  if (!npc?.isNPC) return;
+  npc.dispositions = npc.dispositions || {};
+  const k = String(otherSlotIdx);
+  npc.dispositions[k] = Math.max(Math.min((npc.dispositions[k] || 0) + delta, 100), -100);
+}
+const offerValue = (r = {}) => RESOURCE_KEYS.reduce((s, k) => s + (r[k] || 0) * RES_VALUE[k], 0);
+
 // ---------- Combat ----------
 function rollHits(units, statKey, traits, flatBonus = 0, unitStatMods = {}) {
   const kind = statKey === 'attack' ? 'attack_bonus' : 'defense_bonus';
@@ -414,6 +442,7 @@ function doAttack(game, slotIdx, fromTileId, toTileId, committed) {
   if (fromSt.owner !== slotIdx) throw new Error('You do not control the attacking territory');
   if (toSt.owner === slotIdx) throw new Error('Cannot attack your own territory');
   if (!fromTile.adjacentIds.includes(toTileId)) throw new Error('Territories are not adjacent');
+  if (toSt.owner !== null && toSt.owner !== undefined && atPeace(game, slotIdx, toSt.owner)) throw new Error('A signed accord forbids attacking that faction');
   if (!validAttackUnits(committed, toTile)) throw new Error('Those units cannot attack that terrain');
   const weather = game.weather || 'clear';
   if (weather === 'storm' && ((committed.fighter || 0) > 0 || (committed.gunboat || 0) > 0)) throw new Error('The storm grounds all aircraft and gunboats this turn');
@@ -434,6 +463,7 @@ function doAttack(game, slotIdx, fromTileId, toTileId, committed) {
 
   const attSlot = game.factionSlots[slotIdx];
   const defSlot = toSt.owner !== null && toSt.owner !== undefined ? game.factionSlots[toSt.owner] : null;
+  if (defSlot?.isNPC) shiftDisposition(game, toSt.owner, slotIdx, -8);
   const attM = slotMods(attSlot);
   const defM = defSlot ? slotMods(defSlot) : {};
   const capBonus = defSlot && defSlot.capitalTileId === toTileId ? (defM.capitalDefense || 0) : 0;
@@ -618,6 +648,7 @@ function npcTakeTurn(game, slotIdx) {
         const at = tileById(aid);
         const ast = game.territoryStates[aid];
         if (!at || at.isSea || ast.owner === slotIdx) continue;
+        if (ast.owner !== null && ast.owner !== undefined && atPeace(game, slotIdx, ast.owner)) continue;
         const defStrength = Math.max(UNIT_KEYS.reduce((s, k) => s + (ast.units[k] || 0) * (UNITS[k].defense + fortLevel(ast)), 0), 1);
         const ratio = myStrength / defStrength;
         if (ratio < threshold) continue;
@@ -846,11 +877,13 @@ function createBattle(game, slotIdx, army, toTileId) {
   if (!fromTile.adjacentIds.includes(toTileId)) throw new Error('Target zone is not adjacent');
   const st = game.territoryStates[toTileId];
   if (st.owner === slotIdx) throw new Error('Target is friendly — march instead');
+  if (st.owner !== null && st.owner !== undefined && atPeace(game, slotIdx, st.owner)) throw new Error('A signed accord forbids engaging that faction');
 
   const weather = game.weather || 'clear';
   const attSlotObj = game.factionSlots[slotIdx];
   const defSlotIdx = st.owner !== null && st.owner !== undefined ? st.owner : null;
   const defSlotObj = defSlotIdx !== null ? game.factionSlots[defSlotIdx] : null;
+  if (defSlotObj?.isNPC) shiftDisposition(game, defSlotIdx, slotIdx, -8);
 
   // Fold garrison + any enemy field armies on the zone into one defense force
   const defUnits = { ...st.units };
@@ -1105,6 +1138,16 @@ function advanceTurn(game) {
       }
       game.weather = w;
       recordSnapshot(game);
+      // Lapsed accords — hostilities may resume
+      if (game.diplomacy?.relations) {
+        for (const [k, r] of Object.entries(game.diplomacy.relations)) {
+          if (r.until !== null && r.until !== undefined && game.turnNumber >= r.until) {
+            delete game.diplomacy.relations[k];
+            const [a, b] = k.split('-').map(Number);
+            game.combatLog.push({ turn: game.turnNumber, type: 'event', text: `The ${PACT_LABELS[r.status] || 'accord'} between ${game.factionSlots[a]?.factionName} and ${game.factionSlots[b]?.factionName} has lapsed — hostilities may resume.` });
+          }
+        }
+      }
     }
     const slotIdx = game.turnOrder[game.currentTurnIndex];
     const slot = game.factionSlots[slotIdx];
@@ -1311,6 +1354,18 @@ Deno.serve(async (req) => {
         tiles: tilesOut,
         combatLog: game.status === 'complete' ? (game.combatLog || []) : (game.combatLog || []).slice(-30),
         statHistory: game.statHistory || [],
+        diplomacy: mySlot !== null ? {
+          stances: game.factionSlots.filter((s) => s.slotIndex !== mySlot).map((s) => {
+            const rel = relationOf(game, mySlot, s.slotIndex);
+            return {
+              slot: s.slotIndex, factionName: s.factionName, isNPC: s.isNPC, eliminated: s.eliminated, color: s.color,
+              status: rel ? rel.status : 'war', until: rel?.until ?? null,
+              disposition: s.isNPC ? ((s.dispositions || {})[String(mySlot)] ?? 0) : null,
+            };
+          }),
+          incoming: (game.diplomacy?.offers || []).filter((o) => o.to === mySlot),
+          outgoing: (game.diplomacy?.offers || []).filter((o) => o.from === mySlot),
+        } : null,
         winnerSlot: game.winnerSlot,
         winnerName: game.winnerSlot !== undefined && game.winnerSlot !== null ? game.factionSlots?.[game.winnerSlot]?.factionName : null,
       });
@@ -1520,6 +1575,7 @@ Deno.serve(async (req) => {
       combatLog: game.combatLog, activeBattle: game.activeBattle || null,
       lastBattle: game.lastBattle || null,
       battleArchives: game.battleArchives || [],
+      diplomacy: game.diplomacy || null,
       status: game.status, winnerSlot: game.winnerSlot, statHistory: game.statHistory,
     });
 
@@ -1694,11 +1750,13 @@ Deno.serve(async (req) => {
       if (toSt.owner === slotIdx) return Response.json({ error: 'Cannot shell your own territory' }, { status: 400 });
       if (toTile.isSea) return Response.json({ error: 'Artillery cannot shell sea zones' }, { status: 400 });
       if (!fromTile.adjacentIds.includes(toTileId)) return Response.json({ error: 'Target zone is out of range' }, { status: 400 });
+      if (toSt.owner !== null && toSt.owner !== undefined && atPeace(game, slotIdx, toSt.owner)) return Response.json({ error: 'A signed accord forbids shelling that faction' }, { status: 400 });
       if (fromSt.lastBombardTurn === game.turnNumber) return Response.json({ error: 'These guns have already fired this turn' }, { status: 400 });
       const treasury = getTreasury(game, slotIdx);
       if (!canAfford(treasury, { fuel: 1 })) return Response.json({ error: 'Insufficient fuel for a barrage' }, { status: 400 });
       pay(treasury, { fuel: 1 });
       fromSt.lastBombardTurn = game.turnNumber;
+      if (toSt.owner !== null && toSt.owner !== undefined && game.factionSlots[toSt.owner]?.isNPC) shiftDisposition(game, toSt.owner, slotIdx, -5);
       // Each gun rolls — hits on 3 or less. Casualties only; bombardment never captures ground.
       let hits = 0;
       const hitOn = ((game.weather || 'clear') === 'rain' ? 2 : 3) + (elevOf(fromTile) > elevOf(toTile) ? 1 : 0);
@@ -1710,7 +1768,7 @@ Deno.serve(async (req) => {
         turn: game.turnNumber, type: 'event',
         text: `${attName}'s artillery bombards ${toTile.name} — ${destroyed === 0 ? 'the shells fall wide' : `${destroyed} enemy compan${destroyed === 1 ? 'y is' : 'ies are'} destroyed`}.`,
       });
-      await svc.entities.Game.update(game.id, { territoryStates: game.territoryStates, treasuries: game.treasuries, combatLog: game.combatLog });
+      await svc.entities.Game.update(game.id, { territoryStates: game.territoryStates, treasuries: game.treasuries, factionSlots: game.factionSlots, combatLog: game.combatLog });
       return Response.json({ ok: true, destroyed, resources: treasury });
     }
 
@@ -1758,6 +1816,92 @@ Deno.serve(async (req) => {
       return Response.json({ ok: true, intel, resources: treasury });
     }
 
+    // ----- Diplomacy: envoys, accords & the war market -----
+    if (action === 'proposeDiplomacy') {
+      const slotIdx = requireMyTurn();
+      const { targetSlot, kind, give = {}, want = {} } = body;
+      const target = game.factionSlots[targetSlot];
+      if (!target || targetSlot === slotIdx || target.eliminated) return Response.json({ error: 'Invalid faction' }, { status: 400 });
+      if (!['truce', 'nap', 'trade'].includes(kind)) return Response.json({ error: 'Unknown proposal' }, { status: 400 });
+      const dip = getDiplo(game);
+      if (kind !== 'trade' && atPeace(game, slotIdx, targetSlot)) return Response.json({ error: 'An accord already stands with that faction' }, { status: 400 });
+      const lpKey = `${slotIdx}>${targetSlot}`;
+      if (dip.lastProposal[lpKey] === game.turnNumber) return Response.json({ error: 'Your envoy has already called on that faction this turn' }, { status: 400 });
+      if (kind === 'trade') {
+        for (const k of RESOURCE_KEYS) if ((give[k] || 0) < 0 || (want[k] || 0) < 0) return Response.json({ error: 'Invalid terms' }, { status: 400 });
+        if (offerValue(give) === 0 && offerValue(want) === 0) return Response.json({ error: 'The envoy needs terms to carry' }, { status: 400 });
+        if (!canAfford(getTreasury(game, slotIdx), give)) return Response.json({ error: 'You cannot cover what you offer' }, { status: 400 });
+      }
+      dip.lastProposal[lpKey] = game.turnNumber;
+      const myName = game.factionSlots[slotIdx].factionName;
+      const sealAccord = () => {
+        dip.relations[relKey(slotIdx, targetSlot)] = { status: kind, since: game.turnNumber, until: game.turnNumber + PACT_DURATIONS[kind] };
+        game.combatLog.push({ turn: game.turnNumber, type: 'event', text: `${myName} and ${target.factionName} sign a ${PACT_LABELS[kind]} — arms rest until turn ${game.turnNumber + PACT_DURATIONS[kind]}.` });
+      };
+      const executeTrade = () => {
+        const mine = getTreasury(game, slotIdx);
+        const theirs = getTreasury(game, targetSlot);
+        pay(mine, give); pay(theirs, want);
+        for (const k of RESOURCE_KEYS) { mine[k] = (mine[k] || 0) + (want[k] || 0); theirs[k] = (theirs[k] || 0) + (give[k] || 0); }
+        game.combatLog.push({ turn: game.turnNumber, type: 'event', text: `${myName} and ${target.factionName} conclude an exchange of war materiel.` });
+      };
+      const persistDiplo = () => svc.entities.Game.update(game.id, {
+        treasuries: game.treasuries, factionSlots: game.factionSlots, combatLog: game.combatLog, diplomacy: game.diplomacy,
+      });
+      if (target.isNPC) {
+        // NPC envoys weigh the offer against their disposition toward you
+        const d = (target.dispositions || {})[String(slotIdx)] || 0;
+        let accepted;
+        if (kind === 'truce') accepted = d >= -15;
+        else if (kind === 'nap') accepted = d >= 10;
+        else accepted = offerValue(give) > 0 && offerValue(give) >= offerValue(want) * 1.15 && canAfford(getTreasury(game, targetSlot), want);
+        if (accepted) {
+          if (kind === 'trade') executeTrade(); else sealAccord();
+          shiftDisposition(game, targetSlot, slotIdx, kind === 'trade' ? 6 : 10);
+        } else {
+          shiftDisposition(game, targetSlot, slotIdx, -3);
+          game.combatLog.push({ turn: game.turnNumber, type: 'event', text: `${target.factionName} turns ${myName}'s envoy away.` });
+        }
+        await persistDiplo();
+        return Response.json({ ok: true, accepted });
+      }
+      dip.offers.push({ id: genId(), from: slotIdx, to: targetSlot, kind, give, want, turn: game.turnNumber });
+      game.combatLog.push({ turn: game.turnNumber, type: 'event', text: `${myName} dispatches an envoy to ${target.factionName}.` });
+      await persistDiplo();
+      return Response.json({ ok: true, pending: true });
+    }
+
+    if (action === 'respondDiplomacy') {
+      if (game.status !== 'active') return Response.json({ error: 'Game is not active' }, { status: 400 });
+      if (mySlot === null) return Response.json({ error: 'You are not a party to this game' }, { status: 403 });
+      const dip = getDiplo(game);
+      const offer = dip.offers.find((o) => o.id === body.offerId);
+      if (!offer || offer.to !== mySlot) return Response.json({ error: 'Offer not found' }, { status: 404 });
+      dip.offers = dip.offers.filter((o) => o.id !== offer.id);
+      const fromName = game.factionSlots[offer.from].factionName;
+      const myName = game.factionSlots[mySlot].factionName;
+      if (body.accept) {
+        if (offer.kind === 'trade') {
+          const fromT = getTreasury(game, offer.from);
+          const myT = getTreasury(game, mySlot);
+          if (!canAfford(fromT, offer.give) || !canAfford(myT, offer.want)) {
+            await svc.entities.Game.update(game.id, { diplomacy: game.diplomacy });
+            return Response.json({ error: 'One side can no longer cover the exchange — the offer is void' }, { status: 400 });
+          }
+          pay(fromT, offer.give); pay(myT, offer.want);
+          for (const k of RESOURCE_KEYS) { fromT[k] = (fromT[k] || 0) + (offer.want[k] || 0); myT[k] = (myT[k] || 0) + (offer.give[k] || 0); }
+          game.combatLog.push({ turn: game.turnNumber, type: 'event', text: `${myName} and ${fromName} conclude an exchange of war materiel.` });
+        } else {
+          dip.relations[relKey(offer.from, mySlot)] = { status: offer.kind, since: game.turnNumber, until: game.turnNumber + PACT_DURATIONS[offer.kind] };
+          game.combatLog.push({ turn: game.turnNumber, type: 'event', text: `${myName} and ${fromName} sign a ${PACT_LABELS[offer.kind]} — arms rest until turn ${game.turnNumber + PACT_DURATIONS[offer.kind]}.` });
+        }
+      } else {
+        game.combatLog.push({ turn: game.turnNumber, type: 'event', text: `${myName} declines ${fromName}'s proposal.` });
+      }
+      await svc.entities.Game.update(game.id, { treasuries: game.treasuries, combatLog: game.combatLog, diplomacy: game.diplomacy });
+      return Response.json({ ok: true });
+    }
+
     if (action === 'endTurn') {
       requireMyTurn();
       if (game.activeBattle) return Response.json({ error: 'A battle rages — resolve it before ending your turn' }, { status: 400 });
@@ -1768,6 +1912,7 @@ Deno.serve(async (req) => {
         territoryStates: game.territoryStates, factionSlots: game.factionSlots,
         treasuries: game.treasuries, combatLog: game.combatLog,
         currentTurnIndex: game.currentTurnIndex, turnNumber: game.turnNumber, weather: game.weather || 'clear',
+        diplomacy: game.diplomacy || null,
         status: game.status, winnerSlot: game.winnerSlot, statHistory: game.statHistory,
       });
       await logIfComplete();
