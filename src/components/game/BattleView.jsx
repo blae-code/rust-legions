@@ -1,9 +1,28 @@
-import React from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Loader2 } from "lucide-react";
 import BattleForce from "@/components/game/BattleForce";
+import BattleSparks from "@/components/game/BattleSparks";
 import { ALL_MANEUVERS, MANEUVER_KEYS, SIGNATURE_MANEUVERS } from "@/lib/massCombat";
 
 export default function BattleView({ battle, busy, onChoose }) {
+  const [fx, setFx] = useState(0);
+  const [shaking, setShaking] = useState(false);
+  const prevRound = useRef(0);
+
+  // A round resolved — fire sparks and shake the war table
+  useEffect(() => {
+    const r = battle?.round || 0;
+    if (prevRound.current > 0 && r > prevRound.current) setFx(Date.now());
+    prevRound.current = r;
+  }, [battle?.round]);
+
+  useEffect(() => {
+    if (!fx) return;
+    setShaking(true);
+    const t = setTimeout(() => setShaking(false), 550);
+    return () => clearTimeout(t);
+  }, [fx]);
+
   if (!battle) return null;
   const iAmAttacker = battle.myRole === "attacker";
   const mySide = iAmAttacker ? battle.attacker : battle.defender;
@@ -12,8 +31,9 @@ export default function BattleView({ battle, busy, onChoose }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-      <div className="cq-panel cq-brackets w-full max-w-2xl max-h-[92vh] overflow-y-auto p-5 relative">
+      <div className={`cq-panel cq-brackets w-full max-w-2xl max-h-[92vh] overflow-y-auto p-5 relative ${shaking ? "cq-shake" : ""}`}>
         <div className="cq-hazard absolute top-0 left-0 right-0" />
+        <BattleSparks burst={fx} />
         <div className="text-center pt-2 mb-4">
           <p className="cq-label text-rust">Mass Battle — Round {battle.round}</p>
           <h2 className="cq-display text-2xl">The Battle of {battle.tileName}</h2>
