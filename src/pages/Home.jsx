@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import useUser from "@/hooks/useUser";
-import { Shield, Loader2 } from "lucide-react";
-import WarTable25D from "@/components/home/WarTable25D";
+import { Shield, Loader2, Volume2, VolumeX } from "lucide-react";
+import { sfxEnabled, setSfxEnabled } from "@/lib/sfx";
+import StormFront25D from "@/components/home/StormFront25D";
 import BootSequence from "@/components/home/BootSequence";
 import GameMenu from "@/components/home/GameMenu";
 import DossierPanel from "@/components/home/DossierPanel";
@@ -17,6 +18,7 @@ export default function Home() {
   const [games, setGames] = useState(null);
   const [factions, setFactions] = useState(null);
   const [profile, setProfile] = useState(null);
+  const [sound, setSound] = useState(sfxEnabled());
 
   useEffect(() => {
     if (!user) return;
@@ -40,7 +42,7 @@ export default function Home() {
 
   return (
     <div className="relative h-[100dvh] overflow-hidden bg-background">
-      <WarTable25D />
+      <StormFront25D />
       <BootSequence />
       {/* Readability + CRT atmosphere over the 3D table */}
       <div className="absolute inset-0 bg-gradient-to-r from-background/90 via-background/55 to-background/30 pointer-events-none" />
@@ -54,9 +56,18 @@ export default function Home() {
             <Shield className="w-5 h-5" /> Conquest
           </div>
           <div className="hidden md:block"><HudTelemetry /></div>
-          <p className="font-mono text-[10px] text-muted-foreground tracking-widest hidden sm:block cq-flicker">
-            ⁜ SECURE CHANNEL · CMDR {(user?.full_name || user?.email || "").split(" ")[0]?.toUpperCase()} ⁜
-          </p>
+          <div className="flex items-center gap-3">
+            <p className="font-mono text-[10px] text-muted-foreground tracking-widest hidden sm:block cq-flicker">
+              ⁜ SECURE CHANNEL · CMDR {(user?.full_name || user?.email || "").split(" ")[0]?.toUpperCase()} ⁜
+            </p>
+            <button
+              onClick={() => { setSfxEnabled(!sound); setSound(!sound); }}
+              title={sound ? "Mute battlefield audio" : "Enable battlefield audio"}
+              className={`p-1.5 rounded-sm border transition-colors ${sound ? "border-brass/50 text-brass-bright" : "border-border text-muted-foreground"}`}
+            >
+              {sound ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
+            </button>
+          </div>
         </div>
 
         <div className="mt-3">

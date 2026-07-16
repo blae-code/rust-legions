@@ -312,6 +312,85 @@
   100% { transform: translate(28px, -78vh) scale(0.3); opacity: 0; }
 }
 
+/* ---- Storm front: lightning & distant artillery ---- */
+.cq-lightning {
+  mix-blend-mode: screen;
+  opacity: 0;
+  animation: cq-lightning-flicker 1.1s ease-out forwards;
+  pointer-events: none;
+}
+@keyframes cq-lightning-flicker {
+  0% { opacity: 0; }
+  4% { opacity: 1; }
+  10% { opacity: 0.15; }
+  16% { opacity: 0.85; }
+  24% { opacity: 0.1; }
+  32% { opacity: 0.5; }
+  55% { opacity: 0.12; }
+  100% { opacity: 0; }
+}
+
+/* Full-scene glare that momentarily lights the whole front */
+.cq-lightning-glare {
+  background: linear-gradient(180deg, hsl(215 40% 75% / 0.14), transparent 65%);
+  mix-blend-mode: screen;
+  opacity: 0;
+  animation: cq-lightning-flicker 0.9s ease-out forwards;
+  pointer-events: none;
+}
+
+/* Jagged bolt — flashes in then burns out */
+.cq-bolt {
+  opacity: 0;
+  filter: drop-shadow(0 0 6px hsl(210 70% 80%));
+  animation: cq-bolt-flash 0.7s ease-out forwards;
+  pointer-events: none;
+}
+@keyframes cq-bolt-flash {
+  0% { opacity: 0; }
+  5% { opacity: 1; }
+  14% { opacity: 0.2; }
+  22% { opacity: 0.9; }
+  45% { opacity: 0.15; }
+  100% { opacity: 0; }
+}
+
+/* Distant artillery muzzle flash on the horizon */
+.cq-arty-flash {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  margin: -10px 0 0 -10px;
+  border-radius: 9999px;
+  background: radial-gradient(circle, hsl(45 100% 82%) 0%, hsl(30 95% 55%) 40%, transparent 70%);
+  mix-blend-mode: screen;
+  animation: cq-arty-pop 0.55s ease-out forwards;
+  pointer-events: none;
+}
+@keyframes cq-arty-pop {
+  0% { opacity: 1; transform: scale(0.3); }
+  35% { opacity: 0.95; transform: scale(1.2); }
+  100% { opacity: 0; transform: scale(1.9); }
+}
+
+/* Lingering amber glow + smoke bloom where the battery fired */
+.cq-arty-glow {
+  position: absolute;
+  width: 130px;
+  height: 60px;
+  margin: -34px 0 0 -65px;
+  border-radius: 9999px;
+  background: radial-gradient(ellipse, hsl(28 85% 45% / 0.4), transparent 70%);
+  mix-blend-mode: screen;
+  animation: cq-arty-linger 2.4s ease-out forwards;
+  pointer-events: none;
+}
+@keyframes cq-arty-linger {
+  0% { opacity: 0.9; transform: scale(0.6) translateY(0); }
+  40% { opacity: 0.5; transform: scale(1.05) translateY(-6px); }
+  100% { opacity: 0; transform: scale(1.35) translateY(-16px); }
+}
+
 /* Sweeping searchlight cone over the backdrop */
 .cq-searchlight {
   background: conic-gradient(from 190deg at 70% -10%, transparent 0deg, hsl(41 78% 58% / 0.10) 6deg, transparent 14deg);
