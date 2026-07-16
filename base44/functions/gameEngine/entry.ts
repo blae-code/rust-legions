@@ -1429,6 +1429,13 @@ Deno.serve(async (req) => {
           }),
           incoming: (game.diplomacy?.offers || []).filter((o) => o.to === mySlot),
           outgoing: (game.diplomacy?.offers || []).filter((o) => o.from === mySlot),
+          accords: Object.entries(game.diplomacy?.relations || {})
+            .filter(([, r]) => r.until === null || r.until === undefined || game.turnNumber < r.until)
+            .map(([k, r]) => {
+              const [a, b] = k.split('-').map(Number);
+              return { aName: game.factionSlots[a]?.factionName, bName: game.factionSlots[b]?.factionName, status: r.status, since: r.since, until: r.until ?? null };
+            }),
+          trades: [...(game.diplomacy?.tradeLog || [])].slice(-8).reverse(),
         } : null,
         winnerSlot: game.winnerSlot,
         winnerName: game.winnerSlot !== undefined && game.winnerSlot !== null ? game.factionSlots?.[game.winnerSlot]?.factionName : null,
@@ -1955,6 +1962,9 @@ Deno.serve(async (req) => {
         const theirs = getTreasury(game, targetSlot);
         pay(mine, give); pay(theirs, want);
         for (const k of RESOURCE_KEYS) { mine[k] = (mine[k] || 0) + (want[k] || 0); theirs[k] = (theirs[k] || 0) + (give[k] || 0); }
+        dip.tradeLog = dip.tradeLog || [];
+        dip.tradeLog.push({ turn: game.turnNumber, a: myName, b: target.factionName, give, want });
+        if (dip.tradeLog.length > 20) dip.tradeLog.shift();
         game.combatLog.push({ turn: game.turnNumber, type: 'event', text: `${myName} and ${target.factionName} conclude an exchange of war materiel.` });
       };
       const persistDiplo = () => svc.entities.Game.update(game.id, {
@@ -2002,6 +2012,9 @@ Deno.serve(async (req) => {
           }
           pay(fromT, offer.give); pay(myT, offer.want);
           for (const k of RESOURCE_KEYS) { fromT[k] = (fromT[k] || 0) + (offer.want[k] || 0); myT[k] = (myT[k] || 0) + (offer.give[k] || 0); }
+          dip.tradeLog = dip.tradeLog || [];
+          dip.tradeLog.push({ turn: game.turnNumber, a: fromName, b: myName, give: offer.give, want: offer.want });
+          if (dip.tradeLog.length > 20) dip.tradeLog.shift();
           game.combatLog.push({ turn: game.turnNumber, type: 'event', text: `${myName} and ${fromName} conclude an exchange of war materiel.` });
         } else {
           dip.relations[relKey(offer.from, mySlot)] = { status: offer.kind, since: game.turnNumber, until: game.turnNumber + PACT_DURATIONS[offer.kind] };

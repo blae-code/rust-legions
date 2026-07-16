@@ -2,6 +2,7 @@ import React from "react";
 import { X } from "lucide-react";
 import OfferCard from "@/components/game/diplomacy/OfferCard";
 import FactionRelationCard from "@/components/game/diplomacy/FactionRelationCard";
+import AccordsLog from "@/components/game/diplomacy/AccordsLog";
 
 export default function DiplomacyPanel({ open, onClose, game, busy, onAction }) {
   if (!open || !game?.diplomacy) return null;
@@ -42,6 +43,8 @@ export default function DiplomacyPanel({ open, onClose, game, busy, onAction }) 
               outgoing={outgoing.filter((o) => o.to === s.slot)} />
           ))}
         </div>
+
+        <AccordsLog accords={game.diplomacy.accords || []} trades={game.diplomacy.trades || []} turnNumber={game.turnNumber} />
       </div>
     </div>
   );
