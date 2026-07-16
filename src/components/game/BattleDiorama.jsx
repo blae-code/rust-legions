@@ -16,23 +16,41 @@ const spriteList = (units = {}) => {
   return out;
 };
 
+const dominantType = (units = {}) =>
+  Object.keys(units).reduce((best, k) => ((units[k] || 0) > (units[best] || 0) ? k : best), "riflemen");
+
 export default function BattleDiorama({ attacker, defender, fx }) {
   const [firing, setFiring] = useState(false);
   const [booms, setBooms] = useState([]);
+  const [fallen, setFallen] = useState([]);
   const prevLosses = useRef({ a: attacker.losses, d: defender.losses });
 
-  // A round resolved — volley fire, tracers, and explosions where casualties fell
+  // A round resolved — attackers lunge, volley fire, casualties topple where shells land
   useEffect(() => {
     if (!fx) return;
     const lostA = attacker.losses - prevLosses.current.a;
     const lostD = defender.losses - prevLosses.current.d;
     prevLosses.current = { a: attacker.losses, d: defender.losses };
     setFiring(true);
-    const list = [];
-    for (let i = 0; i < Math.min(Math.max(lostA, 0), 3); i++) list.push({ id: `a${fx}${i}`, x: 7 + Math.random() * 26, y: 10 + Math.random() * 32 });
-    for (let i = 0; i < Math.min(Math.max(lostD, 0), 3); i++) list.push({ id: `d${fx}${i}`, x: 66 + Math.random() * 26, y: 10 + Math.random() * 32 });
-    setBooms(list);
-    const t = setTimeout(() => { setFiring(false); setBooms([]); }, 1100);
+    const boomList = [];
+    const fallList = [];
+    const aType = dominantType(attacker.units);
+    const dType = dominantType(defender.units);
+    for (let i = 0; i < Math.min(Math.max(lostA, 0), 3); i++) {
+      const x = 7 + Math.random() * 26;
+      const y = 8 + Math.random() * 26;
+      boomList.push({ id: `a${fx}${i}`, x, y });
+      fallList.push({ id: `fa${fx}${i}`, x, y: y - 2, type: aType, facing: "right", delay: 0.15 + i * 0.12 });
+    }
+    for (let i = 0; i < Math.min(Math.max(lostD, 0), 3); i++) {
+      const x = 66 + Math.random() * 26;
+      const y = 8 + Math.random() * 26;
+      boomList.push({ id: `d${fx}${i}`, x, y });
+      fallList.push({ id: `fd${fx}${i}`, x, y: y - 2, type: dType, facing: "left", delay: 0.15 + i * 0.12 });
+    }
+    setBooms(boomList);
+    setFallen(fallList);
+    const t = setTimeout(() => { setFiring(false); setBooms([]); setFallen([]); }, 1500);
     return () => clearTimeout(t);
   }, [fx]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -54,14 +72,18 @@ export default function BattleDiorama({ attacker, defender, fx }) {
 
       {aSprites.map((k, i) => (
         <div key={`a${i}`} className="absolute" style={spriteStyle(i, k, "a")}>
-          <UnitSprite type={k} facing="right" className="w-8 h-8 opacity-90" />
-          {firing && k !== "fighter" && <div className="cq-muzzle" style={{ position: "absolute", right: -5, top: "36%" }} />}
+          <div className={firing ? "cq-lunge" : undefined} style={firing ? { animationDelay: `${i * 0.07}s` } : undefined}>
+            <UnitSprite type={k} facing="right" className="w-8 h-8 opacity-90" />
+            {firing && k !== "fighter" && <div className="cq-muzzle" style={{ position: "absolute", right: -5, top: "36%" }} />}
+          </div>
         </div>
       ))}
       {dSprites.map((k, i) => (
         <div key={`d${i}`} className="absolute" style={spriteStyle(i, k, "d")}>
-          <UnitSprite type={k} facing="left" className="w-8 h-8 opacity-90" />
-          {firing && k !== "fighter" && <div className="cq-muzzle" style={{ position: "absolute", left: -5, top: "36%" }} />}
+          <div className={firing ? "cq-recoil" : undefined} style={firing ? { animationDelay: `${0.12 + i * 0.07}s` } : undefined}>
+            <UnitSprite type={k} facing="left" className="w-8 h-8 opacity-90" />
+            {firing && k !== "fighter" && <div className="cq-muzzle" style={{ position: "absolute", left: -5, top: "36%" }} />}
+          </div>
         </div>
       ))}
 
@@ -73,6 +95,12 @@ export default function BattleDiorama({ attacker, defender, fx }) {
       ))}
       {booms.map((b) => (
         <div key={b.id} className="cq-boom" style={{ left: `${b.x}%`, bottom: b.y }} />
+      ))}
+      {/* Casualties — silhouettes topple where the shells landed */}
+      {fallen.map((f) => (
+        <div key={f.id} className="absolute cq-fall" style={{ left: `${f.x}%`, bottom: f.y, animationDelay: `${f.delay}s` }}>
+          <UnitSprite type={f.type} facing={f.facing} className="w-8 h-8" />
+        </div>
       ))}
 
       <p className="absolute top-1 left-2 font-mono text-[8px] text-[#C9752E] tracking-[0.25em]">ATTACKER</p>

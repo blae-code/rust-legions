@@ -464,6 +464,38 @@
   100% { left: 12%; opacity: 0; }
 }
 
+/* Attack choreography — attackers surge forward into the volley */
+@keyframes cq-lunge {
+  0% { transform: translateX(0); }
+  25% { transform: translateX(10px); }
+  55% { transform: translateX(6px); }
+  100% { transform: translateX(0); }
+}
+.cq-lunge { animation: cq-lunge 0.9s cubic-bezier(0.3, 0.8, 0.4, 1); }
+
+/* Defenders rock back under fire, then steady to return it */
+@keyframes cq-recoil {
+  0% { transform: translateX(0) rotate(0); }
+  20% { transform: translateX(5px) rotate(4deg); }
+  45% { transform: translateX(2px) rotate(1deg); }
+  70% { transform: translateX(4px) rotate(2.5deg); }
+  100% { transform: translateX(0) rotate(0); }
+}
+.cq-recoil { animation: cq-recoil 0.9s ease-out; }
+
+/* Casualty — the silhouette topples and fades where it stood */
+@keyframes cq-fall {
+  0% { opacity: 0.9; transform: rotate(0) translateY(0); }
+  35% { opacity: 0.85; transform: rotate(62deg) translateY(3px); }
+  70% { opacity: 0.55; transform: rotate(84deg) translateY(7px); }
+  100% { opacity: 0; transform: rotate(88deg) translateY(10px); }
+}
+.cq-fall {
+  animation: cq-fall 1.15s ease-in forwards;
+  transform-origin: 50% 90%;
+  pointer-events: none;
+}
+
 .cq-boom {
   position: absolute;
   width: 26px;
