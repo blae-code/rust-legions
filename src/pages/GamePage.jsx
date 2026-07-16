@@ -81,7 +81,7 @@ export default function GamePage() {
     try {
       const res = await base44.functions.invoke("gameEngine", { gameId, ...payload });
       if (payload.action === "attack" && res.data?.report) setResolution(res.data.report);
-      const sfxMap = { moveUnits: "move", attack: "attack", bombard: "attack", build: "build", purchaseUnits: "purchase", endTurn: "endTurn", musterArmy: "purchase", reinforceArmy: "purchase", moveArmy: "move", battleChoice: "attack", disbandArmy: "move", proposeDiplomacy: "purchase", respondDiplomacy: "purchase", installModule: "build", moveBase: "move" };
+      const sfxMap = { moveUnits: "move", attack: "attack", bombard: "attack", build: "build", purchaseUnits: "purchase", endTurn: "endTurn", musterArmy: "purchase", reinforceArmy: "purchase", moveArmy: "move", battleChoice: "attack", disbandArmy: "move", proposeDiplomacy: "purchase", respondDiplomacy: "purchase", installModule: "build", moveBase: "move", refitVehicle: "build" };
       if (sfxMap[payload.action]) playSfx(sfxMap[payload.action]);
       if ((payload.action === "attack" || payload.action === "bombard") && payload.toTileId) {
         setMapFx({ tileId: payload.toTileId, key: Date.now() });
@@ -300,6 +300,7 @@ export default function GamePage() {
             onEngage={(armyId, toTileId) => act({ action: "moveArmy", armyId, toTileId })}
             onDisband={(armyId) => { act({ action: "disbandArmy", armyId }); setSelectedArmyId(null); }}
             onReinforce={(armyId, regiments) => act({ action: "reinforceArmy", armyId, regiments })}
+            onRefit={(generalId, modKey) => act({ action: "refitVehicle", generalId, modKey })}
           />
           <MusterPanel
             game={game}

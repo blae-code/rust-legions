@@ -4,8 +4,9 @@ import { Swords, MoveRight, Undo2 } from "lucide-react";
 import GeneralBadge from "@/components/game/GeneralBadge";
 import { ARMY_UNIT_KEYS, REGIMENT_LABELS } from "@/lib/massCombat";
 import ReinforceSection from "@/components/game/ReinforceSection";
+import VehicleRefitSection from "@/components/game/VehicleRefitSection";
 
-export default function ArmyPanel({ game, army, busy, onMarch, onEngage, onDisband, onReinforce }) {
+export default function ArmyPanel({ game, army, busy, onMarch, onEngage, onDisband, onReinforce, onRefit }) {
   if (!army) return null;
   const tile = game.tiles.find((t) => t.id === army.tileId);
   const adjacent = (tile?.adjacentIds || [])
@@ -56,6 +57,7 @@ export default function ArmyPanel({ game, army, busy, onMarch, onEngage, onDisba
               </Button>
             );
           })}
+          <VehicleRefitSection game={game} army={army} busy={busy} onRefit={onRefit} />
           {onFriendly && <ReinforceSection game={game} army={army} tile={tile} busy={busy} onReinforce={onReinforce} />}
           {onFriendly && (
             <Button size="sm" variant="ghost" disabled={busy} onClick={() => onDisband(army.id)} className="w-full justify-start text-muted-foreground font-heading text-xs tracking-wide">

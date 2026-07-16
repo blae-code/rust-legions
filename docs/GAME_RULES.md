@@ -265,3 +265,19 @@ One-time treasury purchases via `concurrentPlay.unlockItem`, usable **at any tim
 
 - **Fortress prototypes** (certify a ★ module for the Refit Yard): Citadel Plate 6 St + 2 MP · Juggernaut Reactors 5 St + 4 F · Munitions Works 6 St + 3 F. Certification is separate from (and cheaper than) the later install cost.
 - **Ideology decrees** (bonus applies immediately via slot mods): War Bonds 3 MP + 2 F (+1 Steel income) · Fuel Rationing Act 4 St + 2 MP (+1 Fuel income) · Universal Levy 3 St + 3 MP (+15 army cap) · Hearth & Bulwark 5 St + 2 MP (+1 capital def, +1 rifle def).
+
+## 21. Command Vehicles & Refit Logistics
+
+Every general fights from a **command vehicle** themed to their trait (Butcher: "Mauler" Assault Crawler +10% dmg out · Fox: "Vixen" Scout Autocar +1 skill · Bulwark: "Redoubt" Armored Wagon −10% dmg in · Firebrand: "Clarion" Signal Wagon −15% morale dmg in · Supreme: "Paramount" Command Land-Train +1 skill, −10% morale dmg in). Vehicle stats hook into mass-combat skill, damage and morale math.
+
+**Refit bays** (`gameEngine.refitVehicle`) — more limited than the fortress-base's three bays:
+
+- **Equipment bay** (any vehicle, bolsters the attending army): Quartermaster Rig (−5% dmg in) · Observation Balloon (+1 skill) · Field Hospital Trailer (−10% morale dmg in).
+- **Weapon bay** (trait-locked; the supreme land-train mounts any): Breaker Ram (Butcher, +10% dmg out) · Whisper Battery (Fox, +1 skill) · Bastion Casemate (Bulwark, −10% dmg in) · Thunder Klaxon (Firebrand, +15% morale dmg dealt).
+
+**Refit logistics** (applies to command vehicles AND fortress-base modules) — the larger the unit, the scarcer its refit sites:
+
+- **Command vehicles** refit instantly at any friendly zone with a Barracks or Foundry, or alongside the fortress-base. The vehicle is located with its army, or at the base when the general is unassigned.
+- **Fortress-bases** need heavy **gantry cranes**: a capital or a **level-2 Foundry** only.
+- **Anywhere in supply**: refits arrive by convoy at the start of the owner's next turn, at **25% off** the module cost (economical but slow). One convoy per vehicle bay at a time.
+- **Cut off from supply with no site in reach**: no refits possible.

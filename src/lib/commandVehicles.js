@@ -14,6 +14,22 @@ export const SUPREME_VEHICLE = {
   desc: "The marshal's armored land-train — a mobile general staff, map room and rallying standard in one.",
 };
 
+// Vehicle refit bays — mirrors VEHICLE_MODS in the gameEngine backend.
+// Equipment bolsters the attending army; weapons are themed to the general's vehicle.
+export const VEHICLE_MODS = {
+  quartermaster_rig: { bay: "equipment", label: "Quartermaster Rig", cost: { steel: 3, manpower: 1 }, effect: "−5% damage taken" },
+  observation_balloon: { bay: "equipment", label: "Observation Balloon", cost: { steel: 2, fuel: 2 }, effect: "+1 battle skill" },
+  field_hospital: { bay: "equipment", label: "Field Hospital Trailer", cost: { manpower: 3, steel: 1 }, effect: "−10% morale damage taken" },
+  breaker_ram: { bay: "weapon", trait: "butcher", label: "Breaker Ram", cost: { steel: 4, fuel: 1 }, effect: "+10% damage dealt" },
+  whisper_battery: { bay: "weapon", trait: "fox", label: "Whisper Battery", cost: { steel: 3, fuel: 2 }, effect: "+1 battle skill" },
+  bastion_casemate: { bay: "weapon", trait: "bulwark", label: "Bastion Casemate", cost: { steel: 5 }, effect: "−10% damage taken" },
+  thunder_klaxon: { bay: "weapon", trait: "firebrand", label: "Thunder Klaxon", cost: { steel: 2, fuel: 2, manpower: 1 }, effect: "+15% morale damage dealt" },
+};
+
+// Supply-route refits arrive next turn but run 25% cheaper
+export const convoyCost = (cost = {}) =>
+  Object.fromEntries(Object.entries(cost).map(([k, v]) => [k, Math.ceil(v * 0.75)]));
+
 export function getCommandVehicle(general) {
   if (!general) return null;
   if (general.supreme) return SUPREME_VEHICLE;

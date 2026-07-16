@@ -268,6 +268,26 @@ function effectiveCosts(game, slotIdx) {
 function collectIncome(game, slotIdx) {
   const slot = game.factionSlots[slotIdx];
   ensureBase(game, slot);
+  // Refit convoys arrive at the start of the owner's turn
+  for (const g of slot.generals || []) {
+    if (g.pendingRefit && game.turnNumber >= g.pendingRefit.readyTurn) {
+      g.vehicleMods = g.vehicleMods || {};
+      g.vehicleMods[g.pendingRefit.bay] = g.pendingRefit.modKey;
+      game.combatLog.push({ turn: game.turnNumber, type: 'event', text: `A supply convoy reaches ${g.name}'s command vehicle — ${VEHICLE_MODS[g.pendingRefit.modKey]?.label || 'new fittings'} installed.` });
+      g.pendingRefit = null;
+    }
+  }
+  if (slot.base?.pendingRefits?.length) {
+    const remaining = [];
+    for (const p of slot.base.pendingRefits) {
+      if (game.turnNumber >= p.readyTurn) {
+        slot.base.modules = slot.base.modules || {};
+        slot.base.modules[p.slot] = p.moduleKey;
+        game.combatLog.push({ turn: game.turnNumber, type: 'event', text: `A heavy convoy reaches ${slot.factionName}'s fortress-base — ${BASE_MODULES[p.moduleKey]?.label || 'new fittings'} bolted into the ${p.slot} bay.` });
+      } else remaining.push(p);
+    }
+    slot.base.pendingRefits = remaining;
+  }
   // Out-of-supply attrition — cut-off field armies wither at the start of each turn
   const supplied = computeSupply(game, slotIdx);
   for (const a of [...(game.armies || []).filter((x) => x.owner === slotIdx)]) {
@@ -872,7 +892,55 @@ const COMMAND_VEHICLES = {
   firebrand: { key: 'clarion', label: '"Clarion" Signal Wagon', effect: '−15% morale damage taken', moraleIn: 0.85 },
 };
 const SUPREME_VEHICLE = { key: 'paramount', label: '"Paramount" Command Land-Train', effect: '+1 battle skill · −10% morale damage taken', skill: 1, moraleIn: 0.9 };
-const vehicleOf = (g) => (!g || !g.id ? null : g.supreme ? SUPREME_VEHICLE : COMMAND_VEHICLES[g.trait] || null);
+
+// Vehicle refit bays (mirrors src/lib/commandVehicles.js) — the equipment bay bolsters
+// the attending army; the weapon bay mounts arms themed to the general's vehicle.
+const VEHICLE_MODS = {
+  quartermaster_rig: { bay: 'equipment', label: 'Quartermaster Rig', cost: { steel: 3, manpower: 1 }, dmgIn: 0.95, effect: '−5% damage taken' },
+  observation_balloon: { bay: 'equipment', label: 'Observation Balloon', cost: { steel: 2, fuel: 2 }, skill: 1, effect: '+1 battle skill' },
+  field_hospital: { bay: 'equipment', label: 'Field Hospital Trailer', cost: { manpower: 3, steel: 1 }, moraleIn: 0.9, effect: '−10% morale damage taken' },
+  breaker_ram: { bay: 'weapon', trait: 'butcher', label: 'Breaker Ram', cost: { steel: 4, fuel: 1 }, dmgOut: 1.1, effect: '+10% damage dealt' },
+  whisper_battery: { bay: 'weapon', trait: 'fox', label: 'Whisper Battery', cost: { steel: 3, fuel: 2 }, skill: 1, effect: '+1 battle skill' },
+  bastion_casemate: { bay: 'weapon', trait: 'bulwark', label: 'Bastion Casemate', cost: { steel: 5 }, dmgIn: 0.9, effect: '−10% damage taken' },
+  thunder_klaxon: { bay: 'weapon', trait: 'firebrand', label: 'Thunder Klaxon', cost: { steel: 2, fuel: 2, manpower: 1 }, moraleOut: 1.15, effect: '+15% morale damage dealt' },
+};
+// Supply-route refits take a turn to arrive but run 25% cheaper
+const convoyCost = (cost) => Object.fromEntries(Object.entries(cost).map(([k, v]) => [k, Math.ceil(v * 0.75)]));
+// Refit sites scale with unit size: command vehicles refit at any barracks/foundry
+// (or alongside the fortress-base); the base itself needs heavy gantry cranes —
+// capitals or a level-2 foundry only.
+function vehicleDepotAt(game, slotIdx, tileId) {
+  const st = game.territoryStates[tileId];
+  if (!st || st.owner !== slotIdx) return false;
+  if (game.factionSlots[slotIdx]?.base?.tileId === tileId) return true;
+  return hasBuilding(st, 'barracks') || hasBuilding(st, 'foundry');
+}
+function gantryDepotAt(game, slotIdx, tileId) {
+  const st = game.territoryStates[tileId];
+  if (!st || st.owner !== slotIdx) return false;
+  const tile = game.tiles.find((t) => t.id === tileId);
+  if (tile?.isCapital) return true;
+  return activeBuildings(st).some((b) => b.type === 'foundry' && (b.level || 0) >= 2);
+}
+
+// A general's effective vehicle: the trait chassis plus any bay modifications
+const vehicleOf = (g) => {
+  if (!g || !g.id) return null;
+  const chassis = g.supreme ? SUPREME_VEHICLE : COMMAND_VEHICLES[g.trait] || null;
+  if (!chassis) return null;
+  const v = { ...chassis, mods: [] };
+  for (const key of Object.values(g.vehicleMods || {})) {
+    const m = VEHICLE_MODS[key];
+    if (!m) continue;
+    v.skill = (v.skill || 0) + (m.skill || 0);
+    v.dmgOut = (v.dmgOut || 1) * (m.dmgOut || 1);
+    v.dmgIn = (v.dmgIn || 1) * (m.dmgIn || 1);
+    v.moraleIn = (v.moraleIn || 1) * (m.moraleIn || 1);
+    v.moraleOut = (v.moraleOut || 1) * (m.moraleOut || 1);
+    v.mods.push(m.label);
+  }
+  return v;
+};
 
 // Army veterancy — battles survived harden a field army
 const VETERANCY = [
@@ -1195,7 +1263,7 @@ function resolveBattleRound(game, b) {
     const wLoss = Math.min(Math.round(wTotal * 0.05 * lm.dmgOut * wm.dmgIn * ((lose.design || {}).dmgOut || 1) * ((win.design || {}).dmgIn || 1) * ((lose.vehicle || {}).dmgOut || 1) * ((win.vehicle || {}).dmgIn || 1)), wTotal);
     removeCasualties(win.units, wLoss);
     win.losses += wLoss;
-    lose.morale -= Math.round((10 + 5 * marginDiff) * wm.moraleOut * ((lose.design || {}).moraleIn || 1) * ((lose.vehicle || {}).moraleIn || 1));
+    lose.morale -= Math.round((10 + 5 * marginDiff) * wm.moraleOut * ((win.vehicle || {}).moraleOut || 1) * ((lose.design || {}).moraleIn || 1) * ((lose.vehicle || {}).moraleIn || 1));
     win.morale -= wLoss > 0 ? 4 : 2;
     if (wm.nextBonus) win.nextBonus = wm.nextBonus;
     b.log.push(`R${b.round} — ${win.generalName}'s ${wm.label.toLowerCase()} carries the field: ${lLoss} enemy compan${lLoss === 1 ? 'y' : 'ies'} broken (morale ${Math.max(lose.morale, 0)}).`);
@@ -1414,7 +1482,7 @@ Deno.serve(async (req) => {
         const defOwnerObj = ab.defender.slot !== null && ab.defender.slot !== undefined ? game.factionSlots[ab.defender.slot] : null;
         const myRole = game.factionSlots[ab.attacker.slot]?.userId === user.id ? 'attacker' : defOwnerObj?.userId === user.id ? 'defender' : null;
         if (myRole) {
-          const sideView = (s, fac) => ({ faction: fac, general: s.generalName, strategy: s.strategy, units: s.units, morale: Math.max(s.morale, 0), losses: s.losses, chosen: !!s.choice, signature: s.signature || null, sigCooldown: s.sigCooldown || 0, vetBonus: s.vetBonus || 0, rank: s.rank || null, elevMod: s.elevMod || 0, design: s.design?.name || null, vehicle: s.vehicle ? { label: s.vehicle.label, effect: s.vehicle.effect } : null });
+          const sideView = (s, fac) => ({ faction: fac, general: s.generalName, strategy: s.strategy, units: s.units, morale: Math.max(s.morale, 0), losses: s.losses, chosen: !!s.choice, signature: s.signature || null, sigCooldown: s.sigCooldown || 0, vetBonus: s.vetBonus || 0, rank: s.rank || null, elevMod: s.elevMod || 0, design: s.design?.name || null, vehicle: s.vehicle ? { label: s.vehicle.label, effect: s.vehicle.effect, mods: s.vehicle.mods || [] } : null });
           battle = {
             tileName: ab.tileName, round: ab.round, myRole, terrain: ab.terrain || null, weather: ab.weather || 'clear', terrainBonus: ab.defender.terrainBonus || 0,
             attacker: sideView(ab.attacker, game.factionSlots[ab.attacker.slot]?.factionName),
@@ -1435,6 +1503,7 @@ Deno.serve(async (req) => {
             inSupply: a.owner === mySlot ? mySupplied.has(a.tileId) : undefined,
             design: a.design?.name || null,
             regiments: a.owner === mySlot ? a.regiments : undefined,
+            vehicleDepot: a.owner === mySlot && active ? vehicleDepotAt(game, mySlot, a.tileId) : undefined,
             general: g ? (a.owner === mySlot ? { ...g, traitLabel: traitByKey(g.trait)?.label || null, vehicle: vehicleOf(g) } : { name: g.name }) : null,
           };
         }),
@@ -1483,6 +1552,9 @@ Deno.serve(async (req) => {
           const bt = game.tiles.find((t) => t.id === base.tileId);
           return {
             tileId: base.tileId, tileName: bt?.name || null, modules: base.modules || {},
+            atGantry: gantryDepotAt(game, mySlot, base.tileId),
+            inSupply: mySupplied.has(base.tileId),
+            pendingRefits: base.pendingRefits || [],
             movedThisTurn: base.movedTurn === game.turnNumber,
             defense: 1 + (baseModule(base, 'armor')?.defense || 0),
             income: baseModule(base, 'industry')?.income || null,
@@ -1963,6 +2035,42 @@ Deno.serve(async (req) => {
       return Response.json({ ok: true, intel, resources: treasury });
     }
 
+    // ----- Command vehicle refits: equipment & trait-themed weapons -----
+    if (action === 'refitVehicle') {
+      const slotIdx = requireMyTurn();
+      if (game.activeBattle) return Response.json({ error: 'Resolve the ongoing battle first' }, { status: 400 });
+      const slot = game.factionSlots[slotIdx];
+      const g = (slot.generals || []).find((x) => x.id === body.generalId);
+      if (!g) return Response.json({ error: 'General not found' }, { status: 404 });
+      const mod = VEHICLE_MODS[body.modKey];
+      if (!mod) return Response.json({ error: 'Unknown modification' }, { status: 400 });
+      if (mod.bay === 'weapon' && !g.supreme && mod.trait !== g.trait) return Response.json({ error: "That weapon does not fit this general's vehicle" }, { status: 400 });
+      g.vehicleMods = g.vehicleMods || {};
+      if (g.vehicleMods[mod.bay] === body.modKey) return Response.json({ error: 'That modification is already fitted' }, { status: 400 });
+      if (g.pendingRefit) return Response.json({ error: 'A refit convoy is already en route to this vehicle' }, { status: 400 });
+      // Locate the vehicle — with its army in the field, or at the fortress-base between commands
+      const army = (game.armies || []).find((a) => a.owner === slotIdx && a.generalId === g.id);
+      const tileId = army ? army.tileId : slot.base?.tileId;
+      if (!tileId) return Response.json({ error: "The general's vehicle cannot be reached for refit" }, { status: 400 });
+      const treasury = getTreasury(game, slotIdx);
+      if (vehicleDepotAt(game, slotIdx, tileId)) {
+        if (!canAfford(treasury, mod.cost)) return Response.json({ error: 'Insufficient resources for the refit' }, { status: 400 });
+        pay(treasury, mod.cost);
+        g.vehicleMods[mod.bay] = body.modKey;
+        game.combatLog.push({ turn: game.turnNumber, type: 'event', text: `${g.name}'s command vehicle is refitted at the depot — ${mod.label} fitted to the ${mod.bay} bay.` });
+      } else if (computeSupply(game, slotIdx).has(tileId)) {
+        const cost = convoyCost(mod.cost);
+        if (!canAfford(treasury, cost)) return Response.json({ error: 'Insufficient resources for the refit' }, { status: 400 });
+        pay(treasury, cost);
+        g.pendingRefit = { bay: mod.bay, modKey: body.modKey, readyTurn: game.turnNumber + 1 };
+        game.combatLog.push({ turn: game.turnNumber, type: 'event', text: `A refit convoy departs for ${g.name}'s command vehicle — the ${mod.label} arrives next turn.` });
+      } else {
+        return Response.json({ error: 'No depot in reach and the vehicle is cut off from supply — refits need a barracks, a foundry, the fortress-base, or an open supply route' }, { status: 400 });
+      }
+      await persistWar();
+      return Response.json({ ok: true, resources: treasury });
+    }
+
     // ----- Mobile fortress-base: module refits & the great treads -----
     if (action === 'installModule') {
       const slotIdx = requireMyTurn();
@@ -1974,12 +2082,25 @@ Deno.serve(async (req) => {
       if (mod.unlock && !(slot.unlocks || []).includes(body.moduleKey)) return Response.json({ error: 'That prototype has not been certified by your researchers' }, { status: 400 });
       base.modules = base.modules || {};
       if (base.modules[mod.slot] === body.moduleKey) return Response.json({ error: 'That module is already installed' }, { status: 400 });
+      if ((base.pendingRefits || []).some((p) => p.slot === mod.slot)) return Response.json({ error: 'A convoy is already hauling a module for that bay' }, { status: 400 });
       const treasury = getTreasury(game, slotIdx);
-      if (!canAfford(treasury, mod.cost)) return Response.json({ error: 'Insufficient resources for the refit' }, { status: 400 });
-      pay(treasury, mod.cost);
-      const old = base.modules[mod.slot];
-      base.modules[mod.slot] = body.moduleKey;
-      game.combatLog.push({ turn: game.turnNumber, type: 'event', text: `${slot.factionName}'s fortress-base is refitted — ${mod.label} ${old ? `replaces the ${BASE_MODULES[old]?.label || 'old fittings'}` : `installed in the ${mod.slot} bay`}.` });
+      // Heavy modules need gantry cranes — otherwise they arrive by supply convoy (slower, 25% cheaper)
+      if (gantryDepotAt(game, slotIdx, base.tileId)) {
+        if (!canAfford(treasury, mod.cost)) return Response.json({ error: 'Insufficient resources for the refit' }, { status: 400 });
+        pay(treasury, mod.cost);
+        const old = base.modules[mod.slot];
+        base.modules[mod.slot] = body.moduleKey;
+        game.combatLog.push({ turn: game.turnNumber, type: 'event', text: `${slot.factionName}'s fortress-base is refitted under the gantry cranes — ${mod.label} ${old ? `replaces the ${BASE_MODULES[old]?.label || 'old fittings'}` : `installed in the ${mod.slot} bay`}.` });
+      } else if (computeSupply(game, slotIdx).has(base.tileId)) {
+        const cost = convoyCost(mod.cost);
+        if (!canAfford(treasury, cost)) return Response.json({ error: 'Insufficient resources for the refit' }, { status: 400 });
+        pay(treasury, cost);
+        base.pendingRefits = base.pendingRefits || [];
+        base.pendingRefits.push({ slot: mod.slot, moduleKey: body.moduleKey, readyTurn: game.turnNumber + 1 });
+        game.combatLog.push({ turn: game.turnNumber, type: 'event', text: `${slot.factionName} dispatches a heavy convoy — the ${mod.label} will reach the fortress-base next turn.` });
+      } else {
+        return Response.json({ error: 'No gantry cranes here and the base is cut off from supply — refits require a capital, a level-2 Foundry, or an open supply route' }, { status: 400 });
+      }
       await svc.entities.Game.update(game.id, { factionSlots: game.factionSlots, treasuries: game.treasuries, combatLog: game.combatLog });
       return Response.json({ ok: true, resources: treasury });
     }

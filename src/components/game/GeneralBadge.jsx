@@ -5,7 +5,7 @@ import { getCommandVehicle } from "@/lib/commandVehicles";
 
 export default function GeneralBadge({ general }) {
   if (!general) return null;
-  const vehicle = getCommandVehicle(general);
+  const vehicle = general.vehicle || getCommandVehicle(general);
   return (
     <div className="flex items-center gap-2 border border-brass/40 rounded-sm bg-secondary/40 px-2 py-1.5">
       <GeneralPortrait general={general} size={36} />
@@ -23,9 +23,12 @@ export default function GeneralBadge({ general }) {
           </p>
         )}
         {vehicle && (
-          <p className="font-mono text-[9px] text-brass/80 truncate cursor-help" title={`${vehicle.desc} — ${vehicle.effect}`}>
-            {vehicle.icon} {vehicle.label} <span className="text-muted-foreground">({vehicle.effect})</span>
+          <p className="font-mono text-[9px] text-brass/80 truncate cursor-help" title={`${vehicle.desc || vehicle.label} — ${vehicle.effect}`}>
+            {vehicle.icon || "⚙"} {vehicle.label} <span className="text-muted-foreground">({vehicle.effect})</span>
           </p>
+        )}
+        {(vehicle?.mods || []).length > 0 && (
+          <p className="font-mono text-[9px] text-olive truncate">🔧 {vehicle.mods.join(" · ")}</p>
         )}
         {(general.medals || []).length > 0 && (
           <p className="flex gap-1 mt-0.5">

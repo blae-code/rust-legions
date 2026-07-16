@@ -12,9 +12,12 @@ export default function RefitYard({ open, onClose, base, game, busy, onAction })
   if (!open || !base) return null;
 
   const changed = Object.keys(MODULE_SLOTS).filter((f) => pending[f] && pending[f] !== (base.modules?.[f] || null));
+  // No gantry cranes on site — modules come by heavy convoy: next turn, 25% cheaper
+  const byConvoy = !base.atGantry;
+  const cutOff = byConvoy && base.inSupply === false;
   const totalCost = {};
   for (const f of changed) {
-    for (const [k, v] of Object.entries(BASE_MODULES[pending[f]].cost)) totalCost[k] = (totalCost[k] || 0) + v;
+    for (const [k, v] of Object.entries(BASE_MODULES[pending[f]].cost)) totalCost[k] = (totalCost[k] || 0) + (byConvoy ? Math.ceil(v * 0.75) : v);
   }
   const affordable = RESOURCE_KEYS.every((k) => (game.myResources?.[k] || 0) >= (totalCost[k] || 0));
 
@@ -36,6 +39,18 @@ export default function RefitYard({ open, onClose, base, game, busy, onAction })
           <p className="font-mono text-[9px] text-muted-foreground tracking-widest mt-1">
             STATIONED AT {base.tileName?.toUpperCase()} · SELECT MODULES, REVIEW THE HULL READOUT, COMMISSION THE REFIT
           </p>
+          <p className={`font-mono text-[9px] tracking-widest mt-1 ${cutOff ? "text-rust" : byConvoy ? "text-brass" : "text-olive"}`}>
+            {base.atGantry
+              ? "⛭ GANTRY CRANES ON SITE — MODULES FITTED IMMEDIATELY"
+              : cutOff
+              ? "⚠ NO GANTRY CRANES AND CUT OFF FROM SUPPLY — REFITS IMPOSSIBLE HERE"
+              : "🚚 NO GANTRY CRANES HERE — MODULES ARRIVE BY HEAVY CONVOY NEXT TURN (25% CHEAPER)"}
+          </p>
+          {(base.pendingRefits || []).map((p) => (
+            <p key={p.slot} className="font-mono text-[9px] text-brass tracking-widest mt-0.5">
+              🚚 CONVOY EN ROUTE — {BASE_MODULES[p.moduleKey]?.label?.toUpperCase()} ({p.slot.toUpperCase()} BAY)
+            </p>
+          ))}
         </div>
 
         <StatReadout current={computeBaseStats(base.modules)} preview={computeBaseStats(pending)} />
@@ -61,7 +76,7 @@ export default function RefitYard({ open, onClose, base, game, busy, onAction })
             )}
           </div>
           <button
-            disabled={busy || !game.isMyTurn || changed.length === 0 || !affordable}
+            disabled={busy || !game.isMyTurn || changed.length === 0 || !affordable || cutOff}
             onClick={commission}
             className="cq-metal font-heading uppercase tracking-[0.2em] text-xs px-4 py-2 rounded-sm border border-brass/60 text-brass-bright hover:border-brass disabled:opacity-40 disabled:pointer-events-none transition-colors">
             {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin inline" /> : "Commission Refit"}
