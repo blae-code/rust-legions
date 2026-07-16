@@ -1,7 +1,11 @@
-// Synthesized storm-front ambience — rolling thunder & distant artillery (Web Audio, no assets)
+// Ambient war-front score — a slow, dark drone with a wind bed (Web Audio, no assets).
+// Replaces the old thunder/artillery one-shots: sustained tones synthesize convincingly,
+// percussive booms do not.
 import { sfxEnabled } from "@/lib/sfx";
 
 let ctx = null;
+let score = null;
+
 const ac = () => {
   if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
   return ctx;
@@ -11,91 +15,95 @@ const ac = () => {
 export function unlockAmbience() {
   try {
     const c = ac();
-    if (c.state === "suspended") c.resume();
+    if (c.state === "suspended") c.resume().then(() => startScore());
+    else startScore();
   } catch { /* audio unavailable */ }
 }
 
-const ready = () => {
-  if (!sfxEnabled()) return null;
-  try {
-    const c = ac();
-    return c.state === "running" ? c : null;
-  } catch {
-    return null;
-  }
-};
-
-const noiseBuffer = (c, seconds) => {
-  const buf = c.createBuffer(1, c.sampleRate * seconds, c.sampleRate);
+const loopedNoise = (c) => {
+  const buf = c.createBuffer(1, c.sampleRate * 4, c.sampleRate);
   const data = buf.getChannelData(0);
   for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
-  return buf;
+  const src = c.createBufferSource();
+  src.buffer = buf;
+  src.loop = true;
+  return src;
 };
 
-// Long rolling thunder — filtered noise with a crack, a body swell, and a dying rumble
-export function playThunder(delay = 1.2) {
-  const c = ready();
-  if (!c) return;
-  const t = c.currentTime + delay;
-  const dur = 3.5 + Math.random() * 2;
+// Start the continuous menu score (idempotent)
+export function startScore() {
+  try {
+    if (score || !sfxEnabled()) return;
+    const c = ac();
+    if (c.state !== "running") return;
+    const t = c.currentTime;
 
-  const src = c.createBufferSource();
-  src.buffer = noiseBuffer(c, dur + 0.2);
-  const lp = c.createBiquadFilter();
-  lp.type = "lowpass";
-  lp.frequency.setValueAtTime(340, t);
-  lp.frequency.exponentialRampToValueAtTime(55, t + dur);
-  const g = c.createGain();
-  g.gain.setValueAtTime(0.0001, t);
-  g.gain.exponentialRampToValueAtTime(0.11, t + 0.08); // initial crack
-  g.gain.exponentialRampToValueAtTime(0.035, t + 0.6);
-  g.gain.exponentialRampToValueAtTime(0.08, t + 1.1 + Math.random()); // rolling swell
-  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  src.connect(lp).connect(g).connect(c.destination);
-  src.start(t);
-  src.stop(t + dur + 0.2);
+    const master = c.createGain();
+    master.gain.setValueAtTime(0.0001, t);
+    master.gain.exponentialRampToValueAtTime(0.07, t + 5); // slow fade-in
+    master.connect(c.destination);
 
-  // Sub-bass body under the roll
-  const osc = c.createOscillator();
-  osc.type = "sine";
-  osc.frequency.setValueAtTime(50, t);
-  osc.frequency.exponentialRampToValueAtTime(26, t + dur * 0.8);
-  const og = c.createGain();
-  og.gain.setValueAtTime(0.0001, t);
-  og.gain.exponentialRampToValueAtTime(0.05, t + 0.15);
-  og.gain.exponentialRampToValueAtTime(0.0001, t + dur * 0.8);
-  osc.connect(og).connect(c.destination);
-  osc.start(t);
-  osc.stop(t + dur);
+    const nodes = [master];
+
+    // Dark drone — root, fifth, and a detuned octave breathing against each other
+    const voices = [
+      { freq: 55, type: "sine", gain: 0.5 },      // A1 root
+      { freq: 82.4, type: "sine", gain: 0.3 },    // E2 fifth
+      { freq: 110.4, type: "triangle", gain: 0.12 }, // detuned octave shimmer
+    ];
+    for (const v of voices) {
+      const osc = c.createOscillator();
+      osc.type = v.type;
+      osc.frequency.value = v.freq;
+      const g = c.createGain();
+      g.gain.value = v.gain;
+      // Very slow breathing on each voice, offset so the chord never sits still
+      const lfo = c.createOscillator();
+      lfo.frequency.value = 0.03 + Math.random() * 0.04;
+      const lfoG = c.createGain();
+      lfoG.gain.value = v.gain * 0.35;
+      lfo.connect(lfoG).connect(g.gain);
+      osc.connect(g).connect(master);
+      osc.start(t);
+      lfo.start(t);
+      nodes.push(osc, lfo);
+    }
+
+    // Wind bed — band-limited noise, swelling gently
+    const wind = loopedNoise(c);
+    const bp = c.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.frequency.value = 420;
+    bp.Q.value = 0.6;
+    const wg = c.createGain();
+    wg.gain.value = 0.05;
+    const windLfo = c.createOscillator();
+    windLfo.frequency.value = 0.07;
+    const windLfoG = c.createGain();
+    windLfoG.gain.value = 0.028;
+    windLfo.connect(windLfoG).connect(wg.gain);
+    wind.connect(bp).connect(wg).connect(master);
+    wind.start(t);
+    windLfo.start(t);
+    nodes.push(wind, windLfo);
+
+    score = { master, nodes };
+  } catch { /* audio unavailable */ }
 }
 
-// Distant artillery — muffled concussive thump carried on the wind
-export function playArtillery(delay = 0.2) {
-  const c = ready();
-  if (!c) return;
-  const t = c.currentTime + delay;
-
-  const src = c.createBufferSource();
-  src.buffer = noiseBuffer(c, 1.4);
-  const lp = c.createBiquadFilter();
-  lp.type = "lowpass";
-  lp.frequency.setValueAtTime(240, t);
-  lp.frequency.exponentialRampToValueAtTime(45, t + 1.1);
-  const g = c.createGain();
-  g.gain.setValueAtTime(0.055, t);
-  g.gain.exponentialRampToValueAtTime(0.0001, t + 1.2);
-  src.connect(lp).connect(g).connect(c.destination);
-  src.start(t);
-  src.stop(t + 1.4);
-
-  const osc = c.createOscillator();
-  osc.type = "sine";
-  osc.frequency.setValueAtTime(58, t);
-  osc.frequency.exponentialRampToValueAtTime(24, t + 0.9);
-  const og = c.createGain();
-  og.gain.setValueAtTime(0.05, t);
-  og.gain.exponentialRampToValueAtTime(0.0001, t + 0.95);
-  osc.connect(og).connect(c.destination);
-  osc.start(t);
-  osc.stop(t + 1);
+// Fade out and tear down the score
+export function stopScore() {
+  if (!score) return;
+  try {
+    const c = ac();
+    const t = c.currentTime;
+    score.master.gain.cancelScheduledValues(t);
+    score.master.gain.setValueAtTime(Math.max(score.master.gain.value, 0.0001), t);
+    score.master.gain.exponentialRampToValueAtTime(0.0001, t + 1.2);
+    const nodes = score.nodes;
+    setTimeout(() => {
+      for (const n of nodes) { try { n.stop?.(); } catch { /* already stopped */ } try { n.disconnect(); } catch { /* detached */ } }
+    }, 1400);
+  } catch { /* audio unavailable */ }
+  score = null;
 }

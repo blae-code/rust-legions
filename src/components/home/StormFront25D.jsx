@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from "react";
-import { playThunder, playArtillery, unlockAmbience } from "@/lib/ambience";
+import { unlockAmbience, startScore, stopScore } from "@/lib/ambience";
 import BackdropReel from "@/components/home/BackdropReel";
 
 // The war-front reel playlist — clips play in sequence with a crossfade,
@@ -99,14 +99,17 @@ export default function StormFront25D() {
     };
   }, []);
 
-  // Unlock audio on the first user gesture (browser autoplay policy)
+  // Unlock audio on the first user gesture (browser autoplay policy) and start the score;
+  // fade it out when the front leaves the screen
   useEffect(() => {
+    startScore();
     const unlock = () => unlockAmbience();
     window.addEventListener("pointerdown", unlock);
     window.addEventListener("keydown", unlock);
     return () => {
       window.removeEventListener("pointerdown", unlock);
       window.removeEventListener("keydown", unlock);
+      stopScore();
     };
   }, []);
 
@@ -119,7 +122,6 @@ export default function StormFront25D() {
         if (!alive) return;
         const x = 10 + Math.random() * 78;
         setStrike({ x, bolt: Math.random() < 0.55, key: Date.now() });
-        playThunder(0.9 + Math.random() * 2);
         schedule(false);
       }, first ? 2500 + Math.random() * 3000 : 6000 + Math.random() * 10000);
     };
@@ -136,7 +138,6 @@ export default function StormFront25D() {
         if (!alive) return;
         const [x, y] = GUN_POSTS[Math.floor(Math.random() * GUN_POSTS.length)];
         setShot({ x: x + (Math.random() * 4 - 2), y, key: Date.now() });
-        playArtillery(0.25 + Math.random() * 0.5);
         schedule(false);
       }, first ? 1500 + Math.random() * 2000 : 3500 + Math.random() * 6500);
     };
