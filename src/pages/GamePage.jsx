@@ -4,7 +4,7 @@ import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Loader2, Volume2, VolumeX } from "lucide-react";
 import { playSfx, sfxEnabled, setSfxEnabled } from "@/lib/sfx";
-import HexBoard from "@/components/hexmap/HexBoard";
+import HexBoard3D from "@/components/hexmap3d/HexBoard3D";
 import TilePanel from "@/components/game/TilePanel";
 import PurchasePanel from "@/components/game/PurchasePanel";
 import CombatLog from "@/components/game/CombatLog";
@@ -176,7 +176,7 @@ export default function GamePage() {
               <div className="px-2 pb-2">
                 <OverlayToggle overlay={overlay} onChange={setOverlay} factions={game.factions} />
               </div>
-              <HexBoard
+              <HexBoard3D
                 tiles={game.tiles}
                 slotColors={slotColors}
                 selectedId={selectedId}
