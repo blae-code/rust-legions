@@ -161,6 +161,10 @@ function armyPoints(game, slotIdx) {
     if (st.owner !== slotIdx) continue;
     for (const k of UNIT_KEYS) pts += (st.units[k] || 0) * UNITS[k].points;
   }
+  for (const a of game.armies || []) {
+    if (a.owner !== slotIdx) continue;
+    for (const k of UNIT_KEYS) pts += (a.regiments[k] || 0) * UNITS[k].points;
+  }
   return pts;
 }
 
@@ -224,6 +228,7 @@ function checkEliminations(game) {
   for (const slot of game.factionSlots) {
     if (!slot.eliminated && ownedTiles(game, slot.slotIndex).length === 0) {
       slot.eliminated = true;
+      game.armies = (game.armies || []).filter((a) => a.owner !== slot.slotIndex);
       game.combatLog.push({ turn: game.turnNumber, type: 'event', text: `${slot.factionName} has been eliminated.` });
     }
   }
@@ -339,6 +344,12 @@ function doAttack(game, slotIdx, fromTileId, toTileId, committed) {
     if ((committed[k] || 0) > (fromSt.units[k] || 0)) throw new Error('Not enough units');
   }
   if (totalUnits(committed) === 0) throw new Error('No units committed');
+
+  // Enemy field armies stationed on the target reinforce its defense
+  for (const a of (game.armies || []).filter((a) => a.tileId === toTileId && a.owner !== slotIdx)) {
+    for (const k of UNIT_KEYS) toSt.units[k] = (toSt.units[k] || 0) + (a.regiments[k] || 0);
+  }
+  game.armies = (game.armies || []).filter((a) => !(a.tileId === toTileId && a.owner !== slotIdx));
 
   for (const k of UNIT_KEYS) fromSt.units[k] = (fromSt.units[k] || 0) - (committed[k] || 0);
 
@@ -554,6 +565,236 @@ function npcTakeTurn(game, slotIdx) {
   }
 }
 
+// ---------- Generals & field armies (GURPS-style mass combat) ----------
+const GENERAL_FIRST = ['Aldric', 'Vessa', 'Korin', 'Maren', 'Dain', 'Ottil', 'Ryske', 'Halvar', 'Ingrid', 'Casmir', 'Petra', 'Emeric'];
+const GENERAL_LAST = ['Vance', 'Odt', 'Krael', 'Morvane', 'Stahl', 'Redgrave', 'Voss', 'Harrow', 'Calder', 'Brandt'];
+const DOCTRINE_EPITHET = { aggressive: 'the Unrelenting', economic: 'the Provisioner', defensive: 'the Unbroken' };
+const RECRUIT_GENERAL_COST = { manpower: 4 };
+const ARMY_UNIT_KEYS = ['riflemen', 'crawler', 'fighter'];
+const ARMY_ORDINALS = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th'];
+const d3 = () => 1 + Math.floor(Math.random() * 3);
+const roll3d6 = () => roll() + roll() + roll();
+const genId = () => Math.random().toString(36).slice(2, 10);
+const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+const forcePoints = (u = {}) => UNIT_KEYS.reduce((s, k) => s + (u[k] || 0) * UNITS[k].points, 0);
+
+const MANEUVERS = {
+  all_out_attack: { label: 'All-Out Attack', skill: -2, dmgOut: 1.6, dmgIn: 1.5, moraleOut: 1.3 },
+  attack: { label: 'Attack', skill: 0, dmgOut: 1.0, dmgIn: 1.0, moraleOut: 1.0 },
+  defend: { label: 'Hold the Line', skill: 2, dmgOut: 0.5, dmgIn: 0.6, moraleOut: 0.7 },
+  flank: { label: 'Flanking Maneuver', skill: -1, dmgOut: 1.3, dmgIn: 0.8, moraleOut: 1.5 },
+  feint: { label: 'Feint', skill: 1, dmgOut: 0.3, dmgIn: 0.7, moraleOut: 0.8, nextBonus: 2 },
+  rally: { label: 'Rally the Ranks', skill: 0, dmgOut: 0.2, dmgIn: 0.9, moraleOut: 0.5, rally: 20 },
+};
+
+function supremeCommander(slot) {
+  const bonus = { aggressive: { strategy: 2, leadership: 0 }, economic: { strategy: 0, leadership: 2 }, defensive: { strategy: 1, leadership: 1 } }[slot.doctrine] || { strategy: 1, leadership: 1 };
+  return {
+    id: genId(), name: `Marshal ${pick(GENERAL_FIRST)} ${pick(GENERAL_LAST)}`,
+    epithet: DOCTRINE_EPITHET[slot.doctrine] || 'the Steadfast',
+    strategy: 10 + bonus.strategy, leadership: 10 + bonus.leadership, supreme: true,
+  };
+}
+
+function randomGeneral() {
+  return { id: genId(), name: `Gen. ${pick(GENERAL_FIRST)} ${pick(GENERAL_LAST)}`, epithet: null, strategy: 6 + d3() + d3(), leadership: 6 + d3() + d3(), supreme: false };
+}
+
+function freeGenerals(game, slot) {
+  const commanding = new Set((game.armies || []).map((a) => a.generalId));
+  return (slot.generals || []).filter((g) => !commanding.has(g.id));
+}
+
+function generalFate(game, armyLike) {
+  const slot = game.factionSlots[armyLike.owner];
+  const g = (slot.generals || []).find((x) => x.id === armyLike.generalId);
+  if (!g || g.supreme) return;
+  if (Math.random() < 0.5) {
+    slot.generals = slot.generals.filter((x) => x.id !== g.id);
+    game.combatLog.push({ turn: game.turnNumber, type: 'event', text: `${g.name} fell with the ${armyLike.name || 'field army'}.` });
+  }
+}
+
+function aiManeuver(side, doctrine = 'defensive') {
+  if (side.morale < 35 && Math.random() < 0.5) return 'rally';
+  const table = {
+    aggressive: ['all_out_attack', 'attack', 'flank', 'attack'],
+    economic: ['defend', 'feint', 'attack', 'defend'],
+    defensive: ['defend', 'defend', 'rally', 'attack'],
+  };
+  return pick(table[doctrine] || table.defensive);
+}
+
+function defenderIsLive(game, defSlotObj) {
+  if (!defSlotObj || defSlotObj.isNPC || !defSlotObj.userId) return false;
+  const seen = Date.parse((game.lastSeen || {})[defSlotObj.userId] || '') || 0;
+  return Date.now() - seen < 60000;
+}
+
+// Returns { battle: true } or { captured: true } for an unopposed march
+function createBattle(game, slotIdx, army, toTileId) {
+  const fromTile = game.tiles.find((t) => t.id === army.tileId);
+  const toTile = game.tiles.find((t) => t.id === toTileId);
+  if (!toTile || !fromTile) throw new Error('Invalid target');
+  if (toTile.isSea) throw new Error('Field armies cannot enter sea zones');
+  if (!fromTile.adjacentIds.includes(toTileId)) throw new Error('Target zone is not adjacent');
+  const st = game.territoryStates[toTileId];
+  if (st.owner === slotIdx) throw new Error('Target is friendly — march instead');
+
+  const attSlotObj = game.factionSlots[slotIdx];
+  const defSlotIdx = st.owner !== null && st.owner !== undefined ? st.owner : null;
+  const defSlotObj = defSlotIdx !== null ? game.factionSlots[defSlotIdx] : null;
+
+  // Fold garrison + any enemy field armies on the zone into one defense force
+  const defUnits = { ...st.units };
+  let defGeneral = null;
+  const absorbed = [];
+  for (const a of (game.armies || []).filter((a) => a.tileId === toTileId && a.owner !== slotIdx)) {
+    for (const k of ARMY_UNIT_KEYS) defUnits[k] = (defUnits[k] || 0) + (a.regiments[k] || 0);
+    const g = (game.factionSlots[a.owner].generals || []).find((x) => x.id === a.generalId);
+    if (g && (!defGeneral || g.strategy > defGeneral.strategy)) defGeneral = g;
+    absorbed.push({ owner: a.owner, generalId: a.generalId, name: a.name, id: a.id });
+  }
+
+  // Unopposed march — capture without a battle
+  if (totalUnits(defUnits) === 0) {
+    st.owner = slotIdx;
+    st.units = {};
+    army.tileId = toTileId;
+    game.combatLog.push({
+      turn: game.turnNumber, type: 'capture', faction: attSlotObj.factionName, tileName: toTile.name,
+      from: defSlotObj ? defSlotObj.factionName : 'Neutral garrison',
+      resource: TERRAIN_RESOURCE[toTile.terrain] || 'manpower', amount: toTile.baseIncome || 1,
+      bonus: toTile.resourceBonus || null,
+      buildings: (st.buildings || []).filter((b) => (b.level || 0) > 0).map((b) => b.type),
+      isCapital: !!toTile.isCapital,
+    });
+    checkEliminations(game); checkWin(game); checkCampaignWin(game);
+    return { captured: true };
+  }
+
+  const attGeneral = (attSlotObj.generals || []).find((g) => g.id === army.generalId) || { name: 'Field Officer', strategy: 9, leadership: 9 };
+  const capBonus = defSlotObj && defSlotObj.capitalTileId === toTileId ? (slotMods(defSlotObj).capitalDefense || 0) : 0;
+
+  game.activeBattle = {
+    id: genId(), tileId: toTileId, tileName: toTile.name, fromTileId: army.tileId,
+    attacker: {
+      slot: slotIdx, armyId: army.id, armyName: army.name, generalName: attGeneral.name,
+      strategy: attGeneral.strategy, units: { ...army.regiments }, morale: 100, choice: null, nextBonus: 0, losses: 0,
+    },
+    defender: {
+      slot: defSlotIdx, absorbedArmies: absorbed,
+      generalName: defGeneral ? defGeneral.name : 'Garrison Commander',
+      strategy: defGeneral ? defGeneral.strategy : 9,
+      units: defUnits, morale: 100, fortBonus: fortLevel(st) + capBonus,
+      choice: null, nextBonus: 0, losses: 0,
+      interactive: defenderIsLive(game, defSlotObj),
+    },
+    round: 1,
+    log: [`The ${army.name} under ${attGeneral.name} engages at ${toTile.name}.`],
+  };
+  // Defenders are committed to the battle; the zone stands empty until it resolves
+  game.armies = (game.armies || []).filter((a) => !absorbed.some((x) => x.id === a.id));
+  st.units = {};
+  game.combatLog.push({ turn: game.turnNumber, type: 'event', text: `Mass battle joined at ${toTile.name}.` });
+  return { battle: true };
+}
+
+function battleSkill(side, other) {
+  const m = MANEUVERS[side.choice];
+  const ratio = Math.max(forcePoints(side.units), 1) / Math.max(forcePoints(other.units), 1);
+  const strengthMod = Math.max(Math.min(Math.round(Math.log2(ratio) * 2), 4), -4);
+  return side.strategy + m.skill + strengthMod + (side.fortBonus || 0) + (side.nextBonus || 0);
+}
+
+function finishBattle(game, b, attackerWon) {
+  const st = game.territoryStates[b.tileId];
+  const toTile = game.tiles.find((t) => t.id === b.tileId);
+  const attSlotObj = game.factionSlots[b.attacker.slot];
+  const defSlotObj = b.defender.slot !== null ? game.factionSlots[b.defender.slot] : null;
+  const army = (game.armies || []).find((a) => a.id === b.attacker.armyId);
+  let outcome;
+  if (attackerWon) {
+    st.owner = b.attacker.slot;
+    st.units = {};
+    if (army) { army.tileId = b.tileId; army.regiments = b.attacker.units; }
+    for (const dead of b.defender.absorbedArmies || []) generalFate(game, dead);
+    outcome = 'captured';
+    game.combatLog.push({
+      turn: game.turnNumber, type: 'capture', faction: attSlotObj.factionName, tileName: b.tileName,
+      from: defSlotObj ? defSlotObj.factionName : 'Neutral garrison',
+      resource: TERRAIN_RESOURCE[toTile?.terrain] || 'manpower', amount: toTile?.baseIncome || 1,
+      bonus: toTile?.resourceBonus || null,
+      buildings: (st.buildings || []).filter((x) => (x.level || 0) > 0).map((x) => x.type),
+      isCapital: !!toTile?.isCapital,
+    });
+  } else {
+    st.units = b.defender.units; // survivors garrison the zone
+    if (totalUnits(b.attacker.units) > 0 && army) {
+      army.regiments = b.attacker.units; // routed survivors fall back to the staging zone
+      outcome = 'retreated';
+    } else {
+      if (army) { game.armies = game.armies.filter((a) => a.id !== army.id); generalFate(game, army); }
+      outcome = 'repelled';
+    }
+  }
+  game.combatLog.push({
+    turn: game.turnNumber, type: 'combat', attacker: attSlotObj.factionName,
+    defender: defSlotObj ? defSlotObj.factionName : 'Neutral garrison',
+    tileName: b.tileName, rounds: b.round - 1, attLosses: b.attacker.losses, defLosses: b.defender.losses, outcome,
+  });
+  game.activeBattle = null;
+  checkEliminations(game); checkWin(game); checkCampaignWin(game);
+}
+
+function resolveBattleRound(game, b) {
+  const A = b.attacker, D = b.defender;
+  const aMargin = battleSkill(A, D) - roll3d6();
+  const dMargin = battleSkill(D, A) - roll3d6();
+  A.nextBonus = 0; D.nextBonus = 0;
+  for (const s of [A, D]) {
+    const m = MANEUVERS[s.choice];
+    if (m.rally) s.morale = Math.min(s.morale + m.rally, 100);
+  }
+  if (aMargin === dMargin) {
+    for (const s of [A, D]) {
+      const t = totalUnits(s.units);
+      const l = Math.min(Math.round(t * 0.05), t);
+      removeCasualties(s.units, l);
+      s.losses += l;
+      s.morale -= 4;
+    }
+    b.log.push(`R${b.round} — The lines grind together; neither commander finds an opening.`);
+  } else {
+    const win = aMargin > dMargin ? A : D;
+    const lose = win === A ? D : A;
+    const marginDiff = Math.min(Math.abs(aMargin - dMargin), 6);
+    const wm = MANEUVERS[win.choice], lm = MANEUVERS[lose.choice];
+    const lTotal = totalUnits(lose.units);
+    const lLoss = Math.min(Math.max(Math.round(lTotal * Math.min(0.07 + 0.06 * marginDiff, 0.45) * wm.dmgOut * lm.dmgIn), 1), lTotal);
+    removeCasualties(lose.units, lLoss);
+    lose.losses += lLoss;
+    const wTotal = totalUnits(win.units);
+    const wLoss = Math.min(Math.round(wTotal * 0.05 * lm.dmgOut * wm.dmgIn), wTotal);
+    removeCasualties(win.units, wLoss);
+    win.losses += wLoss;
+    lose.morale -= Math.round((10 + 5 * marginDiff) * wm.moraleOut);
+    win.morale -= wLoss > 0 ? 4 : 2;
+    if (wm.nextBonus) win.nextBonus = wm.nextBonus;
+    b.log.push(`R${b.round} — ${win.generalName}'s ${wm.label.toLowerCase()} carries the field: ${lLoss} enemy compan${lLoss === 1 ? 'y' : 'ies'} broken (morale ${Math.max(lose.morale, 0)}).`);
+  }
+  A.choice = null; D.choice = null;
+  b.round++;
+  const aDead = totalUnits(A.units) === 0, dDead = totalUnits(D.units) === 0;
+  if (dDead || (D.morale <= 0 && !aDead)) {
+    b.log.push(`${D.generalName}'s force ${dDead ? 'is annihilated' : 'breaks and routs'}.`);
+    finishBattle(game, b, true);
+  } else if (aDead || A.morale <= 0 || b.round > 15) {
+    b.log.push(aDead ? `${A.generalName}'s army is destroyed.` : `${A.generalName} sounds the withdrawal.`);
+    finishBattle(game, b, false);
+  }
+}
+
 // ---------- Turn stat snapshots ----------
 function recordSnapshot(game) {
   if (!game.statHistory) game.statHistory = [];
@@ -605,6 +846,13 @@ function visibleStateFor(game, slotIdx) {
       if (st.owner === slotIdx) {
         visible.add(tid);
         const tile = game.tiles.find((t) => t.id === tid);
+        for (const aid of tile?.adjacentIds || []) visible.add(aid);
+      }
+    }
+    for (const a of game.armies || []) {
+      if (a.owner === slotIdx) {
+        visible.add(a.tileId);
+        const tile = game.tiles.find((t) => t.id === a.tileId);
         for (const aid of tile?.adjacentIds || []) visible.add(aid);
       }
     }
@@ -701,7 +949,47 @@ Deno.serve(async (req) => {
     if (action === 'getState') {
       const currentSlotIdx = game.turnOrder?.[game.currentTurnIndex];
       const active = game.status === 'active';
+      // Presence heartbeat — drives live vs auto battle defense
+      if (mySlot !== null && active) {
+        game.lastSeen = game.lastSeen || {};
+        const prev = Date.parse(game.lastSeen[user.id] || '') || 0;
+        if (Date.now() - prev > 20000) {
+          game.lastSeen[user.id] = new Date().toISOString();
+          await svc.entities.Game.update(game.id, { lastSeen: game.lastSeen });
+        }
+      }
+      const tilesOut = visibleStateFor(game, mySlot);
+      const visibleTileIds = new Set(tilesOut.filter((t) => t.visible !== false).map((t) => t.id));
+      const ab = game.activeBattle;
+      let battle = null;
+      if (ab) {
+        const defOwnerObj = ab.defender.slot !== null && ab.defender.slot !== undefined ? game.factionSlots[ab.defender.slot] : null;
+        const myRole = game.factionSlots[ab.attacker.slot]?.userId === user.id ? 'attacker' : defOwnerObj?.userId === user.id ? 'defender' : null;
+        if (myRole) {
+          const sideView = (s, fac) => ({ faction: fac, general: s.generalName, strategy: s.strategy, units: s.units, morale: Math.max(s.morale, 0), losses: s.losses, chosen: !!s.choice });
+          battle = {
+            tileName: ab.tileName, round: ab.round, myRole,
+            attacker: sideView(ab.attacker, game.factionSlots[ab.attacker.slot]?.factionName),
+            defender: sideView(ab.defender, defOwnerObj ? defOwnerObj.factionName : 'Neutral Garrison'),
+            fortBonus: ab.defender.fortBonus,
+            log: ab.log.slice(-14),
+            waitingOnMe: !(myRole === 'attacker' ? ab.attacker : ab.defender).choice,
+          };
+        }
+      }
       return Response.json({
+        armies: (game.armies || []).filter((a) => a.owner === mySlot || visibleTileIds.has(a.tileId)).map((a) => {
+          const g = (game.factionSlots[a.owner].generals || []).find((x) => x.id === a.generalId);
+          return {
+            id: a.id, owner: a.owner, tileId: a.tileId, name: a.name,
+            strength: forcePoints(a.regiments),
+            regiments: a.owner === mySlot ? a.regiments : undefined,
+            general: g ? (a.owner === mySlot ? g : { name: g.name }) : null,
+          };
+        }),
+        myGenerals: mySlotObj?.generals || [],
+        generalCost: RECRUIT_GENERAL_COST,
+        battle,
         id: game.id, name: game.name, mode: game.mode, status: game.status,
         turnNumber: game.turnNumber, currentSlot: currentSlotIdx,
         isMyTurn: active && game.factionSlots?.[currentSlotIdx]?.userId === user.id,
@@ -720,7 +1008,7 @@ Deno.serve(async (req) => {
           doctrine: s.doctrine, color: s.color, eliminated: s.eliminated,
           isOpen: !s.isNPC && !s.userId, isMe: s.userId === user.id, traits: s.userId === user.id ? s.traits : undefined,
         })),
-        tiles: visibleStateFor(game, mySlot),
+        tiles: tilesOut,
         combatLog: game.status === 'complete' ? (game.combatLog || []) : (game.combatLog || []).slice(-30),
         statHistory: game.statHistory || [],
         winnerSlot: game.winnerSlot,
@@ -770,6 +1058,8 @@ Deno.serve(async (req) => {
       }
       game.factionSlots.forEach((slot, i) => {
         slot.mods = compileMods(slot.pointBuy);
+        slot.generals = slot.isNPC ? [] : [supremeCommander(slot)];
+        slot.armiesRaised = 0;
         const cap = capitals[i];
         slot.capitalTileId = cap.id;
         // Capitals start with an operational Barracks
@@ -793,6 +1083,8 @@ Deno.serve(async (req) => {
 
       game.status = 'active';
       game.territoryStates = states;
+      game.armies = [];
+      game.lastSeen = {};
       game.combatLog.push({ turn: 1, type: 'event', text: 'War has been declared. The front ignites.' });
       collectIncome(game, game.turnOrder[0]);
       recordSnapshot(game);
@@ -800,7 +1092,7 @@ Deno.serve(async (req) => {
       await svc.entities.Game.update(game.id, {
         status: 'active', tiles: game.tiles, factionSlots: game.factionSlots,
         territoryStates: game.territoryStates, treasuries: game.treasuries, combatLog: game.combatLog,
-        statHistory: game.statHistory,
+        statHistory: game.statHistory, armies: [], lastSeen: {},
       });
       return Response.json({ ok: true });
     }
@@ -903,8 +1195,125 @@ Deno.serve(async (req) => {
       return Response.json({ ok: true, outcome });
     }
 
+    // ----- Mass combat: muster / march / battle -----
+    const persistWar = () => svc.entities.Game.update(game.id, {
+      territoryStates: game.territoryStates, treasuries: game.treasuries,
+      factionSlots: game.factionSlots, armies: game.armies || [],
+      combatLog: game.combatLog, activeBattle: game.activeBattle || null,
+      status: game.status, winnerSlot: game.winnerSlot, statHistory: game.statHistory,
+    });
+
+    if (action === 'musterArmy') {
+      const slotIdx = requireMyTurn();
+      if (game.activeBattle) return Response.json({ error: 'Resolve the ongoing battle first' }, { status: 400 });
+      const { tileId, regiments = {}, generalId } = body;
+      const st = game.territoryStates[tileId];
+      const tile = game.tiles.find((t) => t.id === tileId);
+      if (!tile || !st || tile.isSea) return Response.json({ error: 'Invalid muster site' }, { status: 400 });
+      if (st.owner !== slotIdx) return Response.json({ error: 'You must muster on your own territory' }, { status: 400 });
+      if (!hasBuilding(st, 'barracks')) return Response.json({ error: 'Levying an army requires a completed Barracks' }, { status: 400 });
+      let taken = 0;
+      for (const k of ARMY_UNIT_KEYS) {
+        const n = regiments[k] || 0;
+        if (n < 0 || n > (st.units[k] || 0)) return Response.json({ error: 'Not enough garrisoned troops to levy' }, { status: 400 });
+        taken += n;
+      }
+      if (taken === 0) return Response.json({ error: 'An army needs at least one company' }, { status: 400 });
+      const slot = game.factionSlots[slotIdx];
+      slot.generals = slot.generals || [];
+      let general;
+      if (generalId === 'recruit') {
+        const treasury = getTreasury(game, slotIdx);
+        if (!canAfford(treasury, RECRUIT_GENERAL_COST)) return Response.json({ error: 'Insufficient manpower to commission a general' }, { status: 400 });
+        pay(treasury, RECRUIT_GENERAL_COST);
+        general = randomGeneral();
+        slot.generals.push(general);
+      } else {
+        general = freeGenerals(game, slot).find((g) => g.id === generalId);
+        if (!general) return Response.json({ error: 'That general is unavailable' }, { status: 400 });
+      }
+      for (const k of ARMY_UNIT_KEYS) st.units[k] = (st.units[k] || 0) - (regiments[k] || 0);
+      game.armies = game.armies || [];
+      slot.armiesRaised = (slot.armiesRaised || 0) + 1;
+      const army = {
+        id: genId(), owner: slotIdx, tileId,
+        name: `${ARMY_ORDINALS[Math.min(slot.armiesRaised - 1, 8)]} Field Army`,
+        generalId: general.id,
+        regiments: Object.fromEntries(ARMY_UNIT_KEYS.map((k) => [k, regiments[k] || 0])),
+      };
+      game.armies.push(army);
+      game.combatLog.push({ turn: game.turnNumber, type: 'event', text: `${slot.factionName} levies the ${army.name} under ${general.name}.` });
+      await persistWar();
+      return Response.json({ ok: true, armyId: army.id, general });
+    }
+
+    if (action === 'moveArmy') {
+      const slotIdx = requireMyTurn();
+      if (game.activeBattle) return Response.json({ error: 'Resolve the ongoing battle first' }, { status: 400 });
+      const { armyId, toTileId } = body;
+      const army = (game.armies || []).find((a) => a.id === armyId && a.owner === slotIdx);
+      if (!army) return Response.json({ error: 'Army not found' }, { status: 404 });
+      const toSt = game.territoryStates[toTileId];
+      const toTile = game.tiles.find((t) => t.id === toTileId);
+      if (!toTile || !toSt) return Response.json({ error: 'Invalid destination' }, { status: 400 });
+      if (toSt.owner === slotIdx) {
+        if (toTile.isSea) return Response.json({ error: 'Field armies cannot enter sea zones' }, { status: 400 });
+        const fromTile = game.tiles.find((t) => t.id === army.tileId);
+        if (!fromTile.adjacentIds.includes(toTileId)) return Response.json({ error: 'Destination is not adjacent' }, { status: 400 });
+        army.tileId = toTileId;
+        await persistWar();
+        return Response.json({ ok: true });
+      }
+      let result;
+      try {
+        result = createBattle(game, slotIdx, army, toTileId);
+      } catch (e) {
+        return Response.json({ error: e.message }, { status: 400 });
+      }
+      if (game.status !== 'active') recordSnapshot(game);
+      await persistWar();
+      return Response.json({ ok: true, ...result });
+    }
+
+    if (action === 'disbandArmy') {
+      const slotIdx = requireMyTurn();
+      if (game.activeBattle) return Response.json({ error: 'Resolve the ongoing battle first' }, { status: 400 });
+      const army = (game.armies || []).find((a) => a.id === body.armyId && a.owner === slotIdx);
+      if (!army) return Response.json({ error: 'Army not found' }, { status: 404 });
+      const st = game.territoryStates[army.tileId];
+      if (st.owner !== slotIdx) return Response.json({ error: 'An army can only disband on friendly soil' }, { status: 400 });
+      for (const k of ARMY_UNIT_KEYS) st.units[k] = (st.units[k] || 0) + (army.regiments[k] || 0);
+      game.armies = game.armies.filter((a) => a.id !== army.id);
+      await persistWar();
+      return Response.json({ ok: true });
+    }
+
+    if (action === 'battleChoice') {
+      const b = game.activeBattle;
+      if (!b) return Response.json({ error: 'No battle in progress' }, { status: 400 });
+      const { maneuver } = body;
+      if (!MANEUVERS[maneuver]) return Response.json({ error: 'Unknown maneuver' }, { status: 400 });
+      const defSlotObj = b.defender.slot !== null && b.defender.slot !== undefined ? game.factionSlots[b.defender.slot] : null;
+      const isAtt = game.factionSlots[b.attacker.slot]?.userId === user.id;
+      const isDef = defSlotObj?.userId === user.id;
+      if (!isAtt && !isDef) return Response.json({ error: 'You are not a party to this battle' }, { status: 403 });
+      const side = isAtt ? b.attacker : b.defender;
+      if (side.choice) return Response.json({ error: 'Orders already issued for this round' }, { status: 400 });
+      side.choice = maneuver;
+      // Auto-command the defense when it is not live (NPC, neutral, or offline commander)
+      if (b.attacker.choice && !b.defender.choice) {
+        const live = b.defender.interactive && defenderIsLive(game, defSlotObj);
+        if (!live) b.defender.choice = aiManeuver(b.defender, defSlotObj?.doctrine);
+      }
+      if (b.attacker.choice && b.defender.choice) resolveBattleRound(game, b);
+      if (game.status !== 'active') recordSnapshot(game);
+      await persistWar();
+      return Response.json({ ok: true, resolved: !game.activeBattle });
+    }
+
     if (action === 'endTurn') {
       requireMyTurn();
+      if (game.activeBattle) return Response.json({ error: 'A battle rages — resolve it before ending your turn' }, { status: 400 });
       checkCampaignWin(game);
       if (game.status === 'active') advanceTurn(game);
       if (game.status !== 'active') recordSnapshot(game);

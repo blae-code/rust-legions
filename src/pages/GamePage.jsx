@@ -13,12 +13,16 @@ import LobbyView from "@/components/game/LobbyView";
 import WarChronicle from "@/components/game/WarChronicle";
 import OverlayToggle from "@/components/game/OverlayToggle";
 import WarCharts from "@/components/game/charts/WarCharts";
+import ArmyPanel from "@/components/game/ArmyPanel";
+import MusterPanel from "@/components/game/MusterPanel";
+import BattleView from "@/components/game/BattleView";
 import { RESOURCE_KEYS, RESOURCE_META } from "@/lib/units";
 
 export default function GamePage() {
   const { gameId } = useParams();
   const [game, setGame] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
+  const [selectedArmyId, setSelectedArmyId] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [sound, setSound] = useState(sfxEnabled());
@@ -34,18 +38,19 @@ export default function GamePage() {
     }
   }, [gameId]);
 
+  const battleActive = !!game?.battle;
   useEffect(() => {
     refresh();
-    pollRef.current = setInterval(refresh, 4000);
+    pollRef.current = setInterval(refresh, battleActive ? 2500 : 4000);
     return () => clearInterval(pollRef.current);
-  }, [refresh]);
+  }, [refresh, battleActive]);
 
   const act = async (payload) => {
     setBusy(true);
     setError("");
     try {
       await base44.functions.invoke("gameEngine", { gameId, ...payload });
-      const sfxMap = { moveUnits: "move", attack: "attack", build: "build", purchaseUnits: "purchase", endTurn: "endTurn" };
+      const sfxMap = { moveUnits: "move", attack: "attack", build: "build", purchaseUnits: "purchase", endTurn: "endTurn", musterArmy: "purchase", moveArmy: "move", battleChoice: "attack", disbandArmy: "move" };
       if (sfxMap[payload.action]) playSfx(sfxMap[payload.action]);
       await refresh();
     } catch (e) {
@@ -77,6 +82,7 @@ export default function GamePage() {
   const slotColors = Object.fromEntries(game.factions.map((f) => [f.slotIndex, f.color]));
   const currentFaction = game.factions[game.currentSlot];
   const selectedTile = game.tiles.find((t) => t.id === selectedId);
+  const selectedArmy = (game.armies || []).find((a) => a.id === selectedArmyId && a.owner === game.mySlot);
 
   return (
     <div className="space-y-4">
@@ -147,7 +153,13 @@ export default function GamePage() {
                 slotColors={slotColors}
                 selectedId={selectedId}
                 overlay={overlay}
-                onTileClick={(t) => setSelectedId(t.id === selectedId ? null : t.id)}
+                armies={game.armies || []}
+                selectedArmyId={selectedArmyId}
+                onArmyClick={(a) => {
+                  if (a.owner === game.mySlot) { setSelectedArmyId(a.id === selectedArmyId ? null : a.id); setSelectedId(null); }
+                  else { setSelectedId(a.tileId); setSelectedArmyId(null); }
+                }}
+                onTileClick={(t) => { setSelectedId(t.id === selectedId ? null : t.id); setSelectedArmyId(null); }}
               />
             </div>
           </div>
@@ -176,6 +188,20 @@ export default function GamePage() {
               </div>
             </div>
           )}
+          <ArmyPanel
+            game={game}
+            army={selectedArmy}
+            busy={busy}
+            onMarch={(armyId, toTileId) => act({ action: "moveArmy", armyId, toTileId })}
+            onEngage={(armyId, toTileId) => act({ action: "moveArmy", armyId, toTileId })}
+            onDisband={(armyId) => { act({ action: "disbandArmy", armyId }); setSelectedArmyId(null); }}
+          />
+          <MusterPanel
+            game={game}
+            tile={selectedTile}
+            busy={busy}
+            onMuster={(tileId, regiments, generalId) => act({ action: "musterArmy", tileId, regiments, generalId })}
+          />
           <TilePanel
             game={game}
             tile={selectedTile}
@@ -188,6 +214,8 @@ export default function GamePage() {
           <CombatLog entries={game.combatLog} />
         </div>
       </div>
+
+      <BattleView battle={game.battle} busy={busy} onChoose={(maneuver) => act({ action: "battleChoice", maneuver })} />
     </div>
   );
 }

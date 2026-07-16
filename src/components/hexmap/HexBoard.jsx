@@ -27,6 +27,9 @@ export default function HexBoard({
   onGhostClick,
   maxHeight = 560,
   overlay = null,
+  armies = [],
+  selectedArmyId,
+  onArmyClick,
 }) {
   const { viewBox, bounds } = useMemo(() => {
     const all = [...tiles, ...ghosts];
@@ -200,6 +203,36 @@ export default function HexBoard({
                 ?
               </text>
             )}
+          </g>
+        );
+      })}
+
+      {/* Field armies — Total War style banner pieces */}
+      {armies.map((a) => {
+        const tile = tiles.find((t) => t.id === a.tileId);
+        if (!tile || tile.visible === false) return null;
+        const stack = armies.filter((x) => x.tileId === a.tileId);
+        const idx = stack.findIndex((x) => x.id === a.id);
+        const { x, y } = axialToPixel(tile.q, tile.r);
+        const fx = x - 16 + idx * 12;
+        const fy = y - 26;
+        const sel = selectedArmyId === a.id;
+        const color = slotColors[a.owner] || "#888";
+        return (
+          <g key={a.id} className="cursor-pointer" onClick={(e) => { e.stopPropagation(); onArmyClick && onArmyClick(a); }}>
+            <line x1={fx} y1={fy} x2={fx} y2={fy + 14} stroke="#0c0a09" strokeWidth="1.8" />
+            <polygon
+              points={`${fx},${fy} ${fx + 12},${fy + 3} ${fx},${fy + 6}`}
+              fill={color}
+              stroke={sel ? "#E0A32E" : "#0c0a09"}
+              strokeWidth={sel ? 1.4 : 0.7}
+              filter={sel ? "url(#hxGlow)" : undefined}
+            />
+            <rect x={fx - 6} y={fy + 14} width="12" height="7" rx="1" fill="#0c0a09" opacity="0.9" stroke={sel ? "#E0A32E" : color} strokeWidth="0.7" />
+            <text x={fx} y={fy + 19.5} textAnchor="middle" fontSize="5" fontWeight="bold" fontFamily="'IBM Plex Mono', monospace" fill="#E0A32E" className="pointer-events-none select-none">
+              {a.strength}
+            </text>
+            <title>{a.name}{a.general ? ` — ${a.general.name}` : ""}</title>
           </g>
         );
       })}

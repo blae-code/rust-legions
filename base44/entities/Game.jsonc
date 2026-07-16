@@ -61,6 +61,24 @@
       "type": "object",
       "additionalProperties": true
     },
+    "armies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "activeBattle": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": true
+    },
+    "lastSeen": {
+      "type": "object",
+      "additionalProperties": true
+    },
     "combatLog": {
       "type": "array",
       "items": {
