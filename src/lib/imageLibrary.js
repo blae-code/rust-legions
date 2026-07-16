@@ -6,6 +6,8 @@
 // to their current icons/tokens when the plate is still pending.
 // ============================================================
 
+import { PLATE_URLS } from "@/lib/imagePlates";
+
 // House art direction — prepend to every generation prompt
 export const HOUSE_STYLE =
   "Gritty dieselpunk, 1930s industrial wartime aesthetic, worn riveted steel and brass, muted olive-rust-umber palette, painterly concept art, dramatic side lighting, film grain, weathered and rationed, in the visual family of Foxhole and Iron Harvest";
@@ -28,7 +30,7 @@ export const IMAGE_CATEGORIES = {
 };
 
 const P = (key, category, title, desc, prompt, aspect = "1:1") =>
-  ({ key, category, title, desc, prompt, aspect, url: null });
+  ({ key, category, title, desc, prompt, aspect, url: PLATE_URLS[key] || null });
 
 export const IMAGE_LIBRARY = [
   // ---------- COMMANDER PORTRAITS ----------
