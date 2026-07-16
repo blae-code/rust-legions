@@ -14,7 +14,7 @@ export default function MarchTrail({ planet, plan }) {
   const legPts = useMemo(() => legs.map((l) => arcPoints(l.A, l.B, planet.radius, 0.06)), [legs, planet.radius]);
 
   const camps = useMemo(() => plan.camps.map((c) => {
-    const l = legs[c.legIndex];
+    const l = legs[c.legIndex] || legs[legs.length - 1];
     return { day: c.day, pos: slerpSurface(l.A, l.B, c.t, planet.radius, 0.06) };
   }), [plan, legs, planet.radius]);
 
@@ -24,7 +24,8 @@ export default function MarchTrail({ planet, plan }) {
     const day = ((clock.elapsedTime * 0.35) % plan.totalDays);
     const li = Math.max(0, plan.legs.findIndex((l) => day >= l.start && day < l.end));
     const leg = plan.legs[li];
-    const t = Math.min((day - leg.start) / leg.days, 1);
+    if (!leg || !legs[li]) return;
+    const t = Math.min(Math.max((day - leg.start) / leg.days, 0), 1);
     convoyRef.current.position.copy(slerpSurface(legs[li].A, legs[li].B, t, planet.radius, 0.06));
   });
 
@@ -33,8 +34,8 @@ export default function MarchTrail({ planet, plan }) {
       {legPts.map((pts, i) => (
         <Line key={i} points={pts} color="#E8C15A" lineWidth={2.5} transparent opacity={0.95} />
       ))}
-      {camps.map((c) => (
-        <group key={c.day} position={c.pos}>
+      {camps.map((c, ci) => (
+        <group key={`camp-${ci}`} position={c.pos}>
           <mesh>
             <sphereGeometry args={[planet.radius * 0.014, 8, 8]} />
             <meshBasicMaterial color="#0d0b08" />

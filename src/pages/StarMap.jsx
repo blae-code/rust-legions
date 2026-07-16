@@ -8,6 +8,7 @@ import { PLANETS } from "@/lib/macro/planets";
 import { NODE_KINDS } from "@/lib/macro/graph";
 import { findPath, planMarch } from "@/lib/macro/march";
 import PlanetSystem from "@/components/starmap/PlanetSystem";
+import SceneErrorBoundary from "@/components/SceneErrorBoundary";
 
 // A standard mixed column — crawlers set the pace at 16 miles a day
 const DAY_RATE = 16;
@@ -111,6 +112,7 @@ export default function StarMap() {
         <div className="cq-panel cq-brackets relative overflow-hidden p-1">
           <div className="cq-hazard absolute top-0 left-0 right-0 z-10" />
           <div className="h-[68vh] min-h-[420px] rounded">
+            <SceneErrorBoundary>
             <Canvas camera={{ position: [-15, 5, 13], fov: 50 }} dpr={[1, 2]}>
               <color attach="background" args={["#07090c"]} />
               <ambientLight intensity={0.35} />
@@ -138,6 +140,7 @@ export default function StarMap() {
               <Rig controlsRef={controls} focus={focus} />
               <OrbitControls ref={controls} enablePan={false} minDistance={5} maxDistance={45} />
             </Canvas>
+            </SceneErrorBoundary>
           </div>
 
           {/* Selected world readout */}

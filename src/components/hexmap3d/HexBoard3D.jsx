@@ -7,6 +7,7 @@ import ArmyFlag3D from "./ArmyFlag3D";
 import DriftingHaze from "./DriftingHaze";
 import TileFX from "./TileFX";
 import Weather3D from "./Weather3D";
+import SceneErrorBoundary from "@/components/SceneErrorBoundary";
 
 // 3D war-table board — drop-in replacement for the SVG HexBoard in the game view
 export default function HexBoard3D({
@@ -35,6 +36,7 @@ export default function HexBoard3D({
 
   return (
     <div style={{ height }} className="w-full">
+      <SceneErrorBoundary>
       <Canvas
         shadows
         dpr={[1, 2]}
@@ -118,6 +120,7 @@ export default function HexBoard3D({
           dampingFactor={0.08}
         />
       </Canvas>
+      </SceneErrorBoundary>
     </div>
   );
 }
