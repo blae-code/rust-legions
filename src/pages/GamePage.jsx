@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
+import { Loader2, Volume2, VolumeX } from "lucide-react";
+import { playSfx, sfxEnabled, setSfxEnabled } from "@/lib/sfx";
 import HexBoard from "@/components/hexmap/HexBoard";
 import TilePanel from "@/components/game/TilePanel";
 import PurchasePanel from "@/components/game/PurchasePanel";
@@ -17,6 +18,7 @@ export default function GamePage() {
   const [selectedId, setSelectedId] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [sound, setSound] = useState(sfxEnabled());
   const pollRef = useRef(null);
 
   const refresh = useCallback(async () => {
@@ -39,6 +41,8 @@ export default function GamePage() {
     setError("");
     try {
       await base44.functions.invoke("gameEngine", { gameId, ...payload });
+      const sfxMap = { moveUnits: "move", attack: "attack", build: "build", purchaseUnits: "purchase", endTurn: "endTurn" };
+      if (sfxMap[payload.action]) playSfx(sfxMap[payload.action]);
       await refresh();
     } catch (e) {
       setError(e.response?.data?.error || "Order failed");
@@ -89,6 +93,13 @@ export default function GamePage() {
             </div>
           ))}
         </div>
+        <button
+          onClick={() => { setSfxEnabled(!sound); setSound(!sound); }}
+          title={sound ? "Mute battlefield audio" : "Enable battlefield audio"}
+          className={`p-1.5 rounded-sm border transition-colors ${sound ? "border-brass/50 text-brass-bright" : "border-border text-muted-foreground"}`}
+        >
+          {sound ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
+        </button>
         {game.status === "active" && (
           game.isMyTurn ? (
             <Button size="sm" disabled={busy} onClick={() => act({ action: "endTurn" })} className="bg-brass hover:bg-brass-bright text-primary-foreground font-heading uppercase text-xs tracking-[0.2em]">
