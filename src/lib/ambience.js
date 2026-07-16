@@ -68,7 +68,7 @@ export function setMusicVolume(v) {
 export function setMusicEnabled(on) {
   localStorage.setItem(MUSIC_ON_KEY, on ? "1" : "0");
   if (on) startScore();
-  else stopScore();
+  else stopScore(true); // mute is immediate — no fade, no timers, no escape
 }
 
 // Each audio element carries its own fade timer, so a new track starting can
@@ -82,6 +82,13 @@ const fadeTo = (audio, target, ms, onDone) => {
     return;
   }
   audio._fade = setInterval(() => {
+    // A fade-in must never outlive a mute — kill the track the moment the
+    // user switches the score off, even mid-fade.
+    if (step > 0 && (suppressed || !musicEnabled())) {
+      killAudio(audio);
+      if (track === audio) track = null;
+      return;
+    }
     const v = audio.volume + step;
     if ((step > 0 && v >= target) || (step < 0 && v <= target)) {
       audio.volume = target;
@@ -138,7 +145,11 @@ export function skipScore() {
 
 // Call on the first pointer/key input — satisfies autoplay policy
 export function unlockAmbience() {
-  if (suppressed || !musicEnabled()) return;
+  if (suppressed || !musicEnabled()) {
+    killGhosts(); // safety net — silence any stray track that escaped a mute
+    if (track) { killAudio(track); track = null; }
+    return;
+  }
   if (!track) { startScore(); return; }
   if (track.paused) {
     const p = track.play();
@@ -147,15 +158,20 @@ export function unlockAmbience() {
   }
 }
 
-// Fade out fast and release the track — silence is guaranteed even if the
-// fade is interrupted, and any stray elements are hard-stopped too.
-export function stopScore() {
+// Release the track — pass immediate=true (mute) to cut audio instantly;
+// otherwise fade out fast. Stray elements are hard-stopped either way.
+export function stopScore(immediate = false) {
   const audio = track;
   track = null;
   killGhosts(audio);
   if (audio) {
-    fadeTo(audio, 0, 400, () => killAudio(audio));
-    setTimeout(() => killAudio(audio), 600); // hard stop, no matter what
+    audio.muted = true; // audible silence right now, before any teardown
+    if (immediate) {
+      killAudio(audio);
+    } else {
+      fadeTo(audio, 0, 400, () => killAudio(audio));
+      setTimeout(() => killAudio(audio), 600); // hard stop, no matter what
+    }
   }
   notify();
 }
