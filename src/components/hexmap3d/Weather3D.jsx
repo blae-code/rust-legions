@@ -26,7 +26,7 @@ function Rain({ center, extent, heavy }) {
     const geo = new THREE.BufferGeometry();
     geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
     return { geo, drops };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);  
 
   useFrame((_, dt) => {
     const step = Math.min(dt, 0.05);
@@ -77,7 +77,7 @@ function Snow({ center, extent }) {
     const geo = new THREE.BufferGeometry();
     geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
     return { geo, flakes };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);  
 
   useFrame(({ clock }, dt) => {
     const step = Math.min(dt, 0.05);
@@ -131,7 +131,7 @@ function FogBanks({ center, extent }) {
         speed: 0.12 + Math.random() * 0.18,
         phase: i * 1.7,
       })),
-    [] // eslint-disable-line react-hooks/exhaustive-deps
+    []  
   );
 
   useFrame(({ clock }) => {

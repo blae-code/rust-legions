@@ -4,7 +4,7 @@ import { costString } from "@/lib/units";
 
 // Refit bays for a general's command vehicle — instant at a depot
 // (barracks/foundry/fortress-base), or by supply convoy: slower but 25% cheaper.
-export default function VehicleRefitSection({ game, army, busy, onRefit }) {
+export default function VehicleRefitSection({ army, busy, onRefit }) {
   const [open, setOpen] = useState(false);
   const g = army.general;
   if (!g || !g.vehicle) return null;
