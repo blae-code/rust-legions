@@ -7,6 +7,15 @@ export const MANEUVERS = {
   rally: { label: "Rally the Ranks", icon: "🚩", desc: "Restore your force's morale at the cost of initiative." },
 };
 
+export const SIGNATURE_MANEUVERS = {
+  relentless_pursuit: { label: "Relentless Pursuit", icon: "🐺", desc: "Signature of the Butcher — hound the wavering enemy. Brutal damage and morale shock." },
+  ambush: { label: "Staged Ambush", icon: "🕸", desc: "Signature of the Old Fox — a prepared trap that strikes hard while shielding your ranks." },
+  iron_wall: { label: "Iron Wall", icon: "⛨", desc: "Signature of the Bulwark — an immovable defense, nearly unbreakable this round." },
+  inspiring_charge: { label: "Inspiring Charge", icon: "🎺", desc: "Signature of the Firebrand — press the attack while rallying morale (+20)." },
+};
+
+export const ALL_MANEUVERS = { ...MANEUVERS, ...SIGNATURE_MANEUVERS };
+
 export const MANEUVER_KEYS = Object.keys(MANEUVERS);
 
 export const REGIMENT_LABELS = {

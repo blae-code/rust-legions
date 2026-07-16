@@ -6,7 +6,10 @@ export default function BattleForce({ side, title, accent, isMe }) {
     <div className={`flex-1 border rounded-sm p-3 ${isMe ? "border-brass/60 bg-brass/5" : "border-border bg-secondary/30"}`}>
       <p className="cq-label" style={{ color: accent }}>{title}{isMe ? " (You)" : ""}</p>
       <p className="text-sm font-heading font-semibold text-secondary-foreground truncate">{side.faction}</p>
-      <p className="font-mono text-[9px] text-muted-foreground mb-2">{side.general?.toUpperCase()} · STRATEGY {side.strategy}</p>
+      <p className="font-mono text-[9px] text-muted-foreground mb-2">
+        {side.general?.toUpperCase()} · STRATEGY {side.strategy}
+        {side.rank && side.rank !== "Green" && <span className="text-brass"> · {side.rank.toUpperCase()} +{side.vetBonus}</span>}
+      </p>
       <div className="space-y-0.5 text-[11px] font-mono text-secondary-foreground">
         {ARMY_UNIT_KEYS.map((k) => (side.units?.[k] || 0) > 0 && (
           <div key={k} className="flex justify-between"><span className="text-muted-foreground">{REGIMENT_LABELS[k]}</span><span>×{side.units[k]}</span></div>

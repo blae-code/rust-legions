@@ -1,11 +1,14 @@
 import React from "react";
 import { Loader2 } from "lucide-react";
 import BattleForce from "@/components/game/BattleForce";
-import { MANEUVERS, MANEUVER_KEYS } from "@/lib/massCombat";
+import { ALL_MANEUVERS, MANEUVER_KEYS, SIGNATURE_MANEUVERS } from "@/lib/massCombat";
 
 export default function BattleView({ battle, busy, onChoose }) {
   if (!battle) return null;
   const iAmAttacker = battle.myRole === "attacker";
+  const mySide = iAmAttacker ? battle.attacker : battle.defender;
+  const maneuverKeys = [...MANEUVER_KEYS];
+  if (mySide.signature && !mySide.sigUsed && SIGNATURE_MANEUVERS[mySide.signature]) maneuverKeys.push(mySide.signature);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
@@ -14,7 +17,13 @@ export default function BattleView({ battle, busy, onChoose }) {
         <div className="text-center pt-2 mb-4">
           <p className="cq-label text-rust">Mass Battle — Round {battle.round}</p>
           <h2 className="cq-display text-2xl">The Battle of {battle.tileName}</h2>
-          {battle.fortBonus > 0 && <p className="font-mono text-[9px] text-steel mt-0.5">DEFENDER ENTRENCHED · FORTIFICATION +{battle.fortBonus}</p>}
+          {(battle.fortBonus > 0 || battle.terrainBonus > 0) && (
+            <p className="font-mono text-[9px] text-steel mt-0.5">
+              {battle.fortBonus > 0 && <>DEFENDER ENTRENCHED · FORTIFICATION +{battle.fortBonus}</>}
+              {battle.fortBonus > 0 && battle.terrainBonus > 0 && " · "}
+              {battle.terrainBonus > 0 && <>{battle.terrain?.toUpperCase()} TERRAIN +{battle.terrainBonus} DEF</>}
+            </p>
+          )}
         </div>
 
         <div className="flex gap-3 mb-4">
@@ -32,17 +41,20 @@ export default function BattleView({ battle, busy, onChoose }) {
           <div>
             <p className="cq-label mb-2">Issue orders, General</p>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {MANEUVER_KEYS.map((key) => (
-                <button
-                  key={key}
-                  disabled={busy}
-                  onClick={() => onChoose(key)}
-                  className="text-left border border-border hover:border-brass/70 hover:bg-brass/10 rounded-sm p-2.5 transition-colors disabled:opacity-50"
-                >
-                  <p className="text-xs font-heading font-semibold tracking-wide text-secondary-foreground">{MANEUVERS[key].icon} {MANEUVERS[key].label}</p>
-                  <p className="text-[9px] font-mono text-muted-foreground mt-0.5 leading-snug">{MANEUVERS[key].desc}</p>
-                </button>
-              ))}
+              {maneuverKeys.map((key) => {
+                const sig = !!SIGNATURE_MANEUVERS[key];
+                return (
+                  <button
+                    key={key}
+                    disabled={busy}
+                    onClick={() => onChoose(key)}
+                    className={`text-left border rounded-sm p-2.5 transition-colors disabled:opacity-50 ${sig ? "border-brass/70 bg-brass/10 hover:bg-brass/20" : "border-border hover:border-brass/70 hover:bg-brass/10"}`}
+                  >
+                    <p className={`text-xs font-heading font-semibold tracking-wide ${sig ? "text-brass-bright" : "text-secondary-foreground"}`}>{ALL_MANEUVERS[key].icon} {ALL_MANEUVERS[key].label}</p>
+                    <p className="text-[9px] font-mono text-muted-foreground mt-0.5 leading-snug">{ALL_MANEUVERS[key].desc}</p>
+                  </button>
+                );
+              })}
             </div>
           </div>
         ) : (

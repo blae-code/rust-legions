@@ -27,7 +27,10 @@ export default function ArmyPanel({ game, army, busy, onMarch, onEngage, onDisba
             <span className="font-mono text-brass-bright">×{army.regiments[k]}</span>
           </div>
         ))}
-        <p className="font-mono text-[9px] text-muted-foreground pt-0.5">FIELD STRENGTH {army.strength} PTS</p>
+        <p className="font-mono text-[9px] text-muted-foreground pt-0.5">
+          FIELD STRENGTH {army.strength} PTS
+          {army.rank && <span className={army.rank === "Green" ? "" : "text-brass"}> · {army.rank.toUpperCase()}{army.battles > 0 ? ` (${army.battles} BATTLES)` : ""}</span>}
+        </p>
       </div>
       {canAct && (
         <div className="space-y-1.5">

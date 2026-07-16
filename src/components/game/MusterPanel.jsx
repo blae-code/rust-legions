@@ -48,7 +48,7 @@ export default function MusterPanel({ game, tile, busy, onMuster }) {
         className="w-full bg-input border border-border rounded-sm text-xs px-2 py-1.5 text-secondary-foreground font-mono"
       >
         {freeGenerals.map((g) => (
-          <option key={g.id} value={g.id}>{g.name}{g.supreme ? " ★" : ""} — Strategy {g.strategy}</option>
+          <option key={g.id} value={g.id}>{g.name}{g.supreme ? " ★" : ""}{g.traitLabel ? ` “${g.traitLabel}”` : ""} — Strategy {g.strategy}</option>
         ))}
         <option value="recruit">Commission a new general ({recruitCost} Manpower)</option>
       </select>

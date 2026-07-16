@@ -585,7 +585,50 @@ const MANEUVERS = {
   flank: { label: 'Flanking Maneuver', skill: -1, dmgOut: 1.3, dmgIn: 0.8, moraleOut: 1.5 },
   feint: { label: 'Feint', skill: 1, dmgOut: 0.3, dmgIn: 0.7, moraleOut: 0.8, nextBonus: 2 },
   rally: { label: 'Rally the Ranks', skill: 0, dmgOut: 0.2, dmgIn: 0.9, moraleOut: 0.5, rally: 20 },
+  // Signature maneuvers — unlocked by a general's trait, once per battle
+  relentless_pursuit: { label: 'Relentless Pursuit', skill: -1, dmgOut: 1.5, dmgIn: 1.2, moraleOut: 1.9, signature: true },
+  ambush: { label: 'Staged Ambush', skill: 2, dmgOut: 1.3, dmgIn: 0.7, moraleOut: 1.2, signature: true },
+  iron_wall: { label: 'Iron Wall', skill: 3, dmgOut: 0.3, dmgIn: 0.35, moraleOut: 0.6, signature: true },
+  inspiring_charge: { label: 'Inspiring Charge', skill: 0, dmgOut: 1.1, dmgIn: 1.0, moraleOut: 1.2, rally: 20, signature: true },
 };
+
+// Terrain gives the defender a battle-skill edge
+const TERRAIN_BATTLE_MODS = { mountains: 2, hills: 1, highlands: 1, forest: 1, marsh: 1, industrial: 1, plains: 0, deltas: 0 };
+
+// General personality traits — each unlocks one signature maneuver
+const GENERAL_TRAITS = [
+  { key: 'butcher', label: 'the Butcher', signature: 'relentless_pursuit' },
+  { key: 'fox', label: 'the Old Fox', signature: 'ambush' },
+  { key: 'bulwark', label: 'the Bulwark', signature: 'iron_wall' },
+  { key: 'firebrand', label: 'the Firebrand', signature: 'inspiring_charge' },
+];
+const DOCTRINE_TRAIT = { aggressive: 'butcher', economic: 'fox', defensive: 'bulwark' };
+const traitByKey = (k) => GENERAL_TRAITS.find((t) => t.key === k) || null;
+
+// Army veterancy — battles survived harden a field army
+const VETERANCY = [
+  { min: 5, label: 'Elite', bonus: 3 },
+  { min: 3, label: 'Veteran', bonus: 2 },
+  { min: 1, label: 'Seasoned', bonus: 1 },
+  { min: 0, label: 'Green', bonus: 0 },
+];
+const armyRank = (battles = 0) => VETERANCY.find((v) => battles >= v.min);
+
+function creditVictory(game, slotIdx, generalId) {
+  if (slotIdx === null || slotIdx === undefined || !generalId) return;
+  const g = (game.factionSlots[slotIdx]?.generals || []).find((x) => x.id === generalId);
+  if (!g) return;
+  g.victories = (g.victories || 0) + 1;
+  if (g.victories % 2 === 0 && g.strategy < 14) {
+    g.strategy++;
+    game.combatLog.push({ turn: game.turnNumber, type: 'event', text: `${g.name} is decorated for victory — strategy rises to ${g.strategy}.` });
+  }
+}
+
+function setChoice(side, maneuver) {
+  side.choice = maneuver;
+  if (MANEUVERS[maneuver]?.signature) side.sigUsed = true;
+}
 
 function supremeCommander(slot) {
   const bonus = { aggressive: { strategy: 2, leadership: 0 }, economic: { strategy: 0, leadership: 2 }, defensive: { strategy: 1, leadership: 1 } }[slot.doctrine] || { strategy: 1, leadership: 1 };
@@ -593,11 +636,12 @@ function supremeCommander(slot) {
     id: genId(), name: `Marshal ${pick(GENERAL_FIRST)} ${pick(GENERAL_LAST)}`,
     epithet: DOCTRINE_EPITHET[slot.doctrine] || 'the Steadfast',
     strategy: 10 + bonus.strategy, leadership: 10 + bonus.leadership, supreme: true,
+    trait: DOCTRINE_TRAIT[slot.doctrine] || 'firebrand', victories: 0,
   };
 }
 
 function randomGeneral() {
-  return { id: genId(), name: `Gen. ${pick(GENERAL_FIRST)} ${pick(GENERAL_LAST)}`, epithet: null, strategy: 6 + d3() + d3(), leadership: 6 + d3() + d3(), supreme: false };
+  return { id: genId(), name: `Gen. ${pick(GENERAL_FIRST)} ${pick(GENERAL_LAST)}`, epithet: null, strategy: 6 + d3() + d3(), leadership: 6 + d3() + d3(), supreme: false, trait: pick(GENERAL_TRAITS).key, victories: 0 };
 }
 
 function freeGenerals(game, slot) {
@@ -616,6 +660,7 @@ function generalFate(game, armyLike) {
 }
 
 function aiManeuver(side, doctrine = 'defensive') {
+  if (side.signature && !side.sigUsed && (side.morale < 55 || Math.random() < 0.25)) return side.signature;
   if (side.morale < 35 && Math.random() < 0.5) return 'rally';
   const table = {
     aggressive: ['all_out_attack', 'attack', 'flank', 'attack'],
@@ -648,9 +693,11 @@ function createBattle(game, slotIdx, army, toTileId) {
   // Fold garrison + any enemy field armies on the zone into one defense force
   const defUnits = { ...st.units };
   let defGeneral = null;
+  let defVetBattles = 0;
   const absorbed = [];
   for (const a of (game.armies || []).filter((a) => a.tileId === toTileId && a.owner !== slotIdx)) {
     for (const k of ARMY_UNIT_KEYS) defUnits[k] = (defUnits[k] || 0) + (a.regiments[k] || 0);
+    defVetBattles = Math.max(defVetBattles, a.battles || 0);
     const g = (game.factionSlots[a.owner].generals || []).find((x) => x.id === a.generalId);
     if (g && (!defGeneral || g.strategy > defGeneral.strategy)) defGeneral = g;
     absorbed.push({ owner: a.owner, generalId: a.generalId, name: a.name, id: a.id });
@@ -675,23 +722,32 @@ function createBattle(game, slotIdx, army, toTileId) {
 
   const attGeneral = (attSlotObj.generals || []).find((g) => g.id === army.generalId) || { name: 'Field Officer', strategy: 9, leadership: 9 };
   const capBonus = defSlotObj && defSlotObj.capitalTileId === toTileId ? (slotMods(defSlotObj).capitalDefense || 0) : 0;
+  const terrainBonus = TERRAIN_BATTLE_MODS[toTile.terrain] || 0;
+  const attTrait = traitByKey(attGeneral.trait);
+  const defTrait = traitByKey(defGeneral?.trait);
+  const attRank = armyRank(army.battles || 0);
+  const defRank = armyRank(defVetBattles);
 
   game.activeBattle = {
     id: genId(), tileId: toTileId, tileName: toTile.name, fromTileId: army.tileId,
     attacker: {
       slot: slotIdx, armyId: army.id, armyName: army.name, generalName: attGeneral.name,
       strategy: attGeneral.strategy, units: { ...army.regiments }, morale: 100, choice: null, nextBonus: 0, losses: 0,
+      signature: attTrait?.signature || null, sigUsed: false, vetBonus: attRank.bonus, rank: attRank.label,
     },
     defender: {
       slot: defSlotIdx, absorbedArmies: absorbed,
       generalName: defGeneral ? defGeneral.name : 'Garrison Commander',
       strategy: defGeneral ? defGeneral.strategy : 9,
-      units: defUnits, morale: 100, fortBonus: fortLevel(st) + capBonus,
+      units: defUnits, morale: 100, fortBonus: fortLevel(st) + capBonus, terrainBonus,
+      generalId: defGeneral?.id || null,
+      signature: defTrait?.signature || null, sigUsed: false, vetBonus: defRank.bonus, rank: defRank.label,
       choice: null, nextBonus: 0, losses: 0,
       interactive: defenderIsLive(game, defSlotObj),
     },
     round: 1,
-    log: [`The ${army.name} under ${attGeneral.name} engages at ${toTile.name}.`],
+    terrain: toTile.terrain,
+    log: [`The ${army.name} under ${attGeneral.name} engages at ${toTile.name}${terrainBonus > 0 ? ` — the ${toTile.terrain} favors the defense (+${terrainBonus})` : ''}.`],
   };
   // Defenders are committed to the battle; the zone stands empty until it resolves
   game.armies = (game.armies || []).filter((a) => !absorbed.some((x) => x.id === a.id));
@@ -704,7 +760,7 @@ function battleSkill(side, other) {
   const m = MANEUVERS[side.choice];
   const ratio = Math.max(forcePoints(side.units), 1) / Math.max(forcePoints(other.units), 1);
   const strengthMod = Math.max(Math.min(Math.round(Math.log2(ratio) * 2), 4), -4);
-  return side.strategy + m.skill + strengthMod + (side.fortBonus || 0) + (side.nextBonus || 0);
+  return side.strategy + m.skill + strengthMod + (side.fortBonus || 0) + (side.terrainBonus || 0) + (side.vetBonus || 0) + (side.nextBonus || 0);
 }
 
 function finishBattle(game, b, attackerWon) {
@@ -717,7 +773,8 @@ function finishBattle(game, b, attackerWon) {
   if (attackerWon) {
     st.owner = b.attacker.slot;
     st.units = {};
-    if (army) { army.tileId = b.tileId; army.regiments = b.attacker.units; }
+    if (army) { army.tileId = b.tileId; army.regiments = b.attacker.units; army.battles = (army.battles || 0) + 1; }
+    creditVictory(game, b.attacker.slot, army?.generalId);
     for (const dead of b.defender.absorbedArmies || []) generalFate(game, dead);
     outcome = 'captured';
     game.combatLog.push({
@@ -730,8 +787,10 @@ function finishBattle(game, b, attackerWon) {
     });
   } else {
     st.units = b.defender.units; // survivors garrison the zone
+    creditVictory(game, b.defender.slot, b.defender.generalId);
     if (totalUnits(b.attacker.units) > 0 && army) {
       army.regiments = b.attacker.units; // routed survivors fall back to the staging zone
+      army.battles = (army.battles || 0) + 1;
       outcome = 'retreated';
     } else {
       if (army) { game.armies = game.armies.filter((a) => a.id !== army.id); generalFate(game, army); }
@@ -966,9 +1025,9 @@ Deno.serve(async (req) => {
         const defOwnerObj = ab.defender.slot !== null && ab.defender.slot !== undefined ? game.factionSlots[ab.defender.slot] : null;
         const myRole = game.factionSlots[ab.attacker.slot]?.userId === user.id ? 'attacker' : defOwnerObj?.userId === user.id ? 'defender' : null;
         if (myRole) {
-          const sideView = (s, fac) => ({ faction: fac, general: s.generalName, strategy: s.strategy, units: s.units, morale: Math.max(s.morale, 0), losses: s.losses, chosen: !!s.choice });
+          const sideView = (s, fac) => ({ faction: fac, general: s.generalName, strategy: s.strategy, units: s.units, morale: Math.max(s.morale, 0), losses: s.losses, chosen: !!s.choice, signature: s.signature || null, sigUsed: !!s.sigUsed, vetBonus: s.vetBonus || 0, rank: s.rank || null });
           battle = {
-            tileName: ab.tileName, round: ab.round, myRole,
+            tileName: ab.tileName, round: ab.round, myRole, terrain: ab.terrain || null, terrainBonus: ab.defender.terrainBonus || 0,
             attacker: sideView(ab.attacker, game.factionSlots[ab.attacker.slot]?.factionName),
             defender: sideView(ab.defender, defOwnerObj ? defOwnerObj.factionName : 'Neutral Garrison'),
             fortBonus: ab.defender.fortBonus,
@@ -983,11 +1042,12 @@ Deno.serve(async (req) => {
           return {
             id: a.id, owner: a.owner, tileId: a.tileId, name: a.name,
             strength: forcePoints(a.regiments),
+            battles: a.battles || 0, rank: armyRank(a.battles || 0).label,
             regiments: a.owner === mySlot ? a.regiments : undefined,
-            general: g ? (a.owner === mySlot ? g : { name: g.name }) : null,
+            general: g ? (a.owner === mySlot ? { ...g, traitLabel: traitByKey(g.trait)?.label || null } : { name: g.name }) : null,
           };
         }),
-        myGenerals: mySlotObj?.generals || [],
+        myGenerals: (mySlotObj?.generals || []).map((g) => ({ ...g, traitLabel: traitByKey(g.trait)?.label || null })),
         generalCost: RECRUIT_GENERAL_COST,
         battle,
         id: game.id, name: game.name, mode: game.mode, status: game.status,
@@ -1239,6 +1299,7 @@ Deno.serve(async (req) => {
         id: genId(), owner: slotIdx, tileId,
         name: `${ARMY_ORDINALS[Math.min(slot.armiesRaised - 1, 8)]} Field Army`,
         generalId: general.id,
+        battles: 0,
         regiments: Object.fromEntries(ARMY_UNIT_KEYS.map((k) => [k, regiments[k] || 0])),
       };
       game.armies.push(army);
@@ -1299,11 +1360,14 @@ Deno.serve(async (req) => {
       if (!isAtt && !isDef) return Response.json({ error: 'You are not a party to this battle' }, { status: 403 });
       const side = isAtt ? b.attacker : b.defender;
       if (side.choice) return Response.json({ error: 'Orders already issued for this round' }, { status: 400 });
-      side.choice = maneuver;
+      if (MANEUVERS[maneuver].signature && (side.signature !== maneuver || side.sigUsed)) {
+        return Response.json({ error: 'That signature maneuver is not available' }, { status: 400 });
+      }
+      setChoice(side, maneuver);
       // Auto-command the defense when it is not live (NPC, neutral, or offline commander)
       if (b.attacker.choice && !b.defender.choice) {
         const live = b.defender.interactive && defenderIsLive(game, defSlotObj);
-        if (!live) b.defender.choice = aiManeuver(b.defender, defSlotObj?.doctrine);
+        if (!live) setChoice(b.defender, aiManeuver(b.defender, defSlotObj?.doctrine));
       }
       if (b.attacker.choice && b.defender.choice) resolveBattleRound(game, b);
       if (game.status !== 'active') recordSnapshot(game);
