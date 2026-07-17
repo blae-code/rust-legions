@@ -39,12 +39,12 @@ export const PHASES = [
     status: "design",
     tagline: "Capitals come off their foundations. The whole world becomes a road.",
     summary:
-      "The largest planned redesign. Permanent capitals are replaced by nomadic mobile fortress-bases roaming a continuous, painterly macro map; permanent settlements become minor polities to trade with, coerce, or raid; and the abandonment premise becomes mechanical — buried precursor technology, contested dig sites, and a 'restore humanity' relic victory.",
+      "The largest planned redesign. Permanent capitals are replaced by nomadic mobile fortress-bases roaming a continuous, painterly macro map; permanent settlements become minor polities to trade with, coerce, or raid; and the abandonment premise becomes mechanical — buried precursor technology, contested dig sites, and a relic victory: assembling the Key, the way off the dead world.",
     prereq: "Launches from a stable v1.0 core.",
     highlights: [
       { title: "Full mobile-base rules", done: false, note: "Boarding assaults, base-loss consequences, the remaining module families (hangar, lab, habitat, aura)." },
       { title: "Graph macro map", done: false, note: "Node-and-route world, one turn = one day, GURPS-style march rates set by the slowest column. Prototype live at /macro-lab & /star-map." },
-      { title: "Precursor technology", done: false, note: "Dig sites, relics as unique modules, and the relic-based 'restore humanity' win condition." },
+      { title: "Precursor technology", done: false, note: "Dig sites, relics as unique modules, and the relic-based victory — assembling the Key, the way off-world." },
       { title: "Settlements as minor polities", done: false, note: "Neutral harvesters with dispositions — traded with, coerced, or raided by whichever fortress rolls past." },
       { title: "Political Ideology Lifepath", done: false, note: "Sessions of the Assembly: in-war decrees shifting four ideology axes with real, permanent mechanical weight." },
     ],

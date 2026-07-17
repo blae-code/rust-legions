@@ -1,6 +1,7 @@
 import React from "react";
 import { IMAGE_LIBRARY, IMAGE_CATEGORIES, libraryStats, HOUSE_STYLE } from "@/lib/imageLibrary";
 import AssetCategorySection from "@/components/assets/AssetCategorySection";
+import AssetGenerator from "@/components/assets/AssetGenerator";
 import AudioAssetSection from "@/components/assets/AudioAssetSection";
 import { AUDIO_LIBRARY, AUDIO_CATEGORIES, audioLibraryStats, AUDIO_HOUSE_STYLE } from "@/lib/audioLibrary";
 
@@ -32,6 +33,8 @@ export default function AssetRegistry() {
           ))}
         </div>
       </div>
+
+      <AssetGenerator />
 
       {Object.entries(IMAGE_CATEGORIES).map(([key, meta]) => (
         <AssetCategorySection key={key} id={key} meta={meta}

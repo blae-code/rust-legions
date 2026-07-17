@@ -131,7 +131,7 @@ export default function FieldManual() {
       <div className="flex gap-6 items-start">
         {/* chapter index */}
         <nav className="hidden lg:block w-56 shrink-0 sticky top-20">
-          <div className="cq-label mb-2">{book.subtitle ? "Contents" : "Contents"}</div>
+          <div className="cq-label mb-2">Contents</div>
           <ul className="space-y-0.5">
             {book.chapters.map((ch) => {
               const dimmed = query && !chapters.includes(ch);

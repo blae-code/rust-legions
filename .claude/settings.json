@@ -1,0 +1,35 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run lint)",
+      "Bash(npm run lint:fix)",
+      "Bash(npm run typecheck)",
+      "Bash(npm run test)",
+      "Bash(npm run test:*)",
+      "Bash(npm run rules:check)",
+      "Bash(npm run build)",
+      "Bash(npm run preview)",
+      "Bash(npm ci)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git branch:*)",
+      "Bash(git show:*)",
+      "Bash(git fetch:*)",
+      "Bash(git worktree:*)",
+      "Bash(deno lint:*)",
+      "Bash(bash scripts/agent-worktree.sh:*)",
+      "Bash(bash scripts/setup-hooks.sh)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          { "type": "command", "command": "bash .claude/hooks/rules-guard.sh" }
+        ]
+      }
+    ]
+  }
+}

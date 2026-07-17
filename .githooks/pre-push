@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Pre-push gate — a fast local mirror of CI's cheap checks, so a shared branch
+# never goes red for a lint/typecheck/parity slip that another agent then pulls.
+# Activate with scripts/setup-hooks.sh (or the worktree helper). Bypass once with
+# `git push --no-verify`. The full suite (tests, build, deno lint) still runs in CI.
+set -e
+echo "▶ pre-push: lint · typecheck · rules:check"
+npm run lint
+npm run typecheck
+npm run rules:check
+echo "✔ pre-push checks passed"

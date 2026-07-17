@@ -111,7 +111,7 @@ export default function StormFront25D() {
 
       {/* Lightning strike — cloud-lit sky wash, optional bolt, brief ground glare */}
       {strike && (
-        <React.Fragment key={strike.key}>
+        <React.Fragment key={`strike-${strike.key}`}>
           <div
             className="absolute inset-0 cq-lightning"
             style={{
@@ -125,7 +125,7 @@ export default function StormFront25D() {
 
       {/* Artillery muzzle flash + rising smoke on the horizon */}
       {shot && (
-        <React.Fragment key={shot.key}>
+        <React.Fragment key={`shot-${shot.key}`}>
           <div className="cq-arty-flash" style={{ left: `${shot.x}%`, top: `${shot.y}%` }} />
           <div className="cq-arty-glow" style={{ left: `${shot.x}%`, top: `${shot.y}%` }} />
         </React.Fragment>

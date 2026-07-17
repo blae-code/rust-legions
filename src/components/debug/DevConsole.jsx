@@ -45,7 +45,10 @@ function Handle({ onOpen }) {
 }
 
 export default function DevConsole() {
-  const [, force] = useState(0);
+  // `tick` bumps on every devlog notify (subscribe below). The devlog ring
+  // buffers are mutated in place (stable array reference), so the filtered
+  // memos below MUST key on `tick` — otherwise they'd freeze at first paint.
+  const [tick, force] = useState(0);
   const [on, setOn] = useState(false);
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState("network");
@@ -94,7 +97,7 @@ export default function DevConsole() {
     return events.filter(
       (e) => levels[e.level] !== false && (!f || e.msg.toLowerCase().includes(f) || e.source.includes(f))
     );
-  }, [events, filter, levels]);
+  }, [events, filter, levels, tick]);
 
   const shownNet = useMemo(() => {
     const f = filter.trim().toLowerCase();
@@ -102,7 +105,7 @@ export default function DevConsole() {
     return network.filter(
       (r) => `${r.name} ${r.action || ""}`.toLowerCase().includes(f) || (r.error || "").toLowerCase().includes(f)
     );
-  }, [network, filter]);
+  }, [network, filter, tick]);
 
   const gameIds = Object.keys(states);
   const activeGame = stateGame || gameIds[gameIds.length - 1];

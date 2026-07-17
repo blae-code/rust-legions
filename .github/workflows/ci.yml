@@ -34,3 +34,26 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  # Static LINT of the Base44 Deno backend. These functions run only on Base44,
+  # so this catches syntax / brace / parse errors and lint-rule violations in the
+  # gameEngine monolith on every push. NOTE: `deno lint` does NOT resolve
+  # references or types — an undefined-symbol/scope/type error still surfaces only
+  # at deploy (`deno check` would catch those but can't run in CI without the
+  # npm: specifier resolved via a deno.json/node_modules setup). `no-import-prefix`
+  # is excluded (Base44 REQUIRES inline npm: specifiers); `prefer-const` is
+  # excluded pending an owner edit to the monolith.
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Deno lint (gameEngine + concurrentPlay)
+        run: >
+          deno lint --rules-exclude=no-import-prefix,prefer-const
+          base44/functions/gameEngine/entry.ts
+          base44/functions/concurrentPlay/entry.ts
