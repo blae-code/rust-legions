@@ -1,7 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Map, PenTool, Shield, Compass, ChevronRight } from "lucide-react";
+import { Map, PenTool, Shield, Compass, BookOpen, ChevronRight } from "lucide-react";
 
 const WAR_ROOM_IMG = "https://media.base44.com/images/public/6a58196dcd485ecc774cae1b/0b44e3267_generated_image.png";
 
@@ -9,6 +9,7 @@ const TOOLS = [
   { to: "/maps", icon: Map, title: "Map Library", desc: "Survey every registered theater of war — browse and preview published fronts." },
   { to: "/map-editor", icon: PenTool, title: "Cartography Bureau", desc: "Draft new battlegrounds tile by tile and commit them to the archive." },
   { to: "/army-designer", icon: Shield, title: "Army Design Bureau", desc: "Draft doctrine patterns — formation, weapons, armor and support — for your field armies." },
+  { to: "/field-manual", icon: BookOpen, title: "The Field Manual", desc: "Regulations of the war and the almanac of the world — the officer's codex of rules and lore." },
   { to: "/roadmap", icon: Compass, title: "Forward Doctrine", desc: "The Ministry's line of advance — the mobile-base redesign and the coming Air and Sea theaters." },
 ];
 

@@ -3,7 +3,10 @@ import { UNIT_MARCH } from "@/lib/macro/march";
 import { ROUTE_QUALITY, nodeById } from "@/lib/macro/graph";
 
 // Column composition + march itinerary. The slowest ground element sets the pace.
-export default function MarchPlanner({ regiments, setRegiments, dayRate, origin, dest, plan }) {
+// `nodeName` resolves a node id to a display name; defaults to the global continent
+// graph (Macro Lab) but the 3D planet map passes its own per-planet lookup.
+export default function MarchPlanner({ regiments, setRegiments, dayRate, origin, dest, plan, nodeName }) {
+  const name = nodeName || ((id) => nodeById(id)?.name || "");
   const step = (k, d) => setRegiments((r) => ({ ...r, [k]: Math.max((r[k] || 0) + d, 0) }));
 
   return (
@@ -33,7 +36,7 @@ export default function MarchPlanner({ regiments, setRegiments, dayRate, origin,
       <div className="cq-panel p-4">
         <p className="cq-label mb-2">March Itinerary</p>
         {!origin && <p className="font-mono text-[10px] text-muted-foreground">CLICK A NODE TO SET THE ORIGIN.</p>}
-        {origin && !dest && <p className="font-mono text-[10px] text-muted-foreground">ORIGIN: {nodeById(origin).name.toUpperCase()} — CLICK A DESTINATION.</p>}
+        {origin && !dest && <p className="font-mono text-[10px] text-muted-foreground">ORIGIN: {name(origin).toUpperCase()} — CLICK A DESTINATION.</p>}
         {origin && dest && !plan && <p className="font-mono text-[10px] text-rust">NO PASSABLE ROUTE — FIELD GROUND ELEMENTS FIRST.</p>}
         {plan && (
           <>

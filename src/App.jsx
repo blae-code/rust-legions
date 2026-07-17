@@ -21,6 +21,7 @@ import MacroLab from './pages/MacroLab';
 import StarMap from './pages/StarMap';
 import Walkthrough from './pages/Walkthrough';
 import Roadmap from './pages/Roadmap';
+import FieldManual from './pages/FieldManual';
 import DevConsole from './components/debug/DevConsole';
 
 const AuthenticatedApp = () => {
@@ -64,6 +65,7 @@ const AuthenticatedApp = () => {
         <Route path="/star-map" element={<StarMap />} />
         <Route path="/walkthrough" element={<Walkthrough />} />
         <Route path="/roadmap" element={<Roadmap />} />
+        <Route path="/field-manual" element={<FieldManual />} />
       </Route>
       <Route path="*" element={<PageNotFound />} />
     </Routes>

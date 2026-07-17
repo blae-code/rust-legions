@@ -14,6 +14,7 @@ const NAV = [
   { to: "/faction-builder", label: "Faction Builder" },
   { to: "/maps", label: "Map Library" },
   { to: "/map-editor", label: "Map Editor" },
+  { to: "/field-manual", label: "Field Manual" },
 ];
 
 export default function Layout() {
