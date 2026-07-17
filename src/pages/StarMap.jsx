@@ -1,31 +1,70 @@
-import React, { useState, useMemo } from "react";
-import { Link } from "react-router-dom";
+import React, { useState, useMemo, useRef, useEffect } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Flag, Crosshair, Anchor, Ban, RotateCcw } from "lucide-react";
-import { Canvas } from "@react-three/fiber";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Stars, OrbitControls } from "@react-three/drei";
+import * as THREE from "three";
 import { PLANETS } from "@/lib/macro/planets";
 import { NODE_KINDS } from "@/lib/macro/graph";
 import { armyDayRate, findPath, planMarch } from "@/lib/macro/march";
 import { computeTacticalOverlay } from "@/lib/macro/overlay";
+import { playSfx } from "@/lib/sfx";
 import PlanetSystem from "@/components/starmap/PlanetSystem";
 import MarchPlanner from "@/components/macro/MarchPlanner";
 import SceneErrorBoundary from "@/components/SceneErrorBoundary";
 
 const LEGEND = [["highway", "#C9A227"], ["road", "#9a927f"], ["track", "#6e675c"], ["trail", "#5a5348"]];
 
+// Orbital insertion — the camera falls from high orbit to the survey distance on
+// load, then hands over to the commander. OrbitControls re-derives its spherical
+// from the live camera position each frame, so the lerp composes cleanly with it.
+function CameraRig({ planet, done, onDone }) {
+  const { camera } = useThree();
+  const target = useMemo(() => new THREE.Vector3(0, planet.radius * 0.9, planet.radius * 3), [planet.radius]);
+  const started = useRef(false);
+  useFrame((_, dt) => {
+    if (done) return;
+    if (!started.current) {
+      camera.position.set(0, planet.radius * 3.2, planet.radius * 8.5);
+      started.current = true;
+    }
+    camera.position.lerp(target, 1 - Math.exp(-2.4 * dt));
+    if (camera.position.distanceTo(target) < planet.radius * 0.03) onDone();
+  });
+  return null;
+}
+
 // The canonical macro map — one campaign world, orbited, with its full node-and-route
-// network as a brass industrial overlay above the crust. The host picks a planet from
-// the curated library (the selector below); marches are day-rate plotted by the slowest
-// ground element of the staged column. See docs/MACRO_MAP.md.
+// network as a brass industrial overlay above the crust. The world is picked at
+// operation setup (PlanetPicker) and arrives here as ?planet=; marches are day-rate
+// plotted by the slowest ground element of the staged column. See docs/MACRO_MAP.md.
 export default function StarMap() {
-  const [selectedId, setSelectedId] = useState(PLANETS[0].id);
+  const [params] = useSearchParams();
+  const planet = PLANETS.find((p) => p.id === params.get("planet")) || PLANETS[0];
+  return <WarTable key={planet.id} planet={planet} />;
+}
+
+function WarTable({ planet }) {
   const [regiments, setRegiments] = useState({ riflemen: 2, crawler: 1, artillery: 0, fighter: 0 });
   const [hovered, setHovered] = useState(null);
   const [march, setMarch] = useState({ origin: null, dest: null });
   const [menu, setMenu] = useState(null); // node id with an open orders menu
   const [base, setBase] = useState(null); // node id — anchored fortress-base
   const [showOverlay, setShowOverlay] = useState(false); // tactical intel layer
-  const planet = PLANETS.find((p) => p.id === selectedId);
+  const [introDone, setIntroDone] = useState(false); // orbital-insertion fly-in
+  const [idle, setIdle] = useState(true); // idle → slow cinematic drift
+
+  // Commander input pauses the idle drift. The 12s countdown starts only when the
+  // input ends (onEnd), so a long drag never has the drift resume mid-grip;
+  // discrete inputs (node clicks) poke both.
+  const idleTimer = useRef();
+  const wake = () => { setIdle(false); clearTimeout(idleTimer.current); };
+  const sleep = () => {
+    clearTimeout(idleTimer.current);
+    idleTimer.current = setTimeout(() => setIdle(true), 12000);
+  };
+  const poke = () => { wake(); sleep(); };
+  useEffect(() => () => clearTimeout(idleTimer.current), []);
 
   // Only pay the all-pairs betweenness when the intel layer is actually shown
   const overlay = useMemo(
@@ -39,28 +78,27 @@ export default function StarMap() {
     return found ? planMarch(found.path, dayRate, planet.routes) : null;
   }, [march, dayRate, planet]);
 
-  // Switching campaign world clears any staged column, plot, base and menu
-  const selectPlanet = (id) => {
-    setSelectedId(id);
-    setMarch({ origin: null, dest: null });
-    setBase(null);
-    setMenu(null);
-    setHovered(null);
-  };
-
-  const onNodeClick = (_p, node) => setMenu((m) => (m === node.id ? null : node.id));
+  const onNodeClick = (_p, node) => { poke(); playSfx("select"); setMenu((m) => (m === node.id ? null : node.id)); };
   const closeMenu = () => setMenu(null);
   const clearMarch = () => setMarch({ origin: null, dest: null });
   const nodeName = (id) => planet.nodes.find((n) => n.id === id)?.name || "";
 
+  // A dry mechanical tick each time the reticle passes onto a new settlement
+  const lastHover = useRef(null);
+  const onHoverNode = (n) => {
+    if (n && n.id !== lastHover.current) playSfx("hover");
+    lastHover.current = n?.id || null;
+    setHovered(n);
+  };
+
   // Smart flow — only orders that are actually eligible for the column & base appear
   const menuOptionsFor = (_p, node) => {
-    const done = (fn) => () => { fn(); closeMenu(); };
+    const done = (fn, sound = "select") => () => { playSfx(sound); fn(); closeMenu(); };
     const opts = [];
     const stagedHere = march.origin === node.id;
     const marching = march.origin && !march.dest;
     if (marching && !stagedHere) {
-      opts.push({ key: "objective", label: "March Here", icon: Crosshair, act: done(() => setMarch((m) => ({ ...m, dest: node.id }))) });
+      opts.push({ key: "objective", label: "March Here", icon: Crosshair, act: done(() => setMarch((m) => ({ ...m, dest: node.id })), "move") });
       opts.push({ key: "restage", label: "Restage Column", icon: RotateCcw, act: done(() => setMarch({ origin: node.id, dest: null })) });
     } else if (stagedHere && !march.dest) {
       opts.push({ key: "standdown", label: "Stand Down", icon: Ban, tone: "rust", act: done(clearMarch) });
@@ -71,7 +109,7 @@ export default function StarMap() {
       opts.push({ key: "clearplot", label: "Clear Plot", icon: Ban, tone: "rust", act: done(clearMarch) });
     }
     if (base === node.id) opts.push({ key: "weigh", label: "Weigh Anchor", icon: Anchor, tone: "rust", act: done(() => setBase(null)) });
-    else opts.push({ key: "anchor", label: "Anchor Base", icon: Anchor, act: done(() => setBase(node.id)) });
+    else opts.push({ key: "anchor", label: "Anchor Base", icon: Anchor, act: done(() => setBase(node.id), "build") });
     return opts;
   };
 
@@ -86,35 +124,17 @@ export default function StarMap() {
             <p className="cq-label text-rust">Astrocartography Directorate</p>
             <h1 className="cq-display text-3xl">The War Table</h1>
             <p className="font-mono text-[10px] text-muted-foreground tracking-widest mt-1">
-              {planet.nodes.length} SETTLEMENTS · 1 TURN = 1 DAY · CLICK A SETTLEMENT FOR ORDERS
+              THEATER: {planet.name.toUpperCase()} · {planet.nodes.length} SETTLEMENTS · 1 TURN = 1 DAY · CLICK A SETTLEMENT FOR ORDERS
             </p>
           </div>
-          <div className="flex flex-col items-end gap-2">
-            <button
-              onClick={() => setShowOverlay((v) => !v)}
-              className={`cq-metal inline-flex items-center gap-1.5 font-heading uppercase tracking-widest text-[10px] px-3 py-1.5 rounded-sm border transition-colors ${
-                showOverlay ? "border-rust/70 text-rust" : "border-border text-muted-foreground hover:text-brass-bright"
-              }`}
-            >
-              <Crosshair className="w-3 h-3" /> Tactical Overlay {showOverlay ? "ON" : "OFF"}
-            </button>
-            <div className="flex flex-col items-end gap-1">
-              <p className="font-mono text-[9px] text-muted-foreground tracking-widest">CAMPAIGN WORLD</p>
-              <div className="flex gap-1.5">
-                {PLANETS.map((p) => (
-                  <button
-                    key={p.id}
-                    onClick={() => selectPlanet(p.id)}
-                    className={`cq-metal font-heading uppercase tracking-widest text-[10px] px-3 py-1.5 rounded-sm border transition-colors ${
-                      p.id === selectedId ? "border-brass/70 text-brass-bright" : "border-border text-muted-foreground hover:text-brass-bright"
-                    }`}
-                  >
-                    {p.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
+          <button
+            onClick={() => { playSfx("select"); setShowOverlay((v) => !v); }}
+            className={`cq-metal inline-flex items-center gap-1.5 font-heading uppercase tracking-widest text-[10px] px-3 py-1.5 rounded-sm border transition-colors ${
+              showOverlay ? "border-rust/70 text-rust" : "border-border text-muted-foreground hover:text-brass-bright"
+            }`}
+          >
+            <Crosshair className="w-3 h-3" /> Tactical Overlay {showOverlay ? "ON" : "OFF"}
+          </button>
         </div>
 
         <div className="grid lg:grid-cols-[1fr_320px] gap-4">
@@ -122,19 +142,19 @@ export default function StarMap() {
             <div className="cq-hazard absolute top-0 left-0 right-0 z-10" />
             <div className="h-[68vh] min-h-[440px] rounded">
               <SceneErrorBoundary>
-              <Canvas camera={{ position: [0, 4, 14], fov: 50 }} dpr={[1, 2]}>
+              <Canvas camera={{ position: [0, planet.radius * 3.2, planet.radius * 8.5], fov: 50 }} dpr={[1, 2]}>
                 <color attach="background" args={["#07090c"]} />
                 <ambientLight intensity={0.4} />
                 <directionalLight position={[25, 14, 10]} intensity={1.25} color="#f5e2c0" />
                 <Stars radius={140} depth={60} count={4000} factor={3} fade speed={0.4} />
+                <CameraRig planet={planet} done={introDone} onDone={() => setIntroDone(true)} />
                 <PlanetSystem
-                  key={planet.id}
                   planet={planet}
                   position={[0, 0, 0]}
                   selected
                   onSelect={closeMenu}
                   hoveredId={hovered?.id || null}
-                  onHoverNode={setHovered}
+                  onHoverNode={onHoverNode}
                   origin={march.origin}
                   dest={march.dest}
                   plan={plan}
@@ -145,9 +165,21 @@ export default function StarMap() {
                   baseNodeId={base}
                   overlay={overlay}
                 />
-                <OrbitControls enablePan={false} minDistance={5} maxDistance={45} />
+                <OrbitControls
+                  enabled={introDone}
+                  enablePan={false}
+                  minDistance={planet.radius * 1.5}
+                  maxDistance={planet.radius * 11}
+                  autoRotate={introDone && idle && !menu}
+                  autoRotateSpeed={0.4}
+                  onStart={wake}
+                  onEnd={sleep}
+                />
               </Canvas>
               </SceneErrorBoundary>
+              {/* War-room instrument treatment over the live feed */}
+              <div className="cq-scanlines absolute inset-0 pointer-events-none z-[5]" />
+              <div className="cq-vignette absolute inset-0 pointer-events-none z-[5]" />
             </div>
 
             {/* Selected world readout */}
@@ -207,7 +239,7 @@ export default function StarMap() {
         </div>
 
         <p className="font-mono text-[9px] text-muted-foreground tracking-widest mt-2">
-          COMPOSE THE COLUMN AT RIGHT — THE SLOWEST GROUND ELEMENT SETS THE MARCH PACE · CINDARA CARRIES THE ORIGINAL ABANDONED CONTINENT
+          COMPOSE THE COLUMN AT RIGHT — THE SLOWEST GROUND ELEMENT SETS THE MARCH PACE · THEATER WORLD IS FIXED AT OPERATION SETUP
         </p>
       </div>
     </div>

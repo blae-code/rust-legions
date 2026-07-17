@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
+import { motion } from "framer-motion";
 import { Loader2 } from "lucide-react";
+import { playSfx } from "@/lib/sfx";
 import BattleForce from "@/components/game/BattleForce";
 import BattleDiorama from "@/components/game/BattleDiorama";
 import InitiativeTracker from "@/components/game/InitiativeTracker";
@@ -26,6 +28,13 @@ export default function BattleView({ battle, busy, onChoose }) {
     return () => clearTimeout(t);
   }, [fx]);
 
+  // Contact — the guns open up the moment the battle screen forms
+  const prevBattle = useRef(false);
+  useEffect(() => {
+    if (battle && !prevBattle.current) playSfx("attack");
+    prevBattle.current = !!battle;
+  }, [battle]);
+
   if (!battle) return null;
   const iAmAttacker = battle.myRole === "attacker";
   const mySide = iAmAttacker ? battle.attacker : battle.defender;
@@ -34,8 +43,18 @@ export default function BattleView({ battle, busy, onChoose }) {
   const sigCooldown = mySide.sigCooldown || 0;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-      <div className={`cq-panel cq-brackets w-full max-w-2xl max-h-[92vh] overflow-y-auto p-5 relative ${shaking ? "cq-shake" : ""}`}>
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.25 }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+    >
+      <motion.div
+        initial={{ scale: 0.9, y: 26, opacity: 0 }}
+        animate={{ scale: 1, y: 0, opacity: 1 }}
+        transition={{ type: "spring", stiffness: 380, damping: 26 }}
+        className={`cq-panel cq-brackets w-full max-w-2xl max-h-[92vh] overflow-y-auto p-5 relative ${shaking ? "cq-shake" : ""}`}
+      >
         <div className="cq-hazard absolute top-0 left-0 right-0" />
         <BattleSparks burst={fx} />
         <div className="text-center pt-2 mb-4">
@@ -87,6 +106,7 @@ export default function BattleView({ battle, busy, onChoose }) {
                     key={key}
                     disabled={busy || onCooldown}
                     onClick={() => onChoose(key)}
+                    onMouseEnter={() => playSfx("hover")}
                     className={`text-left border rounded-sm p-2.5 transition-colors disabled:opacity-50 ${
                       onCooldown ? "border-rust/50 bg-rust/5 cursor-not-allowed" : sig ? "border-brass/70 bg-brass/10 hover:bg-brass/20" : "border-border hover:border-brass/70 hover:bg-brass/10"
                     }`}
@@ -110,7 +130,7 @@ export default function BattleView({ battle, busy, onChoose }) {
             <Loader2 className="w-3.5 h-3.5 animate-spin" /> Couriers race to the enemy command post…
           </p>
         )}
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }

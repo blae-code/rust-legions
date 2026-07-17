@@ -43,8 +43,8 @@ function shortestPath(from, to, adj) {
   return path;
 }
 
-// Defaults to the original continent graph (Macro Lab); the 3D planet map passes
-// its own per-planet nodes/routes.
+// The War Table passes each campaign world's own nodes/routes; the defaults
+// cover the original authored continent.
 export function computeTacticalOverlay(nodes = MACRO_NODES, routes = MACRO_ROUTES) {
   const adj = {};
   for (const r of routes) {

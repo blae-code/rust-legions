@@ -1,13 +1,14 @@
 import React from "react";
 import { UNIT_MARCH } from "@/lib/macro/march";
 import { ROUTE_QUALITY, nodeById } from "@/lib/macro/graph";
+import { playSfx } from "@/lib/sfx";
 
 // Column composition + march itinerary. The slowest ground element sets the pace.
-// `nodeName` resolves a node id to a display name; defaults to the global continent
-// graph (Macro Lab) but the 3D planet map passes its own per-planet lookup.
+// `nodeName` resolves a node id to a display name; defaults to the authored
+// continent, but the War Table passes its own per-planet lookup.
 export default function MarchPlanner({ regiments, setRegiments, dayRate, origin, dest, plan, nodeName }) {
   const name = nodeName || ((id) => nodeById(id)?.name || "");
-  const step = (k, d) => setRegiments((r) => ({ ...r, [k]: Math.max((r[k] || 0) + d, 0) }));
+  const step = (k, d) => { playSfx("hover"); setRegiments((r) => ({ ...r, [k]: Math.max((r[k] || 0) + d, 0) })); };
 
   return (
     <div className="space-y-3">

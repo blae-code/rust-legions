@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Loader2, Volume2, VolumeX, Handshake, FlaskConical, Warehouse } from "lucide-react";
@@ -49,6 +50,8 @@ export default function GamePage() {
   const [showEconomy, setShowEconomy] = useState(false);
   const pollRef = useRef(null);
   const prevBattleRef = useRef(false);
+  const [turnStinger, setTurnStinger] = useState(0);
+  const prevMyTurn = useRef(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -72,6 +75,21 @@ export default function GamePage() {
     if (prevBattleRef.current && !battleActive && game?.battleReport) setReport(game.battleReport);
     prevBattleRef.current = battleActive;
   }, [battleActive, game?.battleReport]);
+
+  // The baton passes to us — telegraph key + orders stamp, and a stamped overlay.
+  // battleActive is a dep so a handoff masked by an open battle fires on its close.
+  useEffect(() => {
+    if (!game) return;
+    const mine = !!game.isMyTurn && game.status === "active" && !battleActive;
+    const was = prevMyTurn.current;
+    prevMyTurn.current = mine;
+    if (was === false && mine) {
+      playSfx("endTurn");
+      setTurnStinger(Date.now());
+      const t = setTimeout(() => setTurnStinger(0), 2200);
+      return () => clearTimeout(t);
+    }
+  }, [game?.isMyTurn, game?.status, battleActive]);
 
   useEffect(() => {
     refresh();
@@ -143,8 +161,22 @@ export default function GamePage() {
 
   if (!game) {
     return (
-      <div className="flex justify-center py-20">
-        {error ? <p className="text-rust">{error}</p> : <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />}
+      <div className="relative flex justify-center py-24 overflow-hidden">
+        <div className="absolute inset-0 cq-scanlines opacity-25 pointer-events-none" />
+        <div className="absolute inset-0 cq-vignette pointer-events-none" />
+        {error ? (
+          <p className="text-rust font-mono text-xs tracking-widest">{error}</p>
+        ) : (
+          <div className="relative flex flex-col items-center gap-4 cq-flicker">
+            <div className="relative">
+              <Loader2 className="w-9 h-9 animate-spin text-brass" />
+            </div>
+            <p className="cq-label text-brass">Signals Directorate</p>
+            <p className="font-mono text-[10px] text-muted-foreground tracking-[0.35em] animate-pulse">
+              RAISING THE FRONT ON THE WIRE…
+            </p>
+          </div>
+        )}
       </div>
     );
   }
@@ -173,7 +205,16 @@ export default function GamePage() {
         <div className="cq-hazard absolute top-0 left-0 right-0" />
         <div>
           <h1 className="cq-display text-2xl leading-none">{game.name}</h1>
-          <p className="text-xs text-muted-foreground font-mono mt-0.5">TURN {game.turnNumber} · {game.mode === "campaign" ? "CAMPAIGN" : "MULTIPLAYER"} · {(PLANETS.find((p) => p.id === game.planetId)?.name || "Cindara").toUpperCase()}</p>
+          <p className="text-xs text-muted-foreground font-mono mt-0.5">
+            TURN {game.turnNumber} · {game.mode === "campaign" ? "CAMPAIGN" : "MULTIPLAYER"} ·{" "}
+            <Link
+              to={`/star-map?planet=${game.planetId || "cindara"}`}
+              className="hover:text-brass-bright transition-colors"
+              title="Survey the theater on the War Table"
+            >
+              {(PLANETS.find((p) => p.id === game.planetId)?.name || "Cindara").toUpperCase()}
+            </Link>
+          </p>
         </div>
         <div className="flex gap-2 flex-wrap ml-auto items-center">
           {game.factions.map((f) => (
@@ -241,6 +282,14 @@ export default function GamePage() {
           <p className="cq-display text-2xl text-brass-bright">
             {game.winnerName ? `${game.winnerName} has won the war` : "The war has ended"}
           </p>
+          <motion.span
+            initial={{ scale: 2.4, opacity: 0, rotate: -20 }}
+            animate={{ scale: 1, opacity: 1, rotate: -8 }}
+            transition={{ type: "spring", stiffness: 420, damping: 22, delay: 0.35 }}
+            className="cq-stamp absolute top-3 right-4 text-sm"
+          >
+            Armistice
+          </motion.span>
         </div>
       )}
 
@@ -347,6 +396,29 @@ export default function GamePage() {
       <CombatResolution report={resolution} onClose={() => setResolution(null)} />
       <BattleView battle={game.battle} busy={busy} onChoose={(maneuver) => act({ action: "battleChoice", maneuver })} />
       {!game.battle && <BattleReport report={report} onClose={() => setReport(null)} />}
+
+      {/* Baton receipt — the War Ministry stamps the orders through */}
+      <AnimatePresence>
+        {turnStinger > 0 && (
+          <motion.div
+            key={turnStinger}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[70] flex items-center justify-center pointer-events-none"
+          >
+            <div className="absolute inset-0 bg-black/40" />
+            <motion.div
+              initial={{ scale: 2.6, opacity: 0, rotate: -18 }}
+              animate={{ scale: 1, opacity: 1, rotate: -8 }}
+              transition={{ type: "spring", stiffness: 520, damping: 20 }}
+              className="relative cq-stamp text-3xl sm:text-4xl px-8 py-2"
+            >
+              Your turn, Commander
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

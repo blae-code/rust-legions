@@ -72,7 +72,7 @@ Connectors authorized: `googlesheets`, `googledocs` (shared mode, builder's acco
 ## Frontend Structure
 
 ### Routing (`src/App.jsx`)
-`/` Home · `/new-game` · `/game/:gameId` · `/faction-builder` · `/map-editor` · `/maps` · `/army-designer` · `/patch-notes` · `/asset-registry` · `/macro-lab` · `/star-map` · `/walkthrough` — all wrapped in `src/components/Layout.jsx` (which also mounts the persistent `MusicController`). Auth template pages at `/login` etc.
+`/` Home · `/new-game` · `/game/:gameId` · `/faction-builder` · `/map-editor` · `/maps` · `/army-designer` · `/patch-notes` · `/asset-registry` · `/star-map` · `/walkthrough` — all wrapped in `src/components/Layout.jsx` (which also mounts the persistent `MusicController`). Auth template pages at `/login` etc.
 
 ### Pages
 - **Home** — 100dvh three-column command deck: `StormFront25D` video backdrop (locked-off trench-front loop + live lightning/artillery FX), `GameMenu` order plates, `FrontCard` game list, dossier/intel/ticker panels, `BootSequence`, ambient audio unlock.
@@ -80,15 +80,14 @@ Connectors authorized: `googlesheets`, `googledocs` (shared mode, builder's acco
 - **GamePage side systems** — `DoctrinePanel` (research tree + `ArmoryPanel`), `FortressBay`/`RefitYard` (base modules & movement), `DiplomacyPanel` (Envoy Desk: offers, accords ledger, trade log), `GameChat` (Field Wire), `CombatResolution` (post-battle losses screen).
 - **NewGame / MapLibrary / MapEditor / FactionBuilder / ArmyDesigner / PatchNotes** — setup & meta tools.
 - **Walkthrough** — 5-step "Field Induction" interactive tutorial (base refitting, ideology, treads primer).
-- **MacroLab** — sandbox for the v2.x node-and-route macro map: Dijkstra day-rate march planning plus a tactical overlay (supply arteries via all-pairs betweenness, top-5 capture objectives).
-- **StarMap** — the Star Chart: three procedurally seeded 3D worlds (`src/lib/macro/planets.js`) carrying the node-and-route network; clicking a settlement opens a **radial orders menu** (`NodeRadialMenu`) with context-eligible options (stage column → march here / restage / stand down, anchor/weigh fortress-base); marches render as great-circle trails with daily camps (`MarchTrail`). Client-side sandbox like MacroLab.
+- **StarMap** — the **War Table**, the canonical v2.x macro map (docs/MACRO_MAP.md): one orbital 3D campaign world (`src/lib/macro/planets.js`, picked at operation setup via `?planet=`) carrying the node-and-route network; clicking a settlement opens a **radial orders menu** (`NodeRadialMenu`) with context-eligible options (stage column → march here / restage / stand down, anchor/weigh fortress-base); marches render as great-circle trails with daily camps (`MarchTrail`); Dijkstra day-rate march planning (`MarchPlanner`) plus a toggleable tactical overlay (supply arteries via all-pairs betweenness, top-5 capture objectives). Client-side sandbox — not wired into `gameEngine`.
 - **AssetRegistry** — Illustration Directorate (image plates, `src/lib/imageLibrary.js`) + Sound Registry (`src/lib/audioLibrary.js`); every asset carries a generation-ready prompt and delivery status.
 
 ### Component directories
 - `src/components/home/` — command-deck panels & 2.5D backdrop (`StormFront25D` + `BackdropReel` rotating video playlist)
 - `src/components/game/` — in-game panels, battle UI, sprites; subdirs: `diplomacy/`, `fortress/`, `research/`, `chat/`
-- `src/components/macro/` — macro-map lab: `MacroGraphMap`, `RouteEdge`, `MarchPlanner`, `TacticalOverlay`
-- `src/components/starmap/` — the Star Chart: `PlanetSystem`, `PlanetBody`, `NodeMarker`, `NodeRadialMenu` (radial orders), `RouteArcs`, `MarchTrail`, `arcMath.js`
+- `src/components/macro/` — `MarchPlanner` (column composition + itemized itinerary side panel)
+- `src/components/starmap/` — the War Table: `PlanetSystem`, `PlanetBody`, `NodeMarker`, `NodeRadialMenu` (radial orders), `RouteArcs`, `MarchTrail`, `TacticalLayer`, `arcMath.js`
 - `src/components/walkthrough/`, `src/components/induction/` — Field Induction tutorial & commissioning
 - `src/components/assets/` — asset registry cards (image + audio)
 - `src/components/audio/MusicController.jsx` — persistent soundtrack controls (mounted in Layout)
@@ -101,7 +100,7 @@ Connectors authorized: `googlesheets`, `googledocs` (shared mode, builder's acco
 - `sfx.js` — synthesized Web Audio SFX (mechanical clicks/levers w/ grit distortion); `playSfx(name)`, `sfxEnabled()`/`setSfxEnabled()`
 - `ambience.js` — rotating 5-piece public-domain orchestral score (Wikimedia Commons); playlist, per-track fades, `startScore`/`stopScore`/`skipScore`, `setScoreSuppressed` (battles), `unlockAmbience()` on first gesture
 - `hex.js` — axial hex math · `terrain3d.js` — 3D terrain palette/geometry
-- `macro/` — v2.x lab: `graph.js` (nodes/routes), `march.js` (day-rate Dijkstra itineraries), `overlay.js` (supply-artery + objective analysis), `planets.js` (star-chart worlds: deterministic procedural settlements/routes, lat/lon→XYZ)
+- `macro/` — v2.x macro map: `graph.js` (nodes/routes, canonical lat/lon), `march.js` (day-rate Dijkstra itineraries), `overlay.js` (supply-artery + objective analysis), `planets.js` (campaign worlds: deterministic procedural settlements/routes, lat/lon→XYZ)
 - `imageLibrary.js` / `imagePlates.js` / `audioLibrary.js` — asset registries with generation prompts and delivery status
 - Rules mirrors (**keep in sync with gameEngine** — see CLAUDE.md): `units.js`, `massCombat.js`, `armyDesign.js`, `pointBuy.js`, `combatMods.js`, `weather.js`, `baseModules.js`, `doctrine.js`, `armory.js`, `diplomacy.js`, `commandVehicles.js`
 - `lifepath.js` — faction lifepath stages · `medals.js` · `generalPortraits.js`
