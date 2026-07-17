@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Loader2, Volume2, VolumeX, Handshake, FlaskConical, Warehouse } from "lucide-react";
@@ -173,7 +173,16 @@ export default function GamePage() {
         <div className="cq-hazard absolute top-0 left-0 right-0" />
         <div>
           <h1 className="cq-display text-2xl leading-none">{game.name}</h1>
-          <p className="text-xs text-muted-foreground font-mono mt-0.5">TURN {game.turnNumber} · {game.mode === "campaign" ? "CAMPAIGN" : "MULTIPLAYER"} · {(PLANETS.find((p) => p.id === game.planetId)?.name || "Cindara").toUpperCase()}</p>
+          <p className="text-xs text-muted-foreground font-mono mt-0.5">
+            TURN {game.turnNumber} · {game.mode === "campaign" ? "CAMPAIGN" : "MULTIPLAYER"} ·{" "}
+            <Link
+              to={`/star-map?planet=${game.planetId || "cindara"}`}
+              className="hover:text-brass-bright transition-colors"
+              title="Survey the theater on the War Table"
+            >
+              {(PLANETS.find((p) => p.id === game.planetId)?.name || "Cindara").toUpperCase()}
+            </Link>
+          </p>
         </div>
         <div className="flex gap-2 flex-wrap ml-auto items-center">
           {game.factions.map((f) => (

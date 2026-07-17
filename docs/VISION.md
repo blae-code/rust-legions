@@ -76,18 +76,18 @@ Precursor relics (see §4) can grant **unique modules** that cannot be built, on
 
 ## 5. The Macro Map: Graph Under the Hood, Painterly World on Top
 
-> **Status: prototype live.** The **Macro March Lab** (`/macro-lab`, `src/lib/macro/`, `src/components/macro/`)
-> implements the graph model client-side: node-and-route map, day-rate Dijkstra itineraries with overnight
-> camps (slowest ground element sets the pace), and a tactical overlay (supply-artery betweenness analysis +
-> ranked capture objectives). The **Star Chart** (`/star-map`, `src/components/starmap/`) extends the prototype
-> to three procedurally seeded 3D worlds — settlements pinned to planet surfaces, radial node orders menus
-> (stage column / march / anchor base), and great-circle march trails with daily camps. Both are sandboxes
-> only — nothing is wired into `gameEngine` yet.
+> **Status: sandbox live, merged.** The macro map lives at the **War Table** (`/star-map`,
+> `src/lib/macro/`, `src/components/starmap/`): one orbital 3D campaign world (picked at operation
+> setup) carrying the node-and-route graph, day-rate Dijkstra itineraries with overnight camps
+> (slowest ground element sets the pace), radial node orders menus (stage column / march / anchor
+> base), great-circle march trails, and a tactical overlay (supply-artery betweenness analysis +
+> ranked capture objectives). It is a client sandbox only — nothing is wired into `gameEngine` yet.
 >
-> **The form is now LOCKED** in [`docs/MACRO_MAP.md`](./MACRO_MAP.md): one canonical macro map —
+> **The form is LOCKED** in [`docs/MACRO_MAP.md`](./MACRO_MAP.md): one canonical macro map —
 > a single gritty **orbital 3D planet** you pick from a curated library, with a brass industrial
-> **node-and-route overlay** floating above its crust (the Star Chart promoted to canonical, the flat
-> Macro March Lab absorbed and retired). That doc resolves the art/scale open questions in §5.6 below.
+> **node-and-route overlay** floating above its crust. The Star Chart was promoted to canonical and
+> the flat Macro March Lab (`/macro-lab`) has been absorbed and retired. That doc resolves the
+> art/scale open questions in §5.6 below.
 
 **Decision (locked):** the hex grid is retired as the player-facing world model. It is replaced by a **Total War / Mount & Blade-style continuous macro map** driven by a **node-and-route graph** on the server. The player never sees a hex — only a painterly war-table map with named places, roads, and marching columns. This is the spine of the v2.x redesign: mobile bases only make sense on a map built for movement.
 
@@ -231,5 +231,5 @@ To resolve before/while implementing v2.x:
 ## 9. Working Agreement
 
 - **Docs first, then code:** design pivots land in this file before implementation begins.
-- Implementation of the v2.x macro map has **not started server-side** — the vanilla hex rules remain fully authoritative in play; `/macro-lab` is a client-side sandbox.
+- Implementation of the v2.x macro map has **not started server-side** — the vanilla hex rules remain fully authoritative in play; the War Table (`/star-map`) is a client-side sandbox.
 - Every shipped slice updates `docs/GAME_RULES.md`, the `src/lib/` mirrors, and files a Patch dispatch.

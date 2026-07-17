@@ -1,7 +1,8 @@
 // Macro map logic layer — a node-and-route graph. Nodes are settlements, depots
 // and crossroads on the abandoned continent; routes carry a real distance in miles
-// and a quality grade that throttles march speed. Coordinates are in a 0–100 × 0–70
-// map space for the painterly client map.
+// and a quality grade that throttles march speed. Node positions are canonical
+// lat/lon on the campaign world (docs/MACRO_MAP.md §3.2) — the continent drapes
+// over Cindara's northern hemisphere.
 
 export const ROUTE_QUALITY = {
   highway: { label: "Imperial Highway", mult: 1.25, desc: "Cracked but drivable ferrocrete" },
@@ -11,29 +12,29 @@ export const ROUTE_QUALITY = {
 };
 
 export const NODE_KINDS = {
-  city: { label: "Ruined City", r: 3.2 },
-  town: { label: "Township", r: 2.4 },
-  depot: { label: "Fuel Depot", r: 2.4 },
-  crossroads: { label: "Crossroads", r: 1.8 },
-  ruin: { label: "Deep Ruin", r: 2.0 },
+  city: { label: "Ruined City" },
+  town: { label: "Township" },
+  depot: { label: "Fuel Depot" },
+  crossroads: { label: "Crossroads" },
+  ruin: { label: "Deep Ruin" },
 };
 
 export const MACRO_NODES = [
-  { id: "kesselgrad", name: "Kesselgrad", kind: "city", x: 12, y: 18 },
-  { id: "ashvale", name: "Ashvale", kind: "town", x: 30, y: 9 },
-  { id: "rustwater", name: "Rustwater", kind: "city", x: 52, y: 7 },
-  { id: "ironmoor", name: "Ironmoor", kind: "town", x: 78, y: 11 },
-  { id: "veldt_cross", name: "Veldt Cross", kind: "crossroads", x: 24, y: 32 },
-  { id: "foundry_91", name: "Foundry 91", kind: "depot", x: 44, y: 26 },
-  { id: "greyspire", name: "Greyspire", kind: "city", x: 66, y: 28 },
-  { id: "pale_marsh", name: "Pale Marsh", kind: "ruin", x: 89, y: 30 },
-  { id: "cinder_flats", name: "Cinder Flats", kind: "depot", x: 13, y: 48 },
-  { id: "old_lorry", name: "Old Lorry", kind: "town", x: 34, y: 46 },
-  { id: "saltglass", name: "Saltglass", kind: "crossroads", x: 56, y: 44 },
-  { id: "verge", name: "The Verge", kind: "city", x: 78, y: 48 },
-  { id: "thornfield", name: "Thornfield", kind: "ruin", x: 27, y: 62 },
-  { id: "terminus", name: "Terminus", kind: "city", x: 57, y: 63 },
-  { id: "black_quay", name: "Black Quay", kind: "town", x: 86, y: 64 },
+  { id: "kesselgrad", name: "Kesselgrad", kind: "city", lat: 23.6, lon: -61 },
+  { id: "ashvale", name: "Ashvale", kind: "town", lat: 30.8, lon: -47.5 },
+  { id: "rustwater", name: "Rustwater", kind: "city", lat: 32.4, lon: -31 },
+  { id: "ironmoor", name: "Ironmoor", kind: "town", lat: 29.2, lon: -11.5 },
+  { id: "veldt_cross", name: "Veldt Cross", kind: "crossroads", lat: 12.4, lon: -52 },
+  { id: "foundry_91", name: "Foundry 91", kind: "depot", lat: 17.2, lon: -37 },
+  { id: "greyspire", name: "Greyspire", kind: "city", lat: 15.6, lon: -20.5 },
+  { id: "pale_marsh", name: "Pale Marsh", kind: "ruin", lat: 14, lon: -3.25 },
+  { id: "cinder_flats", name: "Cinder Flats", kind: "depot", lat: -0.4, lon: -60.25 },
+  { id: "old_lorry", name: "Old Lorry", kind: "town", lat: 1.2, lon: -44.5 },
+  { id: "saltglass", name: "Saltglass", kind: "crossroads", lat: 2.8, lon: -28 },
+  { id: "verge", name: "The Verge", kind: "city", lat: -0.4, lon: -11.5 },
+  { id: "thornfield", name: "Thornfield", kind: "ruin", lat: -11.6, lon: -49.75 },
+  { id: "terminus", name: "Terminus", kind: "city", lat: -12.4, lon: -27.25 },
+  { id: "black_quay", name: "Black Quay", kind: "town", lat: -13.2, lon: -5.5 },
 ];
 
 // Bidirectional routes: [nodeA, nodeB, miles, quality]

@@ -23,7 +23,6 @@ import MapLibrary from './pages/MapLibrary';
 import ArmyDesigner from './pages/ArmyDesigner';
 import PatchNotes from './pages/PatchNotes';
 import AssetRegistry from './pages/AssetRegistry';
-import MacroLab from './pages/MacroLab';
 import StarMap from './pages/StarMap';
 import Walkthrough from './pages/Walkthrough';
 import Roadmap from './pages/Roadmap';
@@ -66,7 +65,6 @@ const AuthenticatedApp = () => {
         <Route path="/army-designer" element={<ArmyDesigner />} />
         <Route path="/patch-notes" element={<PatchNotes />} />
         <Route path="/asset-registry" element={<AssetRegistry />} />
-        <Route path="/macro-lab" element={<MacroLab />} />
         <Route path="/star-map" element={<StarMap />} />
         <Route path="/walkthrough" element={<Walkthrough />} />
         <Route path="/roadmap" element={<Roadmap />} />
