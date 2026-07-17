@@ -1388,6 +1388,11 @@ const MACRO_COLUMN_KEYS = ['riflemen', 'crawler', 'artillery', 'fighter'];
 const MACRO_SETTLEMENT_YIELD = { city: { steel: 2, manpower: 2 }, town: { manpower: 2 }, depot: { fuel: 2 }, ruin: { steel: 1 }, crossroads: {} };
 const MACRO_ESCORT = { riflemen: 2, crawler: 1 };
 const MACRO_SCOUT_HOPS = 1;
+// Supply & the fortress-base (slice M3 — docs/MACRO_ENGINE.md §8)
+const MACRO_BASE_DAY_RATE = 10;        // the base is the slowest thing on the map
+const MACRO_SUPPLY_MILES = 220;        // effective-mile envelope from base/depots (~3 road-days)
+const MACRO_ATTRITION_DAYS = 2;        // out of supply: lose 1 company per this many days
+const MACRO_CASUALTY_ORDER = ['fighter', 'artillery', 'crawler', 'riflemen'];
 
 // -- deterministic world generation (mirrors src/lib/macro/graph.js + planets.js) --
 const macroMulberry32 = (a) => () => {
@@ -1583,6 +1588,39 @@ const macroForeignBaseAt = (game, nodeId, slotIdx) =>
 const macroBlockedAgainst = (game, nodeId, slotIdx) =>
   macroColumnsAt(game, nodeId).some((c) => c.owner !== slotIdx) || macroForeignBaseAt(game, nodeId, slotIdx);
 
+// Supply envelope (§8): effective-mile reach from the fortress-base and any
+// controlled fuel depot, flowing only through routes whose far node the faction
+// controls or that stand neutral. Returns the Set of in-supply node ids.
+function macroSupplied(game, slotIdx) {
+  const macro = game.macro;
+  const passable = (nid) => macro.control[nid] === slotIdx || macro.control[nid] === null || macro.control[nid] === undefined;
+  const sources = [];
+  const base = macro.bases?.[String(slotIdx)];
+  if (base?.nodeId) sources.push(base.nodeId);
+  for (const n of macro.nodes) if (n.kind === 'depot' && macro.control[n.id] === slotIdx) sources.push(n.id);
+  const dist = {};
+  const queue = [];
+  for (const s of sources) { dist[s] = 0; queue.push(s); }
+  while (queue.length > 0) {
+    queue.sort((a, b) => dist[a] - dist[b]);
+    const cur = queue.shift();
+    for (const route of macro.routes) {
+      const [a, b, miles, quality] = route;
+      if (a !== cur && b !== cur) continue;
+      const next = a === cur ? b : a;
+      if (!passable(next)) continue;
+      const nd = dist[cur] + miles / MACRO_ROUTE_QUALITY[quality]; // effective miles
+      if (nd > MACRO_SUPPLY_MILES) continue;
+      if (dist[next] === undefined || nd < dist[next]) { dist[next] = nd; queue.push(next); }
+    }
+  }
+  return new Set(Object.keys(dist));
+}
+
+// Where a column effectively sits for supply purposes: its node, or the origin
+// of the leg it is marching (the last friendly ground it touched)
+const macroColumnAnchor = (column) => column.nodeId || column.march?.path[0];
+
 function macroControlPct(game, slotIdx) {
   const settlements = macroSettlements(game.macro);
   if (settlements.length === 0) return 0;
@@ -1606,46 +1644,87 @@ function macroFlipControl(game, column, nodeId) {
   }
 }
 
-// Dawn resolution — every marching column (all factions) advances one day.
-// Hostile contact at the node ahead balks the column short of it: meeting
-// engagements arrive with slice M2 (docs/MACRO_ENGINE.md §7).
-function macroAdvanceDay(game) {
-  for (const column of game.macro.columns || []) {
-    if (!column.march) continue;
-    const rate = macroDayRate(column.regiments);
-    if (!rate) continue;
-    let budget = 1; // one day of marching
-    while (budget > 0 && column.march) {
-      const { path } = column.march;
-      if (path.length < 2) { column.nodeId = path[0]; delete column.march; break; }
-      const next = path[1];
-      if (macroBlockedAgainst(game, next, column.owner)) {
-        column.nodeId = path[0];
-        delete column.march;
-        game.combatLog.push({ turn: game.turnNumber, type: 'event', text: `${game.factionSlots[column.owner].factionName}'s ${column.name} halts at contact outside ${macroNode(game.macro, next)?.name} — awaiting orders to engage.` });
-        break;
-      }
-      const route = macroRouteBetween(game.macro, path[0], next);
-      if (!route) { column.nodeId = path[0]; delete column.march; break; }
-      delete column.nodeId; // on the road
-      const effRate = rate * MACRO_ROUTE_QUALITY[route[3]] * macroWeatherMult(game.weather || 'clear', column.regiments);
-      const daysLeft = (route[2] - column.march.legMiles) / effRate;
-      if (budget >= daysLeft) {
-        budget -= daysLeft;
-        path.shift();
-        column.march.legMiles = 0;
-        macroFlipControl(game, column, path[0]);
-        if (path.length === 1) {
-          column.nodeId = path[0];
-          delete column.march;
-        }
-      } else {
-        column.march.legMiles += budget * effRate;
-        budget = 0;
-      }
+// Advance one marching mover (column or fortress-base) by `days` of budget along
+// its plan. `rate` is the base pace; supply half-rate and weather fold in per
+// leg. onArrive(nodeId) fires as each node is reached. Contact ahead halts it.
+function macroAdvanceMover(game, mover, rate, days, suppliedSet, onArrive) {
+  let budget = days;
+  const halfRate = suppliedSet && !suppliedSet.has(macroColumnAnchor(mover)) ? 0.5 : 1;
+  while (budget > 0 && mover.march) {
+    const { path } = mover.march;
+    if (path.length < 2) { mover.nodeId = path[0]; delete mover.march; break; }
+    const next = path[1];
+    if (macroBlockedAgainst(game, next, mover.owner)) {
+      mover.nodeId = path[0];
+      delete mover.march;
+      game.combatLog.push({ turn: game.turnNumber, type: 'event', text: `${game.factionSlots[mover.owner].factionName}'s ${mover.name} halts at contact outside ${macroNode(game.macro, next)?.name} — awaiting orders to engage.` });
+      break;
+    }
+    const route = macroRouteBetween(game.macro, path[0], next);
+    if (!route) { mover.nodeId = path[0]; delete mover.march; break; }
+    delete mover.nodeId; // on the road
+    const effRate = rate * MACRO_ROUTE_QUALITY[route[3]] * macroWeatherMult(game.weather || 'clear', mover.regiments || {}) * halfRate;
+    const daysLeft = (route[2] - mover.march.legMiles) / effRate;
+    if (budget >= daysLeft) {
+      budget -= daysLeft;
+      path.shift();
+      mover.march.legMiles = 0;
+      onArrive(path[0]);
+      if (path.length === 1) { mover.nodeId = path[0]; delete mover.march; }
+    } else {
+      mover.march.legMiles += budget * effRate;
+      budget = 0;
     }
   }
+}
+
+// Dawn resolution — every marching column and fortress-base advances one day.
+// Out-of-supply columns march at half rate and bleed a company each attrition
+// window; contact ahead halts a mover short of it (docs/MACRO_ENGINE.md §7–§8).
+function macroAdvanceDay(game) {
+  // Supply is measured from the pre-dawn positions, once per faction
+  const supplied = {};
+  for (const slot of game.factionSlots) supplied[slot.slotIndex] = macroSupplied(game, slot.slotIndex);
+
+  // Fortress-bases first — a base arriving re-anchors that faction's supply
+  for (const [slotKey, b] of Object.entries(game.macro.bases || {})) {
+    if (!b.march) continue;
+    const slot = Number(slotKey);
+    const mover = { ...b, owner: slot, name: `${game.factionSlots[slot].factionName} fortress-base`, regiments: {} };
+    macroAdvanceMover(game, mover, MACRO_BASE_DAY_RATE, 1, null, (nid) => {
+      const col = { owner: slot, name: mover.name };
+      macroFlipControl(game, col, nid);
+    });
+    b.nodeId = mover.nodeId;
+    if (mover.march) b.march = mover.march; else delete b.march;
+  }
+
+  for (const column of game.macro.columns || []) {
+    const rate = macroDayRate(column.regiments);
+    // Out-of-supply attrition applies whether marching or halted
+    const inSupply = supplied[column.owner].has(macroColumnAnchor(column));
+    if (!inSupply) {
+      column.outOfSupplyDays = (column.outOfSupplyDays || 0) + 1;
+      if (column.outOfSupplyDays >= MACRO_ATTRITION_DAYS && macroTotalCompanies(column) > 1) {
+        column.outOfSupplyDays = 0;
+        macroAttrit(column);
+        game.combatLog.push({ turn: game.turnNumber, type: 'event', text: `${game.factionSlots[column.owner].factionName}'s ${column.name} loses a company to privation — cut off from supply.` });
+      }
+    } else {
+      column.outOfSupplyDays = 0;
+    }
+    if (!column.march || !rate) continue;
+    macroAdvanceMover(game, column, rate, 1, supplied[column.owner], (nid) => macroFlipControl(game, column, nid));
+  }
   macroCheckWin(game);
+}
+
+const macroTotalCompanies = (column) => MACRO_COLUMN_KEYS.reduce((s, k) => s + (column.regiments[k] || 0), 0);
+// Privation takes the least essential company first (air, then guns, then armor)
+function macroAttrit(column) {
+  for (const k of MACRO_CASUALTY_ORDER) {
+    if ((column.regiments[k] || 0) > 0) { column.regiments[k] -= 1; return; }
+  }
 }
 
 function macroCheckWin(game) {
@@ -1672,7 +1751,8 @@ function macroObserved(game, slotIdx) {
   const seen = new Set();
   for (const [nid, owner] of Object.entries(game.macro.control)) if (owner === slotIdx) seen.add(nid);
   const base = game.macro.bases?.[String(slotIdx)];
-  if (base) seen.add(base.nodeId);
+  if (base?.nodeId) seen.add(base.nodeId);
+  if (base?.march) { seen.add(base.march.path[0]); seen.add(base.march.path[1]); }
   for (const c of game.macro.columns || []) {
     if (c.owner !== slotIdx) continue;
     if (c.nodeId) seen.add(c.nodeId);
@@ -1693,6 +1773,7 @@ function macroVisibleFor(game, slotIdx) {
   const revealAll = game.status !== 'active' || slotIdx === null;
   const seen = revealAll ? null : macroObserved(game, slotIdx);
   const observed = (nid) => revealAll || seen.has(nid);
+  const mySupply = slotIdx !== null ? macroSupplied(game, slotIdx) : new Set();
   const columnView = (c) => ({
     id: c.id, owner: c.owner, name: c.name,
     nodeId: c.nodeId || null,
@@ -1700,6 +1781,7 @@ function macroVisibleFor(game, slotIdx) {
     strength: forcePoints(c.regiments),
     regiments: c.owner === slotIdx ? c.regiments : undefined,
     dayRate: c.owner === slotIdx ? macroDayRate(c.regiments) : undefined,
+    inSupply: c.owner === slotIdx ? mySupply.has(macroColumnAnchor(c)) : undefined,
     general: (() => {
       const g = (game.factionSlots[c.owner]?.generals || []).find((x) => x.id === c.generalId);
       return g ? (c.owner === slotIdx ? { id: g.id, name: g.name, strategy: g.strategy } : { name: g.name }) : null;
@@ -1711,9 +1793,10 @@ function macroVisibleFor(game, slotIdx) {
     routes: game.macro.routes,
     control: Object.fromEntries(Object.entries(game.macro.control).filter(([nid]) => observed(nid))),
     observed: revealAll ? game.macro.nodes.map((n) => n.id) : [...seen],
+    supplied: slotIdx !== null ? [...mySupply].filter(observed) : [],
     bases: Object.entries(game.macro.bases || {})
-      .filter(([slot, b]) => Number(slot) === slotIdx || observed(b.nodeId))
-      .map(([slot, b]) => ({ slot: Number(slot), nodeId: b.nodeId })),
+      .filter(([slot, b]) => Number(slot) === slotIdx || observed(b.nodeId) || (b.march && (observed(b.march.path[0]) || observed(b.march.path[1]))))
+      .map(([slot, b]) => ({ slot: Number(slot), nodeId: b.nodeId || null, march: Number(slot) === slotIdx && b.march ? { edge: [b.march.path[0], b.march.path[1]], legMiles: b.march.legMiles, path: b.march.path } : b.march ? { edge: [b.march.path[0], b.march.path[1]], legMiles: b.march.legMiles } : null })),
     columns: (game.macro.columns || [])
       .filter((c) => c.owner === slotIdx || (c.nodeId ? observed(c.nodeId) : observed(c.march.path[0]) || observed(c.march.path[1])))
       .map(columnView),
@@ -1752,7 +1835,7 @@ function macroNpcTurn(game, slotIdx) {
   if (myColumns.length < 3) {
     const cost = { manpower: 2 * (UNITS.riflemen.cost.manpower || 0), steel: 2 * (UNITS.riflemen.cost.steel || 0) };
     const base = macro.bases?.[String(slotIdx)];
-    if (base && canAfford(treasury, cost)) {
+    if (base?.nodeId && canAfford(treasury, cost)) {
       pay(treasury, cost);
       slot.armiesRaised = (slot.armiesRaised || 0) + 1;
       macro.columns.push({
@@ -2885,6 +2968,27 @@ Deno.serve(async (req) => {
       } else {
         column.march = { path: [column.march.path[0], ...found.path], legMiles: column.march.legMiles };
       }
+      await persistMacro();
+      return Response.json({ ok: true, etaDays: Math.ceil(found.totalDays) });
+    }
+
+    GAME_ACTIONS.macroMoveBase = async () => {
+      requireMacro();
+      const slotIdx = requireMyTurn();
+      const { toNodeId } = body;
+      const b = game.macro.bases?.[String(slotIdx)];
+      if (!b) return Response.json({ error: 'No fortress-base' }, { status: 404 });
+      if (!macroNode(game.macro, toNodeId)) return Response.json({ error: 'Uncharted destination' }, { status: 400 });
+      const from = b.nodeId || b.march?.path[1];
+      if (from === toNodeId) return Response.json({ error: 'The base is already there' }, { status: 400 });
+      if (macroForeignBaseAt(game, toNodeId, slotIdx) || macroColumnsAt(game, toNodeId).some((c) => c.owner !== slotIdx)) {
+        return Response.json({ error: 'Foreign forces hold that ground — the base cannot roll into contested territory' }, { status: 400 });
+      }
+      const found = macroFindPath(game.macro, from, toNodeId, MACRO_BASE_DAY_RATE);
+      if (!found) return Response.json({ error: 'No overland route reaches that ground' }, { status: 400 });
+      if (b.nodeId) b.march = { path: found.path, legMiles: 0 };
+      else b.march = { path: [b.march.path[0], ...found.path], legMiles: b.march.legMiles };
+      delete b.nodeId;
       await persistMacro();
       return Response.json({ ok: true, etaDays: Math.ceil(found.totalDays) });
     }

@@ -281,7 +281,7 @@ Every general fights from a **command vehicle** themed to their trait (Butcher: 
 - **Fortress-bases** need heavy **gantry cranes**: a capital or a **level-2 Foundry** only.
 - **Anywhere in supply**: refits arrive by convoy at the start of the owner's next turn, at **25% off** the module cost (economical but slow). One convoy per vehicle bay at a time.
 - **Cut off from supply with no site in reach**: no refits possible.
-## 22. Macro Operations (experimental world model — slices M1–M2)
+## 22. Macro Operations (experimental world model — slices M1–M3a)
 
 A new game type beside the hex front (`worldModel: "macro"`, chosen at operation
 setup). The full design contract is `docs/MACRO_ENGINE.md`; the hex rules above
@@ -331,3 +331,15 @@ are untouched and remain authoritative for hex games.
 - **NPCs:** doctrine-flavored greedy expansion — idle columns plot to the
   nearest unclaimed settlement (economic doctrine weighs yields), and a second
   column is levied when the treasury allows.
+- **Supply (M3):** each faction projects a supply envelope — ~220 effective
+  miles (≈3 road-days) from the **fortress-base** and every controlled **fuel
+  depot**, flowing through routes whose far node the faction controls or that
+  stand neutral. A column outside the envelope marches at **half rate** and
+  loses one company to privation every **2 days** cut off (air wing first, then
+  guns, armor, rifles). Depots are therefore strategic ground — they push the
+  envelope forward ahead of the base.
+- **Fortress-base movement (M3):** `macroMoveBase` rolls the base along the
+  graph at a slow **10 mi/day** (the slowest thing on the map). It re-anchors
+  supply as it goes and flips settlements it rolls through; it cannot enter
+  contested ground (foreign columns or a foreign base). Boarding assaults on an
+  anchored base remain reserved for M5.

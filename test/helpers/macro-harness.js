@@ -73,8 +73,8 @@ export function loadMacro() {
     "macroAdvanceDay", "macroCheckWin", "macroCollectIncome", "macroControlPct",
     "macroObserved", "macroVisibleFor", "macroNpcTurn", "macroCreateBattle",
     "macroApplyBattleOutcome", "macroNode", "macroRouteBetween", "macroColumnsAt",
-    "macroBlockedAgainst", "macroSettlements", "MACRO_SETTLEMENT_YIELD",
-    "MACRO_COLUMN_KEYS", "MACRO_ESCORT",
+    "macroBlockedAgainst", "macroSettlements", "macroSupplied", "MACRO_SETTLEMENT_YIELD",
+    "MACRO_COLUMN_KEYS", "MACRO_ESCORT", "MACRO_SUPPLY_MILES", "MACRO_BASE_DAY_RATE",
   ];
   // eslint-disable-next-line no-new-func
   const factory = new Function(`"use strict";

@@ -2,7 +2,7 @@ import React, { useMemo, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { Stars, OrbitControls, Html, Line } from "@react-three/drei";
 import * as THREE from "three";
-import { Flag, Ban, Crosshair, Hammer, Swords } from "lucide-react";
+import { Flag, Ban, Crosshair, Hammer, Swords, Home } from "lucide-react";
 import { PLANETS, latLonToXYZ } from "@/lib/macro/planets";
 import { UNIT_MARCH } from "@/lib/macro/march";
 import { playSfx } from "@/lib/sfx";
@@ -87,6 +87,8 @@ export default function MacroWarRoom({ game, busy, onAction }) {
   const [muster, setMuster] = useState(null);      // { nodeId, regiments, generalId }
 
   const myBase = macro.bases.find((b) => b.slot === game.mySlot);
+  const suppliedSet = useMemo(() => new Set(macro.supplied || []), [macro.supplied]);
+  const [movingBase, setMovingBase] = useState(false); // base awaiting a destination
   const musterSites = macro.nodes.filter(
     (n) => macro.control[n.id] === game.mySlot && (n.kind === "city" || myBase?.nodeId === n.id)
   );
@@ -101,6 +103,12 @@ export default function MacroWarRoom({ game, busy, onAction }) {
 
   const onNodeClick = (node) => {
     playSfx("select");
+    if (movingBase) {
+      onAction({ action: "macroMoveBase", toNodeId: node.id });
+      playSfx("move");
+      setMovingBase(false);
+      return;
+    }
     if (plotting) {
       onAction({ action: "macroPlotMarch", columnId: plotting, toNodeId: node.id });
       playSfx("move");
@@ -128,6 +136,9 @@ export default function MacroWarRoom({ game, busy, onAction }) {
     }
     if (musterSites.some((n) => n.id === node.id)) {
       opts.push({ key: "muster", label: "Muster Column", icon: Hammer, act: done(() => setMuster({ nodeId: node.id, regiments: { riflemen: 1 }, generalId: freeGenerals[0]?.id || "recruit" })) });
+    }
+    if (myBase?.nodeId && myBase.nodeId !== node.id) {
+      opts.push({ key: "movebase", label: "March Fortress-Base Here", icon: Home, act: done(() => onAction({ action: "macroMoveBase", toNodeId: node.id }), "move") });
     }
     for (const c of here.slice(0, 1)) {
       opts.push({ key: `disband-${c.id}`, label: `Disband ${c.name}`, icon: Ban, tone: "rust", act: done(() => onAction({ action: "macroDisbandColumn", columnId: c.id })) });
@@ -160,6 +171,16 @@ export default function MacroWarRoom({ game, busy, onAction }) {
                 })}
               </group>
             ))}
+            {/* Fortress-base march plot */}
+            {myBase?.march?.path?.length > 1 && (
+              <group>
+                {myBase.march.path.slice(0, -1).map((a, i) => {
+                  const A = byId[a], B = byId[myBase.march.path[i + 1]];
+                  if (!A || !B) return null;
+                  return <Line key={i} points={arcPoints(A, B, planet.radius, 0.07)} color="#C2503C" lineWidth={2.5} dashed dashSize={0.15} gapSize={0.1} transparent opacity={0.9} />;
+                })}
+              </group>
+            )}
             {macro.nodes.map((n) => (
               <NodeMarker
                 key={n.id}
@@ -208,6 +229,14 @@ export default function MacroWarRoom({ game, busy, onAction }) {
             </p>
           </div>
         )}
+        {movingBase && (
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 cq-panel px-3 py-1.5 bg-card/95 border-rust/70">
+            <p className="font-mono text-[10px] text-rust tracking-widest flex items-center gap-2">
+              <Home className="w-3 h-3" /> SELECT GROUND FOR THE FORTRESS-BASE — IT ROLLS SLOWLY
+              <button onClick={() => setMovingBase(false)} className="text-brass-bright hover:text-rust ml-2">CANCEL</button>
+            </p>
+          </div>
+        )}
         <div className="absolute bottom-3 left-3 z-10 cq-panel p-2.5 bg-card/90 max-w-xs">
           <p className="font-mono text-[9px] text-muted-foreground tracking-widest">
             DAY {game.turnNumber} · SETTLED WORLD {macro.settlementCount} SITES · CONTROL {game.myLandControl}% / {game.mapControlTarget}%
@@ -218,8 +247,15 @@ export default function MacroWarRoom({ game, busy, onAction }) {
               {macro.control[hovered.id] !== undefined && macro.control[hovered.id] !== null
                 ? ` — HELD BY ${game.factions[macro.control[hovered.id]]?.factionName?.toUpperCase() || "?"}`
                 : macro.observed.includes(hovered.id) ? " — UNCLAIMED" : " — NO RECENT INTELLIGENCE"}
+              {suppliedSet.has(hovered.id) && <span className="text-olive"> · IN SUPPLY</span>}
             </p>
           )}
+          <p className="font-mono text-[9px] text-muted-foreground mt-1 border-t border-border pt-1">
+            ⌂ FORTRESS-BASE {myBase?.march ? "ON THE MOVE — ROLLING" : myBase?.nodeId ? `ANCHORED AT ${byId[myBase.nodeId]?.name?.toUpperCase() || "?"}` : "—"}
+            {canOrder && myBase?.nodeId && (
+              <button onClick={() => { playSfx("select"); setMovingBase(true); closeMenu(); }} className="text-rust hover:text-brass-bright ml-2">MARCH ▸</button>
+            )}
+          </p>
         </div>
       </div>
 
@@ -233,6 +269,7 @@ export default function MacroWarRoom({ game, busy, onAction }) {
               <span className="font-heading tracking-wide text-secondary-foreground">{c.name}</span>
               <span className="font-mono text-[9px] text-muted-foreground">
                 {c.general ? c.general.name : "—"} · {c.strength}PT · {c.dayRate ? `${c.dayRate} MI/DAY` : "NO GROUND ELEMENTS"}
+                {c.inSupply === false && <span className="text-rust"> · CUT OFF</span>}
               </span>
               <span className="font-mono text-[9px] text-brass ml-auto">
                 {c.nodeId ? `AT ${byId[c.nodeId]?.name?.toUpperCase() || "?"}` : `→ ${byId[c.march.path[c.march.path.length - 1]]?.name?.toUpperCase() || "?"}`}
