@@ -45,7 +45,7 @@ export default function MarchPlanner({ regiments, setRegiments, dayRate, origin,
                 <div key={i} className="flex items-baseline gap-2 text-xs border-b border-border/50 pb-1">
                   <span className="font-mono text-[9px] text-muted-foreground w-4">{i + 1}.</span>
                   <span className="font-heading tracking-wide text-secondary-foreground">
-                    {nodeById(leg.from).name} → {nodeById(leg.to).name}
+                    {name(leg.from)} → {name(leg.to)}
                   </span>
                   <span className="ml-auto font-mono text-[9px] text-muted-foreground shrink-0">
                     {leg.miles} MI · {ROUTE_QUALITY[leg.quality].label.toUpperCase()} · {leg.days.toFixed(1)} D

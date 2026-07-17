@@ -122,7 +122,8 @@ export default function PlanetBody({ planet, onClick }) {
     <group>
       <mesh onClick={onClick}>
         <sphereGeometry args={[planet.radius, 64, 64]} />
-        <meshStandardMaterial map={map} bumpMap={map} bumpScale={0.07} roughness={0.95} metalness={0.08} />
+        {/* Matte war-relief crust — no specular sheen, so the brass node/route overlay reads on top */}
+        <meshStandardMaterial map={map} bumpMap={map} bumpScale={0.07} roughness={1} metalness={0} />
       </mesh>
       <DustStorm planet={planet} />
       <mesh ref={cloudRef} scale={1.018}>

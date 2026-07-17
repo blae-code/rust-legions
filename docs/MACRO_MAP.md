@@ -175,6 +175,28 @@ multi-planet selector and the "plot in the Macro March Lab" footer.
 **Data unification:** one node/route model on lat/lon; the planet catalog is the
 one source both the renderer and `overlay.js` read.
 
+### 6.1 Rollout status (slices 1–2 shipped; the retirements are staged)
+
+The **Retire** list above is the target end state, reached across slices. As of
+slices 1–2 (the Star Chart promoted to canonical + column planner + three.js
+tactical overlay):
+
+- **Done:** single-planet scene (no three-at-once staging); `MarchPlanner` ported;
+  `overlay.js` generalized; `TacticalOverlay` rewritten to three.js; matte crust;
+  dynamic column pace; overlay off by default and gated so it only computes when shown.
+- **Deliberately deferred to a later slice — and therefore still present:**
+  - **The world-preview selector is retained** in the canonical screen. Until the
+    v2.x host **setup flow** exists (planet chosen at game creation, §3.1/§7), the
+    sandbox needs a way to preview each library world, so the header "CAMPAIGN
+    WORLD" buttons stand in for that not-yet-built pick. When setup lands, the
+    in-play switcher is removed and `selectedId` is seeded from campaign config.
+  - **`/macro-lab` + the flat SVG board stay live** (they still work unchanged);
+    removing the route/components is a cleanup slice, not part of the merge itself.
+  - **`graph.js` `x`/`y` fields stay** while MacroLab consumes them; the authored
+    continent's canonical `lat`/`lon` is currently *derived* from `x`/`y` in
+    `planets.js`. Authoring the continent directly in `lat`/`lon` and dropping
+    `x`/`y` happens together with retiring the SVG board.
+
 ---
 
 ## 7. What is NOT in this lock (still ahead)

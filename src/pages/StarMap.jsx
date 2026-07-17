@@ -1,84 +1,79 @@
-import React, { useState, useRef, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { ArrowLeft, Flag, Crosshair, Anchor, Ban, RotateCcw } from "lucide-react";
-import { Canvas, useFrame } from "@react-three/fiber";
+import { Canvas } from "@react-three/fiber";
 import { Stars, OrbitControls } from "@react-three/drei";
-import * as THREE from "three";
 import { PLANETS } from "@/lib/macro/planets";
 import { NODE_KINDS } from "@/lib/macro/graph";
-import { findPath, planMarch } from "@/lib/macro/march";
+import { armyDayRate, findPath, planMarch } from "@/lib/macro/march";
+import { computeTacticalOverlay } from "@/lib/macro/overlay";
 import PlanetSystem from "@/components/starmap/PlanetSystem";
+import MarchPlanner from "@/components/macro/MarchPlanner";
 import SceneErrorBoundary from "@/components/SceneErrorBoundary";
-
-// A standard mixed column — crawlers set the pace at 16 miles a day
-const DAY_RATE = 16;
-
-const POSITIONS = [[-15, 1, -2], [0, -1, 0], [15, 2, -3]];
-
-// Glides the orbit target over to the selected world
-function Rig({ controlsRef, focus }) {
-  useFrame(() => {
-    const c = controlsRef.current;
-    if (!c) return;
-    c.target.lerp(focus, 0.06);
-    c.update();
-  });
-  return null;
-}
 
 const LEGEND = [["highway", "#C9A227"], ["road", "#9a927f"], ["track", "#6e675c"], ["trail", "#5a5348"]];
 
-// The Star Chart — three detailed worlds carrying the node-and-route system.
+// The canonical macro map — one campaign world, orbited, with its full node-and-route
+// network as a brass industrial overlay above the crust. The host picks a planet from
+// the curated library (the selector below); marches are day-rate plotted by the slowest
+// ground element of the staged column. See docs/MACRO_MAP.md.
 export default function StarMap() {
   const [selectedId, setSelectedId] = useState(PLANETS[0].id);
+  const [regiments, setRegiments] = useState({ riflemen: 2, crawler: 1, artillery: 0, fighter: 0 });
   const [hovered, setHovered] = useState(null);
-  const [march, setMarch] = useState({ planetId: null, origin: null, dest: null });
-  const [menu, setMenu] = useState(null); // { planetId, nodeId }
-  const [base, setBase] = useState(null); // { planetId, nodeId } — anchored fortress-base
-  const controls = useRef();
-  const idx = PLANETS.findIndex((p) => p.id === selectedId);
-  const selected = PLANETS[idx];
-  const focus = useMemo(() => new THREE.Vector3(...POSITIONS[idx]), [idx]);
+  const [march, setMarch] = useState({ origin: null, dest: null });
+  const [menu, setMenu] = useState(null); // node id with an open orders menu
+  const [base, setBase] = useState(null); // node id — anchored fortress-base
+  const [showOverlay, setShowOverlay] = useState(false); // tactical intel layer
+  const planet = PLANETS.find((p) => p.id === selectedId);
 
-  const marchPlanet = PLANETS.find((p) => p.id === march.planetId);
+  // Only pay the all-pairs betweenness when the intel layer is actually shown
+  const overlay = useMemo(
+    () => (showOverlay ? computeTacticalOverlay(planet.nodes, planet.routes) : null),
+    [planet, showOverlay]
+  );
+  const dayRate = armyDayRate(regiments);
   const plan = useMemo(() => {
-    if (!marchPlanet || !march.origin || !march.dest) return null;
-    const found = findPath(march.origin, march.dest, DAY_RATE, marchPlanet.routes);
-    return found ? planMarch(found.path, DAY_RATE, marchPlanet.routes) : null;
-  }, [march, marchPlanet]);
+    if (!march.origin || !march.dest || !dayRate) return null;
+    const found = findPath(march.origin, march.dest, dayRate, planet.routes);
+    return found ? planMarch(found.path, dayRate, planet.routes) : null;
+  }, [march, dayRate, planet]);
 
-  // Clicking a node opens (or closes) its radial orders menu
-  const onNodeClick = (planet, node) => {
-    setSelectedId(planet.id);
-    setMenu((m) => (m && m.planetId === planet.id && m.nodeId === node.id ? null : { planetId: planet.id, nodeId: node.id }));
+  // Switching campaign world clears any staged column, plot, base and menu
+  const selectPlanet = (id) => {
+    setSelectedId(id);
+    setMarch({ origin: null, dest: null });
+    setBase(null);
+    setMenu(null);
+    setHovered(null);
   };
+
+  const onNodeClick = (_p, node) => setMenu((m) => (m === node.id ? null : node.id));
   const closeMenu = () => setMenu(null);
-  const clearMarch = () => setMarch({ planetId: null, origin: null, dest: null });
+  const clearMarch = () => setMarch({ origin: null, dest: null });
+  const nodeName = (id) => planet.nodes.find((n) => n.id === id)?.name || "";
 
   // Smart flow — only orders that are actually eligible for the column & base appear
-  const menuOptionsFor = (planet, node) => {
+  const menuOptionsFor = (_p, node) => {
     const done = (fn) => () => { fn(); closeMenu(); };
     const opts = [];
-    const sameWorld = march.planetId === planet.id;
-    const stagedHere = sameWorld && march.origin === node.id;
-    const marching = sameWorld && march.origin && !march.dest;
+    const stagedHere = march.origin === node.id;
+    const marching = march.origin && !march.dest;
     if (marching && !stagedHere) {
       opts.push({ key: "objective", label: "March Here", icon: Crosshair, act: done(() => setMarch((m) => ({ ...m, dest: node.id }))) });
-      opts.push({ key: "restage", label: "Restage Column", icon: RotateCcw, act: done(() => setMarch({ planetId: planet.id, origin: node.id, dest: null })) });
+      opts.push({ key: "restage", label: "Restage Column", icon: RotateCcw, act: done(() => setMarch({ origin: node.id, dest: null })) });
     } else if (stagedHere && !march.dest) {
       opts.push({ key: "standdown", label: "Stand Down", icon: Ban, tone: "rust", act: done(clearMarch) });
     } else {
-      opts.push({ key: "stage", label: "Stage Column", icon: Flag, act: done(() => setMarch({ planetId: planet.id, origin: node.id, dest: null })) });
+      opts.push({ key: "stage", label: "Stage Column", icon: Flag, act: done(() => setMarch({ origin: node.id, dest: null })) });
     }
-    if (sameWorld && march.dest) {
+    if (march.dest) {
       opts.push({ key: "clearplot", label: "Clear Plot", icon: Ban, tone: "rust", act: done(clearMarch) });
     }
-    const baseHere = base && base.planetId === planet.id && base.nodeId === node.id;
-    if (baseHere) opts.push({ key: "weigh", label: "Weigh Anchor", icon: Anchor, tone: "rust", act: done(() => setBase(null)) });
-    else opts.push({ key: "anchor", label: "Anchor Base", icon: Anchor, act: done(() => setBase({ planetId: planet.id, nodeId: node.id })) });
+    if (base === node.id) opts.push({ key: "weigh", label: "Weigh Anchor", icon: Anchor, tone: "rust", act: done(() => setBase(null)) });
+    else opts.push({ key: "anchor", label: "Anchor Base", icon: Anchor, act: done(() => setBase(node.id)) });
     return opts;
   };
-  const nodeName = (id) => marchPlanet?.nodes.find((n) => n.id === id)?.name || "";
 
   return (
     <div className="min-h-screen p-4 sm:p-6">
@@ -89,114 +84,130 @@ export default function StarMap() {
         <div className="mt-2 mb-4 flex flex-wrap items-end justify-between gap-3">
           <div>
             <p className="cq-label text-rust">Astrocartography Directorate</p>
-            <h1 className="cq-display text-3xl">The Star Chart</h1>
+            <h1 className="cq-display text-3xl">The War Table</h1>
             <p className="font-mono text-[10px] text-muted-foreground tracking-widest mt-1">
-              THREE WORLDS · {PLANETS.reduce((s, p) => s + p.nodes.length, 0)} CHARTED SETTLEMENTS · CLICK A SETTLEMENT FOR ORDERS
+              {planet.nodes.length} SETTLEMENTS · 1 TURN = 1 DAY · CLICK A SETTLEMENT FOR ORDERS
             </p>
           </div>
-          <div className="flex gap-1.5">
-            {PLANETS.map((p) => (
-              <button
-                key={p.id}
-                onClick={() => setSelectedId(p.id)}
-                className={`cq-metal font-heading uppercase tracking-widest text-[10px] px-3 py-1.5 rounded-sm border transition-colors ${
-                  p.id === selectedId ? "border-brass/70 text-brass-bright" : "border-border text-muted-foreground hover:text-brass-bright"
-                }`}
-              >
-                {p.name}
-              </button>
-            ))}
+          <div className="flex flex-col items-end gap-2">
+            <button
+              onClick={() => setShowOverlay((v) => !v)}
+              className={`cq-metal inline-flex items-center gap-1.5 font-heading uppercase tracking-widest text-[10px] px-3 py-1.5 rounded-sm border transition-colors ${
+                showOverlay ? "border-rust/70 text-rust" : "border-border text-muted-foreground hover:text-brass-bright"
+              }`}
+            >
+              <Crosshair className="w-3 h-3" /> Tactical Overlay {showOverlay ? "ON" : "OFF"}
+            </button>
+            <div className="flex flex-col items-end gap-1">
+              <p className="font-mono text-[9px] text-muted-foreground tracking-widest">CAMPAIGN WORLD</p>
+              <div className="flex gap-1.5">
+                {PLANETS.map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => selectPlanet(p.id)}
+                    className={`cq-metal font-heading uppercase tracking-widest text-[10px] px-3 py-1.5 rounded-sm border transition-colors ${
+                      p.id === selectedId ? "border-brass/70 text-brass-bright" : "border-border text-muted-foreground hover:text-brass-bright"
+                    }`}
+                  >
+                    {p.name}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
 
-        <div className="cq-panel cq-brackets relative overflow-hidden p-1">
-          <div className="cq-hazard absolute top-0 left-0 right-0 z-10" />
-          <div className="h-[68vh] min-h-[420px] rounded">
-            <SceneErrorBoundary>
-            <Canvas camera={{ position: [-15, 5, 13], fov: 50 }} dpr={[1, 2]}>
-              <color attach="background" args={["#07090c"]} />
-              <ambientLight intensity={0.35} />
-              <directionalLight position={[25, 14, 10]} intensity={1.5} color="#f5e2c0" />
-              <Stars radius={140} depth={60} count={4000} factor={3} fade speed={0.4} />
-              {PLANETS.map((p, i) => (
+        <div className="grid lg:grid-cols-[1fr_320px] gap-4">
+          <div className="cq-panel cq-brackets relative overflow-hidden p-1">
+            <div className="cq-hazard absolute top-0 left-0 right-0 z-10" />
+            <div className="h-[68vh] min-h-[440px] rounded">
+              <SceneErrorBoundary>
+              <Canvas camera={{ position: [0, 4, 14], fov: 50 }} dpr={[1, 2]}>
+                <color attach="background" args={["#07090c"]} />
+                <ambientLight intensity={0.4} />
+                <directionalLight position={[25, 14, 10]} intensity={1.25} color="#f5e2c0" />
+                <Stars radius={140} depth={60} count={4000} factor={3} fade speed={0.4} />
                 <PlanetSystem
-                  key={p.id}
-                  planet={p}
-                  position={POSITIONS[i]}
-                  selected={p.id === selectedId}
-                  onSelect={(id) => { setSelectedId(id); closeMenu(); }}
+                  key={planet.id}
+                  planet={planet}
+                  position={[0, 0, 0]}
+                  selected
+                  onSelect={closeMenu}
                   hoveredId={hovered?.id || null}
                   onHoverNode={setHovered}
-                  origin={march.planetId === p.id ? march.origin : null}
-                  dest={march.planetId === p.id ? march.dest : null}
-                  plan={march.planetId === p.id ? plan : null}
+                  origin={march.origin}
+                  dest={march.dest}
+                  plan={plan}
                   onNodeClick={onNodeClick}
-                  menuNodeId={menu?.planetId === p.id ? menu.nodeId : null}
+                  menuNodeId={menu}
                   menuOptionsFor={menuOptionsFor}
                   onCloseMenu={closeMenu}
-                  baseNodeId={base?.planetId === p.id ? base.nodeId : null}
+                  baseNodeId={base}
+                  overlay={overlay}
                 />
-              ))}
-              <Rig controlsRef={controls} focus={focus} />
-              <OrbitControls ref={controls} enablePan={false} minDistance={5} maxDistance={45} />
-            </Canvas>
-            </SceneErrorBoundary>
-          </div>
+                <OrbitControls enablePan={false} minDistance={5} maxDistance={45} />
+              </Canvas>
+              </SceneErrorBoundary>
+            </div>
 
-          {/* Selected world readout */}
-          <div className="absolute bottom-3 left-3 z-10 max-w-xs cq-panel p-3 bg-card/90">
-            <p className="cq-label text-brass">{selected.name}</p>
-            <p className="text-[11px] text-secondary-foreground leading-snug mt-0.5">{selected.blurb}</p>
-            <p className="font-mono text-[9px] text-muted-foreground mt-1.5">
-              {selected.nodes.length} SETTLEMENTS · {selected.routes.length} SUPPLY ROUTES
-            </p>
-            {hovered && (
-              <p className="font-mono text-[9px] text-brass-bright mt-1 border-t border-border pt-1">
-                ▸ {hovered.name.toUpperCase()} — {(NODE_KINDS[hovered.kind]?.label || hovered.kind).toUpperCase()} · {hovered.planetName?.toUpperCase()}
+            {/* Selected world readout */}
+            <div className="absolute bottom-3 left-3 z-10 max-w-xs cq-panel p-3 bg-card/90">
+              <p className="cq-label text-brass">{planet.name}</p>
+              <p className="text-[11px] text-secondary-foreground leading-snug mt-0.5">{planet.blurb}</p>
+              <p className="font-mono text-[9px] text-muted-foreground mt-1.5">
+                {planet.nodes.length} SETTLEMENTS · {planet.routes.length} SUPPLY ROUTES
               </p>
-            )}
-            {march.origin && !march.dest && (
-              <p className="font-mono text-[9px] text-brass mt-1 border-t border-border pt-1">
-                ▸ COLUMN STAGED AT {nodeName(march.origin).toUpperCase()} — CLICK AN OBJECTIVE FOR ORDERS
-              </p>
-            )}
-            {base && (
-              <p className="font-mono text-[9px] text-brass mt-1 border-t border-border pt-1">
-                ⌂ FORTRESS-BASE ANCHORED AT {(PLANETS.find((p) => p.id === base.planetId)?.nodes.find((n) => n.id === base.nodeId)?.name || "").toUpperCase()} · {(PLANETS.find((p) => p.id === base.planetId)?.name || "").toUpperCase()}
-              </p>
-            )}
-            {plan && (
-              <div className="font-mono text-[9px] mt-1 border-t border-border pt-1 space-y-0.5">
-                <p className="text-brass-bright">
-                  ▸ {nodeName(march.origin).toUpperCase()} → {nodeName(march.dest).toUpperCase()} · {plan.legs.length} LEG{plan.legs.length > 1 ? "S" : ""} · ARRIVES DAY {plan.arrivalDay}
+              {hovered && (
+                <p className="font-mono text-[9px] text-brass-bright mt-1 border-t border-border pt-1">
+                  ▸ {hovered.name.toUpperCase()} — {(NODE_KINDS[hovered.kind]?.label || hovered.kind).toUpperCase()}
                 </p>
-                <p className="text-muted-foreground">STANDARD COLUMN · {DAY_RATE} MI/DAY · {plan.legs.reduce((s, l) => s + l.miles, 0)} MILES</p>
-                <button
-                  onClick={() => setMarch({ planetId: null, origin: null, dest: null })}
-                  className="text-rust hover:text-brass-bright transition-colors uppercase tracking-widest"
-                >
-                  ✕ Clear plot
-                </button>
-              </div>
-            )}
-            {march.origin && march.dest && !plan && (
-              <p className="font-mono text-[9px] text-rust mt-1 border-t border-border pt-1">▸ NO OVERLAND ROUTE REACHES THAT OBJECTIVE</p>
-            )}
+              )}
+              {march.origin && !march.dest && (
+                <p className="font-mono text-[9px] text-brass mt-1 border-t border-border pt-1">
+                  ▸ COLUMN STAGED AT {nodeName(march.origin).toUpperCase()} — CLICK AN OBJECTIVE FOR ORDERS
+                </p>
+              )}
+              {base && (
+                <p className="font-mono text-[9px] text-brass mt-1 border-t border-border pt-1">
+                  ⌂ FORTRESS-BASE ANCHORED AT {nodeName(base).toUpperCase()}
+                </p>
+              )}
+              {plan && (
+                <p className="font-mono text-[9px] text-brass-bright mt-1 border-t border-border pt-1">
+                  ▸ {nodeName(march.origin).toUpperCase()} → {nodeName(march.dest).toUpperCase()} · ARRIVES DAY {plan.arrivalDay}
+                </p>
+              )}
+              {march.origin && march.dest && !plan && (
+                <p className="font-mono text-[9px] text-rust mt-1 border-t border-border pt-1">
+                  ▸ {dayRate ? "NO OVERLAND ROUTE REACHES THAT OBJECTIVE" : "NO GROUND ELEMENTS — FIELD A COLUMN FIRST"}
+                </p>
+              )}
+            </div>
+
+            {/* Route quality legend */}
+            <div className="absolute bottom-3 right-3 z-10 cq-panel p-2.5 bg-card/90">
+              {LEGEND.map(([q, c]) => (
+                <div key={q} className="flex items-center gap-2 font-mono text-[9px] text-muted-foreground">
+                  <span className="inline-block w-5 h-0.5" style={{ background: c }} />
+                  {q.toUpperCase()}
+                </div>
+              ))}
+            </div>
           </div>
 
-          {/* Route quality legend */}
-          <div className="absolute bottom-3 right-3 z-10 cq-panel p-2.5 bg-card/90">
-            {LEGEND.map(([q, c]) => (
-              <div key={q} className="flex items-center gap-2 font-mono text-[9px] text-muted-foreground">
-                <span className="inline-block w-5 h-0.5" style={{ background: c }} />
-                {q.toUpperCase()}
-              </div>
-            ))}
-          </div>
+          <MarchPlanner
+            regiments={regiments}
+            setRegiments={setRegiments}
+            dayRate={dayRate}
+            origin={march.origin}
+            dest={march.dest}
+            plan={plan}
+            nodeName={nodeName}
+          />
         </div>
 
         <p className="font-mono text-[9px] text-muted-foreground tracking-widest mt-2">
-          CINDARA CARRIES THE ORIGINAL ABANDONED CONTINENT — PLOT MARCHES IN THE <Link to="/macro-lab" className="text-brass hover:text-brass-bright">MACRO MARCH LAB</Link>
+          COMPOSE THE COLUMN AT RIGHT — THE SLOWEST GROUND ELEMENT SETS THE MARCH PACE · CINDARA CARRIES THE ORIGINAL ABANDONED CONTINENT
         </p>
       </div>
     </div>
