@@ -83,6 +83,11 @@ Precursor relics (see §4) can grant **unique modules** that cannot be built, on
 > to three procedurally seeded 3D worlds — settlements pinned to planet surfaces, radial node orders menus
 > (stage column / march / anchor base), and great-circle march trails with daily camps. Both are sandboxes
 > only — nothing is wired into `gameEngine` yet.
+>
+> **The form is now LOCKED** in [`docs/MACRO_MAP.md`](./MACRO_MAP.md): one canonical macro map —
+> a single gritty **orbital 3D planet** you pick from a curated library, with a brass industrial
+> **node-and-route overlay** floating above its crust (the Star Chart promoted to canonical, the flat
+> Macro March Lab absorbed and retired). That doc resolves the art/scale open questions in §5.6 below.
 
 **Decision (locked):** the hex grid is retired as the player-facing world model. It is replaced by a **Total War / Mount & Blade-style continuous macro map** driven by a **node-and-route graph** on the server. The player never sees a hex — only a painterly war-table map with named places, roads, and marching columns. This is the spine of the v2.x redesign: mobile bases only make sense on a map built for movement.
 
