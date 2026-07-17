@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Copy, Check } from "lucide-react";
@@ -34,7 +35,14 @@ export default function LobbyView({ game, onJoin, onStart, busy, error }) {
         <h2 className="cq-display text-3xl mb-1 mt-1">{game.name}</h2>
         <p className="cq-label mb-4">
           Staging area — waiting for commanders
-          {" · "}Theater: {PLANETS.find((p) => p.id === game.planetId)?.name || "Cindara"}
+          {" · "}Theater:{" "}
+          <Link
+            to={`/star-map?planet=${game.planetId || "cindara"}`}
+            className="text-brass hover:text-brass-bright transition-colors"
+            title="Survey the theater on the War Table"
+          >
+            {PLANETS.find((p) => p.id === game.planetId)?.name || "Cindara"}
+          </Link>
         </p>
         <div className="space-y-2">
           {game.factions.map((f) => (

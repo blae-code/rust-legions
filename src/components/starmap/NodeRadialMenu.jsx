@@ -1,6 +1,7 @@
 import React from "react";
 import { motion } from "framer-motion";
 import { X } from "lucide-react";
+import { playSfx } from "@/lib/sfx";
 
 // Radial orders menu — rendered centered on a settlement node. Options are
 // pre-filtered by the caller so only eligible orders ever appear.
@@ -17,7 +18,8 @@ export default function NodeRadialMenu({ node, kindLabel, options = [], onClose 
         />
         {/* Center hub — dismiss */}
         <button
-          onClick={onClose}
+          onClick={() => { playSfx("select"); onClose(); }}
+          onMouseEnter={() => playSfx("hover")}
           title="Dismiss"
           className="absolute w-7 h-7 -ml-3.5 -mt-3.5 rounded-full cq-metal bg-secondary border border-rust/60 text-rust flex items-center justify-center hover:text-brass-bright transition-colors"
         >
@@ -33,6 +35,7 @@ export default function NodeRadialMenu({ node, kindLabel, options = [], onClose 
             <button
               key={o.key}
               onClick={o.act}
+              onMouseEnter={() => playSfx("hover")}
               className="absolute flex flex-col items-center gap-0.5 -translate-x-1/2 -translate-y-1/2"
               style={{ left: x, top: y }}
             >

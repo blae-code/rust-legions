@@ -175,27 +175,28 @@ multi-planet selector and the "plot in the Macro March Lab" footer.
 **Data unification:** one node/route model on lat/lon; the planet catalog is the
 one source both the renderer and `overlay.js` read.
 
-### 6.1 Rollout status (slices 1–2 shipped; the retirements are staged)
+### 6.1 Rollout status (slices 1–3 shipped — the merge is complete)
 
-The **Retire** list above is the target end state, reached across slices. As of
-slices 1–2 (the Star Chart promoted to canonical + column planner + three.js
-tactical overlay):
+The **Retire** list above is the target end state, reached across slices.
 
-- **Done:** single-planet scene (no three-at-once staging); `MarchPlanner` ported;
-  `overlay.js` generalized; `TacticalOverlay` rewritten to three.js; matte crust;
-  dynamic column pace; overlay off by default and gated so it only computes when shown.
-- **Deliberately deferred to a later slice — and therefore still present:**
-  - **The world-preview selector is retained** in the canonical screen. Until the
-    v2.x host **setup flow** exists (planet chosen at game creation, §3.1/§7), the
-    sandbox needs a way to preview each library world, so the header "CAMPAIGN
-    WORLD" buttons stand in for that not-yet-built pick. When setup lands, the
-    in-play switcher is removed and `selectedId` is seeded from campaign config.
-  - **`/macro-lab` + the flat SVG board stay live** (they still work unchanged);
-    removing the route/components is a cleanup slice, not part of the merge itself.
-  - **`graph.js` `x`/`y` fields stay** while MacroLab consumes them; the authored
-    continent's canonical `lat`/`lon` is currently *derived* from `x`/`y` in
-    `planets.js`. Authoring the continent directly in `lat`/`lon` and dropping
-    `x`/`y` happens together with retiring the SVG board.
+**Slices 1–2** (the Star Chart promoted to canonical + column planner + three.js
+tactical overlay): single-planet scene (no three-at-once staging); `MarchPlanner`
+ported; `overlay.js` generalized; `TacticalOverlay` rewritten to three.js; matte
+crust; dynamic column pace; overlay off by default and gated so it only computes
+when shown.
+
+**Slice 3** (the retirement slice, 2026-07-17) closed out the deferred items:
+
+- **`/macro-lab` and the flat SVG board are retired** — `MacroLab.jsx`,
+  `MacroGraphMap`, `RouteEdge`, and the SVG `TacticalOverlay` are deleted;
+  `MarchPlanner` (shared) remains under `src/components/macro/`.
+- **The continent is authored directly in `lat`/`lon`** — the `x`/`y` grid is
+  dropped from `graph.js`; `planets.js` consumes `MACRO_NODES` as-is.
+- **The in-play world switcher is removed.** The theater world is picked at
+  operation setup (`PlanetPicker` on `/new-game`, stored as `Game.planetId`) and
+  reaches the War Table as `/star-map?planet=<id>` — linked from setup ("Survey on
+  the War Table"), the lobby, and the in-game command bar. A bare `/star-map`
+  (main-menu entry "The War Table") shows Cindara.
 
 ---
 
@@ -211,9 +212,13 @@ the v2.x server phase, unchanged by this doc:
 - Weather/supply effects on day-cost — reuse shipped models at wiring time.
 - Migration of the map editor to a **planet/graph editor** and the `World`/`Planet`
   entity — VISION §5.5.
-- Open balance questions: mileage scaling so cross-planet marches stay in a sane
-  range at whole-planet scale (VISION §5.6 target of 2–6 days between major
-  neighbors); off-road movement; simultaneous vs sequential daily resolution.
+- Open balance questions: off-road movement; simultaneous vs sequential daily
+  resolution. **Resolved (2026-07-17): mileage scaling** — seeded route miles are
+  `clamp(30, degrees × 4.5, 160)`, landing major-neighbor road/highway marches in
+  the 2–6 day band for a standard 16 mi/day column, with long track/trail spans as
+  deliberate strategic hauls (≤ 20 days); every library world's graph is fully
+  connected (isolated clusters are bridged at generation). Both properties are
+  CI-locked by `test/macro-pacing.test.js`.
 
 **Working agreement (VISION §9) still applies:** the macro map remains a
 client-side sandbox until the server phase is explicitly greenlit; every shipped
