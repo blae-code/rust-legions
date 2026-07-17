@@ -20,6 +20,8 @@ import AssetRegistry from './pages/AssetRegistry';
 import MacroLab from './pages/MacroLab';
 import StarMap from './pages/StarMap';
 import Walkthrough from './pages/Walkthrough';
+import Roadmap from './pages/Roadmap';
+import DevConsole from './components/debug/DevConsole';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -61,6 +63,7 @@ const AuthenticatedApp = () => {
         <Route path="/macro-lab" element={<MacroLab />} />
         <Route path="/star-map" element={<StarMap />} />
         <Route path="/walkthrough" element={<Walkthrough />} />
+        <Route path="/roadmap" element={<Roadmap />} />
       </Route>
       <Route path="*" element={<PageNotFound />} />
     </Routes>
@@ -76,6 +79,7 @@ function App() {
         <Router>
           <ScrollToTop />
           <AuthenticatedApp />
+          <DevConsole />
         </Router>
         <Toaster />
       </QueryClientProvider>
