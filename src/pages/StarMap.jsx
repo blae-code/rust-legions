@@ -54,13 +54,16 @@ function WarTable({ planet }) {
   const [introDone, setIntroDone] = useState(false); // orbital-insertion fly-in
   const [idle, setIdle] = useState(true); // idle → slow cinematic drift
 
-  // Any commander input pauses the idle drift; it resumes after 12s of quiet
+  // Commander input pauses the idle drift. The 12s countdown starts only when the
+  // input ends (onEnd), so a long drag never has the drift resume mid-grip;
+  // discrete inputs (node clicks) poke both.
   const idleTimer = useRef();
-  const wake = () => {
-    setIdle(false);
+  const wake = () => { setIdle(false); clearTimeout(idleTimer.current); };
+  const sleep = () => {
     clearTimeout(idleTimer.current);
     idleTimer.current = setTimeout(() => setIdle(true), 12000);
   };
+  const poke = () => { wake(); sleep(); };
   useEffect(() => () => clearTimeout(idleTimer.current), []);
 
   // Only pay the all-pairs betweenness when the intel layer is actually shown
@@ -75,7 +78,7 @@ function WarTable({ planet }) {
     return found ? planMarch(found.path, dayRate, planet.routes) : null;
   }, [march, dayRate, planet]);
 
-  const onNodeClick = (_p, node) => { playSfx("select"); setMenu((m) => (m === node.id ? null : node.id)); };
+  const onNodeClick = (_p, node) => { poke(); playSfx("select"); setMenu((m) => (m === node.id ? null : node.id)); };
   const closeMenu = () => setMenu(null);
   const clearMarch = () => setMarch({ origin: null, dest: null });
   const nodeName = (id) => planet.nodes.find((n) => n.id === id)?.name || "";
@@ -170,6 +173,7 @@ function WarTable({ planet }) {
                   autoRotate={introDone && idle && !menu}
                   autoRotateSpeed={0.4}
                   onStart={wake}
+                  onEnd={sleep}
                 />
               </Canvas>
               </SceneErrorBoundary>
