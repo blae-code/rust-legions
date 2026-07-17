@@ -1391,7 +1391,7 @@ Deno.serve(async (req) => {
     const { action } = body;
 
     // ----- listMyGames -----
-    if (action === 'listMyGames') {
+    GAME_ACTIONS.listMyGames = async () => {
       const games = await svc.entities.Game.list('-updated_date', 100);
       const mine = games.filter((g) => (g.factionSlots || []).some((s) => s.userId === user.id) || g.hostUserId === user.id);
       return Response.json({
@@ -1405,7 +1405,7 @@ Deno.serve(async (req) => {
     }
 
     // ----- createGame -----
-    if (action === 'createGame') {
+    GAME_ACTIONS.createGame = async () => {
       const { name, mode = 'multiplayer', mapId, mapData, factionId, humanCount = 2, npcConfigs = [], campaignWinCondition, planetId } = body;
       let tiles;
       let mapPlanet = null;
@@ -1464,7 +1464,7 @@ Deno.serve(async (req) => {
     const mySlot = mySlotObj ? mySlotObj.slotIndex : null;
 
     // ----- getState -----
-    if (action === 'getState') {
+    GAME_ACTIONS.getState = async () => {
       const currentSlotIdx = game.turnOrder?.[game.currentTurnIndex];
       const active = game.status === 'active';
       // Presence heartbeat — drives live vs auto battle defense
@@ -1592,7 +1592,7 @@ Deno.serve(async (req) => {
     }
 
     // ----- joinGame -----
-    if (action === 'joinGame') {
+    GAME_ACTIONS.joinGame = async () => {
       if (game.status !== 'lobby') return Response.json({ error: 'Game already started' }, { status: 400 });
       if (mySlot !== null) return Response.json({ error: 'Already joined' }, { status: 400 });
       const open = game.factionSlots.find((s) => !s.isNPC && !s.userId);
@@ -1611,7 +1611,7 @@ Deno.serve(async (req) => {
     }
 
     // ----- startGame -----
-    if (action === 'startGame') {
+    GAME_ACTIONS.startGame = async () => {
       if (game.hostUserId !== user.id) return Response.json({ error: 'Only the host can start' }, { status: 403 });
       if (game.status !== 'lobby') return Response.json({ error: 'Game already started' }, { status: 400 });
       if (game.factionSlots.some((s) => !s.isNPC && !s.userId)) return Response.json({ error: 'Waiting for players to join' }, { status: 400 });
@@ -1694,7 +1694,7 @@ Deno.serve(async (req) => {
       return cur;
     };
 
-    if (action === 'moveUnits') {
+    GAME_ACTIONS.moveUnits = async () => {
       const slotIdx = requireMyTurn();
       const { fromTileId, toTileId, units } = body;
       const fromSt = game.territoryStates[fromTileId];
@@ -1726,7 +1726,7 @@ Deno.serve(async (req) => {
       return Response.json({ ok: true });
     }
 
-    if (action === 'build') {
+    GAME_ACTIONS.build = async () => {
       const slotIdx = requireMyTurn();
       try {
         doBuild(game, slotIdx, body.tileId, body.buildingType);
@@ -1737,7 +1737,7 @@ Deno.serve(async (req) => {
       return Response.json({ ok: true, resources: getTreasury(game, slotIdx) });
     }
 
-    if (action === 'purchaseUnits') {
+    GAME_ACTIONS.purchaseUnits = async () => {
       const slotIdx = requireMyTurn();
       const { tileId, units } = body;
       const st = game.territoryStates[tileId];
@@ -1771,7 +1771,7 @@ Deno.serve(async (req) => {
       return Response.json({ ok: true, resources: treasury });
     }
 
-    if (action === 'attack') {
+    GAME_ACTIONS.attack = async () => {
       const slotIdx = requireMyTurn();
       const { fromTileId, toTileId, units } = body;
       let outcome;
@@ -1802,7 +1802,7 @@ Deno.serve(async (req) => {
       status: game.status, winnerSlot: game.winnerSlot, statHistory: game.statHistory,
     });
 
-    if (action === 'musterArmy') {
+    GAME_ACTIONS.musterArmy = async () => {
       const slotIdx = requireMyTurn();
       if (game.activeBattle) return Response.json({ error: 'Resolve the ongoing battle first' }, { status: 400 });
       const { tileId, regiments = {}, generalId } = body;
@@ -1859,7 +1859,7 @@ Deno.serve(async (req) => {
       return Response.json({ ok: true, armyId: army.id, general });
     }
 
-    if (action === 'moveArmy') {
+    GAME_ACTIONS.moveArmy = async () => {
       const slotIdx = requireMyTurn();
       if (game.activeBattle) return Response.json({ error: 'Resolve the ongoing battle first' }, { status: 400 });
       const { armyId, toTileId } = body;
@@ -1890,7 +1890,7 @@ Deno.serve(async (req) => {
       return Response.json({ ok: true, ...result });
     }
 
-    if (action === 'disbandArmy') {
+    GAME_ACTIONS.disbandArmy = async () => {
       const slotIdx = requireMyTurn();
       if (game.activeBattle) return Response.json({ error: 'Resolve the ongoing battle first' }, { status: 400 });
       const army = (game.armies || []).find((a) => a.id === body.armyId && a.owner === slotIdx);
@@ -1904,7 +1904,7 @@ Deno.serve(async (req) => {
     }
 
     // ----- Rearm & reinforce: feed garrison companies into a supplied field army -----
-    if (action === 'reinforceArmy') {
+    GAME_ACTIONS.reinforceArmy = async () => {
       const slotIdx = requireMyTurn();
       if (game.activeBattle) return Response.json({ error: 'Resolve the ongoing battle first' }, { status: 400 });
       const { armyId, regiments = {} } = body;
@@ -1928,7 +1928,7 @@ Deno.serve(async (req) => {
       return Response.json({ ok: true });
     }
 
-    if (action === 'battleChoice') {
+    GAME_ACTIONS.battleChoice = async () => {
       const b = game.activeBattle;
       if (!b) return Response.json({ error: 'No battle in progress' }, { status: 400 });
       const { maneuver } = body;
@@ -1959,7 +1959,7 @@ Deno.serve(async (req) => {
     }
 
     // ----- Artillery bombardment: shell an adjacent enemy zone without risking troops -----
-    if (action === 'bombard') {
+    GAME_ACTIONS.bombard = async () => {
       const slotIdx = requireMyTurn();
       if (game.activeBattle) return Response.json({ error: 'Resolve the ongoing battle first' }, { status: 400 });
       const { fromTileId, toTileId } = body;
@@ -1996,7 +1996,7 @@ Deno.serve(async (req) => {
     }
 
     // ----- Reconnaissance probe -----
-    if (action === 'probe') {
+    GAME_ACTIONS.probe = async () => {
       const slotIdx = requireMyTurn();
       if (game.activeBattle) return Response.json({ error: 'Resolve the ongoing battle first' }, { status: 400 });
       const tile = game.tiles.find((t) => t.id === body.tileId);
@@ -2040,7 +2040,7 @@ Deno.serve(async (req) => {
     }
 
     // ----- Command vehicle refits: equipment & trait-themed weapons -----
-    if (action === 'refitVehicle') {
+    GAME_ACTIONS.refitVehicle = async () => {
       const slotIdx = requireMyTurn();
       if (game.activeBattle) return Response.json({ error: 'Resolve the ongoing battle first' }, { status: 400 });
       const slot = game.factionSlots[slotIdx];
@@ -2076,7 +2076,7 @@ Deno.serve(async (req) => {
     }
 
     // ----- Mobile fortress-base: module refits & the great treads -----
-    if (action === 'installModule') {
+    GAME_ACTIONS.installModule = async () => {
       const slotIdx = requireMyTurn();
       const slot = game.factionSlots[slotIdx];
       const base = ensureBase(game, slot);
@@ -2109,7 +2109,7 @@ Deno.serve(async (req) => {
       return Response.json({ ok: true, resources: treasury });
     }
 
-    if (action === 'moveBase') {
+    GAME_ACTIONS.moveBase = async () => {
       const slotIdx = requireMyTurn();
       if (game.activeBattle) return Response.json({ error: 'Resolve the ongoing battle first' }, { status: 400 });
       const slot = game.factionSlots[slotIdx];
@@ -2138,7 +2138,7 @@ Deno.serve(async (req) => {
     }
 
     // ----- Diplomacy: envoys, accords & the war market -----
-    if (action === 'proposeDiplomacy') {
+    GAME_ACTIONS.proposeDiplomacy = async () => {
       const slotIdx = requireMyTurn();
       const { targetSlot, kind, give = {}, want = {} } = body;
       const target = game.factionSlots[targetSlot];
@@ -2195,7 +2195,7 @@ Deno.serve(async (req) => {
       return Response.json({ ok: true, pending: true });
     }
 
-    if (action === 'respondDiplomacy') {
+    GAME_ACTIONS.respondDiplomacy = async () => {
       if (game.status !== 'active') return Response.json({ error: 'Game is not active' }, { status: 400 });
       if (mySlot === null) return Response.json({ error: 'You are not a party to this game' }, { status: 403 });
       const dip = getDiplo(game);
@@ -2229,7 +2229,7 @@ Deno.serve(async (req) => {
       return Response.json({ ok: true });
     }
 
-    if (action === 'endTurn') {
+    GAME_ACTIONS.endTurn = async () => {
       requireMyTurn();
       if (game.activeBattle) return Response.json({ error: 'A battle rages — resolve it before ending your turn' }, { status: 400 });
       checkCampaignWin(game);
