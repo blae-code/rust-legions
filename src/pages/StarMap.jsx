@@ -1,17 +1,38 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Flag, Crosshair, Anchor, Ban, RotateCcw } from "lucide-react";
-import { Canvas } from "@react-three/fiber";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Stars, OrbitControls } from "@react-three/drei";
+import * as THREE from "three";
 import { PLANETS } from "@/lib/macro/planets";
 import { NODE_KINDS } from "@/lib/macro/graph";
 import { armyDayRate, findPath, planMarch } from "@/lib/macro/march";
 import { computeTacticalOverlay } from "@/lib/macro/overlay";
+import { playSfx } from "@/lib/sfx";
 import PlanetSystem from "@/components/starmap/PlanetSystem";
 import MarchPlanner from "@/components/macro/MarchPlanner";
 import SceneErrorBoundary from "@/components/SceneErrorBoundary";
 
 const LEGEND = [["highway", "#C9A227"], ["road", "#9a927f"], ["track", "#6e675c"], ["trail", "#5a5348"]];
+
+// Orbital insertion — the camera falls from high orbit to the survey distance on
+// load, then hands over to the commander. OrbitControls re-derives its spherical
+// from the live camera position each frame, so the lerp composes cleanly with it.
+function CameraRig({ planet, done, onDone }) {
+  const { camera } = useThree();
+  const target = useMemo(() => new THREE.Vector3(0, planet.radius * 0.9, planet.radius * 3), [planet.radius]);
+  const started = useRef(false);
+  useFrame((_, dt) => {
+    if (done) return;
+    if (!started.current) {
+      camera.position.set(0, planet.radius * 3.2, planet.radius * 8.5);
+      started.current = true;
+    }
+    camera.position.lerp(target, 1 - Math.exp(-2.4 * dt));
+    if (camera.position.distanceTo(target) < planet.radius * 0.03) onDone();
+  });
+  return null;
+}
 
 // The canonical macro map — one campaign world, orbited, with its full node-and-route
 // network as a brass industrial overlay above the crust. The world is picked at
@@ -30,6 +51,17 @@ function WarTable({ planet }) {
   const [menu, setMenu] = useState(null); // node id with an open orders menu
   const [base, setBase] = useState(null); // node id — anchored fortress-base
   const [showOverlay, setShowOverlay] = useState(false); // tactical intel layer
+  const [introDone, setIntroDone] = useState(false); // orbital-insertion fly-in
+  const [idle, setIdle] = useState(true); // idle → slow cinematic drift
+
+  // Any commander input pauses the idle drift; it resumes after 12s of quiet
+  const idleTimer = useRef();
+  const wake = () => {
+    setIdle(false);
+    clearTimeout(idleTimer.current);
+    idleTimer.current = setTimeout(() => setIdle(true), 12000);
+  };
+  useEffect(() => () => clearTimeout(idleTimer.current), []);
 
   // Only pay the all-pairs betweenness when the intel layer is actually shown
   const overlay = useMemo(
@@ -43,19 +75,27 @@ function WarTable({ planet }) {
     return found ? planMarch(found.path, dayRate, planet.routes) : null;
   }, [march, dayRate, planet]);
 
-  const onNodeClick = (_p, node) => setMenu((m) => (m === node.id ? null : node.id));
+  const onNodeClick = (_p, node) => { playSfx("select"); setMenu((m) => (m === node.id ? null : node.id)); };
   const closeMenu = () => setMenu(null);
   const clearMarch = () => setMarch({ origin: null, dest: null });
   const nodeName = (id) => planet.nodes.find((n) => n.id === id)?.name || "";
 
+  // A dry mechanical tick each time the reticle passes onto a new settlement
+  const lastHover = useRef(null);
+  const onHoverNode = (n) => {
+    if (n && n.id !== lastHover.current) playSfx("hover");
+    lastHover.current = n?.id || null;
+    setHovered(n);
+  };
+
   // Smart flow — only orders that are actually eligible for the column & base appear
   const menuOptionsFor = (_p, node) => {
-    const done = (fn) => () => { fn(); closeMenu(); };
+    const done = (fn, sound = "select") => () => { playSfx(sound); fn(); closeMenu(); };
     const opts = [];
     const stagedHere = march.origin === node.id;
     const marching = march.origin && !march.dest;
     if (marching && !stagedHere) {
-      opts.push({ key: "objective", label: "March Here", icon: Crosshair, act: done(() => setMarch((m) => ({ ...m, dest: node.id }))) });
+      opts.push({ key: "objective", label: "March Here", icon: Crosshair, act: done(() => setMarch((m) => ({ ...m, dest: node.id })), "move") });
       opts.push({ key: "restage", label: "Restage Column", icon: RotateCcw, act: done(() => setMarch({ origin: node.id, dest: null })) });
     } else if (stagedHere && !march.dest) {
       opts.push({ key: "standdown", label: "Stand Down", icon: Ban, tone: "rust", act: done(clearMarch) });
@@ -66,7 +106,7 @@ function WarTable({ planet }) {
       opts.push({ key: "clearplot", label: "Clear Plot", icon: Ban, tone: "rust", act: done(clearMarch) });
     }
     if (base === node.id) opts.push({ key: "weigh", label: "Weigh Anchor", icon: Anchor, tone: "rust", act: done(() => setBase(null)) });
-    else opts.push({ key: "anchor", label: "Anchor Base", icon: Anchor, act: done(() => setBase(node.id)) });
+    else opts.push({ key: "anchor", label: "Anchor Base", icon: Anchor, act: done(() => setBase(node.id), "build") });
     return opts;
   };
 
@@ -85,7 +125,7 @@ function WarTable({ planet }) {
             </p>
           </div>
           <button
-            onClick={() => setShowOverlay((v) => !v)}
+            onClick={() => { playSfx("select"); setShowOverlay((v) => !v); }}
             className={`cq-metal inline-flex items-center gap-1.5 font-heading uppercase tracking-widest text-[10px] px-3 py-1.5 rounded-sm border transition-colors ${
               showOverlay ? "border-rust/70 text-rust" : "border-border text-muted-foreground hover:text-brass-bright"
             }`}
@@ -99,18 +139,19 @@ function WarTable({ planet }) {
             <div className="cq-hazard absolute top-0 left-0 right-0 z-10" />
             <div className="h-[68vh] min-h-[440px] rounded">
               <SceneErrorBoundary>
-              <Canvas camera={{ position: [0, 4, 14], fov: 50 }} dpr={[1, 2]}>
+              <Canvas camera={{ position: [0, planet.radius * 3.2, planet.radius * 8.5], fov: 50 }} dpr={[1, 2]}>
                 <color attach="background" args={["#07090c"]} />
                 <ambientLight intensity={0.4} />
                 <directionalLight position={[25, 14, 10]} intensity={1.25} color="#f5e2c0" />
                 <Stars radius={140} depth={60} count={4000} factor={3} fade speed={0.4} />
+                <CameraRig planet={planet} done={introDone} onDone={() => setIntroDone(true)} />
                 <PlanetSystem
                   planet={planet}
                   position={[0, 0, 0]}
                   selected
                   onSelect={closeMenu}
                   hoveredId={hovered?.id || null}
-                  onHoverNode={setHovered}
+                  onHoverNode={onHoverNode}
                   origin={march.origin}
                   dest={march.dest}
                   plan={plan}
@@ -121,9 +162,20 @@ function WarTable({ planet }) {
                   baseNodeId={base}
                   overlay={overlay}
                 />
-                <OrbitControls enablePan={false} minDistance={5} maxDistance={45} />
+                <OrbitControls
+                  enabled={introDone}
+                  enablePan={false}
+                  minDistance={planet.radius * 1.5}
+                  maxDistance={planet.radius * 11}
+                  autoRotate={introDone && idle && !menu}
+                  autoRotateSpeed={0.4}
+                  onStart={wake}
+                />
               </Canvas>
               </SceneErrorBoundary>
+              {/* War-room instrument treatment over the live feed */}
+              <div className="cq-scanlines absolute inset-0 pointer-events-none z-[5]" />
+              <div className="cq-vignette absolute inset-0 pointer-events-none z-[5]" />
             </div>
 
             {/* Selected world readout */}

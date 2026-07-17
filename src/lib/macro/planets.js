@@ -39,6 +39,13 @@ function makeName(rand, used) {
   return fallback;
 }
 
+// Seeded route mileage: scaled so a standard column (16 mi/day) marches between
+// major neighbors in the locked 2–6 day band (docs/MACRO_MAP.md §7); longer
+// track/trail spans read as deliberate strategic hauls, not the norm.
+const milesFor = (d) => Math.min(160, Math.max(30, Math.round(d * 4.5)));
+const qualityFor = (d, rand) =>
+  d < 13 ? (rand() < 0.35 ? "highway" : "road") : d < 21 ? (rand() < 0.5 ? "road" : "track") : d < 30 ? "track" : "trail";
+
 // Scatter `count` settlements over a sphere and lace them with 2–3 routes each
 function generateWorld(seed, count, baseNodes = [], baseRoutes = []) {
   const rand = mulberry32(seed);
@@ -63,9 +70,35 @@ function generateWorld(seed, count, baseNodes = [], baseRoutes = []) {
     const links = 2 + (rand() < 0.35 ? 1 : 0);
     for (const { o, d } of near.slice(0, links)) {
       if (d > 42 || has(n.id, o.id)) continue;
-      const quality = d < 13 ? (rand() < 0.35 ? "highway" : "road") : d < 21 ? (rand() < 0.5 ? "road" : "track") : d < 30 ? "track" : "trail";
-      routes.push([n.id, o.id, Math.round(d * 9), quality]);
+      routes.push([n.id, o.id, milesFor(d), qualityFor(d, rand)]);
     }
+  }
+  // Connectivity pass — every settlement must be reachable overland. Bridge each
+  // isolated cluster to the main graph through its closest pair of settlements.
+  const parent = {};
+  const find = (x) => (parent[x] === x ? x : (parent[x] = find(parent[x])));
+  for (const n of nodes) parent[n.id] = n.id;
+  for (const [a, b] of routes) parent[find(a)] = find(b);
+  for (;;) {
+    const comps = new Map();
+    for (const n of nodes) {
+      const root = find(n.id);
+      if (!comps.has(root)) comps.set(root, []);
+      comps.get(root).push(n);
+    }
+    if (comps.size <= 1) break;
+    const [main, ...rest] = [...comps.values()].sort((a, b) => b.length - a.length);
+    let best = null;
+    for (const island of rest) {
+      for (const a of island) {
+        for (const b of main) {
+          const d = angDeg(a, b);
+          if (!best || d < best.d) best = { a, b, d };
+        }
+      }
+    }
+    routes.push([best.a.id, best.b.id, milesFor(best.d), qualityFor(best.d, rand)]);
+    parent[find(best.a.id)] = find(best.b.id);
   }
   return { nodes, routes };
 }

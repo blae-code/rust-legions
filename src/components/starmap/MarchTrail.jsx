@@ -27,6 +27,7 @@ export default function MarchTrail({ planet, plan }) {
     if (!leg || !legs[li]) return;
     const t = Math.min(Math.max((day - leg.start) / leg.days, 0), 1);
     convoyRef.current.position.copy(slerpSurface(legs[li].A, legs[li].B, t, planet.radius, 0.06));
+    convoyRef.current.scale.setScalar(1 + Math.sin(clock.elapsedTime * 6) * 0.25); // signal-lamp throb
   });
 
   return (

@@ -212,9 +212,13 @@ the v2.x server phase, unchanged by this doc:
 - Weather/supply effects on day-cost — reuse shipped models at wiring time.
 - Migration of the map editor to a **planet/graph editor** and the `World`/`Planet`
   entity — VISION §5.5.
-- Open balance questions: mileage scaling so cross-planet marches stay in a sane
-  range at whole-planet scale (VISION §5.6 target of 2–6 days between major
-  neighbors); off-road movement; simultaneous vs sequential daily resolution.
+- Open balance questions: off-road movement; simultaneous vs sequential daily
+  resolution. **Resolved (2026-07-17): mileage scaling** — seeded route miles are
+  `clamp(30, degrees × 4.5, 160)`, landing major-neighbor road/highway marches in
+  the 2–6 day band for a standard 16 mi/day column, with long track/trail spans as
+  deliberate strategic hauls (≤ 20 days); every library world's graph is fully
+  connected (isolated clusters are bridged at generation). Both properties are
+  CI-locked by `test/macro-pacing.test.js`.
 
 **Working agreement (VISION §9) still applies:** the macro map remains a
 client-side sandbox until the server phase is explicitly greenlit; every shipped
