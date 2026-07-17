@@ -281,3 +281,40 @@ Every general fights from a **command vehicle** themed to their trait (Butcher: 
 - **Fortress-bases** need heavy **gantry cranes**: a capital or a **level-2 Foundry** only.
 - **Anywhere in supply**: refits arrive by convoy at the start of the owner's next turn, at **25% off** the module cost (economical but slow). One convoy per vehicle bay at a time.
 - **Cut off from supply with no site in reach**: no refits possible.
+## 22. Macro Operations (experimental world model — slice M1)
+
+A new game type beside the hex front (`worldModel: "macro"`, chosen at operation
+setup). The full design contract is `docs/MACRO_ENGINE.md`; the hex rules above
+are untouched and remain authoritative for hex games.
+
+- **World:** the campaign fights across the whole theater world's node-and-route
+  graph (the same generated worlds as the War Table, built server-side at
+  creation and stored on the game). Geography is public; control flags and
+  foreign columns are visible only within **one route hop** of your holdings,
+  base and columns.
+- **Time:** one full turn cycle = one day. At dawn every marching column (all
+  factions) advances one day; weather, research, income and accords keep their
+  existing daily cadence.
+- **Columns** (the macro armies): levied at a controlled **city** or the
+  fortress-base anchor (`macroMusterColumn` — standard unit costs, army-cap
+  check, general commissioning as in §8). Pace = slowest ground element
+  (riflemen 20 · crawlers 16 · artillery 12 mi/day; the air wing never slows a
+  column) × route grade (highway ×1.25 · road ×1.0 · track ×0.75 · trail ×0.5)
+  × weather (rain/snow: wheel-bearing columns ×0.6, foot-only ×0.85).
+- **Orders:** `macroPlotMarch` Dijkstra-validates a path (mid-leg redirects take
+  effect from the node ahead); `macroHalt` stands a column down at the next node;
+  `macroDisbandColumn` dissolves it at a controlled settlement.
+- **Control:** arriving at an undefended node flips it. Hostile contact at the
+  node ahead **balks** the column short of it — meeting engagements (mass
+  battles on the graph) arrive with slice M2.
+- **Income (daily):** city 2 St + 2 MP · town 2 MP · depot 2 F · ruin 1 St ·
+  crossroads nothing.
+- **Setup:** spawn cities spread by greedy max-min march-distance; each faction
+  starts with its spawn city, the fortress-base anchored there, and a 1st Column
+  escort (2 riflemen, 1 crawler).
+- **Victory:** control **60% of settlements** (crossroads excluded — the same
+  threshold as hex map control). Further conditions (base loss, relics) arrive
+  with slices M5–M6.
+- **NPCs:** doctrine-flavored greedy expansion — idle columns plot to the
+  nearest unclaimed settlement (economic doctrine weighs yields), and a second
+  column is levied when the treasury allows.

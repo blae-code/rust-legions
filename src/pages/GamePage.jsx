@@ -29,6 +29,7 @@ import WeatherBadge from "@/components/game/WeatherBadge";
 import DiplomacyPanel from "@/components/game/diplomacy/DiplomacyPanel";
 import DoctrinePanel from "@/components/game/research/DoctrinePanel";
 import FortressBay from "@/components/game/fortress/FortressBay";
+import MacroWarRoom from "@/components/game/macro/MacroWarRoom";
 import GameChat from "@/components/game/chat/GameChat";
 import { RESOURCE_KEYS, RESOURCE_META } from "@/lib/units";
 import { PLANETS } from "@/lib/macro/planets";
@@ -195,6 +196,7 @@ export default function GamePage() {
 
   const slotColors = Object.fromEntries(game.factions.map((f) => [f.slotIndex, f.color]));
   const currentFaction = game.factions[game.currentSlot];
+  const isMacro = game.worldModel === "macro";
   const selectedTile = game.tiles.find((t) => t.id === selectedId);
   const selectedArmy = (game.armies || []).find((a) => a.id === selectedArmyId && a.owner === game.mySlot);
 
@@ -301,6 +303,9 @@ export default function GamePage() {
 
       <div className="grid lg:grid-cols-[1fr_320px] gap-4">
         <div className="space-y-4">
+          {isMacro ? (
+            <MacroWarRoom game={game} busy={busy} onAction={act} />
+          ) : (
           <div className="cq-panel cq-brackets relative overflow-hidden p-2 pt-6">
             <div className="absolute inset-0 cq-board" />
             <div className="absolute inset-0 cq-scanlines opacity-25" />
@@ -328,6 +333,7 @@ export default function GamePage() {
               />
             </div>
           </div>
+          )}
           <WarCharts history={game.statHistory} factions={game.factions} />
         </div>
         <div className="space-y-4">
@@ -353,6 +359,8 @@ export default function GamePage() {
               </div>
             </div>
           )}
+          {!isMacro && (
+          <>
           <FortressBay game={game} busy={busy} onAction={act} />
           <ArmyPanel
             game={game}
@@ -381,6 +389,8 @@ export default function GamePage() {
           />
           <BuildPanel game={game} tile={selectedTile} busy={busy} onBuild={(tileId, buildingType) => act({ action: "build", tileId, buildingType })} />
           <PurchasePanel game={game} busy={busy} onPurchase={(tileId, units) => act({ action: "purchaseUnits", tileId, units })} />
+          </>
+          )}
           <NpcIntercepts game={game} />
           <DispatchArchive archives={game.battleArchives} />
           <CombatLog entries={game.combatLog} />

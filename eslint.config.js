@@ -68,6 +68,7 @@ export default [
     files: [
       "src/components/hexmap3d/**/*.{js,jsx}",
       "src/components/starmap/**/*.{js,jsx}",
+      "src/components/game/macro/**/*.{js,jsx}",
       "src/pages/StarMap.jsx",
     ],
     rules: {
