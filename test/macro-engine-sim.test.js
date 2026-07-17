@@ -175,6 +175,47 @@ describe("truce protection + NPC behavior", () => {
   });
 });
 
+describe("supply & the fortress-base (M3)", () => {
+  it("a faction's spawn and near ground are in supply from the base", () => {
+    const game = newGame();
+    const supplied = M.macroSupplied(game, 0);
+    expect(supplied.has(game.macro.bases["0"].nodeId)).toBe(true);
+    expect(supplied.size).toBeGreaterThan(1); // reaches neighbors within the envelope
+  });
+
+  it("a column beyond the supply envelope attrits over the attrition window", () => {
+    const game = newGame();
+    // A node genuinely outside the base's effective-mile envelope (supply floods
+    // neutral territory, so pick from what macroSupplied does NOT reach)
+    const supplied = M.macroSupplied(game, 0);
+    const far = game.macro.nodes.find((n) => !supplied.has(n.id));
+    expect(far).toBeTruthy();
+    const col = { id: "lone", owner: 0, battles: 0, generalId: null, name: "Lost Column", regiments: { riflemen: 3 }, nodeId: far.id };
+    game.macro.columns.push(col);
+    const before = col.regiments.riflemen;
+    // Two dawns out of supply -> one company lost to privation
+    M.macroAdvanceDay(game);
+    M.macroAdvanceDay(game);
+    expect(col.regiments.riflemen).toBe(before - 1);
+  });
+
+  it("the fortress-base marches at its slow rate and re-anchors control", () => {
+    const game = newGame();
+    const base = game.macro.bases["0"];
+    const start = base.nodeId;
+    const edge = game.macro.routes.find((r) => r[0] === start || r[1] === start);
+    const dest = edge[0] === start ? edge[1] : edge[0];
+    const found = M.macroFindPath(game.macro, start, dest, M.MACRO_BASE_DAY_RATE);
+    base.march = { path: found.path, legMiles: 0 };
+    delete base.nodeId;
+    let guard = 0;
+    while (base.march && guard++ < 80) M.macroAdvanceDay(game);
+    expect(base.nodeId).toBe(dest);
+    const destNode = M.macroNode(game.macro, dest);
+    if (destNode.kind !== "crossroads") expect(game.macro.control[dest]).toBe(0);
+  });
+});
+
 describe("victory", () => {
   it("declares a winner at 60% settlement control", () => {
     const game = newGame();

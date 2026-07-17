@@ -57,6 +57,7 @@ Action-dispatch over POST body `{ action, gameId?, ...params }`. Frontend calls 
 | `endTurn` | gameId | Advance turn; NPCs play inline; weather + research tick per cycle; macro: dawn march resolution |
 | `macroPlotMarch` | columnId, toNodeId | Macro only — Dijkstra-validated march plan (redirects from the node ahead) |
 | `macroEngage` | columnId, toNodeId | Macro only — assault an adjacent node held by foreign columns (opens a mass battle) |
+| `macroMoveBase` | toNodeId | Macro only — roll the fortress-base along the graph (slow; re-anchors supply) |
 | `macroHalt` | columnId | Macro only — stand down at the next node reached |
 | `macroMusterColumn` | nodeId, regiments, generalId (`"recruit"` to buy) | Macro only — levy a column at a controlled city / the base anchor |
 | `macroDisbandColumn` | columnId | Macro only — dissolve at a controlled settlement |
