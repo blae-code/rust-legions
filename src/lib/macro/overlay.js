@@ -43,9 +43,11 @@ function shortestPath(from, to, adj) {
   return path;
 }
 
-export function computeTacticalOverlay() {
+// Defaults to the original continent graph (Macro Lab); the 3D planet map passes
+// its own per-planet nodes/routes.
+export function computeTacticalOverlay(nodes = MACRO_NODES, routes = MACRO_ROUTES) {
   const adj = {};
-  for (const r of MACRO_ROUTES) {
+  for (const r of routes) {
     const [a, b, miles, quality] = r;
     const cost = miles / ROUTE_QUALITY[quality].mult;
     (adj[a] = adj[a] || []).push({ to: b, cost });
@@ -54,7 +56,7 @@ export function computeTacticalOverlay() {
 
   // Count how many optimal marches cross each route
   const usage = {};
-  const ids = MACRO_NODES.map((n) => n.id);
+  const ids = nodes.map((n) => n.id);
   for (let i = 0; i < ids.length; i++) {
     for (let j = i + 1; j < ids.length; j++) {
       const path = shortestPath(ids[i], ids[j], adj);
@@ -70,12 +72,12 @@ export function computeTacticalOverlay() {
 
   // Score resource-bearing nodes: intrinsic worth + connectivity + artery access
   const degree = {};
-  for (const [a, b] of MACRO_ROUTES) {
+  for (const [a, b] of routes) {
     degree[a] = (degree[a] || 0) + 1;
     degree[b] = (degree[b] || 0) + 1;
   }
-  const targets = MACRO_NODES
-    .filter((n) => KIND_VALUE[n.kind].tag)
+  const targets = nodes
+    .filter((n) => KIND_VALUE[n.kind]?.tag)
     .map((n) => {
       const arteryTouches = [...arteries].filter((k) => k.split("|").includes(n.id)).length;
       return {

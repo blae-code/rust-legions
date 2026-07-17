@@ -6,9 +6,10 @@ import PlanetBody from "@/components/starmap/PlanetBody";
 import RouteArcs from "@/components/starmap/RouteArcs";
 import NodeMarker from "@/components/starmap/NodeMarker";
 import MarchTrail from "@/components/starmap/MarchTrail";
+import TacticalLayer from "@/components/starmap/TacticalLayer";
 
 // A whole world: rotating surface + its full node network + route arcs
-export default function PlanetSystem({ planet, position, selected, onSelect, hoveredId, onHoverNode, origin, dest, plan, onNodeClick, menuNodeId, menuOptionsFor, onCloseMenu, baseNodeId }) {
+export default function PlanetSystem({ planet, position, selected, onSelect, hoveredId, onHoverNode, origin, dest, plan, onNodeClick, menuNodeId, menuOptionsFor, onCloseMenu, baseNodeId, overlay }) {
   const spinner = useRef();
   useFrame((_, dt) => { if (spinner.current) spinner.current.rotation.y += dt * planet.spin; });
   return (
@@ -16,6 +17,7 @@ export default function PlanetSystem({ planet, position, selected, onSelect, hov
       <group ref={spinner}>
         <PlanetBody planet={planet} onClick={(e) => { e.stopPropagation(); onSelect(planet.id); }} />
         <RouteArcs planet={planet} />
+        {overlay && <TacticalLayer planet={planet} overlay={overlay} />}
         {plan && <MarchTrail planet={planet} plan={plan} />}
         {planet.nodes.map((n) => (
           <NodeMarker
