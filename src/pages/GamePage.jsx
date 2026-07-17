@@ -76,10 +76,11 @@ export default function GamePage() {
     prevBattleRef.current = battleActive;
   }, [battleActive, game?.battleReport]);
 
-  // The baton passes to us — telegraph key + orders stamp, and a stamped overlay
+  // The baton passes to us — telegraph key + orders stamp, and a stamped overlay.
+  // battleActive is a dep so a handoff masked by an open battle fires on its close.
   useEffect(() => {
     if (!game) return;
-    const mine = !!game.isMyTurn && game.status === "active" && !game.battle;
+    const mine = !!game.isMyTurn && game.status === "active" && !battleActive;
     const was = prevMyTurn.current;
     prevMyTurn.current = mine;
     if (was === false && mine) {
@@ -88,7 +89,7 @@ export default function GamePage() {
       const t = setTimeout(() => setTurnStinger(0), 2200);
       return () => clearTimeout(t);
     }
-  }, [game?.isMyTurn, game?.status]);
+  }, [game?.isMyTurn, game?.status, battleActive]);
 
   useEffect(() => {
     refresh();
