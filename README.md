@@ -13,7 +13,7 @@ A turn-based **dieselpunk grand-strategy game** for 2–4 players — hex-tile t
 - **Faction creation** — BattleTech-style lifepath wizard with LLM-synthesized lore, plus GURPS-style point-buy perks
 - **Off-turn planning** — doctrine research tree and State Armory unlocks playable while waiting for your turn
 - **Meta tools** — map editor, Army Design Bureau, patch-notes live-service system, Field Induction tutorial
-- **v2.x prototypes** — Macro March Lab (graph-based day-rate movement) and the Star Chart (3D planetary map with radial node orders)
+- **v2.x prototype** — the War Table (`/star-map`): one orbital 3D campaign world with graph-based day-rate movement and radial node orders
 - **Immersive presentation** — 2.5D cinematic menu backdrops, synthesized Web Audio SFX, rotating orchestral score
 
 ## Tech Stack

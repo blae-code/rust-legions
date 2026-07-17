@@ -15,7 +15,7 @@ export default function GameMenu({ continueGame }) {
     { to: "/maps", label: "Map Archive", sub: "Survey every registered theater" },
     { to: "/patch-notes", label: "Field Amendments", sub: "Patch dispatches from the War Ministry" },
     { to: "/asset-registry", label: "Illustration Directorate", sub: "The master registry of commissioned art plates" },
-    { to: "/macro-lab", label: "Macro March Lab", sub: "Plot day-rate marches on the route graph" },
+    { to: "/star-map", label: "The War Table", sub: "Orbit the theater world and plot day-rate marches" },
   ].filter(Boolean);
 
   return (

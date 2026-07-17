@@ -1,8 +1,10 @@
 import React from "react";
+import { Link } from "react-router-dom";
 import { PLANETS } from "@/lib/macro/planets";
 
 // Pick which of the three charted worlds hosts the war
 export default function PlanetPicker({ value, onChange }) {
+  const selected = PLANETS.find((p) => p.id === value);
   return (
     <div>
       <label className="cq-label">Theater World</label>
@@ -33,6 +35,14 @@ export default function PlanetPicker({ value, onChange }) {
           </button>
         ))}
       </div>
+      {selected && (
+        <Link
+          to={`/star-map?planet=${selected.id}`}
+          className="inline-flex items-center gap-1 font-mono text-[10px] tracking-widest text-muted-foreground hover:text-brass-bright transition-colors mt-1.5"
+        >
+          ◈ SURVEY {selected.name.toUpperCase()} ON THE WAR TABLE ▸
+        </Link>
+      )}
     </div>
   );
 }

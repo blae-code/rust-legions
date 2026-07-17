@@ -70,10 +70,9 @@ function generateWorld(seed, count, baseNodes = [], baseRoutes = []) {
   return { nodes, routes };
 }
 
-// The original abandoned continent, draped over Cindara's northern hemisphere
-const CONTINENT = MACRO_NODES.map((n) => ({ ...n, lat: 38 - n.y * 0.8, lon: -70 + n.x * 0.75 }));
-
-const cindara = generateWorld(1917, 45, CONTINENT, MACRO_ROUTES);
+// The original abandoned continent is authored in lat/lon (graph.js) and drapes
+// over Cindara's northern hemisphere as-is.
+const cindara = generateWorld(1917, 45, MACRO_NODES, MACRO_ROUTES);
 const veyra = generateWorld(2044, 55);
 const morhollow = generateWorld(3121, 45);
 
