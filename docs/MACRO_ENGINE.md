@@ -180,8 +180,8 @@ War Table honest. What fog gates is the **live state**:
 
 | Slice | Contents | Ships with |
 | --- | --- | --- |
-| **M1 — The graph goes live** | worldModel, server world-gen, columns, plot/halt/muster/disband, dawn advance, fog, income, control flips, control victory, greedy NPCs, setup toggle + war-room client | this greenlight |
-| **M2 — Contact** | node battles via the mass-battle engine, battle honors on columns, post-battle retreat rules | |
+| **M1 — The graph goes live** ✅ | worldModel, server world-gen, columns, plot/halt/muster/disband, dawn advance, fog, income, control flips, control victory, greedy NPCs, setup toggle + war-room client | shipped 2026-07-17 |
+| **M2 — Contact** ✅ | `macroEngage` node assaults via the mass-battle engine (absorption defense, honors/veterancy/medals, retreat/repel/reform outcomes), truce-protected territory, base anchors block movement | shipped 2026-07-17 |
 | **M3 — The long road** | supply envelope + attrition, interception on edges, air-wing recon, base movement, garrison layer at settlements | |
 | **M4 — The settled** | settlements as polities: dispositions, trade/tribute/raid verbs, war market | |
 | **M5 — The storm** | boarding assaults, base loss (crippled-remnant grace *(leaning)*), module stripping | |

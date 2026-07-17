@@ -1181,12 +1181,15 @@ function battleSkill(side, other) {
 }
 
 function finishBattle(game, b, attackerWon) {
-  const st = game.territoryStates[b.tileId];
-  const toTile = game.tiles.find((t) => t.id === b.tileId);
   const attSlotObj = game.factionSlots[b.attacker.slot];
   const defSlotObj = b.defender.slot !== null ? game.factionSlots[b.defender.slot] : null;
-  const army = (game.armies || []).find((a) => a.id === b.attacker.armyId);
   let outcome;
+  if (b.worldModel === 'macro') {
+    outcome = macroApplyBattleOutcome(game, b, attackerWon);
+  } else {
+  const st = game.territoryStates[b.tileId];
+  const toTile = game.tiles.find((t) => t.id === b.tileId);
+  const army = (game.armies || []).find((a) => a.id === b.attacker.armyId);
   if (attackerWon) {
     wreckBasesAt(game, b.tileId, b.attacker.slot);
     st.owner = b.attacker.slot;
@@ -1215,6 +1218,7 @@ function finishBattle(game, b, attackerWon) {
       outcome = 'repelled';
     }
   }
+  }
   recordBattleHonors(game, b, attackerWon);
   game.combatLog.push({
     turn: game.turnNumber, type: 'combat', attacker: attSlotObj.factionName,
@@ -1240,7 +1244,8 @@ function finishBattle(game, b, attackerWon) {
   game.battleArchives.push(game.lastBattle);
   if (game.battleArchives.length > 15) game.battleArchives.shift();
   game.activeBattle = null;
-  checkEliminations(game); checkWin(game); checkCampaignWin(game);
+  if (b.worldModel === 'macro') { macroCheckWin(game); checkCampaignWin(game); }
+  else { checkEliminations(game); checkWin(game); checkCampaignWin(game); }
 }
 
 function resolveBattleRound(game, b) {
@@ -1571,6 +1576,12 @@ function macroFindPath(macro, fromId, toId, dayRate) {
 
 const macroSettlements = (macro) => macro.nodes.filter((n) => n.kind !== 'crossroads');
 const macroColumnsAt = (game, nodeId) => (game.macro.columns || []).filter((c) => c.nodeId === nodeId);
+const macroForeignBaseAt = (game, nodeId, slotIdx) =>
+  Object.entries(game.macro.bases || {}).some(([slot, b]) => Number(slot) !== slotIdx && b.nodeId === nodeId);
+// A node blocks foreign movement when foreign columns hold it or a foreign
+// fortress-base is anchored there (boarding assaults arrive in slice M5)
+const macroBlockedAgainst = (game, nodeId, slotIdx) =>
+  macroColumnsAt(game, nodeId).some((c) => c.owner !== slotIdx) || macroForeignBaseAt(game, nodeId, slotIdx);
 
 function macroControlPct(game, slotIdx) {
   const settlements = macroSettlements(game.macro);
@@ -1579,10 +1590,13 @@ function macroControlPct(game, slotIdx) {
   return (mine / settlements.length) * 100;
 }
 
-// A column enters a node it now holds uncontested: flip control and log the take
+// A column enters a node it now holds uncontested: flip control and log the
+// take. Ground held by a faction under a signed accord is passed through, not
+// seized — a truce protects territory as well as troops.
 function macroFlipControl(game, column, nodeId) {
   const prevOwner = game.macro.control[nodeId];
   if (prevOwner === column.owner) return;
+  if (prevOwner !== null && prevOwner !== undefined && atPeace(game, column.owner, prevOwner)) return;
   game.macro.control[nodeId] = column.owner;
   const node = macroNode(game.macro, nodeId);
   if (node && node.kind !== 'crossroads') {
@@ -1605,10 +1619,10 @@ function macroAdvanceDay(game) {
       const { path } = column.march;
       if (path.length < 2) { column.nodeId = path[0]; delete column.march; break; }
       const next = path[1];
-      if (macroColumnsAt(game, next).some((c) => c.owner !== column.owner)) {
+      if (macroBlockedAgainst(game, next, column.owner)) {
         column.nodeId = path[0];
         delete column.march;
-        game.combatLog.push({ turn: game.turnNumber, type: 'event', text: `${game.factionSlots[column.owner].factionName}'s ${column.name} balks at contact outside ${macroNode(game.macro, next)?.name} — no orders cover a meeting engagement.` });
+        game.combatLog.push({ turn: game.turnNumber, type: 'event', text: `${game.factionSlots[column.owner].factionName}'s ${column.name} halts at contact outside ${macroNode(game.macro, next)?.name} — awaiting orders to engage.` });
         break;
       }
       const route = macroRouteBetween(game.macro, path[0], next);
@@ -1720,7 +1734,7 @@ function macroNpcTurn(game, slotIdx) {
     if (!rate) continue;
     const candidates = macroSettlements(macro)
       .filter((n) => macro.control[n.id] !== slotIdx && !targeted.has(n.id))
-      .filter((n) => macroColumnsAt(game, n.id).every((c) => c.owner === slotIdx));
+      .filter((n) => !macroBlockedAgainst(game, n.id, slotIdx));
     let best = null;
     for (const n of candidates) {
       const found = macroFindPath(macro, column.nodeId, n.id, rate);
@@ -1768,6 +1782,128 @@ function macroSpawnCities(macro, count) {
     picked.push(best.cand);
   }
   return picked;
+}
+
+// Mass battle on the graph (slice M2): a deliberate assault from an adjacent
+// node. All defending columns fold into one force under their best general —
+// same absorption rule as hex zone defense. Committed defenders leave the
+// roster until the outcome; the existing round engine runs unchanged.
+function macroCreateBattle(game, slotIdx, column, nodeId) {
+  const node = macroNode(game.macro, nodeId);
+  const weather = game.weather || 'clear';
+  const attSlotObj = game.factionSlots[slotIdx];
+  const defenders = macroColumnsAt(game, nodeId).filter((c) => c.owner !== slotIdx);
+  const defSlotIdx = defenders[0].owner;
+  const defSlotObj = game.factionSlots[defSlotIdx];
+  if (defSlotObj?.isNPC) shiftDisposition(game, defSlotIdx, slotIdx, -8);
+
+  const defUnits = {};
+  let defGeneral = null;
+  let defVetBattles = 0;
+  const absorbed = [];
+  for (const c of defenders) {
+    for (const k of MACRO_COLUMN_KEYS) defUnits[k] = (defUnits[k] || 0) + (c.regiments[k] || 0);
+    defVetBattles = Math.max(defVetBattles, c.battles || 0);
+    const g = (defSlotObj.generals || []).find((x) => x.id === c.generalId);
+    if (g && (!defGeneral || g.strategy > defGeneral.strategy)) defGeneral = g;
+    absorbed.push({ owner: c.owner, generalId: c.generalId, name: c.name, id: c.id });
+  }
+
+  const attGeneral = (attSlotObj.generals || []).find((g) => g.id === column.generalId) || { name: 'Field Officer', strategy: 9, leadership: 9 };
+  const attTrait = traitByKey(attGeneral.trait);
+  const defTrait = traitByKey(defGeneral?.trait);
+  const attRank = armyRank(column.battles || 0);
+  const defRank = armyRank(defVetBattles);
+
+  game.activeBattle = {
+    id: genId(), worldModel: 'macro', tileId: null, tileName: node.name,
+    macro: { nodeId, fromNodeId: column.nodeId, attackerColumnId: column.id, defVetBattles },
+    attacker: {
+      slot: slotIdx, armyId: column.id, armyName: column.name, generalName: attGeneral.name, generalId: attGeneral.id || null,
+      strategy: attGeneral.strategy, units: { ...column.regiments }, morale: 100, choice: null, nextBonus: 0, losses: 0,
+      signature: attTrait?.signature || null, sigCooldown: 0, vetBonus: attRank.bonus, rank: attRank.label,
+      vehicle: vehicleOf(attGeneral),
+      supplyPenalty: 0,
+      weatherPenalty: weather === 'rain' || weather === 'snow' ? -1 : 0,
+      elevMod: 0,
+      design: null,
+    },
+    defender: {
+      slot: defSlotIdx, absorbedArmies: absorbed,
+      generalName: defGeneral ? defGeneral.name : 'Column Commander',
+      strategy: defGeneral ? defGeneral.strategy : 9,
+      units: defUnits, morale: 100, fortBonus: 0, terrainBonus: 0,
+      generalId: defGeneral?.id || null,
+      signature: defTrait?.signature || null, sigCooldown: 0, vetBonus: defRank.bonus, rank: defRank.label,
+      vehicle: vehicleOf(defGeneral),
+      supplyPenalty: 0,
+      weatherPenalty: weather === 'fog' ? -1 : 0,
+      design: null,
+      choice: null, nextBonus: 0, losses: 0,
+      interactive: defenderIsLive(game, defSlotObj),
+    },
+    round: 1,
+    terrain: null,
+    weather,
+    log: [`The ${column.name} under ${attGeneral.name} assaults ${node.name}.`],
+  };
+  const attVeh = vehicleOf(attGeneral), defVeh = vehicleOf(defGeneral);
+  if (attVeh) game.activeBattle.log.push(`${attGeneral.name} directs the assault from the ${attVeh.label}.`);
+  if (defVeh) game.activeBattle.log.push(`${defGeneral.name} anchors the defense from the ${defVeh.label}.`);
+  if (weather === 'rain') game.activeBattle.log.push('Driving rain turns the road to mud — the assault bogs down (attacker −1).');
+  if (weather === 'fog') game.activeBattle.log.push('Heavy fog cloaks the assault columns — the defense fires blind (defender −1).');
+  if (weather === 'snow') game.activeBattle.log.push('Deep snow drags at the assault columns (attacker −1).');
+  game.macro.columns = game.macro.columns.filter((c) => !absorbed.some((x) => x.id === c.id));
+  game.combatLog.push({ turn: game.turnNumber, type: 'event', text: `Mass battle joined at ${node.name}.` });
+}
+
+// Apply a finished macro battle's outcome to columns and control; returns the
+// outcome label. The shared finishBattle tail (honors, archive) runs after.
+function macroApplyBattleOutcome(game, b, attackerWon) {
+  const node = macroNode(game.macro, b.macro.nodeId);
+  const attSlotObj = game.factionSlots[b.attacker.slot];
+  const defSlotObj = game.factionSlots[b.defender.slot];
+  const column = (game.macro.columns || []).find((c) => c.id === b.macro.attackerColumnId);
+  if (attackerWon) {
+    for (const dead of b.defender.absorbedArmies || []) generalFate(game, dead);
+    if (column) {
+      column.regiments = b.attacker.units;
+      column.battles = (column.battles || 0) + 1;
+      column.nodeId = b.macro.nodeId;
+      delete column.march;
+    }
+    creditVictory(game, b.attacker.slot, column?.generalId);
+    game.macro.control[b.macro.nodeId] = b.attacker.slot;
+    const yieldKeys = Object.keys(MACRO_SETTLEMENT_YIELD[node?.kind] || {});
+    game.combatLog.push({
+      turn: game.turnNumber, type: 'capture', faction: attSlotObj.factionName, tileName: b.tileName,
+      from: defSlotObj.factionName,
+      resource: yieldKeys[0] || 'manpower', amount: (MACRO_SETTLEMENT_YIELD[node?.kind] || {})[yieldKeys[0]] || 1,
+      bonus: null, buildings: [], isCapital: false,
+    });
+    return 'captured';
+  }
+  creditVictory(game, b.defender.slot, b.defender.generalId);
+  if (totalUnits(b.defender.units) > 0) {
+    // The defense reforms as a single column under its commanding general
+    game.macro.columns.push({
+      id: genId(), owner: b.defender.slot, generalId: b.defender.generalId || null,
+      battles: (b.macro.defVetBattles || 0) + 1,
+      name: (b.defender.absorbedArmies || [])[0]?.name || 'Defense Column',
+      regiments: Object.fromEntries(MACRO_COLUMN_KEYS.map((k) => [k, b.defender.units[k] || 0])),
+      nodeId: b.macro.nodeId,
+    });
+  }
+  if (totalUnits(b.attacker.units) > 0 && column) {
+    column.regiments = b.attacker.units; // routed survivors hold at the staging node
+    column.battles = (column.battles || 0) + 1;
+    return 'retreated';
+  }
+  if (column) {
+    game.macro.columns = game.macro.columns.filter((c) => c.id !== column.id);
+    generalFate(game, column);
+  }
+  return 'repelled';
 }
 
 // ---------- Fog of war ----------
@@ -2278,6 +2414,7 @@ Deno.serve(async (req) => {
       lastBattle: game.lastBattle || null,
       battleArchives: game.battleArchives || [],
       diplomacy: game.diplomacy || null,
+      macro: game.macro || null,
       status: game.status, winnerSlot: game.winnerSlot, statHistory: game.statHistory,
     });
 
@@ -2727,8 +2864,11 @@ Deno.serve(async (req) => {
       if (!macroNode(game.macro, toNodeId)) return Response.json({ error: 'Uncharted destination' }, { status: 400 });
       const rate = macroDayRate(column.regiments);
       if (!rate) return Response.json({ error: 'No ground elements — the column cannot march' }, { status: 400 });
+      if (macroForeignBaseAt(game, toNodeId, slotIdx)) {
+        return Response.json({ error: "A foreign fortress-base anchors that ground — boarding assaults await a later Field Amendment" }, { status: 400 });
+      }
       if (macroColumnsAt(game, toNodeId).some((c) => c.owner !== slotIdx)) {
-        return Response.json({ error: 'A hostile column holds that ground — meeting engagements await a later Field Amendment' }, { status: 400 });
+        return Response.json({ error: 'A foreign column holds that ground — march adjacent and order an assault' }, { status: 400 });
       }
       // Mid-leg redirects take effect from the node ahead (docs/MACRO_ENGINE.md §2)
       const from = column.nodeId || column.march.path[1];
@@ -2747,6 +2887,28 @@ Deno.serve(async (req) => {
       }
       await persistMacro();
       return Response.json({ ok: true, etaDays: Math.ceil(found.totalDays) });
+    }
+
+    GAME_ACTIONS.macroEngage = async () => {
+      requireMacro();
+      const slotIdx = requireMyTurn();
+      if (game.activeBattle) return Response.json({ error: 'A battle rages — resolve it first' }, { status: 400 });
+      const { columnId, toNodeId } = body;
+      const column = (game.macro.columns || []).find((c) => c.id === columnId && c.owner === slotIdx);
+      if (!column) return Response.json({ error: 'Column not found' }, { status: 404 });
+      if (!column.nodeId) return Response.json({ error: 'The column is on the road — it must halt before assaulting' }, { status: 400 });
+      if (!macroRouteBetween(game.macro, column.nodeId, toNodeId)) return Response.json({ error: 'No route reaches that ground from the staging node' }, { status: 400 });
+      if (macroForeignBaseAt(game, toNodeId, slotIdx)) {
+        return Response.json({ error: "A foreign fortress-base anchors that ground — boarding assaults await a later Field Amendment" }, { status: 400 });
+      }
+      const defenders = macroColumnsAt(game, toNodeId).filter((c) => c.owner !== slotIdx);
+      if (defenders.length === 0) return Response.json({ error: 'No foreign column holds that ground — march instead' }, { status: 400 });
+      if (atPeace(game, slotIdx, defenders[0].owner)) return Response.json({ error: 'A signed accord forbids engaging that faction' }, { status: 400 });
+      if (!macroDayRate(column.regiments)) return Response.json({ error: 'No ground elements — the column cannot assault' }, { status: 400 });
+      delete column.march; // committed to the assault
+      macroCreateBattle(game, slotIdx, column, toNodeId);
+      await persistWar();
+      return Response.json({ ok: true, battle: true });
     }
 
     GAME_ACTIONS.macroHalt = async () => {

@@ -56,6 +56,7 @@ Action-dispatch over POST body `{ action, gameId?, ...params }`. Frontend calls 
 | `respondDiplomacy` | offerId, accept | Accept/decline a pending offer (usable off-turn) |
 | `endTurn` | gameId | Advance turn; NPCs play inline; weather + research tick per cycle; macro: dawn march resolution |
 | `macroPlotMarch` | columnId, toNodeId | Macro only — Dijkstra-validated march plan (redirects from the node ahead) |
+| `macroEngage` | columnId, toNodeId | Macro only — assault an adjacent node held by foreign columns (opens a mass battle) |
 | `macroHalt` | columnId | Macro only — stand down at the next node reached |
 | `macroMusterColumn` | nodeId, regiments, generalId (`"recruit"` to buy) | Macro only — levy a column at a controlled city / the base anchor |
 | `macroDisbandColumn` | columnId | Macro only — dissolve at a controlled settlement |

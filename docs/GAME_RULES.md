@@ -281,7 +281,7 @@ Every general fights from a **command vehicle** themed to their trait (Butcher: 
 - **Fortress-bases** need heavy **gantry cranes**: a capital or a **level-2 Foundry** only.
 - **Anywhere in supply**: refits arrive by convoy at the start of the owner's next turn, at **25% off** the module cost (economical but slow). One convoy per vehicle bay at a time.
 - **Cut off from supply with no site in reach**: no refits possible.
-## 22. Macro Operations (experimental world model — slice M1)
+## 22. Macro Operations (experimental world model — slices M1–M2)
 
 A new game type beside the hex front (`worldModel: "macro"`, chosen at operation
 setup). The full design contract is `docs/MACRO_ENGINE.md`; the hex rules above
@@ -304,9 +304,22 @@ are untouched and remain authoritative for hex games.
 - **Orders:** `macroPlotMarch` Dijkstra-validates a path (mid-leg redirects take
   effect from the node ahead); `macroHalt` stands a column down at the next node;
   `macroDisbandColumn` dissolves it at a controlled settlement.
-- **Control:** arriving at an undefended node flips it. Hostile contact at the
-  node ahead **balks** the column short of it — meeting engagements (mass
-  battles on the graph) arrive with slice M2.
+- **Control:** arriving at an undefended node flips it — unless its owner is
+  protected by a signed accord (truces protect territory as well as troops).
+  Contact at the node ahead (foreign columns, or a foreign fortress-base
+  anchor) **halts** the column short of it, awaiting orders.
+- **Assaults (M2):** `macroEngage` — a halted column assaults an adjacent
+  node held by foreign columns, opening a **mass battle** through the standard
+  engine (§9–§10: maneuvers, morale, signatures, veterancy, command vehicles;
+  weather applies; no terrain/fortification bonuses until the garrison layer
+  lands in M3). All defending columns fold into one force under their best
+  general, exactly like hex zone defense. Attacker wins: survivors advance,
+  the node flips, defending generals face their fate. Defender wins: the
+  defense reforms as a single column; attacker survivors hold at the staging
+  node (`retreated`) or the column is destroyed (`repelled`). Battle honors,
+  medals, veterancy and the dispatch archive all apply. Fortress-base anchor
+  nodes cannot be assaulted (boarding actions arrive in M5) and block foreign
+  movement. Accords forbid engagement; NPC dispositions drop when attacked.
 - **Income (daily):** city 2 St + 2 MP · town 2 MP · depot 2 F · ruin 1 St ·
   crossroads nothing.
 - **Setup:** spawn cities spread by greedy max-min march-distance; each faction
