@@ -1,5 +1,6 @@
-import React, { useMemo } from "react";
-import { Html } from "@react-three/drei";
+import React, { useMemo, useRef } from "react";
+import { useFrame } from "@react-three/fiber";
+import { Html, useCursor } from "@react-three/drei";
 import * as THREE from "three";
 import { latLonToXYZ } from "@/lib/macro/planets";
 import { NODE_KINDS } from "@/lib/macro/graph";
@@ -21,6 +22,14 @@ export default function NodeMarker({ node, planet, hovered, isOrigin, isDest, is
     return new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal);
   }, [pos[0], pos[1], pos[2]]);
   const isIndustrial = node.kind === "city" || node.kind === "depot";
+  useCursor(hovered || !!menuOpen);
+  // Live designators — plotted endpoints breathe, the anchored base slowly turns
+  const pulseRef = useRef();
+  const baseRef = useRef();
+  useFrame(({ clock }, dt) => {
+    if (pulseRef.current) pulseRef.current.scale.setScalar(3.2 + Math.sin(clock.elapsedTime * 2.4) * 0.4);
+    if (baseRef.current) baseRef.current.rotation.y += dt * 0.5;
+  });
   return (
     <group position={pos}>
       {isIndustrial && (
@@ -39,14 +48,14 @@ export default function NodeMarker({ node, planet, hovered, isOrigin, isDest, is
       </mesh>
       {/* Target designator around plotted endpoints */}
       {active && (
-        <mesh scale={3.2}>
+        <mesh ref={pulseRef} scale={3.2}>
           <sphereGeometry args={[s, 12, 12]} />
           <meshBasicMaterial color={isOrigin ? "#E8C15A" : "#C2503C"} wireframe transparent opacity={0.35} />
         </mesh>
       )}
       {/* Anchored fortress-base designator */}
       {isBase && (
-        <mesh scale={2.6} rotation-x={Math.PI / 4}>
+        <mesh ref={baseRef} scale={2.6} rotation-x={Math.PI / 4}>
           <boxGeometry args={[s * 1.6, s * 1.6, s * 1.6]} />
           <meshBasicMaterial color="#C9A227" wireframe transparent opacity={0.5} />
         </mesh>
