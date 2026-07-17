@@ -34,7 +34,7 @@ Action-dispatch over POST body `{ action, gameId?, ...params }`. Frontend calls 
 | Action | Params | Purpose |
 | --- | --- | --- |
 | `listMyGames` | — | Games where caller is host or seated |
-| `createGame` | name, mode, mapId/mapData, factionId, humanCount, npcConfigs, campaignWinCondition | Create lobby |
+| `createGame` | name, mode, mapId/mapData, factionId, humanCount, npcConfigs, campaignWinCondition, worldModel (`"hex"`/`"macro"`), planetId | Create lobby (macro: generates + stores the world graph, no map) |
 | `joinGame` | gameId, factionId | Claim an open slot |
 | `startGame` | gameId | Host only — seed capitals, garrisons, treasuries, generals |
 | `getState` | gameId | Full fog-filtered view + presence heartbeat |
@@ -54,9 +54,13 @@ Action-dispatch over POST body `{ action, gameId?, ...params }`. Frontend calls 
 | `moveBase` | toTileId | Crawl the fortress-base 1 friendly zone (engine + fuel) |
 | `proposeDiplomacy` | targetSlot, kind (`truce`/`nap`/`trade`), give, want | Dispatch an envoy (NPCs decide inline) |
 | `respondDiplomacy` | offerId, accept | Accept/decline a pending offer (usable off-turn) |
-| `endTurn` | gameId | Advance turn; NPCs play inline; weather + research tick per cycle |
+| `endTurn` | gameId | Advance turn; NPCs play inline; weather + research tick per cycle; macro: dawn march resolution |
+| `macroPlotMarch` | columnId, toNodeId | Macro only — Dijkstra-validated march plan (redirects from the node ahead) |
+| `macroHalt` | columnId | Macro only — stand down at the next node reached |
+| `macroMusterColumn` | nodeId, regiments, generalId (`"recruit"` to buy) | Macro only — levy a column at a controlled city / the base anchor |
+| `macroDisbandColumn` | columnId | Macro only — dissolve at a controlled settlement |
 
-Turn enforcement via `requireMyTurn()`; most army actions blocked while `activeBattle` exists. On completion, fires `logGameToSheet` + `exportChronicleToDoc` (non-blocking).
+Turn enforcement via `requireMyTurn()`; most army actions blocked while `activeBattle` exists. Macro games (`worldModel: "macro"`, design: `docs/MACRO_ENGINE.md`) carry their world in `Game.macro` and reject hex-only actions; shared systems (diplomacy, research, chat, weather) run unchanged. On completion, fires `logGameToSheet` + `exportChronicleToDoc` (non-blocking).
 
 ### Other functions
 - **concurrentPlay** — off-turn ("concurrent play") actions that never touch contested state: `setResearchFocus` (doctrine tree) and `unlockItem` (State Armory prototypes/decrees). Callable at any time by any seated player.

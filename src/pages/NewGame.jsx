@@ -18,6 +18,7 @@ export default function NewGame() {
   const [name, setName] = useState("");
   const [factions, setFactions] = useState([]);
   const [factionId, setFactionId] = useState("");
+  const [worldModel, setWorldModel] = useState("hex");
   const [mapSource, setMapSource] = useState(preselectedMapId ? "library" : "generate");
   const [maps, setMaps] = useState([]);
   const [mapId, setMapId] = useState(preselectedMapId || "");
@@ -76,8 +77,11 @@ export default function NewGame() {
       };
       if (isCampaign) payload.campaignWinCondition = { type: winType, value: Number(winValue) };
       payload.planetId = planetId;
-      if (mapSource === "library") payload.mapId = mapId;
-      else payload.mapData = genPreview;
+      payload.worldModel = worldModel;
+      if (worldModel === "hex") {
+        if (mapSource === "library") payload.mapId = mapId;
+        else payload.mapData = genPreview;
+      }
       const res = await base44.functions.invoke("gameEngine", payload);
       navigate(`/game/${res.data.gameId}`);
     } catch (e) {
@@ -88,7 +92,8 @@ export default function NewGame() {
 
   const canCreate =
     factionId && totalSlots >= 2 && totalSlots <= 4 &&
-    ((mapSource === "library" && mapId) || (mapSource === "generate" && genPreview));
+    (worldModel === "macro" ||
+      (mapSource === "library" && mapId) || (mapSource === "generate" && genPreview));
 
   return (
     <div className="max-w-3xl mx-auto space-y-5">
@@ -160,13 +165,39 @@ export default function NewGame() {
       </div>
 
       <div className="cq-panel p-5 space-y-3">
-        <PlanetPicker value={planetId} onChange={setPlanetId} />
+        <div>
+          <label className="cq-label">Theater Model</label>
+          <div className="flex gap-2 mt-1">
+            <button
+              onClick={() => setWorldModel("hex")}
+              className={`text-xs font-heading uppercase tracking-[0.2em] px-3 py-1.5 rounded-sm border ${worldModel === "hex" ? "border-brass bg-brass/15 text-brass-bright" : "border-border text-muted-foreground hover:text-brass-bright"}`}
+            >
+              Hex Front · Classic
+            </button>
+            <button
+              onClick={() => setWorldModel("macro")}
+              className={`text-xs font-heading uppercase tracking-[0.2em] px-3 py-1.5 rounded-sm border ${worldModel === "macro" ? "border-rust bg-rust/15 text-rust" : "border-border text-muted-foreground hover:text-brass-bright"}`}
+            >
+              Macro March · Experimental
+            </button>
+          </div>
+          {worldModel === "macro" && (
+            <p className="font-mono text-[10px] text-muted-foreground tracking-wide mt-1.5">
+              THE WAR IS FOUGHT ACROSS THE WHOLE THEATER WORLD — DAY-RATE COLUMNS ON THE ROUTE GRAPH. NO HEX MAP.
+            </p>
+          )}
+        </div>
+        <div className="border-t border-border pt-3">
+          <PlanetPicker value={planetId} onChange={setPlanetId} />
+        </div>
+        {worldModel === "hex" && (
         <div className="flex gap-2 border-t border-border pt-3">
           <button onClick={() => setMapSource("generate")} className={`text-xs font-heading uppercase tracking-[0.2em] px-3 py-1.5 rounded-sm ${mapSource === "generate" ? "bg-brass/15 text-brass-bright border-b-2 border-brass" : "text-muted-foreground"}`}>Generate Map</button>
           <button onClick={() => setMapSource("library")} className={`text-xs font-heading uppercase tracking-[0.2em] px-3 py-1.5 rounded-sm ${mapSource === "library" ? "bg-brass/15 text-brass-bright border-b-2 border-brass" : "text-muted-foreground"}`}>From Library</button>
         </div>
+        )}
 
-        {mapSource === "generate" ? (
+        {worldModel === "macro" ? null : mapSource === "generate" ? (
           <div className="space-y-3">
             <div className="flex items-end gap-3">
               <div>

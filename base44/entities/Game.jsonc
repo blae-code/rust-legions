@@ -29,6 +29,21 @@
       "type": "string",
       "default": "cindara"
     },
+    "worldModel": {
+      "type": "string",
+      "enum": [
+        "hex",
+        "macro"
+      ],
+      "default": "hex"
+    },
+    "macro": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": true
+    },
     "weather": {
       "type": "string",
       "default": "clear"

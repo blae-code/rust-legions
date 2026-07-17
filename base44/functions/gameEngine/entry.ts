@@ -201,6 +201,15 @@ function tileProduction(tile, st) {
 
 function factionProduction(game, slotIdx) {
   const out = emptyResources();
+  if (game.worldModel === 'macro') {
+    for (const [nid, owner] of Object.entries(game.macro?.control || {})) {
+      if (owner !== slotIdx) continue;
+      const node = game.macro.nodes.find((n) => n.id === nid);
+      const y = MACRO_SETTLEMENT_YIELD[node?.kind] || {};
+      for (const k of RESOURCE_KEYS) out[k] += y[k] || 0;
+    }
+    return out;
+  }
   for (const [tid, st] of Object.entries(game.territoryStates)) {
     if (st.owner !== slotIdx) continue;
     const tile = game.tiles.find((t) => t.id === tid);
@@ -236,6 +245,10 @@ function armyPoints(game, slotIdx) {
     if (a.owner !== slotIdx) continue;
     for (const k of UNIT_KEYS) pts += (a.regiments[k] || 0) * UNITS[k].points;
   }
+  for (const c of game.macro?.columns || []) {
+    if (c.owner !== slotIdx) continue;
+    for (const k of UNIT_KEYS) pts += (c.regiments[k] || 0) * UNITS[k].points;
+  }
   return pts;
 }
 
@@ -266,6 +279,7 @@ function effectiveCosts(game, slotIdx) {
 
 // Complete pending constructions, then collect typed income
 function collectIncome(game, slotIdx) {
+  if (game.worldModel === 'macro') return macroCollectIncome(game, slotIdx);
   const slot = game.factionSlots[slotIdx];
   ensureBase(game, slot);
   // Refit convoys arrive at the start of the owner's turn
@@ -328,6 +342,7 @@ function ownedTiles(game, slotIdx) {
 }
 
 function landControlPct(game, slotIdx) {
+  if (game.worldModel === 'macro') return macroControlPct(game, slotIdx);
   const land = game.tiles.filter((t) => !t.isSea);
   if (land.length === 0) return 0;
   const mine = land.filter((t) => game.territoryStates[t.id]?.owner === slotIdx).length;
@@ -367,6 +382,7 @@ function checkWin(game) {
 // Map-control victory: hold >= 60% of land zones at the start of your turn
 function checkMapControl(game, slotIdx) {
   if (game.status !== 'active') return;
+  if (game.worldModel === 'macro') return macroCheckWin(game);
   if (landControlPct(game, slotIdx) >= MAP_CONTROL_PCT) {
     game.status = 'complete';
     game.winnerSlot = slotIdx;
@@ -1018,6 +1034,7 @@ function randomGeneral() {
 
 function freeGenerals(game, slot) {
   const commanding = new Set((game.armies || []).map((a) => a.generalId));
+  for (const c of game.macro?.columns || []) if (c.generalId) commanding.add(c.generalId);
   return (slot.generals || []).filter((g) => !commanding.has(g.id));
 }
 
@@ -1324,6 +1341,7 @@ function advanceTurn(game) {
         game.combatLog.push({ turn: game.turnNumber, type: 'event', text: `The weather turns — ${WEATHER_TYPES[w].label.toLowerCase()} settles over the front.` });
       }
       game.weather = w;
+      if (game.worldModel === 'macro') macroAdvanceDay(game); // dawn resolution — all columns march
       recordSnapshot(game);
       tickResearch(game);
       // Lapsed accords — hostilities may resume
@@ -1344,12 +1362,412 @@ function advanceTurn(game) {
     if (game.status !== 'active') return;
     collectIncome(game, slotIdx);
     if (slot.isNPC) {
-      npcTakeTurn(game, slotIdx);
+      if (game.worldModel === 'macro') macroNpcTurn(game, slotIdx);
+      else npcTakeTurn(game, slotIdx);
       checkCampaignWin(game);
       continue;
     }
     return; // human's turn
   }
+}
+
+// ---------- Macro engine (v2.x slice M1 — docs/MACRO_ENGINE.md) ----------
+// Macro games (worldModel: 'macro') fight on a node-and-route graph instead of
+// hexes. The world is generated ONCE here at creation (mirroring the client
+// generator in src/lib/macro/) and stored on the Game — the stored graph is the
+// single truth both sides render and validate against.
+
+const MACRO_ROUTE_QUALITY = { highway: 1.25, road: 1.0, track: 0.75, trail: 0.5 };
+const MACRO_UNIT_MARCH = { riflemen: { rate: 20, ground: true }, crawler: { rate: 16, ground: true }, artillery: { rate: 12, ground: true }, fighter: { rate: 90, ground: false } };
+const MACRO_COLUMN_KEYS = ['riflemen', 'crawler', 'artillery', 'fighter'];
+const MACRO_SETTLEMENT_YIELD = { city: { steel: 2, manpower: 2 }, town: { manpower: 2 }, depot: { fuel: 2 }, ruin: { steel: 1 }, crossroads: {} };
+const MACRO_ESCORT = { riflemen: 2, crawler: 1 };
+const MACRO_SCOUT_HOPS = 1;
+
+// -- deterministic world generation (mirrors src/lib/macro/graph.js + planets.js) --
+const macroMulberry32 = (a) => () => {
+  a |= 0; a = (a + 0x6d2b79f5) | 0;
+  let t = Math.imul(a ^ (a >>> 15), 1 | a);
+  t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+};
+const macroVec = (lat, lon) => {
+  const phi = ((90 - lat) * Math.PI) / 180;
+  const theta = ((lon + 180) * Math.PI) / 180;
+  return [-Math.sin(phi) * Math.cos(theta), Math.cos(phi), Math.sin(phi) * Math.sin(theta)];
+};
+const macroAngDeg = (a, b) => {
+  const A = macroVec(a.lat, a.lon), B = macroVec(b.lat, b.lon);
+  const dot = Math.min(Math.max(A[0] * B[0] + A[1] * B[1] + A[2] * B[2], -1), 1);
+  return (Math.acos(dot) * 180) / Math.PI;
+};
+const MACRO_NAME_PREFIX = ['Ash', 'Iron', 'Rust', 'Grey', 'Black', 'Pale', 'Cold', 'Dust', 'Slag', 'Tar', 'Bone', 'Cinder', 'Salt', 'Storm', 'Coal', 'Brass', 'Mire', 'Fen', 'Krael', 'Vost', 'Dead', 'Low', 'Red', 'Gaunt', 'Hollow'];
+const MACRO_NAME_SUFFIX = ['fall', 'reach', 'moor', 'hold', 'gate', 'yard', 'haven', 'spur', 'cross', 'field', 'quay', 'ridge', 'hollow', 'works', 'barrow', 'march', 'point', 'deep', 'watch', 'stead'];
+const MACRO_KIND_POOL = ['town', 'town', 'town', 'depot', 'depot', 'crossroads', 'crossroads', 'ruin', 'ruin', 'city'];
+const macroMilesFor = (d) => Math.min(160, Math.max(30, Math.round(d * 4.5)));
+const macroQualityFor = (d, rand) =>
+  d < 13 ? (rand() < 0.35 ? 'highway' : 'road') : d < 21 ? (rand() < 0.5 ? 'road' : 'track') : d < 30 ? 'track' : 'trail';
+
+function macroMakeName(rand, used) {
+  for (let i = 0; i < 60; i++) {
+    const n = MACRO_NAME_PREFIX[(rand() * MACRO_NAME_PREFIX.length) | 0] + MACRO_NAME_SUFFIX[(rand() * MACRO_NAME_SUFFIX.length) | 0];
+    if (!used.has(n)) { used.add(n); return n; }
+  }
+  const fallback = `Station ${used.size + 1}`;
+  used.add(fallback);
+  return fallback;
+}
+
+// The authored continent (mirrors MACRO_NODES/MACRO_ROUTES in src/lib/macro/graph.js)
+const MACRO_CONTINENT_NODES = [
+  { id: 'kesselgrad', name: 'Kesselgrad', kind: 'city', lat: 23.6, lon: -61 },
+  { id: 'ashvale', name: 'Ashvale', kind: 'town', lat: 30.8, lon: -47.5 },
+  { id: 'rustwater', name: 'Rustwater', kind: 'city', lat: 32.4, lon: -31 },
+  { id: 'ironmoor', name: 'Ironmoor', kind: 'town', lat: 29.2, lon: -11.5 },
+  { id: 'veldt_cross', name: 'Veldt Cross', kind: 'crossroads', lat: 12.4, lon: -52 },
+  { id: 'foundry_91', name: 'Foundry 91', kind: 'depot', lat: 17.2, lon: -37 },
+  { id: 'greyspire', name: 'Greyspire', kind: 'city', lat: 15.6, lon: -20.5 },
+  { id: 'pale_marsh', name: 'Pale Marsh', kind: 'ruin', lat: 14, lon: -3.25 },
+  { id: 'cinder_flats', name: 'Cinder Flats', kind: 'depot', lat: -0.4, lon: -60.25 },
+  { id: 'old_lorry', name: 'Old Lorry', kind: 'town', lat: 1.2, lon: -44.5 },
+  { id: 'saltglass', name: 'Saltglass', kind: 'crossroads', lat: 2.8, lon: -28 },
+  { id: 'verge', name: 'The Verge', kind: 'city', lat: -0.4, lon: -11.5 },
+  { id: 'thornfield', name: 'Thornfield', kind: 'ruin', lat: -11.6, lon: -49.75 },
+  { id: 'terminus', name: 'Terminus', kind: 'city', lat: -12.4, lon: -27.25 },
+  { id: 'black_quay', name: 'Black Quay', kind: 'town', lat: -13.2, lon: -5.5 },
+];
+const MACRO_CONTINENT_ROUTES = [
+  ['kesselgrad', 'ashvale', 42, 'road'], ['ashvale', 'rustwater', 48, 'highway'],
+  ['rustwater', 'ironmoor', 55, 'highway'], ['kesselgrad', 'veldt_cross', 38, 'road'],
+  ['ashvale', 'veldt_cross', 46, 'track'], ['veldt_cross', 'foundry_91', 40, 'road'],
+  ['rustwater', 'foundry_91', 44, 'track'], ['foundry_91', 'greyspire', 46, 'road'],
+  ['rustwater', 'greyspire', 52, 'road'], ['ironmoor', 'greyspire', 42, 'track'],
+  ['ironmoor', 'pale_marsh', 46, 'trail'], ['greyspire', 'pale_marsh', 50, 'trail'],
+  ['veldt_cross', 'cinder_flats', 40, 'track'], ['kesselgrad', 'cinder_flats', 62, 'trail'],
+  ['veldt_cross', 'old_lorry', 36, 'road'], ['old_lorry', 'foundry_91', 44, 'track'],
+  ['old_lorry', 'saltglass', 44, 'road'], ['foundry_91', 'saltglass', 42, 'track'],
+  ['saltglass', 'greyspire', 38, 'road'], ['saltglass', 'verge', 46, 'highway'],
+  ['greyspire', 'verge', 45, 'road'], ['verge', 'pale_marsh', 40, 'trail'],
+  ['cinder_flats', 'thornfield', 42, 'trail'], ['old_lorry', 'thornfield', 38, 'track'],
+  ['thornfield', 'terminus', 58, 'road'], ['saltglass', 'terminus', 40, 'road'],
+  ['terminus', 'black_quay', 56, 'highway'], ['verge', 'black_quay', 38, 'road'],
+];
+const MACRO_PLANETS = {
+  cindara: { seed: 1917, count: 45, authored: true },
+  veyra: { seed: 2044, count: 55 },
+  morhollow: { seed: 3121, count: 45 },
+};
+
+function macroGenerateWorld(planetId) {
+  const spec = MACRO_PLANETS[planetId] || MACRO_PLANETS.cindara;
+  const rand = macroMulberry32(spec.seed);
+  const baseNodes = spec.authored ? MACRO_CONTINENT_NODES.map((n) => ({ ...n })) : [];
+  const baseRoutes = spec.authored ? MACRO_CONTINENT_ROUTES.map((r) => [...r]) : [];
+  const nodes = [...baseNodes];
+  const used = new Set(nodes.map((n) => n.name));
+  let serial = 0, guard = 0;
+  while (nodes.length < baseNodes.length + spec.count && guard++ < spec.count * 40) {
+    const cand = {
+      id: `p${spec.seed}_${serial++}`,
+      name: macroMakeName(rand, used),
+      kind: MACRO_KIND_POOL[(rand() * MACRO_KIND_POOL.length) | 0],
+      lat: rand() * 150 - 75,
+      lon: rand() * 360 - 180,
+    };
+    if (nodes.every((n) => macroAngDeg(n, cand) > 8.5)) nodes.push(cand);
+    else used.delete(cand.name);
+  }
+  const routes = baseRoutes;
+  const has = (a, b) => routes.some(([x, y]) => (x === a && y === b) || (x === b && y === a));
+  for (const n of nodes.slice(baseNodes.length)) {
+    const near = nodes.filter((o) => o !== n).map((o) => ({ o, d: macroAngDeg(n, o) })).sort((a, b) => a.d - b.d);
+    const links = 2 + (rand() < 0.35 ? 1 : 0);
+    for (const { o, d } of near.slice(0, links)) {
+      if (d > 42 || has(n.id, o.id)) continue;
+      routes.push([n.id, o.id, macroMilesFor(d), macroQualityFor(d, rand)]);
+    }
+  }
+  // Connectivity pass — bridge isolated clusters (mirrors src/lib/macro/planets.js)
+  const parent = {};
+  const find = (x) => (parent[x] === x ? x : (parent[x] = find(parent[x])));
+  for (const n of nodes) parent[n.id] = n.id;
+  for (const [a, b] of routes) parent[find(a)] = find(b);
+  for (;;) {
+    const comps = new Map();
+    for (const n of nodes) {
+      const root = find(n.id);
+      if (!comps.has(root)) comps.set(root, []);
+      comps.get(root).push(n);
+    }
+    if (comps.size <= 1) break;
+    const [main, ...rest] = [...comps.values()].sort((a, b) => b.length - a.length);
+    let best = null;
+    for (const island of rest) {
+      for (const a of island) {
+        for (const b of main) {
+          const d = macroAngDeg(a, b);
+          if (!best || d < best.d) best = { a, b, d };
+        }
+      }
+    }
+    routes.push([best.a.id, best.b.id, macroMilesFor(best.d), macroQualityFor(best.d, rand)]);
+    parent[find(best.a.id)] = find(best.b.id);
+  }
+  return { seed: spec.seed, nodes, routes };
+}
+
+// -- graph helpers --
+const macroNode = (macro, id) => macro.nodes.find((n) => n.id === id);
+const macroRouteBetween = (macro, a, b) =>
+  macro.routes.find(([x, y]) => (x === a && y === b) || (x === b && y === a));
+
+function macroDayRate(regiments = {}) {
+  let rate = null;
+  for (const [k, def] of Object.entries(MACRO_UNIT_MARCH)) {
+    if (!def.ground || (regiments[k] || 0) <= 0) continue;
+    rate = rate === null ? def.rate : Math.min(rate, def.rate);
+  }
+  return rate;
+}
+
+// Rain and snow slow wheels harder than boots (docs/MACRO_ENGINE.md §4)
+function macroWeatherMult(weather, regiments = {}) {
+  if (weather !== 'rain' && weather !== 'snow') return 1;
+  const wheels = (regiments.crawler || 0) > 0 || (regiments.artillery || 0) > 0;
+  return wheels ? 0.6 : 0.85;
+}
+
+// Dijkstra over march-days for a given column pace
+function macroFindPath(macro, fromId, toId, dayRate) {
+  if (!dayRate || fromId === toId) return null;
+  const dist = { [fromId]: 0 };
+  const prev = {};
+  const done = new Set();
+  const queue = [fromId];
+  while (queue.length > 0) {
+    queue.sort((a, b) => dist[a] - dist[b]);
+    const cur = queue.shift();
+    if (cur === toId) break;
+    if (done.has(cur)) continue;
+    done.add(cur);
+    for (const route of macro.routes) {
+      const [a, b, miles, quality] = route;
+      if (a !== cur && b !== cur) continue;
+      const next = a === cur ? b : a;
+      if (done.has(next)) continue;
+      const nd = dist[cur] + miles / (dayRate * MACRO_ROUTE_QUALITY[quality]);
+      if (dist[next] === undefined || nd < dist[next]) {
+        dist[next] = nd;
+        prev[next] = cur;
+        queue.push(next);
+      }
+    }
+  }
+  if (dist[toId] === undefined) return null;
+  const path = [toId];
+  while (path[0] !== fromId) path.unshift(prev[path[0]]);
+  return { path, totalDays: dist[toId] };
+}
+
+const macroSettlements = (macro) => macro.nodes.filter((n) => n.kind !== 'crossroads');
+const macroColumnsAt = (game, nodeId) => (game.macro.columns || []).filter((c) => c.nodeId === nodeId);
+
+function macroControlPct(game, slotIdx) {
+  const settlements = macroSettlements(game.macro);
+  if (settlements.length === 0) return 0;
+  const mine = settlements.filter((n) => game.macro.control[n.id] === slotIdx).length;
+  return (mine / settlements.length) * 100;
+}
+
+// A column enters a node it now holds uncontested: flip control and log the take
+function macroFlipControl(game, column, nodeId) {
+  const prevOwner = game.macro.control[nodeId];
+  if (prevOwner === column.owner) return;
+  game.macro.control[nodeId] = column.owner;
+  const node = macroNode(game.macro, nodeId);
+  if (node && node.kind !== 'crossroads') {
+    const taker = game.factionSlots[column.owner].factionName;
+    const from = prevOwner === null || prevOwner === undefined ? '' : ` from ${game.factionSlots[prevOwner].factionName}`;
+    game.combatLog.push({ turn: game.turnNumber, type: 'event', text: `${taker}'s ${column.name} takes ${node.name}${from}.` });
+  }
+}
+
+// Dawn resolution — every marching column (all factions) advances one day.
+// Hostile contact at the node ahead balks the column short of it: meeting
+// engagements arrive with slice M2 (docs/MACRO_ENGINE.md §7).
+function macroAdvanceDay(game) {
+  for (const column of game.macro.columns || []) {
+    if (!column.march) continue;
+    const rate = macroDayRate(column.regiments);
+    if (!rate) continue;
+    let budget = 1; // one day of marching
+    while (budget > 0 && column.march) {
+      const { path } = column.march;
+      if (path.length < 2) { column.nodeId = path[0]; delete column.march; break; }
+      const next = path[1];
+      if (macroColumnsAt(game, next).some((c) => c.owner !== column.owner)) {
+        column.nodeId = path[0];
+        delete column.march;
+        game.combatLog.push({ turn: game.turnNumber, type: 'event', text: `${game.factionSlots[column.owner].factionName}'s ${column.name} balks at contact outside ${macroNode(game.macro, next)?.name} — no orders cover a meeting engagement.` });
+        break;
+      }
+      const route = macroRouteBetween(game.macro, path[0], next);
+      if (!route) { column.nodeId = path[0]; delete column.march; break; }
+      delete column.nodeId; // on the road
+      const effRate = rate * MACRO_ROUTE_QUALITY[route[3]] * macroWeatherMult(game.weather || 'clear', column.regiments);
+      const daysLeft = (route[2] - column.march.legMiles) / effRate;
+      if (budget >= daysLeft) {
+        budget -= daysLeft;
+        path.shift();
+        column.march.legMiles = 0;
+        macroFlipControl(game, column, path[0]);
+        if (path.length === 1) {
+          column.nodeId = path[0];
+          delete column.march;
+        }
+      } else {
+        column.march.legMiles += budget * effRate;
+        budget = 0;
+      }
+    }
+  }
+  macroCheckWin(game);
+}
+
+function macroCheckWin(game) {
+  if (game.status !== 'active') return;
+  for (const slot of game.factionSlots) {
+    if (slot.eliminated) continue;
+    if (macroControlPct(game, slot.slotIndex) >= MAP_CONTROL_PCT) {
+      game.status = 'complete';
+      game.winnerSlot = slot.slotIndex;
+      game.combatLog.push({ turn: game.turnNumber, type: 'event', text: `${slot.factionName} holds the settled world — the long march is over.` });
+      return;
+    }
+  }
+}
+
+function macroCollectIncome(game, slotIdx) {
+  const treasury = getTreasury(game, slotIdx);
+  const prod = factionProduction(game, slotIdx);
+  for (const k of RESOURCE_KEYS) treasury[k] = (treasury[k] || 0) + (prod[k] || 0);
+}
+
+// Observed set: controlled nodes, base node, column positions — plus scout hops
+function macroObserved(game, slotIdx) {
+  const seen = new Set();
+  for (const [nid, owner] of Object.entries(game.macro.control)) if (owner === slotIdx) seen.add(nid);
+  const base = game.macro.bases?.[String(slotIdx)];
+  if (base) seen.add(base.nodeId);
+  for (const c of game.macro.columns || []) {
+    if (c.owner !== slotIdx) continue;
+    if (c.nodeId) seen.add(c.nodeId);
+    if (c.march) { seen.add(c.march.path[0]); seen.add(c.march.path[1]); }
+  }
+  for (let hop = 0; hop < MACRO_SCOUT_HOPS; hop++) {
+    const edge = [...seen];
+    for (const [a, b] of game.macro.routes) {
+      if (edge.includes(a)) seen.add(b);
+      if (edge.includes(b)) seen.add(a);
+    }
+  }
+  return seen;
+}
+
+// Fog-filtered macro state: geography is public, intel is not (§6)
+function macroVisibleFor(game, slotIdx) {
+  const revealAll = game.status !== 'active' || slotIdx === null;
+  const seen = revealAll ? null : macroObserved(game, slotIdx);
+  const observed = (nid) => revealAll || seen.has(nid);
+  const columnView = (c) => ({
+    id: c.id, owner: c.owner, name: c.name,
+    nodeId: c.nodeId || null,
+    march: c.march ? { edge: [c.march.path[0], c.march.path[1]], legMiles: c.march.legMiles, path: c.owner === slotIdx ? c.march.path : undefined } : null,
+    strength: forcePoints(c.regiments),
+    regiments: c.owner === slotIdx ? c.regiments : undefined,
+    dayRate: c.owner === slotIdx ? macroDayRate(c.regiments) : undefined,
+    general: (() => {
+      const g = (game.factionSlots[c.owner]?.generals || []).find((x) => x.id === c.generalId);
+      return g ? (c.owner === slotIdx ? { id: g.id, name: g.name, strategy: g.strategy } : { name: g.name }) : null;
+    })(),
+  });
+  return {
+    seed: game.macro.seed,
+    nodes: game.macro.nodes,
+    routes: game.macro.routes,
+    control: Object.fromEntries(Object.entries(game.macro.control).filter(([nid]) => observed(nid))),
+    observed: revealAll ? game.macro.nodes.map((n) => n.id) : [...seen],
+    bases: Object.entries(game.macro.bases || {})
+      .filter(([slot, b]) => Number(slot) === slotIdx || observed(b.nodeId))
+      .map(([slot, b]) => ({ slot: Number(slot), nodeId: b.nodeId })),
+    columns: (game.macro.columns || [])
+      .filter((c) => c.owner === slotIdx || (c.nodeId ? observed(c.nodeId) : observed(c.march.path[0]) || observed(c.march.path[1])))
+      .map(columnView),
+    settlementCount: macroSettlements(game.macro).length,
+  };
+}
+
+// Doctrine-flavored greedy expansion (§10): plot idle columns at neutral
+// settlements, muster a second column when the treasury allows
+function macroNpcTurn(game, slotIdx) {
+  const slot = game.factionSlots[slotIdx];
+  const macro = game.macro;
+  const myColumns = (macro.columns || []).filter((c) => c.owner === slotIdx);
+  const targeted = new Set(myColumns.filter((c) => c.march).map((c) => c.march.path[c.march.path.length - 1]));
+  for (const column of myColumns) {
+    if (column.march || !column.nodeId) continue;
+    const rate = macroDayRate(column.regiments);
+    if (!rate) continue;
+    const candidates = macroSettlements(macro)
+      .filter((n) => macro.control[n.id] !== slotIdx && !targeted.has(n.id))
+      .filter((n) => macroColumnsAt(game, n.id).every((c) => c.owner === slotIdx));
+    let best = null;
+    for (const n of candidates) {
+      const found = macroFindPath(macro, column.nodeId, n.id, rate);
+      if (!found) continue;
+      const yieldScore = Object.values(MACRO_SETTLEMENT_YIELD[n.kind] || {}).reduce((s, v) => s + v, 0);
+      const score = slot.doctrine === 'economic' ? found.totalDays - yieldScore : found.totalDays;
+      if (!best || score < best.score) best = { node: n, found, score };
+    }
+    if (best) {
+      column.march = { path: best.found.path, legMiles: 0 };
+      targeted.add(best.node.id);
+    }
+  }
+  const treasury = getTreasury(game, slotIdx);
+  if (myColumns.length < 3) {
+    const cost = { manpower: 2 * (UNITS.riflemen.cost.manpower || 0), steel: 2 * (UNITS.riflemen.cost.steel || 0) };
+    const base = macro.bases?.[String(slotIdx)];
+    if (base && canAfford(treasury, cost)) {
+      pay(treasury, cost);
+      slot.armiesRaised = (slot.armiesRaised || 0) + 1;
+      macro.columns.push({
+        id: genId(), owner: slotIdx, generalId: null, battles: 0,
+        name: `${ARMY_ORDINALS[Math.min((slot.armiesRaised || 1) - 1, 8)]} Column`,
+        regiments: { riflemen: 2 }, nodeId: base.nodeId,
+      });
+    }
+  }
+}
+
+// Spawn cities: greedy max-min spread over march-day distances
+function macroSpawnCities(macro, count) {
+  const cities = macro.nodes.filter((n) => n.kind === 'city');
+  const pool = cities.length >= count ? cities : macroSettlements(macro);
+  const dist = (a, b) => macroFindPath(macro, a.id, b.id, 16)?.totalDays ?? Infinity;
+  const picked = [pool[0]];
+  while (picked.length < count) {
+    let best = null;
+    for (const cand of pool) {
+      if (picked.includes(cand)) continue;
+      const minD = Math.min(...picked.map((p) => dist(cand, p)));
+      if (minD === Infinity) continue;
+      if (!best || minD > best.minD) best = { cand, minD };
+    }
+    if (!best) break;
+    picked.push(best.cand);
+  }
+  return picked;
 }
 
 // ---------- Fog of war ----------
@@ -1413,10 +1831,12 @@ Deno.serve(async (req) => {
 
     // ----- createGame -----
     PREGAME.createGame = async () => {
-      const { name, mode = 'multiplayer', mapId, mapData, factionId, humanCount = 2, npcConfigs = [], campaignWinCondition, planetId } = body;
-      let tiles;
+      const { name, mode = 'multiplayer', mapId, mapData, factionId, humanCount = 2, npcConfigs = [], campaignWinCondition, planetId, worldModel = 'hex' } = body;
+      let tiles = [];
       let mapPlanet = null;
-      if (mapId) {
+      if (worldModel === 'macro') {
+        // Macro operations fight on the planet's node-and-route graph — no hex map
+      } else if (mapId) {
         const m = await svc.entities.GameMap.get(mapId);
         tiles = m.tiles;
         mapPlanet = m.planetId || null;
@@ -1454,9 +1874,12 @@ Deno.serve(async (req) => {
         });
       });
 
+      const chosenPlanet = planetId || mapPlanet || 'cindara';
       const game = await svc.entities.Game.create({
         name: name || 'Unnamed Front', mode, status: 'lobby', mapId: mapId || null, tiles,
-        planetId: planetId || mapPlanet || 'cindara',
+        planetId: chosenPlanet,
+        worldModel,
+        macro: worldModel === 'macro' ? { ...macroGenerateWorld(chosenPlanet), control: {}, bases: {}, columns: [] } : null,
         factionSlots: slots, turnOrder: slots.map((s) => s.slotIndex), currentTurnIndex: 0,
         turnNumber: 1, territoryStates: {}, treasuries: {}, combatLog: [],
         campaignWinCondition: campaignWinCondition || {}, hostUserId: user.id,
@@ -1537,6 +1960,8 @@ Deno.serve(async (req) => {
         turnNumber: game.turnNumber, currentSlot: currentSlotIdx,
         weather: game.weather || 'clear',
         planetId: game.planetId || 'cindara',
+        worldModel: game.worldModel || 'hex',
+        macro: game.worldModel === 'macro' ? macroVisibleFor(game, mySlot) : null,
         isMyTurn: active && game.factionSlots?.[currentSlotIdx]?.userId === user.id,
         mySlot,
         myResources: mySlot !== null ? getTreasury(game, mySlot) : null,
@@ -1625,6 +2050,50 @@ Deno.serve(async (req) => {
       if (game.hostUserId !== user.id) return Response.json({ error: 'Only the host can start' }, { status: 403 });
       if (game.status !== 'lobby') return Response.json({ error: 'Game already started' }, { status: 400 });
       if (game.factionSlots.some((s) => !s.isNPC && !s.userId)) return Response.json({ error: 'Waiting for players to join' }, { status: 400 });
+
+      if (game.worldModel === 'macro') {
+        // Macro setup (docs/MACRO_ENGINE.md §9): spread spawn cities, anchor
+        // bases, field one escort column per faction
+        const spawns = macroSpawnCities(game.macro, game.factionSlots.length);
+        if (spawns.length < game.factionSlots.length) return Response.json({ error: 'Not enough spawn settlements on this world' }, { status: 400 });
+        game.factionSlots.forEach((slot, i) => {
+          slot.mods = compileMods(slot.pointBuy);
+          slot.research = { focus: null, progress: {}, completed: [] };
+          slot.generals = slot.isNPC ? [] : [supremeCommander(slot)];
+          slot.armiesRaised = 1;
+          const spawn = spawns[i];
+          game.macro.control[spawn.id] = slot.slotIndex;
+          game.macro.bases[String(slot.slotIndex)] = { nodeId: spawn.id };
+          game.macro.columns.push({
+            id: genId(), owner: slot.slotIndex, battles: 0,
+            generalId: slot.isNPC ? null : slot.generals[0].id,
+            name: '1st Column',
+            regiments: { ...MACRO_ESCORT }, nodeId: spawn.id,
+          });
+          const startBonus = slot.mods.startBonus || 0;
+          game.treasuries[String(slot.slotIndex)] = Object.fromEntries(RESOURCE_KEYS.map((k) => [k, Math.max(START_RESOURCES[k] + startBonus, 0)]));
+        });
+        for (const npc of game.factionSlots.filter((s) => s.isNPC)) {
+          npc.dispositions = {};
+          for (const h of game.factionSlots.filter((s) => !s.isNPC)) {
+            npc.dispositions[String(h.slotIndex)] = ((h.npcDispositions || {})[npc.doctrine] || 0) + (slotMods(h).disposition || 0);
+          }
+        }
+        game.status = 'active';
+        game.weather = 'clear';
+        game.territoryStates = {};
+        game.armies = [];
+        game.lastSeen = {};
+        game.combatLog.push({ turn: 1, type: 'event', text: 'The long march begins — columns roll out from the spawn cities.' });
+        collectIncome(game, game.turnOrder[0]);
+        recordSnapshot(game);
+        await svc.entities.Game.update(game.id, {
+          status: 'active', weather: 'clear', factionSlots: game.factionSlots,
+          macro: game.macro, territoryStates: {}, treasuries: game.treasuries,
+          combatLog: game.combatLog, statHistory: game.statHistory, armies: [], lastSeen: {},
+        });
+        return Response.json({ ok: true });
+      }
 
       const tiles = game.tiles;
       const land = tiles.filter((t) => !t.isSea);
@@ -2239,6 +2708,125 @@ Deno.serve(async (req) => {
       return Response.json({ ok: true });
     }
 
+    // ----- Macro operations (worldModel: 'macro' — docs/MACRO_ENGINE.md §5) -----
+    const requireMacro = () => {
+      if (game.worldModel !== 'macro') throw new Error('This is not a macro operation');
+    };
+    const persistMacro = () => svc.entities.Game.update(game.id, {
+      macro: game.macro, treasuries: game.treasuries, factionSlots: game.factionSlots,
+      combatLog: game.combatLog, status: game.status, winnerSlot: game.winnerSlot,
+      statHistory: game.statHistory,
+    });
+
+    GAME_ACTIONS.macroPlotMarch = async () => {
+      requireMacro();
+      const slotIdx = requireMyTurn();
+      const { columnId, toNodeId } = body;
+      const column = (game.macro.columns || []).find((c) => c.id === columnId && c.owner === slotIdx);
+      if (!column) return Response.json({ error: 'Column not found' }, { status: 404 });
+      if (!macroNode(game.macro, toNodeId)) return Response.json({ error: 'Uncharted destination' }, { status: 400 });
+      const rate = macroDayRate(column.regiments);
+      if (!rate) return Response.json({ error: 'No ground elements — the column cannot march' }, { status: 400 });
+      if (macroColumnsAt(game, toNodeId).some((c) => c.owner !== slotIdx)) {
+        return Response.json({ error: 'A hostile column holds that ground — meeting engagements await a later Field Amendment' }, { status: 400 });
+      }
+      // Mid-leg redirects take effect from the node ahead (docs/MACRO_ENGINE.md §2)
+      const from = column.nodeId || column.march.path[1];
+      if (from === toNodeId) {
+        if (column.nodeId) return Response.json({ error: 'The column is already there' }, { status: 400 });
+        column.march.path = column.march.path.slice(0, 2); // finish the current leg, halt
+        await persistMacro();
+        return Response.json({ ok: true, etaDays: null });
+      }
+      const found = macroFindPath(game.macro, from, toNodeId, rate);
+      if (!found) return Response.json({ error: 'No overland route reaches that objective' }, { status: 400 });
+      if (column.nodeId) {
+        column.march = { path: found.path, legMiles: 0 };
+      } else {
+        column.march = { path: [column.march.path[0], ...found.path], legMiles: column.march.legMiles };
+      }
+      await persistMacro();
+      return Response.json({ ok: true, etaDays: Math.ceil(found.totalDays) });
+    }
+
+    GAME_ACTIONS.macroHalt = async () => {
+      requireMacro();
+      const slotIdx = requireMyTurn();
+      const column = (game.macro.columns || []).find((c) => c.id === body.columnId && c.owner === slotIdx);
+      if (!column) return Response.json({ error: 'Column not found' }, { status: 404 });
+      if (!column.march) return Response.json({ error: 'The column is already halted' }, { status: 400 });
+      if (column.nodeId) delete column.march;          // never departed — stand down in place
+      else column.march.path = column.march.path.slice(0, 2); // finish the leg underway, then halt
+      await persistMacro();
+      return Response.json({ ok: true });
+    }
+
+    GAME_ACTIONS.macroMusterColumn = async () => {
+      requireMacro();
+      const slotIdx = requireMyTurn();
+      const { nodeId, regiments = {}, generalId } = body;
+      const node = macroNode(game.macro, nodeId);
+      if (!node) return Response.json({ error: 'Uncharted muster site' }, { status: 400 });
+      const isBaseNode = game.macro.bases?.[String(slotIdx)]?.nodeId === nodeId;
+      if (game.macro.control[nodeId] !== slotIdx) return Response.json({ error: 'You must muster on ground you control' }, { status: 400 });
+      if (node.kind !== 'city' && !isBaseNode) return Response.json({ error: 'Columns are levied at cities or the fortress-base' }, { status: 400 });
+      const costs = effectiveCosts(game, slotIdx);
+      const totalCost = emptyResources();
+      let points = 0, companies = 0;
+      for (const k of MACRO_COLUMN_KEYS) {
+        const n = regiments[k] || 0;
+        if (n < 0) return Response.json({ error: 'Invalid quantity' }, { status: 400 });
+        companies += n;
+        points += n * UNITS[k].points;
+        for (const rk of RESOURCE_KEYS) totalCost[rk] += n * (costs[k][rk] || 0);
+      }
+      if (companies === 0) return Response.json({ error: 'A column needs at least one company' }, { status: 400 });
+      const treasury = getTreasury(game, slotIdx);
+      if (!canAfford(treasury, totalCost)) return Response.json({ error: 'Insufficient resources' }, { status: 400 });
+      const cap = armyCap(game, slotIdx);
+      if (armyPoints(game, slotIdx) + points > cap) {
+        return Response.json({ error: `Army cap exceeded — ${cap} points max (take more settlements to raise it)` }, { status: 400 });
+      }
+      const slot = game.factionSlots[slotIdx];
+      slot.generals = slot.generals || [];
+      let general;
+      if (generalId === 'recruit') {
+        if (!canAfford(treasury, RECRUIT_GENERAL_COST)) return Response.json({ error: 'Insufficient manpower to commission a general' }, { status: 400 });
+        pay(treasury, RECRUIT_GENERAL_COST);
+        general = randomGeneral();
+        slot.generals.push(general);
+      } else {
+        general = freeGenerals(game, slot).find((g) => g.id === generalId);
+        if (!general) return Response.json({ error: 'That general is unavailable' }, { status: 400 });
+      }
+      pay(treasury, totalCost);
+      slot.armiesRaised = (slot.armiesRaised || 0) + 1;
+      const column = {
+        id: genId(), owner: slotIdx, battles: 0, generalId: general.id,
+        name: `${ARMY_ORDINALS[Math.min(slot.armiesRaised - 1, 8)]} Column`,
+        regiments: Object.fromEntries(MACRO_COLUMN_KEYS.map((k) => [k, regiments[k] || 0])),
+        nodeId,
+      };
+      game.macro.columns.push(column);
+      game.combatLog.push({ turn: game.turnNumber, type: 'event', text: `${slot.factionName} levies the ${column.name} under ${general.name} at ${node.name}.` });
+      await persistMacro();
+      return Response.json({ ok: true, columnId: column.id, general });
+    }
+
+    GAME_ACTIONS.macroDisbandColumn = async () => {
+      requireMacro();
+      const slotIdx = requireMyTurn();
+      const column = (game.macro.columns || []).find((c) => c.id === body.columnId && c.owner === slotIdx);
+      if (!column) return Response.json({ error: 'Column not found' }, { status: 404 });
+      if (!column.nodeId || game.macro.control[column.nodeId] !== slotIdx) {
+        return Response.json({ error: 'Columns disband only at a controlled settlement' }, { status: 400 });
+      }
+      game.macro.columns = game.macro.columns.filter((c) => c.id !== column.id);
+      game.combatLog.push({ turn: game.turnNumber, type: 'event', text: `${game.factionSlots[slotIdx].factionName}'s ${column.name} is dissolved at ${macroNode(game.macro, column.nodeId)?.name}.` });
+      await persistMacro();
+      return Response.json({ ok: true });
+    }
+
     GAME_ACTIONS.endTurn = async () => {
       requireMyTurn();
       if (game.activeBattle) return Response.json({ error: 'A battle rages — resolve it before ending your turn' }, { status: 400 });
@@ -2250,6 +2838,7 @@ Deno.serve(async (req) => {
         treasuries: game.treasuries, combatLog: game.combatLog,
         currentTurnIndex: game.currentTurnIndex, turnNumber: game.turnNumber, weather: game.weather || 'clear',
         diplomacy: game.diplomacy || null,
+        macro: game.macro || null,
         status: game.status, winnerSlot: game.winnerSlot, statHistory: game.statHistory,
       });
       await logIfComplete();

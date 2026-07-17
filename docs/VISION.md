@@ -231,5 +231,8 @@ To resolve before/while implementing v2.x:
 ## 9. Working Agreement
 
 - **Docs first, then code:** design pivots land in this file before implementation begins.
-- Implementation of the v2.x macro map has **not started server-side** — the vanilla hex rules remain fully authoritative in play; the War Table (`/star-map`) is a client-side sandbox.
+- **The v2.x server phase is GREENLIT (2026-07-17)** — its design contract is
+  [`docs/MACRO_ENGINE.md`](./MACRO_ENGINE.md), rolling out in slices M1–M6. Macro
+  operations are a **new world model beside hex**: the vanilla hex rules remain
+  fully authoritative for hex games, which finish on the hex engine unchanged.
 - Every shipped slice updates `docs/GAME_RULES.md`, the `src/lib/` mirrors, and files a Patch dispatch.

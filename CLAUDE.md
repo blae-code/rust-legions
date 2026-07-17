@@ -17,6 +17,7 @@ The game is positioned as a **live-service title**: v1.0.0 is "The Vanilla Front
 | `CLAUDE.md` (this file) | Handoff overview, conventions, invariants, workflows |
 | `docs/VISION.md` | Design north star — lore bible, mobile-base redesign, expansion roadmap (Air, Sea) |
 | `docs/MACRO_MAP.md` | **`[LOCKED]`** canonical form of the v2.x macro map — one orbital 3D planet + node-and-route overlay (resolves VISION §5.6) |
+| `docs/MACRO_ENGINE.md` | **Greenlit** v2.x server-phase design — macro world model in `gameEngine`, slices M1–M6 |
 | `docs/GAME_RULES.md` | The complete, numeric ruleset **as currently implemented** — every stat, cost, modifier, and formula |
 | `docs/ARCHITECTURE.md` | File map, data model, backend API catalog, frontend structure |
 | `docs/ADD_A_FEATURE.md` | Modularity playbook — how to add / customize / remove a feature across the layers |

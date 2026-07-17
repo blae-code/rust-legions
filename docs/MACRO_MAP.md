@@ -202,6 +202,10 @@ when shown.
 
 ## 7. What is NOT in this lock (still ahead)
 
+> **Update 2026-07-17: the server phase is greenlit.** Its design lives in
+> [`MACRO_ENGINE.md`](./MACRO_ENGINE.md) (slices M1–M6); the items below are
+> being built there and this section remains as the original scope boundary.
+
 This lock is the **world model + presentation + client interaction**. Deferred to
 the v2.x server phase, unchanged by this doc:
 
