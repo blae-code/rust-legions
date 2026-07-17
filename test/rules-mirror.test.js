@@ -15,6 +15,9 @@ import { BASE_MODULES as MIRROR_BASE_MODULES } from "@/lib/baseModules.js";
 import { ARMORY_ITEMS } from "@/lib/armory.js";
 import { WEATHER_META } from "@/lib/weather.js";
 import { SIGNATURE_COOLDOWNS } from "@/lib/massCombat.js";
+import { DESIGN_SLOTS } from "@/lib/armyDesign.js";
+import { TERRAIN_DEF, TERRAIN_ELEVATION as MIRROR_ELEVATION } from "@/lib/combatMods.js";
+import { COMMAND_VEHICLES as MIRROR_VEHICLES, SUPREME_VEHICLE as MIRROR_SUPREME, VEHICLE_MODS as MIRROR_VEHICLE_MODS } from "@/lib/commandVehicles.js";
 
 // ── Backend sources (read as text, tables extracted) ──
 const gameEngineSrc = readRepoFile("base44/functions/gameEngine/entry.ts");
@@ -141,4 +144,61 @@ describe("signature cooldowns — gameEngine.MANEUVERS ↔ massCombat.js SIGNATU
       expect(MANEUVERS[key].cooldown).toBe(SIGNATURE_COOLDOWNS[key]);
     });
   }
+});
+
+describe("army designs — gameEngine.DESIGN_OPTIONS ↔ armyDesign.js DESIGN_SLOTS", () => {
+  const DESIGN_OPTIONS = GE("DESIGN_OPTIONS");
+  const fields = ["skill", "dmgOut", "dmgIn", "moraleIn", "cost"];
+
+  it("has the same slots and options on both sides", () => {
+    expect(Object.keys(DESIGN_OPTIONS).sort()).toEqual(Object.keys(DESIGN_SLOTS).sort());
+    for (const slot of Object.keys(DESIGN_OPTIONS)) {
+      expect(Object.keys(DESIGN_OPTIONS[slot]).sort()).toEqual(Object.keys(DESIGN_SLOTS[slot].options).sort());
+    }
+  });
+
+  for (const slot of Object.keys(GE("DESIGN_OPTIONS"))) {
+    for (const opt of Object.keys(GE("DESIGN_OPTIONS")[slot])) {
+      it(`${slot}/${opt}: skill/damage/morale/cost modifiers match`, () => {
+        expect(pick(DESIGN_SLOTS[slot].options[opt], fields)).toEqual(pick(DESIGN_OPTIONS[slot][opt], fields));
+      });
+    }
+  }
+});
+
+describe("combat modifiers — gameEngine ↔ combatMods.js", () => {
+  it("terrain defense bonuses match (TERRAIN_BATTLE_MODS ↔ TERRAIN_DEF)", () => {
+    expect(TERRAIN_DEF).toEqual(GE("TERRAIN_BATTLE_MODS"));
+  });
+
+  it("elevation tiers match (TERRAIN_ELEVATION)", () => {
+    expect(MIRROR_ELEVATION).toEqual(GE("TERRAIN_ELEVATION"));
+  });
+});
+
+describe("command vehicles — gameEngine ↔ commandVehicles.js", () => {
+  const VEHICLES = GE("COMMAND_VEHICLES");
+  const SUPREME = GE("SUPREME_VEHICLE");
+  const VEHICLE_MODS = GE("VEHICLE_MODS");
+
+  it("trait vehicles share keys, labels, and effect text", () => {
+    expect(Object.keys(VEHICLES).sort()).toEqual(Object.keys(MIRROR_VEHICLES).sort());
+    for (const key of Object.keys(VEHICLES)) {
+      expect(MIRROR_VEHICLES[key].label).toBe(VEHICLES[key].label);
+      expect(MIRROR_VEHICLES[key].effect).toBe(VEHICLES[key].effect);
+    }
+  });
+
+  it("supreme vehicle label and effect match", () => {
+    expect(MIRROR_SUPREME.label).toBe(SUPREME.label);
+    expect(MIRROR_SUPREME.effect).toBe(SUPREME.effect);
+  });
+
+  it("refit-bay mods share keys, bay, trait, and cost", () => {
+    expect(Object.keys(VEHICLE_MODS).sort()).toEqual(Object.keys(MIRROR_VEHICLE_MODS).sort());
+    const fields = ["bay", "trait", "cost"];
+    for (const key of Object.keys(VEHICLE_MODS)) {
+      expect(pick(MIRROR_VEHICLE_MODS[key], fields)).toEqual(pick(VEHICLE_MODS[key], fields));
+    }
+  });
 });
