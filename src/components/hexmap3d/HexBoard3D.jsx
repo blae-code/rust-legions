@@ -1,6 +1,7 @@
-import React, { useMemo, Suspense } from "react";
-import { Canvas } from "@react-three/fiber";
+import React, { useMemo, useRef, useState, Suspense } from "react";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { MapControls } from "@react-three/drei";
+import * as THREE from "three";
 import { pos3 } from "@/lib/terrain3d";
 import TerrainTile from "./TerrainTile";
 import ArmyFlag3D from "./ArmyFlag3D";
@@ -8,6 +9,28 @@ import DriftingHaze from "./DriftingHaze";
 import TileFX from "./TileFX";
 import Weather3D from "./Weather3D";
 import SceneErrorBoundary from "@/components/SceneErrorBoundary";
+
+// Recon descent — the camera drops from altitude onto the war table on load,
+// then hands over. MapControls re-derives its state from the live camera each
+// frame, so the lerp composes with it; the start pose stays inside its clamps.
+function BoardRig({ center, extent, done, onDone }) {
+  const { camera } = useThree();
+  const target = useMemo(
+    () => new THREE.Vector3(center[0], extent * 0.85, center[1] + extent * 0.62),
+    [center, extent]
+  );
+  const started = useRef(false);
+  useFrame((_, dt) => {
+    if (done) return;
+    if (!started.current) {
+      camera.position.set(center[0], extent * 1.25, center[1] + extent * 0.95);
+      started.current = true;
+    }
+    camera.position.lerp(target, 1 - Math.exp(-2.6 * dt));
+    if (camera.position.distanceTo(target) < extent * 0.012) onDone();
+  });
+  return null;
+}
 
 // 3D war-table board — drop-in replacement for the SVG HexBoard in the game view
 export default function HexBoard3D({
@@ -23,6 +46,7 @@ export default function HexBoard3D({
   weather = "clear",
   height = 560,
 }) {
+  const [introDone, setIntroDone] = useState(false);
   const { center, extent } = useMemo(() => {
     if (tiles.length === 0) return { center: [0, 0], extent: 10 };
     const pts = tiles.map((t) => pos3(t.q, t.r));
@@ -40,7 +64,7 @@ export default function HexBoard3D({
       <Canvas
         shadows
         dpr={[1, 2]}
-        camera={{ position: [center[0], extent * 0.85, center[1] + extent * 0.62], fov: 42 }}
+        camera={{ position: [center[0], extent * 1.25, center[1] + extent * 0.95], fov: 42 }}
         gl={{ antialias: true }}
       >
         <color attach="background" args={["#12100C"]} />
@@ -110,7 +134,9 @@ export default function HexBoard3D({
         <DriftingHaze center={center} extent={extent} />
         <Weather3D weather={weather} center={center} extent={extent} />
 
+        <BoardRig center={center} extent={extent} done={introDone} onDone={() => setIntroDone(true)} />
         <MapControls
+          enabled={introDone}
           target={[center[0], 0, center[1]]}
           minDistance={4}
           maxDistance={extent * 1.6}
