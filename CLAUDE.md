@@ -18,6 +18,7 @@ The game is positioned as a **live-service title**: v1.0.0 is "The Vanilla Front
 | `docs/VISION.md` | Design north star — lore bible, mobile-base redesign, expansion roadmap (Air, Sea) |
 | `docs/GAME_RULES.md` | The complete, numeric ruleset **as currently implemented** — every stat, cost, modifier, and formula |
 | `docs/ARCHITECTURE.md` | File map, data model, backend API catalog, frontend structure |
+| `docs/ADD_A_FEATURE.md` | Modularity playbook — how to add / customize / remove a feature across the layers |
 | `README.md` | Local dev setup, Base44 CLI, publish workflow |
 | `AGENTS.md` | Base44 platform conventions for coding agents |
 

@@ -1390,8 +1390,15 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const { action } = body;
 
+    // Action registries. Handlers are registered as they are declared below and
+    // dispatched at the end. PREGAME actions run before a game is loaded;
+    // GAME_ACTIONS run against the fetched `game`. null-prototype so unknown or
+    // inherited keys ("toString", …) can never resolve to a handler.
+    const PREGAME = Object.create(null);
+    const GAME_ACTIONS = Object.create(null);
+
     // ----- listMyGames -----
-    GAME_ACTIONS.listMyGames = async () => {
+    PREGAME.listMyGames = async () => {
       const games = await svc.entities.Game.list('-updated_date', 100);
       const mine = games.filter((g) => (g.factionSlots || []).some((s) => s.userId === user.id) || g.hostUserId === user.id);
       return Response.json({
@@ -1405,7 +1412,7 @@ Deno.serve(async (req) => {
     }
 
     // ----- createGame -----
-    GAME_ACTIONS.createGame = async () => {
+    PREGAME.createGame = async () => {
       const { name, mode = 'multiplayer', mapId, mapData, factionId, humanCount = 2, npcConfigs = [], campaignWinCondition, planetId } = body;
       let tiles;
       let mapPlanet = null;
@@ -1456,6 +1463,9 @@ Deno.serve(async (req) => {
       });
       return Response.json({ gameId: game.id });
     }
+
+    // Dispatch pre-game actions (they must not require a loaded game).
+    if (PREGAME[action]) return await PREGAME[action]();
 
     // All remaining actions operate on an existing game
     const game = await svc.entities.Game.get(body.gameId);
@@ -2246,7 +2256,10 @@ Deno.serve(async (req) => {
       return Response.json({ ok: true });
     }
 
-    return Response.json({ error: 'Unknown action' }, { status: 400 });
+    // Dispatch the game action registered above.
+    const handler = GAME_ACTIONS[action];
+    if (!handler) return Response.json({ error: 'Unknown action' }, { status: 400 });
+    return await handler();
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
   }

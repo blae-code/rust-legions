@@ -29,7 +29,7 @@
 ## Backend Functions (`base44/functions/*/entry.ts`)
 
 ### gameEngine — the single gameplay API
-Action-dispatch over POST body `{ action, gameId?, ...params }`. Frontend calls via `base44.functions.invoke("gameEngine", payload)`.
+Action-dispatch over POST body `{ action, gameId?, ...params }`. Frontend calls via `base44.functions.invoke("gameEngine", payload)`. Dispatch is registry-based: `PREGAME` handlers (create/list, run before a game is loaded) and `GAME_ACTIONS` handlers (run against the fetched `game`); adding an action is one map entry (see `docs/ADD_A_FEATURE.md`).
 
 | Action | Params | Purpose |
 | --- | --- | --- |
