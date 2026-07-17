@@ -116,6 +116,10 @@ export const PLATE_URLS = {
   bg_parchment_map: B + "8384513be_generated_image.png",
   bg_battle_day: B + "30e669c61_generated_image.png",
   bg_battle_storm: B + "dc88b8060_generated_image.png",
+  // Catalogued live hero plates (previously hardcoded in components)
+  bg_command_deck: B + "ca29f8b58_generated_image.png",
+  bg_hero_banner: B + "3b5791ea2_generated_image.png",
+  bg_war_room: B + "0b44e3267_generated_image.png",
   // Ministry marks
   ui_app_crest: B + "f8b0a4645_generated_image.png",
   ui_ministry_seal: B + "16434d5f4_generated_image.png",

@@ -1,12 +1,10 @@
 import React, { useState } from "react";
-import { Link } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Mail, ArrowLeft, Loader2 } from "lucide-react";
-import AuthLayout from "@/components/AuthLayout";
+import { Mail, CheckCircle2 } from "lucide-react";
+import AuthScene, { AuthFootLink } from "@/components/auth/AuthScene";
+import { AuthField, AuthSubmit } from "@/components/auth/AuthControls";
 
+// Cipher recovery — dispatch a reset link to the commander's channel.
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
@@ -18,7 +16,7 @@ export default function ForgotPassword() {
     try {
       await base44.auth.resetPasswordRequest(email);
     } catch {
-      // Always show success regardless
+      // Always report success — never reveal whether a file exists.
     } finally {
       setLoading(false);
       setSent(true);
@@ -26,51 +24,46 @@ export default function ForgotPassword() {
   };
 
   return (
-    <AuthLayout
-      icon={Mail}
-      title="Reset password"
-      subtitle="We'll send you a link to reset it"
+    <AuthScene
+      eyebrow="Ministry of War · Cipher Recovery"
+      title="Recover Access"
+      subtitle="WE WILL DISPATCH A RESET DIRECTIVE TO YOUR CHANNEL"
       footer={
-        <Link to="/login" className="text-primary font-medium hover:underline">
-          <ArrowLeft className="w-3 h-3 inline mr-1" />Back to log in
-        </Link>
+        <span className="font-mono text-[11px] text-muted-foreground tracking-wide">
+          <AuthFootLink to="/login">← Back to the terminal</AuthFootLink>
+        </span>
       }
     >
       {sent ? (
-        <p className="text-sm text-foreground text-center">
-          If an account exists with that email, you'll receive a password reset link shortly.
-        </p>
+        <div className="flex flex-col items-center text-center gap-3 py-4">
+          <CheckCircle2 className="w-9 h-9 text-emerald-400" />
+          <p className="font-heading tracking-wide text-foreground/90">
+            If a file exists on that channel, a reset directive is on its way.
+          </p>
+          <p className="font-mono text-[10px] text-muted-foreground/70 tracking-widest">
+            CHECK YOUR INBOX — AND THE SPAM TRENCH
+          </p>
+        </div>
       ) : (
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="email">Email address</Label>
-            <div className="relative">
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" aria-hidden="true" />
-              <Input
-                id="email"
-                type="email"
-                autoComplete="email"
-                autoFocus
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="pl-10 h-12"
-                required
-              />
-            </div>
-          </div>
-          <Button type="submit" className="w-full h-12 font-medium" disabled={loading}>
-            {loading ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Sending...
-              </>
-            ) : (
-              "Send reset link"
-            )}
-          </Button>
+          <AuthField
+            label="Callsign"
+            hint="REGISTERED EMAIL"
+            icon={Mail}
+            id="email"
+            type="email"
+            autoComplete="email"
+            autoFocus
+            placeholder="commander@front.gov"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
+          <AuthSubmit loading={loading} loadingLabel="Dispatching…">
+            Dispatch Reset Directive →
+          </AuthSubmit>
         </form>
       )}
-    </AuthLayout>
+    </AuthScene>
   );
 }

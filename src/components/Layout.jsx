@@ -1,12 +1,8 @@
 import React from "react";
-import { Link, Outlet, useLocation } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
+import { Link, Outlet, Navigate, useLocation } from "react-router-dom";
 import useUser from "@/hooks/useUser";
-import { Button } from "@/components/ui/button";
 import { Shield } from "lucide-react";
 import MusicController from "@/components/audio/MusicController";
-
-const HERO_IMG = "https://media.base44.com/images/public/6a58196dcd485ecc774cae1b/ca29f8b58_generated_image.png";
 
 const NAV = [
   { to: "/", label: "Command HQ" },
@@ -30,24 +26,9 @@ export default function Layout() {
   }
 
   if (!user) {
-    return (
-      <div className="min-h-screen relative flex items-center justify-center p-6">
-        <img src={HERO_IMG} alt="" className="absolute inset-0 w-full h-full object-cover opacity-40" />
-        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/70 to-background/40" />
-        <div className="relative max-w-md w-full text-center cq-panel p-10">
-          <div className="cq-hazard absolute top-0 left-0 right-0 rounded-t" />
-          <Shield className="w-12 h-12 mx-auto text-brass mb-4" />
-          <h1 className="cq-display text-4xl mb-1">Rust Legions</h1>
-          <p className="text-muted-foreground mb-6 font-heading tracking-wide">Enlist to command your faction on the front.</p>
-          <Button
-            className="bg-brass hover:bg-brass-bright text-primary-foreground font-heading tracking-[0.2em] uppercase w-full"
-            onClick={() => base44.auth.redirectToLogin(location.pathname)}
-          >
-            Report for Duty
-          </Button>
-        </div>
-      </div>
-    );
+    // App-level routing normally redirects unauthenticated users to /login before
+    // Layout mounts; this is a belt-and-braces fallback that stays in-repo.
+    return <Navigate to="/login" replace />;
   }
 
   // The command HQ is a full-screen game menu — no web chrome there
