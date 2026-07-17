@@ -2,7 +2,7 @@ import React, { useMemo, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { Stars, OrbitControls, Html, Line } from "@react-three/drei";
 import * as THREE from "three";
-import { Flag, Ban, Crosshair, Hammer } from "lucide-react";
+import { Flag, Ban, Crosshair, Hammer, Swords } from "lucide-react";
 import { PLANETS, latLonToXYZ } from "@/lib/macro/planets";
 import { UNIT_MARCH } from "@/lib/macro/march";
 import { playSfx } from "@/lib/sfx";
@@ -96,6 +96,8 @@ export default function MacroWarRoom({ game, busy, onAction }) {
 
   const closeMenu = () => setMenu(null);
   const columnsAt = (nodeId) => myColumns.filter((c) => c.nodeId === nodeId);
+  const hostilesAt = (nodeId) => macro.columns.filter((c) => c.owner !== game.mySlot && c.nodeId === nodeId);
+  const routeBetween = (a, b) => macro.routes.find(([x, y]) => (x === a && y === b) || (x === b && y === a));
 
   const onNodeClick = (node) => {
     playSfx("select");
@@ -116,6 +118,13 @@ export default function MacroWarRoom({ game, busy, onAction }) {
     const here = columnsAt(node.id);
     for (const c of here.slice(0, 2)) {
       opts.push({ key: `march-${c.id}`, label: `March ${c.name}`, icon: Flag, act: done(() => { setPlotting(c.id); setSelectedColumn(c.id); }) });
+    }
+    // A foreign column in reach — order the assault from an adjacent staging node
+    if (hostilesAt(node.id).length > 0) {
+      const stagers = myColumns.filter((c) => c.nodeId && routeBetween(c.nodeId, node.id));
+      for (const c of stagers.slice(0, 2)) {
+        opts.push({ key: `assault-${c.id}`, label: `Assault with ${c.name}`, icon: Swords, tone: "rust", act: done(() => onAction({ action: "macroEngage", columnId: c.id, toNodeId: node.id }), "attack") });
+      }
     }
     if (musterSites.some((n) => n.id === node.id)) {
       opts.push({ key: "muster", label: "Muster Column", icon: Hammer, act: done(() => setMuster({ nodeId: node.id, regiments: { riflemen: 1 }, generalId: freeGenerals[0]?.id || "recruit" })) });
