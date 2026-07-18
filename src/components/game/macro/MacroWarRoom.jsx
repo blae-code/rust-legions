@@ -1,79 +1,21 @@
 import React, { useMemo, useState } from "react";
-import { Canvas } from "@react-three/fiber";
-import { Stars, OrbitControls, Html, Line } from "@react-three/drei";
-import * as THREE from "three";
 import { Flag, Ban, Crosshair, Hammer, Swords, Home } from "lucide-react";
-import { PLANETS, latLonToXYZ } from "@/lib/macro/planets";
+import { WORLDS } from "@/lib/macro/worlds";
 import { UNIT_MARCH } from "@/lib/macro/march";
 import { playSfx } from "@/lib/sfx";
-import PlanetBody from "@/components/starmap/PlanetBody";
-import RouteArcs from "@/components/starmap/RouteArcs";
-import NodeMarker from "@/components/starmap/NodeMarker";
-import { slerpSurface, arcPoints } from "@/components/starmap/arcMath";
-import SceneErrorBoundary from "@/components/SceneErrorBoundary";
+import MinistryChart from "@/components/chart/MinistryChart";
 import { Button } from "@/components/ui/button";
 
 const MUSTER_KEYS = ["riflemen", "crawler", "artillery", "fighter"];
 
-// Control ring pinned flat to the crust under a settlement marker
-function ControlRing({ node, planet, color }) {
-  const pos = latLonToXYZ(node.lat, node.lon, planet.radius * 1.008);
-  const quat = useMemo(() => {
-    const normal = new THREE.Vector3(...pos).normalize();
-    return new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal);
-  }, [pos[0], pos[1], pos[2]]);
-  const r = planet.radius * 0.045;
-  return (
-    <mesh position={pos} quaternion={quat}>
-      <ringGeometry args={[r * 0.82, r, 24]} />
-      <meshBasicMaterial color={color} transparent opacity={0.75} side={THREE.DoubleSide} />
-    </mesh>
-  );
-}
-
-// A column in the field — halted at a settlement or crawling an edge
-function ColumnBeacon({ column, planet, byId, routes, color, mine, selected, onClick }) {
-  let pos;
-  if (column.nodeId) {
-    const n = byId[column.nodeId];
-    if (!n) return null;
-    pos = latLonToXYZ(n.lat, n.lon, planet.radius * 1.03);
-  } else if (column.march) {
-    const A = byId[column.march.edge[0]], B = byId[column.march.edge[1]];
-    const route = routes.find(([a, b]) => (a === column.march.edge[0] && b === column.march.edge[1]) || (b === column.march.edge[0] && a === column.march.edge[1]));
-    if (!A || !B || !route) return null;
-    const t = Math.min(Math.max(column.march.legMiles / route[2], 0), 1);
-    pos = slerpSurface(A, B, t, planet.radius, 0.06);
-  }
-  if (!pos) return null;
-  const s = planet.radius * 0.02;
-  return (
-    <group position={pos}>
-      <mesh
-        scale={selected ? 1.8 : 1}
-        onClick={(e) => { e.stopPropagation(); onClick?.(column); }}
-        onPointerOver={(e) => e.stopPropagation()}
-      >
-        <sphereGeometry args={[s, 10, 10]} />
-        <meshBasicMaterial color={selected ? "#FFE08A" : color} />
-      </mesh>
-      <Html position={[0, s * 3.5, 0]} center style={{ pointerEvents: "none" }}>
-        <div className={`whitespace-nowrap font-mono text-[9px] px-1 py-px rounded-sm border ${mine ? "bg-black/85 border-brass/60 text-brass-bright" : "bg-black/85 border-border text-secondary-foreground"}`}>
-          {column.name.toUpperCase()} · {column.strength}PT{column.march ? " · ON THE ROAD" : ""}
-        </div>
-      </Html>
-    </group>
-  );
-}
-
-// The macro command surface: the campaign world with live control, columns and
-// march plotting, driven entirely by fog-filtered server state (slice M1).
+// The macro command surface: the ministry tactical chart with live control,
+// columns and march plotting, driven entirely by fog-filtered server state.
 export default function MacroWarRoom({ game, busy, onAction }) {
   const macro = game.macro;
-  const base = PLANETS.find((p) => p.id === game.planetId) || PLANETS[0];
-  const planet = useMemo(
-    () => ({ ...base, nodes: macro.nodes, routes: macro.routes }),
-    [base, macro.nodes, macro.routes]
+  const worldSpec = WORLDS.find((w) => w.id === game.planetId);
+  const world = useMemo(
+    () => ({ nodes: macro.nodes, routes: macro.routes, continents: macro.continents || [], size: macro.size }),
+    [macro.nodes, macro.routes, macro.continents, macro.size]
   );
   const byId = useMemo(() => Object.fromEntries(macro.nodes.map((n) => [n.id, n])), [macro.nodes]);
   const slotColors = Object.fromEntries(game.factions.map((f) => [f.slotIndex, f.color]));
@@ -146,79 +88,35 @@ export default function MacroWarRoom({ game, busy, onAction }) {
     return opts;
   };
 
-  const marchPreviews = myColumns.filter((c) => c.march?.path?.length > 1);
+  const marchPaths = [
+    ...myColumns.filter((c) => c.march?.path?.length > 1).map((c) => ({ id: `col-${c.id}`, path: c.march.path, color: "#E8C15A" })),
+    ...(myBase?.march?.path?.length > 1 ? [{ id: "base", path: myBase.march.path, color: "#C2503C", dashed: true }] : []),
+  ];
 
   return (
     <div className="space-y-4">
       <div className="cq-panel cq-brackets relative overflow-hidden p-1">
         <div className="cq-hazard absolute top-0 left-0 right-0 z-10" />
-        <div className="h-[62vh] min-h-[420px] rounded">
-          <SceneErrorBoundary>
-          <Canvas camera={{ position: [0, planet.radius * 0.9, planet.radius * 3] }} dpr={[1, 2]}>
-            <color attach="background" args={["#07090c"]} />
-            <ambientLight intensity={0.4} />
-            <directionalLight position={[25, 14, 10]} intensity={1.25} color="#f5e2c0" />
-            <Stars radius={140} depth={60} count={4000} factor={3} fade speed={0.4} />
-            <PlanetBody planet={planet} onClick={closeMenu} />
-            <RouteArcs planet={planet} />
-            {/* Live march plots — my columns' remaining paths */}
-            {marchPreviews.map((c) => (
-              <group key={`plot-${c.id}`}>
-                {c.march.path.slice(0, -1).map((a, i) => {
-                  const A = byId[a], B = byId[c.march.path[i + 1]];
-                  if (!A || !B) return null;
-                  return <Line key={i} points={arcPoints(A, B, planet.radius, 0.06)} color="#E8C15A" lineWidth={2} transparent opacity={0.85} />;
-                })}
-              </group>
-            ))}
-            {/* Fortress-base march plot */}
-            {myBase?.march?.path?.length > 1 && (
-              <group>
-                {myBase.march.path.slice(0, -1).map((a, i) => {
-                  const A = byId[a], B = byId[myBase.march.path[i + 1]];
-                  if (!A || !B) return null;
-                  return <Line key={i} points={arcPoints(A, B, planet.radius, 0.07)} color="#C2503C" lineWidth={2.5} dashed dashSize={0.15} gapSize={0.1} transparent opacity={0.9} />;
-                })}
-              </group>
-            )}
-            {macro.nodes.map((n) => (
-              <NodeMarker
-                key={n.id}
-                node={n}
-                planet={planet}
-                hovered={hovered?.id === n.id}
-                isOrigin={false}
-                isDest={plotting ? hovered?.id === n.id : false}
-                isBase={macro.bases.some((b) => b.nodeId === n.id)}
-                menuOpen={menu === n.id}
-                menuOptions={menu === n.id ? menuOptionsFor(n) : null}
-                onCloseMenu={closeMenu}
-                onHover={setHovered}
-                onClick={onNodeClick}
-              />
-            ))}
-            {Object.entries(macro.control).map(([nid, owner]) =>
-              owner !== null && owner !== undefined && byId[nid] ? (
-                <ControlRing key={`ring-${nid}`} node={byId[nid]} planet={planet} color={slotColors[owner] || "#888"} />
-              ) : null
-            )}
-            {macro.columns.map((c) => (
-              <ColumnBeacon
-                key={c.id}
-                column={c}
-                planet={planet}
-                byId={byId}
-                routes={macro.routes}
-                color={slotColors[c.owner] || "#888"}
-                mine={c.owner === game.mySlot}
-                selected={selectedColumn === c.id}
-                onClick={(col) => col.owner === game.mySlot && setSelectedColumn(col.id === selectedColumn ? null : col.id)}
-              />
-            ))}
-            <OrbitControls enablePan={false} minDistance={planet.radius * 1.5} maxDistance={planet.radius * 8} />
-          </Canvas>
-          </SceneErrorBoundary>
-        </div>
+        <MinistryChart
+          world={world}
+          palette={worldSpec?.palette}
+          control={macro.control}
+          slotColors={slotColors}
+          observed={macro.observed}
+          columns={macro.columns}
+          bases={macro.bases}
+          marchPaths={marchPaths}
+          mySlot={game.mySlot}
+          hovered={hovered}
+          onHoverNode={setHovered}
+          onNodeClick={onNodeClick}
+          onColumnClick={(col) => setSelectedColumn(col.id === selectedColumn ? null : col.id)}
+          selectedColumnId={selectedColumn}
+          menuNodeId={menu}
+          menuOptions={menu ? menuOptionsFor(byId[menu]) : null}
+          onCloseMenu={closeMenu}
+          height="64vh"
+        />
         <div className="cq-scanlines absolute inset-0 pointer-events-none z-[5]" />
         <div className="cq-vignette absolute inset-0 pointer-events-none z-[5]" />
         {plotting && (
@@ -232,7 +130,7 @@ export default function MacroWarRoom({ game, busy, onAction }) {
         {movingBase && (
           <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 cq-panel px-3 py-1.5 bg-card/95 border-rust/70">
             <p className="font-mono text-[10px] text-rust tracking-widest flex items-center gap-2">
-              <Home className="w-3 h-3" /> SELECT GROUND FOR THE FORTRESS-BASE — IT ROLLS SLOWLY
+              <Home className="w-3 h-3" /> SELECT GROUND FOR THE FORTRESS-BASE — IT ROLLS SLOWLY (LAND ROUTES ONLY)
               <button onClick={() => setMovingBase(false)} className="text-brass-bright hover:text-rust ml-2">CANCEL</button>
             </p>
           </div>
@@ -256,6 +154,14 @@ export default function MacroWarRoom({ game, busy, onAction }) {
               <button onClick={() => { playSfx("select"); setMovingBase(true); closeMenu(); }} className="text-rust hover:text-brass-bright ml-2">MARCH ▸</button>
             )}
           </p>
+        </div>
+        <div className="absolute bottom-3 right-3 z-10 cq-panel p-2 bg-card/90 font-mono text-[9px] text-muted-foreground space-y-0.5">
+          {[["highway", "#C9A227"], ["road", "#9a927f"], ["track", "#6e675c"], ["trail", "#5a5348"], ["convoy lane", "#7A93A5"]].map(([q, c]) => (
+            <div key={q} className="flex items-center gap-2">
+              <span className="inline-block w-5 h-0.5" style={{ background: c }} />
+              {q.toUpperCase()}
+            </div>
+          ))}
         </div>
       </div>
 

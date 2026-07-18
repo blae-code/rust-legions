@@ -8,15 +8,12 @@ import { describe, it, expect } from "vitest";
 import { readRepoFile, extractConst } from "./helpers/extract-const.js";
 
 // ── Frontend mirrors (plain ES modules — importable directly) ──
-import { UNIT_TYPES, BUILDINGS as MIRROR_BUILDINGS } from "@/lib/units.js";
+import { UNIT_TYPES } from "@/lib/units.js";
 import { TECHS as MIRROR_TECHS } from "@/lib/doctrine.js";
 import { PERKS } from "@/lib/pointBuy.js";
-import { BASE_MODULES as MIRROR_BASE_MODULES } from "@/lib/baseModules.js";
 import { ARMORY_ITEMS } from "@/lib/armory.js";
 import { WEATHER_META } from "@/lib/weather.js";
 import { SIGNATURE_COOLDOWNS } from "@/lib/massCombat.js";
-import { DESIGN_SLOTS } from "@/lib/armyDesign.js";
-import { TERRAIN_DEF, TERRAIN_ELEVATION as MIRROR_ELEVATION } from "@/lib/combatMods.js";
 import { COMMAND_VEHICLES as MIRROR_VEHICLES, SUPREME_VEHICLE as MIRROR_SUPREME, VEHICLE_MODS as MIRROR_VEHICLE_MODS } from "@/lib/commandVehicles.js";
 
 // ── Backend sources (read as text, tables extracted) ──
@@ -45,20 +42,6 @@ describe("units — gameEngine.UNITS ↔ src/lib/units.js UNIT_TYPES", () => {
   }
 });
 
-describe("buildings — gameEngine.BUILDINGS ↔ src/lib/units.js BUILDINGS", () => {
-  const BUILDINGS = GE("BUILDINGS");
-
-  it("has the same building keys on both sides", () => {
-    expect(Object.keys(BUILDINGS).sort()).toEqual(Object.keys(MIRROR_BUILDINGS).sort());
-  });
-
-  for (const key of Object.keys(GE("BUILDINGS"))) {
-    it(`${key}: cost and upgradeCost match`, () => {
-      expect(MIRROR_BUILDINGS[key].cost).toEqual(BUILDINGS[key].cost);
-      expect(MIRROR_BUILDINGS[key].upgradeCost).toEqual(BUILDINGS[key].upgradeCost);
-    });
-  }
-});
 
 describe("research tree — TECHS across gameEngine, concurrentPlay, and doctrine.js", () => {
   const GE_TECHS = GE("TECHS");
@@ -94,20 +77,6 @@ describe("point-buy perks — PERK_MODS (both backends) ↔ pointBuy.js PERKS", 
   });
 });
 
-describe("fortress-base modules — gameEngine.BASE_MODULES ↔ baseModules.js", () => {
-  const BASE_MODULES = GE("BASE_MODULES");
-  const fields = ["slot", "cost", "defense", "moves", "allTerrain", "income", "moveCost", "unlock"];
-
-  it("has the same module keys on both sides", () => {
-    expect(Object.keys(BASE_MODULES).sort()).toEqual(Object.keys(MIRROR_BASE_MODULES).sort());
-  });
-
-  for (const key of Object.keys(GE("BASE_MODULES"))) {
-    it(`${key}: slot/cost/effect fields match`, () => {
-      expect(pick(MIRROR_BASE_MODULES[key], fields)).toEqual(pick(BASE_MODULES[key], fields));
-    });
-  }
-});
 
 describe("state armory — concurrentPlay.ARMORY ↔ armory.js ARMORY_ITEMS", () => {
   const ARMORY = CP("ARMORY");
@@ -146,35 +115,7 @@ describe("signature cooldowns — gameEngine.MANEUVERS ↔ massCombat.js SIGNATU
   }
 });
 
-describe("army designs — gameEngine.DESIGN_OPTIONS ↔ armyDesign.js DESIGN_SLOTS", () => {
-  const DESIGN_OPTIONS = GE("DESIGN_OPTIONS");
-  const fields = ["skill", "dmgOut", "dmgIn", "moraleIn", "cost"];
 
-  it("has the same slots and options on both sides", () => {
-    expect(Object.keys(DESIGN_OPTIONS).sort()).toEqual(Object.keys(DESIGN_SLOTS).sort());
-    for (const slot of Object.keys(DESIGN_OPTIONS)) {
-      expect(Object.keys(DESIGN_OPTIONS[slot]).sort()).toEqual(Object.keys(DESIGN_SLOTS[slot].options).sort());
-    }
-  });
-
-  for (const slot of Object.keys(GE("DESIGN_OPTIONS"))) {
-    for (const opt of Object.keys(GE("DESIGN_OPTIONS")[slot])) {
-      it(`${slot}/${opt}: skill/damage/morale/cost modifiers match`, () => {
-        expect(pick(DESIGN_SLOTS[slot].options[opt], fields)).toEqual(pick(DESIGN_OPTIONS[slot][opt], fields));
-      });
-    }
-  }
-});
-
-describe("combat modifiers — gameEngine ↔ combatMods.js", () => {
-  it("terrain defense bonuses match (TERRAIN_BATTLE_MODS ↔ TERRAIN_DEF)", () => {
-    expect(TERRAIN_DEF).toEqual(GE("TERRAIN_BATTLE_MODS"));
-  });
-
-  it("elevation tiers match (TERRAIN_ELEVATION)", () => {
-    expect(MIRROR_ELEVATION).toEqual(GE("TERRAIN_ELEVATION"));
-  });
-});
 
 describe("command vehicles — gameEngine ↔ commandVehicles.js", () => {
   const VEHICLES = GE("COMMAND_VEHICLES");

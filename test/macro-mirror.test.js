@@ -40,18 +40,16 @@ describe("the authored continent matches the src/lib mirror", () => {
 });
 
 describe("the seeded-world generator matches the src/lib mirror", () => {
-  it("mileage formula and planet seeds are identical", () => {
+  it("mileage formulas and world specs are identical", () => {
     // The generator itself is exercised by test/macro-pacing.test.js on the
     // client side; here we lock the shared numeric knobs so a drift in either
-    // copy of milesFor or the planet catalog fails CI.
-    const serverPlanets = extractConst(src, "MACRO_PLANETS");
-    expect(serverPlanets.cindara.seed).toBe(1917);
-    expect(serverPlanets.veyra.seed).toBe(2044);
-    expect(serverPlanets.morhollow.seed).toBe(3121);
-    expect(serverPlanets.cindara.count).toBe(45);
-    expect(serverPlanets.veyra.count).toBe(55);
-    expect(serverPlanets.morhollow.count).toBe(45);
-    // milesFor: clamp(30, d*4.5, 160) — probe the server source textually
-    expect(src).toMatch(/macroMilesFor = \(d\) => Math\.min\(160, Math\.max\(30, Math\.round\(d \* 4\.5\)\)\)/);
+    // copy of the mileage formulas or the world catalog fails CI.
+    const serverWorlds = extractConst(src, "MACRO_WORLDS");
+    expect(serverWorlds.cindara).toEqual({ seed: 1917, count: 45, clusters: 2, authored: true });
+    expect(serverWorlds.veyra).toEqual({ seed: 2044, count: 55, clusters: 3 });
+    expect(serverWorlds.morhollow).toEqual({ seed: 3121, count: 45, clusters: 2 });
+    // land miles: clamp(30, d*1.1, 170) · sea miles: clamp(60, d*0.9, 180)
+    expect(src).toMatch(/macroMilesFor = \(d\) => Math\.min\(170, Math\.max\(30, Math\.round\(d \* 1\.1\)\)\)/);
+    expect(src).toMatch(/macroSeaMilesFor = \(d\) => Math\.min\(180, Math\.max\(60, Math\.round\(d \* 0\.9\)\)\)/);
   });
 });
