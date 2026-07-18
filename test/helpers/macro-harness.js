@@ -12,7 +12,7 @@ const SRC = readRepoFile("base44/functions/gameEngine/entry.ts");
 // the fog-of-war section (see the region markers in entry.ts).
 function macroBlock() {
   const start = SRC.indexOf("const MACRO_ROUTE_QUALITY = {");
-  const end = SRC.indexOf("// ---------- Fog of war ----------");
+  const end = SRC.indexOf("// ---------- End macro engine (harness marker) ----------");
   if (start < 0 || end < 0) throw new Error("macro block markers not found");
   return SRC.slice(start, end);
 }

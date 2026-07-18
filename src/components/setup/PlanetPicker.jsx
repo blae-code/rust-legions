@@ -1,37 +1,51 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { PLANETS } from "@/lib/macro/planets";
+import { WORLDS } from "@/lib/macro/worlds";
 
-// Pick which of the three charted worlds hosts the war
+// Tiny silhouette of a world — its landmasses inked on the board
+export function WorldSilhouette({ world, className = "w-full h-14" }) {
+  const { w, h } = world.size;
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} className={className} preserveAspectRatio="xMidYMid meet">
+      <rect width={w} height={h} fill="#07090c" />
+      {world.continents.map((c) => (
+        <polygon
+          key={c.id}
+          points={c.outline.map((p) => p.join(",")).join(" ")}
+          fill={world.palette.land}
+          stroke={world.palette.coast}
+          strokeWidth="4"
+          opacity="0.95"
+        />
+      ))}
+    </svg>
+  );
+}
+
+// Pick which charted world hosts the war
 export default function PlanetPicker({ value, onChange }) {
-  const selected = PLANETS.find((p) => p.id === value);
+  const selected = WORLDS.find((w) => w.id === value);
   return (
     <div>
       <label className="cq-label">Theater World</label>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-1">
-        {PLANETS.map((p) => (
+        {WORLDS.map((w) => (
           <button
-            key={p.id}
+            key={w.id}
             type="button"
-            onClick={() => onChange(p.id)}
-            title={p.blurb}
-            className={`text-left p-2.5 rounded-sm border transition-colors ${
-              value === p.id ? "border-brass bg-brass/10" : "border-border bg-secondary/30 hover:border-brass/50"
+            onClick={() => onChange(w.id)}
+            title={w.blurb}
+            className={`text-left p-2 rounded-sm border transition-colors ${
+              value === w.id ? "border-brass bg-brass/10" : "border-border bg-secondary/30 hover:border-brass/50"
             }`}
           >
-            <div className="flex items-center gap-2">
-              <span
-                className="w-4 h-4 rounded-full ring-1 ring-black/50 shrink-0"
-                style={{
-                  background: `radial-gradient(circle at 35% 35%, ${p.palette.high}, ${p.palette.base} 60%, ${p.palette.low})`,
-                  boxShadow: `0 0 7px ${p.palette.atmo}66`,
-                }}
-              />
-              <span className={`font-heading uppercase tracking-widest text-xs ${value === p.id ? "text-brass-bright" : "text-secondary-foreground"}`}>
-                {p.name}
-              </span>
-            </div>
-            <p className="text-[10px] text-muted-foreground mt-1.5 leading-snug">{p.blurb}</p>
+            <WorldSilhouette world={w} />
+            <span className={`block mt-1.5 font-heading uppercase tracking-widest text-xs ${value === w.id ? "text-brass-bright" : "text-secondary-foreground"}`}>
+              {w.name}
+            </span>
+            <span className="block font-mono text-[9px] text-muted-foreground mt-0.5">
+              {w.continents.length} LANDMASSES · {w.nodes.length} SITES
+            </span>
           </button>
         ))}
       </div>
