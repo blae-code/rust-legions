@@ -4,6 +4,7 @@ import { WORLDS } from "@/lib/macro/worlds";
 import { UNIT_MARCH } from "@/lib/macro/march";
 import { playSfx } from "@/lib/sfx";
 import MinistryChart from "@/components/chart/MinistryChart";
+import { getImage } from "@/lib/imageLibrary";
 import { Button } from "@/components/ui/button";
 
 const MUSTER_KEYS = ["riflemen", "crawler", "artillery", "fighter"];
@@ -122,7 +123,9 @@ export default function MacroWarRoom({ game, busy, onAction }) {
         {plotting && (
           <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 cq-panel px-3 py-1.5 bg-card/95 border-brass/70">
             <p className="font-mono text-[10px] text-brass-bright tracking-widest flex items-center gap-2">
-              <Crosshair className="w-3 h-3" /> SELECT AN OBJECTIVE — THE COLUMN MARCHES AT DAWN
+              {getImage("macro_mark_objective")
+                ? <img src={getImage("macro_mark_objective")} alt="" aria-hidden="true" className="w-4 h-4 object-contain select-none" />
+                : <Crosshair className="w-3 h-3" />} SELECT AN OBJECTIVE — THE COLUMN MARCHES AT DAWN
               <button onClick={() => setPlotting(null)} className="text-rust hover:text-brass-bright ml-2">CANCEL</button>
             </p>
           </div>

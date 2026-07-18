@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2, PenLine } from "lucide-react";
 import PatchDispatch from "@/components/patch/PatchDispatch";
 import PatchComposer from "@/components/patch/PatchComposer";
+import { getImage } from "@/lib/imageLibrary";
 
 // Version sort — newest amendment first (semver-aware)
 const verParts = (v = "") => v.split(".").map((n) => parseInt(n, 10) || 0);
@@ -41,6 +42,15 @@ export default function PatchNotes() {
     <div className="max-w-3xl mx-auto space-y-4">
       <header className="cq-panel relative overflow-hidden px-5 pt-6 pb-5">
         <div className="cq-hazard absolute top-0 left-0 right-0" />
+        {getImage("ui_patch_category_stamps") && (
+          <img
+            src={getImage("ui_patch_category_stamps")}
+            alt=""
+            aria-hidden="true"
+            className="absolute right-0 top-0 h-full w-auto max-w-[42%] object-cover object-right opacity-[0.13] pointer-events-none select-none hidden sm:block"
+          />
+        )}
+        <div className="relative z-10">
         <p className="cq-label text-rust">War Ministry · Office of Continuous Mobilization</p>
         <h1 className="cq-display text-3xl mt-1">Field Amendments</h1>
         <p className="text-xs text-muted-foreground leading-relaxed mt-2 max-w-xl">
@@ -57,6 +67,7 @@ export default function PatchNotes() {
               <PenLine className="w-3.5 h-3.5" /> Draft Dispatch
             </Button>
           )}
+        </div>
         </div>
       </header>
 

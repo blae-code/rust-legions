@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { base44 } from "@/api/base44Client";
 import { RadioTower } from "lucide-react";
+import { getImage } from "@/lib/imageLibrary";
 
 // Signals Intercepts — AI-generated NPC faction broadcasts, produced in the
 // background by the npcHerald each turn and streamed into this feed.
@@ -33,11 +34,23 @@ export default function NpcIntercepts({ game }) {
 
   if (!hasNpcs || dispatches.length === 0) return null;
 
+  const masthead = getImage("press_signals_intercept");
+
   return (
     <div className="cq-panel p-3">
-      <p className="cq-label flex items-center gap-1.5 mb-2">
-        <RadioTower className="w-3 h-3 text-rust" /> Signals Intercepts
-      </p>
+      {masthead ? (
+        <div className="relative -mx-3 -mt-3 mb-2 h-12 overflow-hidden border-b border-border">
+          <img src={masthead} alt="" aria-hidden="true" className="absolute inset-0 w-full h-full object-cover opacity-70 select-none" />
+          <div className="absolute inset-0 bg-gradient-to-t from-card via-card/40 to-transparent" />
+          <p className="cq-label absolute bottom-1 left-3 flex items-center gap-1.5">
+            <RadioTower className="w-3 h-3 text-rust" /> Signals Intercepts
+          </p>
+        </div>
+      ) : (
+        <p className="cq-label flex items-center gap-1.5 mb-2">
+          <RadioTower className="w-3 h-3 text-rust" /> Signals Intercepts
+        </p>
+      )}
       <div className="space-y-2.5 max-h-56 overflow-y-auto pr-1">
         {dispatches.map((d) => (
           <div key={d.id} className="text-xs">
