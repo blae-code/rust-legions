@@ -72,7 +72,7 @@ Connectors authorized: `googlesheets`, `googledocs` (shared mode, builder's acco
 - **NewGame / MapLibrary / MapEditor / FactionBuilder / ArmyDesigner / PatchNotes** — setup & meta tools.
 - **Walkthrough** — 5-step "Field Induction" interactive tutorial (base refitting, ideology, treads primer).
 - **StarMap** — the **War Table** planning sandbox: the Ministry Chart (`MinistryChart`) for the theater world picked via `?planet=`, with the radial orders menu, `MarchPlanner` day-rate itineraries, and the tactical overlay analysis. (In play the same chart renders live server state inside `MacroWarRoom`.)
-- **AssetRegistry** — Illustration Directorate (image plates, `src/lib/imageLibrary.js`) + Sound Registry (`src/lib/audioLibrary.js`); every asset carries a generation-ready prompt and delivery status.
+- **AssetRegistry** — Illustration Directorate (image plates, `src/lib/imageLibrary.js`) + Sound Registry (`src/lib/audioLibrary.js`); every asset carries a generation-ready prompt and delivery status. Delivered plates resolve via `getImage(key)` and are wired into gameplay surfaces (weather / maneuver / tech / medal / resource art, end-game & lobby backdrops, faction crests, patch-category stamps, fortress modules, …), each guarded with an icon/text fallback.
 
 ### Component directories
 - `src/components/home/` — command-deck panels & 2.5D backdrop (`StormFront25D` + `BackdropReel` rotating video playlist)
@@ -92,7 +92,7 @@ Connectors authorized: `googlesheets`, `googledocs` (shared mode, builder's acco
 - `ambience.js` — rotating 5-piece public-domain orchestral score (Wikimedia Commons); playlist, per-track fades, `startScore`/`stopScore`/`skipScore`, `setScoreSuppressed` (battles), `unlockAmbience()` on first gesture
 - `hex.js` — axial hex math · `terrain3d.js` — 3D terrain palette/geometry
 - `macro/` — v2.x macro map: `graph.js` (nodes/routes, canonical lat/lon), `march.js` (day-rate Dijkstra itineraries), `overlay.js` (supply-artery + objective analysis), `planets.js` (campaign worlds: deterministic procedural settlements/routes, lat/lon→XYZ)
-- `imageLibrary.js` / `imagePlates.js` / `audioLibrary.js` — asset registries with generation prompts and delivery status
+- `imageLibrary.js` / `imagePlates.js` / `audioLibrary.js` — asset registries with generation prompts and delivery status. Image plates are delivered either as Base44 CDN URLs (`B + …`) or as local files at `public/plates/<key>.webp` (`LP + …`); `getImage(key)` from `imageLibrary.js` resolves both, returning `null` when undelivered so callers fall back to an icon.
 - Rules mirrors (**keep in sync with gameEngine** — see CLAUDE.md): `units.js`, `massCombat.js`, `armyDesign.js`, `pointBuy.js`, `combatMods.js`, `weather.js`, `baseModules.js`, `doctrine.js`, `armory.js`, `diplomacy.js`, `commandVehicles.js`
 - `lifepath.js` — faction lifepath stages · `medals.js` · `generalPortraits.js`
 - `AuthContext.jsx`, `query-client.js`, `utils.js`, `app-params.js` — platform plumbing (do not modify casually)
@@ -102,3 +102,4 @@ Connectors authorized: `googlesheets`, `googledocs` (shared mode, builder's acco
 - `base44` SDK client: `import { base44 } from "@/api/base44Client"` — entities via `base44.entities.X`, functions via `base44.functions.invoke(name, payload)` (response data in `res.data`), auth via `base44.auth.me()`.
 - Admin checks: `user.role === "admin"` from `base44.auth.me()`.
 - All game mutations go through `gameEngine` — never write `Game` records from the frontend.
+- **Art plates:** resolve via `getImage(key)` (`imageLibrary.js`). Deliver a plate by adding its key to `PLATE_URLS` in `imagePlates.js` — either a Base44 CDN URL (`B + "<hash>_generated_image.png"`) or a local file committed at `public/plates/<key>.webp` (`LP + "<key>.webp"`). Always guard usage (`getImage(k) ? <img…/> : <fallback/>`) since undelivered keys return `null`. Local plates are committed WebP binaries generated from the library prompts.

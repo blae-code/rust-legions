@@ -107,3 +107,4 @@ Do not start implementing v2.x or expansion content without explicit user go-ahe
 - Tailwind class names must appear as literal strings in source (no template-built class names) or the build purges them.
 - `concurrentPlay` duplicates the tech/armory catalogs from `gameEngine` (no local imports between functions) — a rules change there touches **three** files: `gameEngine`, `concurrentPlay`, and the `src/lib/` mirror.
 - The menu score playlist (`src/lib/ambience.js`) streams from Wikimedia Commons `Special:FilePath` URLs — verify a file exists on Commons before adding to `PLAYLIST`.
+- Art plates: prompts live in `src/lib/imageLibrary.js`, delivered URLs in `src/lib/imagePlates.js` (`PLATE_URLS`). Delivery is a Base44 CDN URL **or** a local `public/plates/<key>.webp` (committed WebP binary). `getImage(key)` resolves both and returns `null` if undelivered — always render with an icon/text fallback. See docs/ARCHITECTURE.md.

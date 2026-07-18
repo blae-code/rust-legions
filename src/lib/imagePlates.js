@@ -1,7 +1,13 @@
-// Delivered art plates — generated sample images keyed to the master image library.
-// Regenerating an asset = replacing its URL here; the registry picks it up automatically.
+// Delivered art plates — keyed to the master image library (imageLibrary.js). A plate is
+// "delivered" once its key appears here; getImage(key) then resolves the URL, and it shows
+// in the Asset Registry and any wired gameplay surface.
+// Two delivery forms:
+//   B  + "<hash>_generated_image.png"  — hosted on the Base44 media CDN
+//   LP + "<key>.webp"                  — local file committed at public/plates/<key>.webp
+// Adding/regenerating an asset = add or replace its entry here (the registry picks it up
+// automatically). Local plates are generated into public/plates/ — see docs/ARCHITECTURE.md.
 const B = "https://media.base44.com/images/public/6a58196dcd485ecc774cae1b/";
-const LP = "/plates/"; // local generated plates in public/plates/
+const LP = "/plates/"; // local generated plates served from public/plates/
 
 export const PLATE_URLS = {
   // Commanders
