@@ -1,6 +1,7 @@
 import React from "react";
 import { motion } from "framer-motion";
 import { Shield } from "lucide-react";
+import { getImage } from "@/lib/imageLibrary";
 
 const DOCTRINE_STYLE = {
   aggressive: "border-rust/60 text-rust",
@@ -9,6 +10,7 @@ const DOCTRINE_STYLE = {
 };
 
 export default function FactionCard({ faction, index }) {
+  const crest = getImage(`crest_${faction.doctrine}`);
   return (
     <motion.div
       className="cq-panel cq-brackets p-5 relative overflow-hidden"
@@ -17,7 +19,11 @@ export default function FactionCard({ faction, index }) {
       viewport={{ once: true }}
       transition={{ delay: index * 0.07, duration: 0.45 }}
     >
-      <Shield className="absolute -right-4 -bottom-4 w-28 h-28 text-brass/5 rotate-12" />
+      {crest ? (
+        <img src={crest} alt="" aria-hidden="true" className="absolute -right-5 -bottom-5 w-28 h-28 object-contain opacity-[0.12] rotate-12 pointer-events-none select-none" />
+      ) : (
+        <Shield className="absolute -right-4 -bottom-4 w-28 h-28 text-brass/5 rotate-12" />
+      )}
       <div className="flex items-start justify-between gap-2">
         <h3 className="font-heading font-semibold text-xl tracking-wide text-foreground">{faction.factionName}</h3>
         <span className="font-mono text-[10px] text-muted-foreground shrink-0 mt-1.5">DOSSIER</span>

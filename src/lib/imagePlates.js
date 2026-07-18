@@ -497,4 +497,12 @@ export const PLATE_URLS = {
   fit_balloon_detachment: LP + "fit_balloon_detachment.webp",
   fit_winter_quarters_kit: LP + "fit_winter_quarters_kit.webp",
   fit_pontoon_section: LP + "fit_pontoon_section.webp",
+
+  // patch category stamps
+  patch_stamp_audio: LP + "patch_stamp_audio.webp",
+  patch_stamp_balance: LP + "patch_stamp_balance.webp",
+  patch_stamp_fix: LP + "patch_stamp_fix.webp",
+  patch_stamp_mechanics: LP + "patch_stamp_mechanics.webp",
+  patch_stamp_new_content: LP + "patch_stamp_new_content.webp",
+  patch_stamp_ui: LP + "patch_stamp_ui.webp",
 };
