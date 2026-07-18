@@ -47,6 +47,7 @@ Action-dispatch over POST body `{ action, gameId?, ...params }`. Frontend calls 
 | `macroHalt` | columnId | Macro only — stand down at the next node reached |
 | `macroMusterColumn` | nodeId, regiments, generalId (`"recruit"` to buy) | Macro only — levy a column at a controlled city / the base anchor |
 | `macroDisbandColumn` | columnId | Macro only — dissolve at a controlled settlement |
+| `macroSetPosture` | columnId, posture (`aggressive`/`evasive`) | Macro only — set a column's dawn-interception stance |
 
 Turn enforcement via `requireMyTurn()`; army actions blocked while `activeBattle` exists. The world lives in `Game.macro` (design: `docs/MACRO_ENGINE.md`); the hex world model is deleted. On completion, fires `logGameToSheet` + `exportChronicleToDoc` (non-blocking).
 

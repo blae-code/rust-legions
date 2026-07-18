@@ -63,6 +63,21 @@ const STUBS = `
   const creditVictory = () => {};
   const generalFate = () => {};
   const roll3d6 = () => 10;
+  // Battle-engine stubs: the real round math is covered by combat-math tests;
+  // here we resolve deterministically (stronger side wins, loser wiped) so the
+  // interception detection + outcome application under test are exercised end-to-end.
+  const setChoice = (side, m) => { side.choice = m; };
+  const aiManeuver = () => 'attack';
+  const recordBattleHonors = () => {};
+  function finishBattle(game, b, attackerWon) {
+    macroApplyBattleOutcome(game, b, attackerWon);
+    game.activeBattle = null;
+  }
+  function resolveBattleRound(game, b) {
+    const attackerWon = totalUnits(b.attacker.units) >= totalUnits(b.defender.units);
+    if (attackerWon) b.defender.units = {}; else b.attacker.units = {};
+    finishBattle(game, b, attackerWon);
+  }
 `;
 
 let MACRO = null;
@@ -75,6 +90,7 @@ export function loadMacro() {
     "macroApplyBattleOutcome", "macroNode", "macroRouteBetween", "macroColumnsAt",
     "macroBlockedAgainst", "macroSettlements", "macroSupplied", "MACRO_SETTLEMENT_YIELD",
     "MACRO_COLUMN_KEYS", "MACRO_ESCORT", "MACRO_SUPPLY_MILES", "MACRO_BASE_DAY_RATE",
+    "macroResolveInterceptions", "macroPostureOf", "macroIsChokeEdge", "macroNpcPosture",
   ];
   // eslint-disable-next-line no-new-func
   const factory = new Function(`"use strict";

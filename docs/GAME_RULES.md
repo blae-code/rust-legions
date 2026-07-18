@@ -303,7 +303,8 @@ are untouched and remain authoritative for hex games.
   × weather (rain/snow: wheel-bearing columns ×0.6, foot-only ×0.85).
 - **Orders:** `macroPlotMarch` Dijkstra-validates a path (mid-leg redirects take
   effect from the node ahead); `macroHalt` stands a column down at the next node;
-  `macroDisbandColumn` dissolves it at a controlled settlement.
+  `macroDisbandColumn` dissolves it at a controlled settlement; `macroSetPosture`
+  sets a column aggressive/evasive (see Interception).
 - **Control:** arriving at an undefended node flips it — unless its owner is
   protected by a signed accord (truces protect territory as well as troops).
   Contact at the node ahead (foreign columns, or a foreign fortress-base
@@ -320,6 +321,17 @@ are untouched and remain authoritative for hex games.
   medals, veterancy and the dispatch archive all apply. Fortress-base anchor
   nodes cannot be assaulted (boarding actions arrive in M5) and block foreign
   movement. Accords forbid engagement; NPC dispositions drop when attacked.
+- **Interception (M3b):** at dawn, after all movement, two hostile columns that
+  end the day on the **same road segment** roll an interception. Each column has
+  a **posture** (aggressive default / evasive; NPCs by doctrine). The faster
+  column decides: aggressive → it runs the other down; evasive → it slips past
+  **unless** the segment touches a **chokepoint** (any crossroads node), where an
+  aggressive slower column springs the ambush. The fight is a full mass battle
+  **auto-resolved** by the AI (no player prompt — dawn has no active player; the
+  posture is your lever). No control flips on the road; the loser's survivors
+  fall back to the segment's rear node and halt, or are destroyed. Veterancy,
+  morale, signatures, command vehicles and the after-action report all apply. A
+  signed accord shields both columns. One interception per segment per dawn.
 - **Income (daily):** city 2 St + 2 MP · town 2 MP · depot 2 F · ruin 1 St ·
   crossroads nothing.
 - **Setup:** spawn cities spread by greedy max-min march-distance; each faction

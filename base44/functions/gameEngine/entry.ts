@@ -1080,6 +1080,7 @@ function macroAdvanceDay(game) {
     if (!column.march || !rate) continue;
     macroAdvanceMover(game, column, rate, 1, supplied[column.owner], (nid) => macroFlipControl(game, column, nid));
   }
+  macroResolveInterceptions(game); // hostile columns caught on the same road
   macroCheckWin(game);
 }
 
@@ -1145,6 +1146,7 @@ function macroVisibleFor(game, slotIdx) {
     strength: forcePoints(c.regiments),
     regiments: c.owner === slotIdx ? c.regiments : undefined,
     dayRate: c.owner === slotIdx ? macroDayRate(c.regiments) : undefined,
+    posture: c.owner === slotIdx ? macroPostureOf(c) : undefined,
     inSupply: c.owner === slotIdx ? mySupply.has(macroColumnAnchor(c)) : undefined,
     general: (() => {
       const g = (game.factionSlots[c.owner]?.generals || []).find((x) => x.id === c.generalId);
@@ -1208,6 +1210,7 @@ function macroNpcTurn(game, slotIdx) {
         id: genId(), owner: slotIdx, generalId: null, battles: 0,
         name: `${ARMY_ORDINALS[Math.min((slot.armiesRaised || 1) - 1, 8)]} Column`,
         regiments: { riflemen: 2 }, nodeId: base.nodeId,
+        posture: macroNpcPosture(slot.doctrine),
       });
     }
   }
@@ -1309,6 +1312,7 @@ function macroCreateBattle(game, slotIdx, column, nodeId) {
 // Apply a finished macro battle's outcome to columns and control; returns the
 // outcome label. The shared finishBattle tail (honors, archive) runs after.
 function macroApplyBattleOutcome(game, b, attackerWon) {
+  if (b.macro.interception) return macroApplyInterceptionOutcome(game, b, attackerWon);
   const node = macroNode(game.macro, b.macro.nodeId);
   const attSlotObj = game.factionSlots[b.attacker.slot];
   const defSlotObj = game.factionSlots[b.defender.slot];
@@ -1353,6 +1357,126 @@ function macroApplyBattleOutcome(game, b, attackerWon) {
     generalFate(game, column);
   }
   return 'repelled';
+}
+
+// --- Interception (slice M3b — docs/MACRO_ENGINE.md §7) ---
+const MACRO_POSTURES = ['aggressive', 'evasive'];
+const macroPostureOf = (c) => (c.posture === 'evasive' ? 'evasive' : 'aggressive');
+const macroNpcPosture = (doctrine) => (doctrine === 'aggressive' ? 'aggressive' : 'evasive');
+const macroEdgeKey = (a, b) => (a < b ? `${a}|${b}` : `${b}|${a}`);
+// A road segment is chokepoint ground if either end is a crossroads (a route
+// junction — the taxonomy's ambush candidate) or carries an explicit flag
+const macroIsChokeEdge = (game, a, b) =>
+  [a, b].some((id) => { const n = macroNode(game.macro, id); return n && (n.chokepoint || n.kind === 'crossroads'); });
+
+// Run a transient macro battle to completion with both sides AI-commanded — used
+// for dawn interceptions, where no player is present to issue orders.
+function macroAutoResolveBattle(game, b) {
+  game.activeBattle = b;
+  let guard = 0;
+  while (game.activeBattle === b && guard++ < 40) {
+    setChoice(b.attacker, aiManeuver(b.attacker, game.factionSlots[b.attacker.slot]?.doctrine));
+    setChoice(b.defender, aiManeuver(b.defender, game.factionSlots[b.defender.slot]?.doctrine));
+    resolveBattleRound(game, b);
+  }
+  if (game.activeBattle === b) finishBattle(game, b, totalUnits(b.attacker.units) >= totalUnits(b.defender.units));
+}
+
+// Build a 1v1 road encounter as a battle object (columns stay on the roster;
+// results are applied at outcome). Attacker is the column that pressed the fight.
+function macroBuildInterception(game, attacker, defender, towardId) {
+  const weather = game.weather || 'clear';
+  const side = (col) => {
+    const slot = game.factionSlots[col.owner];
+    const g = (slot.generals || []).find((x) => x.id === col.generalId) || { name: 'Field Officer', strategy: 9 };
+    const rank = armyRank(col.battles || 0);
+    const trait = traitByKey(g.trait);
+    return {
+      slot: col.owner, armyId: col.id, armyName: col.name, generalName: g.name, generalId: g.id || null,
+      strategy: g.strategy, units: { ...col.regiments }, morale: 100, choice: null, nextBonus: 0, losses: 0,
+      signature: trait?.signature || null, sigCooldown: 0, vetBonus: rank.bonus, rank: rank.label,
+      vehicle: vehicleOf(g), supplyPenalty: 0, weatherPenalty: 0, elevMod: 0, design: null,
+    };
+  };
+  if (game.factionSlots[defender.owner]?.isNPC) shiftDisposition(game, defender.owner, attacker.owner, -8);
+  const where = `the road to ${macroNode(game.macro, towardId)?.name || 'the front'}`;
+  const b = {
+    id: genId(), worldModel: 'macro', tileId: null, tileName: where,
+    macro: { interception: true, attackerColumnId: attacker.id, defenderColumnId: defender.id },
+    attacker: side(attacker),
+    defender: { ...side(defender), absorbedArmies: [], fortBonus: 0, terrainBonus: 0, interactive: false },
+    round: 1, terrain: null, weather,
+    log: [`${game.factionSlots[attacker.owner].factionName}'s ${attacker.name} runs down the ${defender.name} on ${where}.`],
+  };
+  b.attacker.absorbedArmies = [];
+  game.combatLog.push({ turn: game.turnNumber, type: 'event', text: `Interception on ${where} — ${attacker.name} catches the ${defender.name}.` });
+  return b;
+}
+
+function macroApplyInterceptionOutcome(game, b, attackerWon) {
+  const cols = game.macro.columns || [];
+  const attCol = cols.find((c) => c.id === b.macro.attackerColumnId);
+  const defCol = cols.find((c) => c.id === b.macro.defenderColumnId);
+  const winnerCol = attackerWon ? attCol : defCol;
+  const loserCol = attackerWon ? defCol : attCol;
+  const winnerUnits = attackerWon ? b.attacker.units : b.defender.units;
+  const loserUnits = attackerWon ? b.defender.units : b.attacker.units;
+  if (winnerCol) {
+    winnerCol.regiments = winnerUnits;
+    winnerCol.battles = (winnerCol.battles || 0) + 1;
+    creditVictory(game, winnerCol.owner, winnerCol.generalId);
+  }
+  if (loserCol) {
+    if (totalUnits(loserUnits) > 0) {
+      loserCol.regiments = loserUnits;
+      loserCol.battles = (loserCol.battles || 0) + 1;
+      const rear = loserCol.march ? loserCol.march.path[0] : loserCol.nodeId;
+      loserCol.nodeId = rear;
+      delete loserCol.march; // thrown back off the road, halted
+    } else {
+      game.macro.columns = game.macro.columns.filter((c) => c.id !== loserCol.id);
+      generalFate(game, loserCol);
+    }
+  }
+  return attackerWon ? 'intercepted' : 'evaded';
+}
+
+// Dawn interception sweep: one engagement per road segment shared by hostile
+// columns. The faster column's posture decides; a chokepoint lets an aggressive
+// slower column force the fight.
+function macroResolveInterceptions(game) {
+  const byEdge = {};
+  for (const c of game.macro.columns || []) {
+    if (!c.march || c.march.path.length < 2) continue;
+    const key = macroEdgeKey(c.march.path[0], c.march.path[1]);
+    (byEdge[key] = byEdge[key] || []).push(c);
+  }
+  for (const [key, group] of Object.entries(byEdge)) {
+    if (group.length < 2) continue;
+    const sorted = [...group].sort((x, y) => (x.id < y.id ? -1 : 1));
+    let pair = null;
+    for (let i = 0; i < sorted.length && !pair; i++) {
+      for (let j = i + 1; j < sorted.length && !pair; j++) {
+        if (sorted[i].owner !== sorted[j].owner && !atPeace(game, sorted[i].owner, sorted[j].owner)) pair = [sorted[i], sorted[j]];
+      }
+    }
+    if (!pair) continue;
+    const [x, y] = pair;
+    const rx = macroDayRate(x.regiments) || 0, ry = macroDayRate(y.regiments) || 0;
+    const faster = rx >= ry ? x : y;
+    const slower = faster === x ? y : x;
+    const [a, b] = key.split('|');
+    let attacker = null;
+    if (macroPostureOf(faster) === 'aggressive') attacker = faster;
+    else if (macroIsChokeEdge(game, a, b) && macroPostureOf(slower) === 'aggressive') attacker = slower;
+    if (!attacker) {
+      game.combatLog.push({ turn: game.turnNumber, type: 'event', text: `${game.factionSlots[faster.owner].factionName}'s ${faster.name} slips past the ${slower.name} on the road.` });
+      continue;
+    }
+    const defender = attacker === x ? y : x;
+    const toward = attacker.march.path[1];
+    macroAutoResolveBattle(game, macroBuildInterception(game, attacker, defender, toward));
+  }
 }
 
 // ---------- End macro engine (harness marker) ----------
@@ -1588,6 +1712,7 @@ Deno.serve(async (req) => {
             generalId: slot.isNPC ? null : slot.generals[0].id,
             name: '1st Column',
             regiments: { ...MACRO_ESCORT }, nodeId: spawn.id,
+            posture: slot.isNPC ? macroNpcPosture(slot.doctrine) : 'aggressive',
           });
           const startBonus = slot.mods.startBonus || 0;
           game.treasuries[String(slot.slotIndex)] = Object.fromEntries(RESOURCE_KEYS.map((k) => [k, Math.max(START_RESOURCES[k] + startBonus, 0)]));
@@ -1880,6 +2005,18 @@ Deno.serve(async (req) => {
       return Response.json({ ok: true });
     }
 
+    GAME_ACTIONS.macroSetPosture = async () => {
+      requireMacro();
+      const slotIdx = requireMyTurn();
+      const { columnId, posture } = body;
+      if (!MACRO_POSTURES.includes(posture)) return Response.json({ error: 'Unknown posture' }, { status: 400 });
+      const column = (game.macro.columns || []).find((c) => c.id === columnId && c.owner === slotIdx);
+      if (!column) return Response.json({ error: 'Column not found' }, { status: 404 });
+      column.posture = posture;
+      await persistMacro();
+      return Response.json({ ok: true });
+    }
+
     GAME_ACTIONS.macroMusterColumn = async () => {
       requireMacro();
       const slotIdx = requireMyTurn();
@@ -1924,7 +2061,7 @@ Deno.serve(async (req) => {
         id: genId(), owner: slotIdx, battles: 0, generalId: general.id,
         name: `${ARMY_ORDINALS[Math.min(slot.armiesRaised - 1, 8)]} Column`,
         regiments: Object.fromEntries(MACRO_COLUMN_KEYS.map((k) => [k, regiments[k] || 0])),
-        nodeId,
+        nodeId, posture: 'aggressive',
       };
       game.macro.columns.push(column);
       game.combatLog.push({ turn: game.turnNumber, type: 'event', text: `${slot.factionName} levies the ${column.name} under ${general.name} at ${node.name}.` });

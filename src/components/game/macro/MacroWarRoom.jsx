@@ -180,6 +180,15 @@ export default function MacroWarRoom({ game, busy, onAction }) {
               <span className="font-mono text-[9px] text-brass ml-auto">
                 {c.nodeId ? `AT ${byId[c.nodeId]?.name?.toUpperCase() || "?"}` : `→ ${byId[c.march.path[c.march.path.length - 1]]?.name?.toUpperCase() || "?"}`}
               </span>
+              {canOrder && (
+                <button
+                  title={c.posture === "evasive" ? "Evasive — slips past enemies on the road when it can" : "Aggressive — runs down enemies caught on the same road"}
+                  onClick={() => { playSfx("hover"); onAction({ action: "macroSetPosture", columnId: c.id, posture: c.posture === "evasive" ? "aggressive" : "evasive" }); }}
+                  className={`h-6 px-2 text-[9px] rounded-sm border font-heading uppercase tracking-wide transition-colors ${c.posture === "evasive" ? "border-steel/60 text-steel" : "border-rust/50 text-rust"}`}
+                >
+                  {c.posture === "evasive" ? "Evasive" : "Aggressive"}
+                </button>
+              )}
               {canOrder && c.nodeId && (
                 <Button size="sm" variant="outline" className="h-6 px-2 text-[10px] border-brass/50 text-brass-bright font-heading uppercase" onClick={() => { playSfx("select"); setPlotting(c.id); setSelectedColumn(c.id); }}>
                   March

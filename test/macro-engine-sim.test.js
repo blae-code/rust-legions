@@ -227,3 +227,59 @@ describe("victory", () => {
     expect(game.winnerSlot).toBe(0);
   });
 });
+
+describe("interception (M3b)", () => {
+  // Put two hostile columns head-on along a road, both mid-leg on the same edge
+  function contested() {
+    const game = newGame();
+    const [a, b] = [game.macro.routes.find((r) => r[3] !== "sealane")].map((r) => r);
+    const [n0, n1] = a; // an ordinary land segment
+    game.macro.columns = [
+      { id: "cA", owner: 0, generalId: "g0", battles: 0, name: "1st Column", regiments: { riflemen: 3, crawler: 1 }, march: { path: [n0, n1], legMiles: a[2] * 0.4 }, posture: "aggressive" },
+      { id: "cB", owner: 1, generalId: null, battles: 0, name: "Raiders", regiments: { riflemen: 1 }, march: { path: [n1, n0], legMiles: a[2] * 0.5 }, posture: "aggressive" },
+    ];
+    return { game, edge: a };
+  }
+
+  it("an aggressive column runs down a hostile sharing its road", () => {
+    const { game } = contested();
+    M.macroResolveInterceptions(game);
+    // The weaker raider (1 company) is wiped; the stronger column survives
+    const survivors = game.macro.columns;
+    expect(survivors.some((c) => c.id === "cA")).toBe(true);
+    expect(survivors.some((c) => c.id === "cB")).toBe(false);
+    expect(game.combatLog.some((e) => /[Ii]nterception|runs down/.test(e.text || ""))).toBe(true);
+  });
+
+  it("two evasive columns slip past each other with no battle", () => {
+    const { game } = contested();
+    game.macro.columns.forEach((c) => { c.posture = "evasive"; });
+    const before = game.macro.columns.length;
+    M.macroResolveInterceptions(game);
+    expect(game.macro.columns.length).toBe(before); // nobody destroyed
+    expect(game.combatLog.some((e) => /slips past/.test(e.text || ""))).toBe(true);
+  });
+
+  it("a truce shields columns from interception", () => {
+    const { game } = contested();
+    game.__accords = [[0, 1]];
+    const before = game.macro.columns.length;
+    M.macroResolveInterceptions(game);
+    expect(game.macro.columns.length).toBe(before);
+  });
+
+  it("crossroads are chokepoint ground", () => {
+    const game = newGame();
+    const cross = game.macro.nodes.find((n) => n.kind === "crossroads");
+    const other = game.macro.nodes.find((n) => n.id !== cross.id);
+    expect(M.macroIsChokeEdge(game, cross.id, other.id)).toBe(true);
+    const twoTowns = game.macro.nodes.filter((n) => n.kind !== "crossroads").slice(0, 2);
+    expect(M.macroIsChokeEdge(game, twoTowns[0].id, twoTowns[1].id)).toBe(false);
+  });
+
+  it("NPC posture follows doctrine", () => {
+    expect(M.macroNpcPosture("aggressive")).toBe("aggressive");
+    expect(M.macroNpcPosture("economic")).toBe("evasive");
+    expect(M.macroNpcPosture("defensive")).toBe("evasive");
+  });
+});

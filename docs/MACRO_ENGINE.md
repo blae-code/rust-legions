@@ -135,10 +135,24 @@ War Table honest. What fog gates is the **live state**:
   battle** through the existing engine unchanged — `createBattle` gains a macro
   entry point (node name as `tileName`, node kind → terrain flavor); veterancy,
   medals, signatures, morale, weather effects all carry over (VISION §5.5).
-- **Interception on edges (M3):** two hostile columns on the same edge (or
-  meeting head-on) roll an interception check — the faster force chooses engage
-  or evade; evasion costs a day *(tune)*; `chokepoint` nodes force battle
-  (MACRO_MAP §3.3). This is where day-rate differentials become teeth.
+- **Interception on edges (M3b, shipped):** at dawn, after all movement, two
+  hostile columns that end the day on the **same route segment** (same unordered
+  node pair — catches a fast column catching a slow one and head-on meetings)
+  roll an interception. Each column carries a **posture** (`aggressive` default /
+  `evasive`, player-set; NPCs by doctrine). The **faster** column (higher
+  day-rate) decides: aggressive → it attacks; evasive → it slips past **unless**
+  the segment touches a **chokepoint** (any `crossroads` node, or a node's
+  `chokepoint` flag), in which case an aggressive **slower** column springs the
+  ambush. The engagement is a full mass battle **auto-resolved** server-side
+  (both sides AI-commanded via the same `aiManeuver` the battle screen uses —
+  dawn resolves every faction's columns with no player present, so interception
+  battles can't be interactive this slice; the posture is the player's lever).
+  No control flips on the road; the loser's survivors fall back to the segment's
+  rear node and halt, or are destroyed (general faces `generalFate`); the winner
+  keeps marching. Veterancy, morale, signatures, command vehicles and the
+  after-action report all apply. One interception per segment per dawn;
+  pass-through (a fast column overtaking without ending co-located) is not
+  modeled.
 
 ## 8. Economy & supply
 
@@ -183,7 +197,8 @@ War Table honest. What fog gates is the **live state**:
 | **M1 — The graph goes live** ✅ | worldModel, server world-gen, columns, plot/halt/muster/disband, dawn advance, fog, income, control flips, control victory, greedy NPCs, setup toggle + war-room client | shipped 2026-07-17 |
 | **M2 — Contact** ✅ | `macroEngage` node assaults via the mass-battle engine (absorption defense, honors/veterancy/medals, retreat/repel/reform outcomes), truce-protected territory, base anchors block movement | shipped 2026-07-17 |
 | **M3a — Supply & the base** ✅ | supply envelope (base + depots), out-of-supply half-rate + attrition, fortress-base movement re-anchoring supply | shipped 2026-07-17 |
-| **M3b — The long road** | interception on edges, air-wing recon, garrison layer at settlements | |
+| **M3b — Interception** ✅ | dawn interception on shared road segments (posture-driven engage/evade, crossroads chokepoints, auto-resolved mass battles, road retreat) | shipped 2026-07-18 |
+| **M3c — later** | air-wing recon (fighters widen observation), garrison layer at settlements | |
 | **M4 — The settled** | settlements as polities: dispositions, trade/tribute/raid verbs, war market | |
 | **M5 — The storm** | boarding assaults, base loss (crippled-remnant grace *(leaning)*), module stripping | |
 | **M6 — The prize** | dig sites, excavation, relics, relic victory; map editor becomes a graph editor; `World`/`Planet` entity | |
