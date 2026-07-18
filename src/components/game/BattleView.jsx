@@ -8,6 +8,7 @@ import InitiativeTracker from "@/components/game/InitiativeTracker";
 import BattleSparks from "@/components/game/BattleSparks";
 import { ALL_MANEUVERS, MANEUVER_KEYS, SIGNATURE_MANEUVERS, SIGNATURE_COOLDOWNS } from "@/lib/massCombat";
 import { WEATHER_META } from "@/lib/weather";
+import { getImage } from "@/lib/imageLibrary";
 
 export default function BattleView({ battle, busy, onChoose }) {
   const [fx, setFx] = useState(0);
@@ -111,7 +112,12 @@ export default function BattleView({ battle, busy, onChoose }) {
                       onCooldown ? "border-rust/50 bg-rust/5 cursor-not-allowed" : sig ? "border-brass/70 bg-brass/10 hover:bg-brass/20" : "border-border hover:border-brass/70 hover:bg-brass/10"
                     }`}
                   >
-                    <p className={`text-xs font-heading font-semibold tracking-wide ${onCooldown ? "text-muted-foreground" : sig ? "text-brass-bright" : "text-secondary-foreground"}`}>{ALL_MANEUVERS[key].icon} {ALL_MANEUVERS[key].label}</p>
+                    <p className={`text-xs font-heading font-semibold tracking-wide flex items-center gap-1.5 ${onCooldown ? "text-muted-foreground" : sig ? "text-brass-bright" : "text-secondary-foreground"}`}>
+                      {getImage(`mnv_${key}`)
+                        ? <img src={getImage(`mnv_${key}`)} alt="" aria-hidden="true" className="w-6 h-6 object-contain shrink-0 rounded-sm select-none" />
+                        : <span>{ALL_MANEUVERS[key].icon}</span>}
+                      {ALL_MANEUVERS[key].label}
+                    </p>
                     <p className="text-[9px] font-mono text-muted-foreground mt-0.5 leading-snug">{ALL_MANEUVERS[key].desc}</p>
                     {sig && (
                       onCooldown ? (

@@ -4,6 +4,7 @@ import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Copy, Check } from "lucide-react";
 import GameChat from "@/components/game/chat/GameChat";
+import { getImage } from "@/lib/imageLibrary";
 import { WORLDS } from "@/lib/macro/worlds";
 
 export default function LobbyView({ game, onJoin, onStart, busy, error }) {
@@ -30,7 +31,10 @@ export default function LobbyView({ game, onJoin, onStart, busy, error }) {
 
   return (
     <div className="max-w-2xl mx-auto space-y-4">
-      <div className="cq-panel p-6 relative overflow-hidden">
+      <div className="cq-panel p-6 relative overflow-hidden isolate">
+        {getImage("bg_lobby") && (
+          <img src={getImage("bg_lobby")} alt="" aria-hidden="true" className="absolute inset-0 w-full h-full object-cover opacity-[0.15] pointer-events-none select-none -z-10" />
+        )}
         <div className="cq-hazard absolute top-0 left-0 right-0" />
         <h2 className="cq-display text-3xl mb-1 mt-1">{game.name}</h2>
         <p className="cq-label mb-4">

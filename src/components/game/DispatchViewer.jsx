@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { ALL_MANEUVERS } from "@/lib/massCombat";
+import { getImage } from "@/lib/imageLibrary";
 
 const OUTCOME_TEXT = {
   captured: "ZONE CAPTURED",
@@ -10,14 +11,18 @@ const OUTCOME_TEXT = {
 
 function OrderCard({ title, faction, general, entry }) {
   const m = ALL_MANEUVERS[entry?.maneuver] || { label: entry?.maneuver || "—", icon: "▪" };
+  const orderArt = entry?.maneuver ? getImage(`mnv_${entry.maneuver}`) : null;
   return (
     <div className="flex-1 border border-border rounded-sm bg-background/60 p-3">
       <p className="font-mono text-[8px] text-steel tracking-[0.25em]">{title}</p>
       <p className="font-heading font-semibold text-sm text-foreground truncate">{faction}</p>
       <p className="font-mono text-[9px] text-muted-foreground mb-2 truncate">CMDG: {general?.toUpperCase()}</p>
-      <div className="border border-brass/40 rounded-sm bg-brass/5 px-2 py-1.5 mb-2">
-        <p className="font-mono text-[8px] text-brass/70 tracking-[0.25em]">ORDER ISSUED</p>
-        <p className="font-heading uppercase tracking-widest text-brass-bright text-sm">{m.icon} {m.label}</p>
+      <div className="border border-brass/40 rounded-sm bg-brass/5 px-2 py-1.5 mb-2 flex items-center gap-2">
+        {orderArt && <img src={orderArt} alt="" aria-hidden="true" className="w-9 h-9 object-contain shrink-0 rounded-sm select-none" />}
+        <div className="min-w-0">
+          <p className="font-mono text-[8px] text-brass/70 tracking-[0.25em]">ORDER ISSUED</p>
+          <p className="font-heading uppercase tracking-widest text-brass-bright text-sm truncate">{orderArt ? m.label : `${m.icon} ${m.label}`}</p>
+        </div>
       </div>
       <div className="font-mono text-[10px] text-secondary-foreground space-y-0.5">
         <p>CASUALTIES THIS ROUND: <span className={entry?.losses > 0 ? "text-rust" : ""}>{entry?.losses ?? 0}</span></p>

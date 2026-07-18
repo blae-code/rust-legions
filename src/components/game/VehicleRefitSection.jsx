@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { VEHICLE_MODS, convoyCost } from "@/lib/commandVehicles";
 import { costString } from "@/lib/units";
+import { getImage } from "@/lib/imageLibrary";
 
 // Refit bays for a general's command vehicle — instant at a depot
 // (barracks/foundry/fortress-base), or by supply convoy: slower but 25% cheaper.
@@ -44,8 +45,11 @@ export default function VehicleRefitSection({ army, busy, onRefit }) {
                 onClick={() => onRefit(g.id, key)}
                 className="w-full text-left border border-border rounded-sm px-2 py-1 hover:border-brass/50 disabled:opacity-40 disabled:pointer-events-none transition-colors"
               >
-                <span className="text-[11px] font-heading tracking-wide text-secondary-foreground">
-                  {m.bay === "weapon" ? "☢" : "🔧"} {m.label}
+                <span className="text-[11px] font-heading tracking-wide text-secondary-foreground inline-flex items-center gap-1.5">
+                  {getImage(`refit_${key}`)
+                    ? <img src={getImage(`refit_${key}`)} alt="" aria-hidden="true" className="w-5 h-5 object-contain shrink-0 rounded-sm select-none" />
+                    : <span>{m.bay === "weapon" ? "☢" : "🔧"}</span>}
+                  {m.label}
                 </span>
                 <span className="block font-mono text-[9px] text-muted-foreground">
                   {m.bay.toUpperCase()} BAY · {m.effect} · {costString(cost)}

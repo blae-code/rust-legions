@@ -21,6 +21,7 @@ import DoctrinePanel from "@/components/game/research/DoctrinePanel";
 import MacroWarRoom from "@/components/game/macro/MacroWarRoom";
 import GameChat from "@/components/game/chat/GameChat";
 import { RESOURCE_KEYS, RESOURCE_META } from "@/lib/units";
+import { getImage } from "@/lib/imageLibrary";
 import { WORLDS } from "@/lib/macro/worlds";
 
 export default function GamePage() {
@@ -230,8 +231,13 @@ export default function GamePage() {
 
       {game.status === "complete" && (
         <div className="relative cq-panel border-brass/70 p-5 text-center overflow-hidden">
+          {(() => {
+            const meWon = !!game.winnerName && game.factions?.find((f) => f.isMe)?.factionName === game.winnerName;
+            const bg = getImage(meWon ? "bg_victory" : "bg_defeat");
+            return bg ? <img src={bg} alt="" aria-hidden="true" className="absolute inset-0 w-full h-full object-cover opacity-30 pointer-events-none select-none" /> : null;
+          })()}
           <div className="cq-hazard absolute top-0 left-0 right-0" />
-          <p className="cq-display text-2xl text-brass-bright">
+          <p className="cq-display text-2xl text-brass-bright relative">
             {game.winnerName ? `${game.winnerName} has won the war` : "The war has ended"}
           </p>
           <motion.span
@@ -267,8 +273,11 @@ export default function GamePage() {
               )}
               <div className="flex justify-between text-xs font-mono text-secondary-foreground">
                 {RESOURCE_KEYS.map((k) => (
-                  <span key={k} title={RESOURCE_META[k].label}>
-                    {RESOURCE_META[k].icon} {game.myResources[k] || 0}
+                  <span key={k} title={RESOURCE_META[k].label} className="inline-flex items-center gap-1">
+                    {getImage(`res_${k}`)
+                      ? <img src={getImage(`res_${k}`)} alt="" aria-hidden="true" className="w-4 h-4 object-contain select-none" />
+                      : <span>{RESOURCE_META[k].icon}</span>}
+                    {game.myResources[k] || 0}
                     <span className="text-muted-foreground"> +{game.myProduction?.[k] || 0}</span>
                   </span>
                 ))}

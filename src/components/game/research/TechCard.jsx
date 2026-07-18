@@ -1,7 +1,9 @@
 import React from "react";
+import { getImage } from "@/lib/imageLibrary";
 
 // One doctrine card — completed / researching / available / locked states
 export default function TechCard({ techId, tech, research, busy, onFocus }) {
+  const plate = getImage(`tech_${techId}`);
   const completed = (research.completed || []).includes(techId);
   const locked = tech.prereq && !(research.completed || []).includes(tech.prereq);
   const isFocus = research.focus === techId;
@@ -12,7 +14,10 @@ export default function TechCard({ techId, tech, research, busy, onFocus }) {
       completed ? "border-olive/60 bg-olive/10" : isFocus ? "border-brass bg-brass/10" : locked ? "border-border opacity-45" : "border-border bg-secondary/20"
     }`}>
       <div className="flex justify-between items-center gap-2">
-        <span className="text-xs font-heading tracking-wide text-secondary-foreground">{tech.label}</span>
+        <span className="flex items-center gap-1.5 min-w-0">
+          {plate && <img src={plate} alt="" aria-hidden="true" className="w-5 h-5 object-contain shrink-0 select-none" />}
+          <span className="text-xs font-heading tracking-wide text-secondary-foreground truncate">{tech.label}</span>
+        </span>
         <span className="font-mono text-[9px] shrink-0 tracking-widest text-muted-foreground">
           {completed ? <span className="text-olive">IN SERVICE</span> : `${pts}/${tech.cost} RP`}
         </span>

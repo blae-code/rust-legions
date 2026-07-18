@@ -1,5 +1,6 @@
 import React from "react";
 import { ARMY_UNIT_KEYS, REGIMENT_LABELS } from "@/lib/massCombat";
+import { getImage } from "@/lib/imageLibrary";
 
 export default function BattleForce({ side, title, accent, isMe }) {
   return (
@@ -17,7 +18,13 @@ export default function BattleForce({ side, title, accent, isMe }) {
       )}
       <div className="space-y-0.5 text-[11px] font-mono text-secondary-foreground">
         {ARMY_UNIT_KEYS.map((k) => (side.units?.[k] || 0) > 0 && (
-          <div key={k} className="flex justify-between"><span className="text-muted-foreground">{REGIMENT_LABELS[k]}</span><span>×{side.units[k]}</span></div>
+          <div key={k} className="flex justify-between">
+            <span className="text-muted-foreground inline-flex items-center gap-1.5">
+              {getImage(`unit_${k}_token`) && <img src={getImage(`unit_${k}_token`)} alt="" aria-hidden="true" className="w-4 h-4 object-contain select-none" />}
+              {REGIMENT_LABELS[k]}
+            </span>
+            <span>×{side.units[k]}</span>
+          </div>
         ))}
         <div className="flex justify-between text-rust"><span>Losses</span><span>{side.losses}</span></div>
       </div>

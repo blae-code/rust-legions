@@ -1,5 +1,6 @@
 import React from "react";
 import { MODULE_SLOTS, BASE_MODULES, computeBaseStats } from "@/lib/baseModules";
+import { getImage } from "@/lib/imageLibrary";
 
 // Hands-on refit drill — install modules into the three bays and watch the hull stats respond
 export default function FortressDrill({ modules, onChange }) {
@@ -23,8 +24,9 @@ export default function FortressDrill({ modules, onChange }) {
                   className={`cq-metal text-left rounded-sm border px-3 py-2 transition-colors ${
                     active ? "border-rust bg-rust/10" : "border-border hover:border-brass/60"
                   }`}>
-                  <span className={`block font-heading text-sm tracking-wide ${active ? "text-brass-bright" : "text-secondary-foreground"}`}>
-                    {m.label} {active && <span className="text-rust text-[10px]">● FITTED</span>}
+                  <span className={`font-heading text-sm tracking-wide flex items-center gap-1.5 ${active ? "text-brass-bright" : "text-secondary-foreground"}`}>
+                    {getImage(`mod_${key}`) && <img src={getImage(`mod_${key}`)} alt="" aria-hidden="true" className="w-6 h-6 object-contain shrink-0 rounded-sm select-none" />}
+                    <span>{m.label} {active && <span className="text-rust text-[10px]">● FITTED</span>}</span>
                   </span>
                   <span className="block text-[10px] text-muted-foreground">{m.desc}</span>
                   <span className="block font-mono text-[9px] text-muted-foreground mt-0.5">

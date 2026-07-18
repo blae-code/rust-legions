@@ -2,6 +2,7 @@ import React from "react";
 import GeneralPortrait from "@/components/game/GeneralPortrait";
 import { MEDALS } from "@/lib/medals";
 import { getCommandVehicle } from "@/lib/commandVehicles";
+import { getImage } from "@/lib/imageLibrary";
 
 export default function GeneralBadge({ general }) {
   if (!general) return null;
@@ -35,6 +36,10 @@ export default function GeneralBadge({ general }) {
             {general.medals.map((key) => {
               const m = MEDALS[key];
               if (!m) return null;
+              const art = getImage(`medal_${key}`);
+              if (art) {
+                return <img key={key} src={art} alt={m.label} title={`${m.label} — ${m.desc}`} className="w-4 h-4 object-contain cursor-help select-none" />;
+              }
               return (
                 <span
                   key={key}
