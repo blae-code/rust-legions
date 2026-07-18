@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Loader2 } from "lucide-react";
 import PlanetPicker from "@/components/setup/PlanetPicker";
+import { PRESET_FACTIONS, presetToFactionRecord } from "@/lib/presetFactions";
 
 const DOCTRINE_OPTS = ["aggressive", "economic", "defensive"];
 
@@ -25,6 +26,7 @@ export default function NewGame() {
   const [winType, setWinType] = useState("territory");
   const [winValue, setWinValue] = useState(60);
   const [creating, setCreating] = useState(false);
+  const [forgingId, setForgingId] = useState("");
   const [error, setError] = useState("");
 
   const totalSlots = humanCount + npcs.length;
@@ -42,6 +44,19 @@ export default function NewGame() {
   useEffect(() => {
     if (isCampaign && npcs.length === 0) setNpcs(["aggressive"]);
   }, [isCampaign, npcs.length]);
+
+  const forgePreset = async (preset) => {
+    setForgingId(preset.id);
+    setError("");
+    try {
+      const created = await base44.entities.Faction.create(presetToFactionRecord(preset));
+      setFactions((prev) => [...prev, created]);
+      setFactionId(created.id);
+    } catch (e) {
+      setError(e.response?.data?.error || "Failed to requisition preset faction");
+    }
+    setForgingId("");
+  };
 
   const create = async () => {
     setCreating(true);
@@ -85,7 +100,26 @@ export default function NewGame() {
         <div>
           <label className="cq-label">Your Faction</label>
           {factions.length === 0 ? (
-            <p className="text-xs text-muted-foreground mt-1">No factions yet — forge one in the Faction Builder first.</p>
+            <div className="mt-1 space-y-2">
+              <p className="text-xs text-muted-foreground">No factions on file — requisition a standing faction to take the field now, or forge a custom nation in the Faction Builder.</p>
+              <div className="grid sm:grid-cols-3 gap-2">
+                {PRESET_FACTIONS.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    disabled={!!forgingId}
+                    onClick={() => forgePreset(p)}
+                    className="text-left border border-border rounded-sm p-3 transition-colors hover:border-brass disabled:opacity-50"
+                  >
+                    <p className="font-heading font-semibold tracking-wide text-foreground text-sm flex items-center gap-1.5">
+                      {forgingId === p.id && <Loader2 className="w-3 h-3 animate-spin" />}
+                      {p.factionName}
+                    </p>
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-brass mt-1 font-heading">{p.doctrine}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
           ) : (
             <select value={factionId} onChange={(e) => setFactionId(e.target.value)} className="w-full bg-input border border-border rounded-sm p-2 text-sm mt-1 text-secondary-foreground font-heading tracking-wide">
               {factions.map((f) => <option key={f.id} value={f.id}>{f.factionName}</option>)}
