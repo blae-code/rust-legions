@@ -4,7 +4,7 @@ import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Copy, Check } from "lucide-react";
 import GameChat from "@/components/game/chat/GameChat";
-import { PLANETS } from "@/lib/macro/planets";
+import { WORLDS } from "@/lib/macro/worlds";
 
 export default function LobbyView({ game, onJoin, onStart, busy, error }) {
   const [myFactions, setMyFactions] = useState([]);
@@ -41,7 +41,7 @@ export default function LobbyView({ game, onJoin, onStart, busy, error }) {
             className="text-brass hover:text-brass-bright transition-colors"
             title="Survey the theater on the War Table"
           >
-            {PLANETS.find((p) => p.id === game.planetId)?.name || "Cindara"}
+            {WORLDS.find((p) => p.id === game.planetId)?.name || "Cindara"}
           </Link>
         </p>
         <div className="space-y-2">

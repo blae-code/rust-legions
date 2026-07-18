@@ -281,3 +281,65 @@ Every general fights from a **command vehicle** themed to their trait (Butcher: 
 - **Fortress-bases** need heavy **gantry cranes**: a capital or a **level-2 Foundry** only.
 - **Anywhere in supply**: refits arrive by convoy at the start of the owner's next turn, at **25% off** the module cost (economical but slow). One convoy per vehicle bay at a time.
 - **Cut off from supply with no site in reach**: no refits possible.
+## 22. Macro Operations (experimental world model — slices M1–M3a)
+
+A new game type beside the hex front (`worldModel: "macro"`, chosen at operation
+setup). The full design contract is `docs/MACRO_ENGINE.md`; the hex rules above
+are untouched and remain authoritative for hex games.
+
+- **World:** the campaign fights across the whole theater world's node-and-route
+  graph (the same generated worlds as the War Table, built server-side at
+  creation and stored on the game). Geography is public; control flags and
+  foreign columns are visible only within **one route hop** of your holdings,
+  base and columns.
+- **Time:** one full turn cycle = one day. At dawn every marching column (all
+  factions) advances one day; weather, research, income and accords keep their
+  existing daily cadence.
+- **Columns** (the macro armies): levied at a controlled **city** or the
+  fortress-base anchor (`macroMusterColumn` — standard unit costs, army-cap
+  check, general commissioning as in §8). Pace = slowest ground element
+  (riflemen 20 · crawlers 16 · artillery 12 mi/day; the air wing never slows a
+  column) × route grade (highway ×1.25 · road ×1.0 · track ×0.75 · trail ×0.5)
+  × weather (rain/snow: wheel-bearing columns ×0.6, foot-only ×0.85).
+- **Orders:** `macroPlotMarch` Dijkstra-validates a path (mid-leg redirects take
+  effect from the node ahead); `macroHalt` stands a column down at the next node;
+  `macroDisbandColumn` dissolves it at a controlled settlement.
+- **Control:** arriving at an undefended node flips it — unless its owner is
+  protected by a signed accord (truces protect territory as well as troops).
+  Contact at the node ahead (foreign columns, or a foreign fortress-base
+  anchor) **halts** the column short of it, awaiting orders.
+- **Assaults (M2):** `macroEngage` — a halted column assaults an adjacent
+  node held by foreign columns, opening a **mass battle** through the standard
+  engine (§9–§10: maneuvers, morale, signatures, veterancy, command vehicles;
+  weather applies; no terrain/fortification bonuses until the garrison layer
+  lands in M3). All defending columns fold into one force under their best
+  general, exactly like hex zone defense. Attacker wins: survivors advance,
+  the node flips, defending generals face their fate. Defender wins: the
+  defense reforms as a single column; attacker survivors hold at the staging
+  node (`retreated`) or the column is destroyed (`repelled`). Battle honors,
+  medals, veterancy and the dispatch archive all apply. Fortress-base anchor
+  nodes cannot be assaulted (boarding actions arrive in M5) and block foreign
+  movement. Accords forbid engagement; NPC dispositions drop when attacked.
+- **Income (daily):** city 2 St + 2 MP · town 2 MP · depot 2 F · ruin 1 St ·
+  crossroads nothing.
+- **Setup:** spawn cities spread by greedy max-min march-distance; each faction
+  starts with its spawn city, the fortress-base anchored there, and a 1st Column
+  escort (2 riflemen, 1 crawler).
+- **Victory:** control **60% of settlements** (crossroads excluded — the same
+  threshold as hex map control). Further conditions (base loss, relics) arrive
+  with slices M5–M6.
+- **NPCs:** doctrine-flavored greedy expansion — idle columns plot to the
+  nearest unclaimed settlement (economic doctrine weighs yields), and a second
+  column is levied when the treasury allows.
+- **Supply (M3):** each faction projects a supply envelope — ~220 effective
+  miles (≈3 road-days) from the **fortress-base** and every controlled **fuel
+  depot**, flowing through routes whose far node the faction controls or that
+  stand neutral. A column outside the envelope marches at **half rate** and
+  loses one company to privation every **2 days** cut off (air wing first, then
+  guns, armor, rifles). Depots are therefore strategic ground — they push the
+  envelope forward ahead of the base.
+- **Fortress-base movement (M3):** `macroMoveBase` rolls the base along the
+  graph at a slow **10 mi/day** (the slowest thing on the map). It re-anchors
+  supply as it goes and flips settlements it rolls through; it cannot enter
+  contested ground (foreign columns or a foreign base). Boarding assaults on an
+  anchored base remain reserved for M5.

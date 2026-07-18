@@ -8,15 +8,18 @@
     "description": {
       "type": "string"
     },
-    "planetId": {
-      "type": "string",
-      "default": "cindara"
-    },
-    "tiles": {
+    "nodes": {
       "type": "array",
       "items": {
         "type": "object",
         "additionalProperties": true
+      }
+    },
+    "routes": {
+      "type": "array",
+      "items": {
+        "type": "array",
+        "items": {}
       }
     },
     "recommendedPlayerCount": {
@@ -25,14 +28,10 @@
     },
     "isPublished": {
       "type": "boolean",
-      "default": true
-    },
-    "loreBlurb": {
-      "type": "string"
+      "default": false
     }
   },
   "required": [
-    "name",
-    "tiles"
+    "name"
   ]
 }

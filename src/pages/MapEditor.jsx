@@ -1,165 +1,168 @@
-import React, { useState, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useMemo, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { ArrowLeft, Loader2, Trash2 } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, Trash2 } from "lucide-react";
-import HexBoard from "@/components/hexmap/HexBoard";
-import { NEIGHBOR_DIRS, keyOf } from "@/lib/hex";
-import { TERRAIN_RESOURCE } from "@/lib/units";
-import { PLANETS } from "@/lib/macro/planets";
+import { buildWorldFromNodes } from "@/lib/macro/worlds";
+import { NODE_KINDS, CHART } from "@/lib/macro/graph";
+import MinistryChart from "@/components/chart/MinistryChart";
+import { playSfx } from "@/lib/sfx";
 
-const TERRAINS = ["plains", "hills", "forest", "marsh", "highlands"];
-const RESOURCES = [
-  { id: "", label: "None" },
-  { id: "oil_field", label: "Oil Field (+2 Fuel)" },
-  { id: "coal_depot", label: "Coal Depot (+1 Steel)" },
-  { id: "iron_foundry", label: "Iron Works (Crawler −1 Steel)" },
-];
+const KIND_ORDER = ["city", "town", "depot", "crossroads", "ruin"];
+const NAME_SEED = ["Ashfall", "Ironreach", "Rustmoor", "Greyhold", "Blackgate", "Paleyard", "Coldhaven", "Dustspur", "Slagcross", "Tarfield", "Bonequay", "Cinderridge", "Salthollow", "Stormworks", "Coalbarrow", "Brassmarch", "Mirepoint", "Fendeep", "Kraelwatch", "Voststead"];
 
+// The Cartography Bureau — draft a war chart by placing settlements; the
+// Ministry grows the world around them (continents form under node clusters,
+// convoy lanes bridge the seas). Published charts are playable at operation setup.
 export default function MapEditor() {
   const navigate = useNavigate();
-  const [tiles, setTiles] = useState([{ id: "t0", q: 0, r: 0, name: "Heartland", terrain: "plains", baseIncome: 3, resourceBonus: null, isCapital: true, isSea: false }]);
-  const [selectedId, setSelectedId] = useState("t0");
   const [mapName, setMapName] = useState("");
   const [description, setDescription] = useState("");
   const [playerCount, setPlayerCount] = useState(2);
-  const [planetId, setPlanetId] = useState("cindara");
+  const [nodes, setNodes] = useState([]);
+  const [kind, setKind] = useState("city");
+  const [selected, setSelected] = useState(null);
+  const [survey, setSurvey] = useState(true); // live world preview
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [nextId, setNextId] = useState(1);
+  const [serial, setSerial] = useState(1);
 
-  const selected = tiles.find((t) => t.id === selectedId);
+  // The Ministry's survey of the drafted chart — same generator the game uses
+  const world = useMemo(() => {
+    if (nodes.length === 0) return { nodes: [], routes: [], continents: [], size: { ...CHART } };
+    const built = buildWorldFromNodes(nodes.map((n) => ({ ...n })), [], 7);
+    return survey ? built : { ...built, continents: [] };
+  }, [nodes, survey]);
 
-  const ghosts = useMemo(() => {
-    const occupied = new Set(tiles.map((t) => keyOf(t.q, t.r)));
-    const spots = new Map();
-    for (const t of tiles) {
-      for (const [dq, dr] of NEIGHBOR_DIRS) {
-        const q = t.q + dq, r = t.r + dr;
-        if (!occupied.has(keyOf(q, r))) spots.set(keyOf(q, r), { q, r });
-      }
-    }
-    return [...spots.values()];
-  }, [tiles]);
-
-  const addTile = (g) => {
-    const tile = { id: `t${nextId}`, q: g.q, r: g.r, name: `Zone ${nextId}`, terrain: "plains", baseIncome: 2, resourceBonus: null, isCapital: false, isSea: false };
-    setNextId(nextId + 1);
-    setTiles([...tiles, tile]);
-    setSelectedId(tile.id);
+  const place = (x, y) => {
+    if (selected) { setSelected(null); return; }
+    if (nodes.some((n) => Math.hypot(n.x - x, n.y - y) < 26)) { setError("Too close to a charted settlement"); return; }
+    setError("");
+    playSfx("build");
+    const name = NAME_SEED[(serial - 1) % NAME_SEED.length] + (serial > NAME_SEED.length ? ` ${Math.ceil(serial / NAME_SEED.length)}` : "");
+    setNodes([...nodes, { id: `m${serial}`, name, kind, x, y }]);
+    setSerial(serial + 1);
   };
 
-  const updateTile = (patch) => setTiles(tiles.map((t) => (t.id === selectedId ? { ...t, ...patch } : t)));
-  const removeTile = () => {
-    if (tiles.length <= 1) return;
-    setTiles(tiles.filter((t) => t.id !== selectedId));
-    setSelectedId(null);
-  };
+  const selectedNode = nodes.find((n) => n.id === selected);
+  const updateSelected = (patch) => setNodes(nodes.map((n) => (n.id === selected ? { ...n, ...patch } : n)));
+  const removeSelected = () => { setNodes(nodes.filter((n) => n.id !== selected)); setSelected(null); playSfx("select"); };
 
-  const capitals = tiles.filter((t) => t.isCapital).length;
+  const cities = nodes.filter((n) => n.kind === "city").length;
+  const canPublish = mapName && nodes.length >= 8 && cities >= Math.max(playerCount, 2);
 
-  const save = async () => {
+  const publish = async () => {
     setSaving(true);
     setError("");
     try {
-      const occupied = new Map(tiles.map((t) => [keyOf(t.q, t.r), t]));
-      const withAdj = tiles.map((t) => ({
-        ...t,
-        adjacentIds: NEIGHBOR_DIRS.map(([dq, dr]) => occupied.get(keyOf(t.q + dq, t.r + dr))).filter(Boolean).map((n) => n.id),
-      }));
       await base44.entities.GameMap.create({
-        name: mapName, description, tiles: withAdj, recommendedPlayerCount: playerCount, planetId, isPublished: true,
+        name: mapName, description,
+        nodes, routes: [],
+        recommendedPlayerCount: playerCount,
+        isPublished: true,
       });
+      playSfx("endTurn");
       navigate("/maps");
-    } catch {
-      setError("Failed to save map");
+    } catch (e) {
+      setError(e.response?.data?.error || "Failed to file the chart");
       setSaving(false);
     }
   };
 
   return (
-    <div className="space-y-4">
-      <div>
-        <p className="cq-label">Cartography Division · Drafting Table</p>
-        <h1 className="cq-display text-4xl">Map Editor</h1>
-        <p className="text-sm text-muted-foreground font-heading tracking-wide">Click dashed hexes to add zones. Click a zone to edit it. Place at least {playerCount} capitals.</p>
+    <div className="max-w-6xl mx-auto space-y-4">
+      <Link to="/" className="inline-flex items-center gap-1.5 font-mono text-[10px] tracking-widest text-muted-foreground hover:text-brass-bright transition-colors">
+        <ArrowLeft className="w-3 h-3" /> COMMAND DECK
+      </Link>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="cq-label text-rust">Cartography Bureau</p>
+          <h1 className="cq-display text-3xl">Draft a War Chart</h1>
+          <p className="font-mono text-[10px] text-muted-foreground tracking-widest mt-1">
+            CLICK THE BOARD TO PLACE A SETTLEMENT · THE MINISTRY GROWS THE WORLD AROUND YOUR CHART
+          </p>
+        </div>
+        <button
+          onClick={() => { playSfx("select"); setSurvey((v) => !v); }}
+          className={`cq-metal font-heading uppercase tracking-widest text-[10px] px-3 py-1.5 rounded-sm border transition-colors ${survey ? "border-brass/70 text-brass-bright" : "border-border text-muted-foreground"}`}
+        >
+          Survey World {survey ? "ON" : "OFF"}
+        </button>
       </div>
 
       <div className="grid lg:grid-cols-[1fr_300px] gap-4">
-        <div className="cq-panel p-2 bg-gradient-to-b from-card to-background">
-          <HexBoard
-            tiles={tiles.map((t) => ({ ...t, visible: true }))}
-            selectedId={selectedId}
-            onTileClick={(t) => setSelectedId(t.id)}
-            ghosts={ghosts}
-            onGhostClick={addTile}
+        <div className="cq-panel cq-brackets relative overflow-hidden p-1">
+          <div className="cq-hazard absolute top-0 left-0 right-0 z-10" />
+          <MinistryChart
+            world={world}
+            hovered={selectedNode || null}
+            onNodeClick={(n) => { playSfx("select"); setSelected(n.id === selected ? null : n.id); }}
+            onCanvasClick={place}
+            height="64vh"
           />
+          <div className="cq-scanlines absolute inset-0 pointer-events-none z-[5]" />
+          <div className="cq-vignette absolute inset-0 pointer-events-none z-[5]" />
         </div>
 
-        <div className="space-y-4">
-          {selected && (
-            <div className="cq-panel p-4 space-y-3">
-              <div className="flex justify-between items-center">
-                <h3 className="cq-label">Zone Properties</h3>
-                <Button size="sm" variant="ghost" onClick={removeTile} className="h-6 text-rust hover:text-destructive p-1">
-                  <Trash2 className="w-3.5 h-3.5" />
-                </Button>
-              </div>
-              <Input value={selected.name} onChange={(e) => updateTile({ name: e.target.value })} className="bg-input border-border text-sm font-heading tracking-wide" />
-              <label className="flex items-center gap-2 text-xs text-secondary-foreground font-heading tracking-wide">
-                <input type="checkbox" checked={selected.isSea} onChange={(e) => updateTile({ isSea: e.target.checked, isCapital: false, baseIncome: e.target.checked ? 0 : 2, resourceBonus: null, terrain: e.target.checked ? "sea" : "plains" })} />
-                Sea zone
-              </label>
-              {!selected.isSea && (
-                <>
-                  <label className="flex items-center gap-2 text-xs text-secondary-foreground font-heading tracking-wide">
-                    <input type="checkbox" checked={selected.isCapital} onChange={(e) => updateTile({ isCapital: e.target.checked })} />
-                    Capital ★
-                  </label>
-                  <div>
-                    <label className="text-xs text-muted-foreground">Terrain</label>
-                    <select value={selected.terrain} onChange={(e) => updateTile({ terrain: e.target.value })} className="w-full bg-input border border-border rounded-sm p-1.5 text-xs text-secondary-foreground mt-1 font-heading tracking-wide">
-                      {TERRAINS.map((t) => <option key={t} value={t}>{t} → {TERRAIN_RESOURCE[t] || "manpower"}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground">Base income: <span className="font-mono text-brass-bright">{selected.baseIncome}</span></label>
-                    <input type="range" min={1} max={5} value={selected.baseIncome} onChange={(e) => updateTile({ baseIncome: Number(e.target.value) })} className="w-full accent-[hsl(var(--brass))]" />
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground">Resource</label>
-                    <select value={selected.resourceBonus || ""} onChange={(e) => updateTile({ resourceBonus: e.target.value || null })} className="w-full bg-input border border-border rounded-sm p-1.5 text-xs text-secondary-foreground mt-1 font-heading tracking-wide">
-                      {RESOURCES.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
-                    </select>
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-
+        <div className="space-y-3">
           <div className="cq-panel p-4 space-y-3">
-            <h3 className="cq-label">Publish Map</h3>
-            <Input placeholder="Map name" value={mapName} onChange={(e) => setMapName(e.target.value)} className="bg-input border-border text-sm font-heading tracking-wide" />
-            <Input placeholder="Description" value={description} onChange={(e) => setDescription(e.target.value)} className="bg-input border-border text-sm" />
             <div>
-              <label className="text-xs text-muted-foreground">Theater world</label>
-              <select value={planetId} onChange={(e) => setPlanetId(e.target.value)} className="w-full bg-input border border-border rounded-sm p-1.5 text-xs text-secondary-foreground mt-1 font-heading tracking-wide">
-                {PLANETS.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
+              <label className="cq-label">Chart Name</label>
+              <Input value={mapName} onChange={(e) => setMapName(e.target.value)} placeholder="The Sundered Reach" className="bg-input border-border mt-1 font-heading tracking-wide" />
             </div>
             <div>
-              <label className="text-xs text-muted-foreground">Recommended players</label>
-              <select value={playerCount} onChange={(e) => setPlayerCount(Number(e.target.value))} className="w-full bg-input border border-border rounded-sm p-1.5 text-xs text-secondary-foreground mt-1 font-heading tracking-wide">
+              <label className="cq-label">Ministry Notes</label>
+              <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Two continents split by a convoy corridor" className="bg-input border-border mt-1 text-xs" />
+            </div>
+            <div>
+              <label className="cq-label">Recommended Commanders</label>
+              <select value={playerCount} onChange={(e) => setPlayerCount(Number(e.target.value))} className="w-full bg-input border border-border rounded-sm p-1.5 text-xs text-secondary-foreground font-heading tracking-wide mt-1">
                 {[2, 3, 4].map((n) => <option key={n} value={n}>{n}</option>)}
               </select>
             </div>
-            <p className="text-[11px] text-muted-foreground font-mono">{tiles.length} zones · {capitals} capitals {capitals < playerCount && <span className="text-brass-bright">(need {playerCount})</span>}</p>
-            {error && <p className="text-xs text-rust font-mono">{error}</p>}
-            <Button disabled={!mapName || tiles.length < 8 || capitals < playerCount || saving} onClick={save} className="w-full bg-brass hover:bg-brass-bright text-primary-foreground text-xs font-heading uppercase tracking-[0.2em]">
-              {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />} Publish to Library
-            </Button>
           </div>
+
+          <div className="cq-panel p-4">
+            <p className="cq-label mb-2">Settlement Stamp</p>
+            <div className="flex flex-wrap gap-1.5">
+              {KIND_ORDER.map((k) => (
+                <button
+                  key={k}
+                  onClick={() => { playSfx("hover"); setKind(k); }}
+                  className={`cq-metal font-heading uppercase tracking-widest text-[10px] px-2.5 py-1.5 rounded-sm border transition-colors ${kind === k ? "border-brass text-brass-bright bg-brass/10" : "border-border text-muted-foreground hover:text-brass-bright"}`}
+                >
+                  {NODE_KINDS[k].label}
+                </button>
+              ))}
+            </div>
+            <p className="font-mono text-[9px] text-muted-foreground mt-2">
+              {nodes.length} SETTLEMENTS · {cities} CITIES · {world.continents.length} LANDMASSES · {world.routes.length} ROUTES SURVEYED
+            </p>
+          </div>
+
+          {selectedNode && (
+            <div className="cq-panel p-4 border-brass/50 space-y-2">
+              <p className="cq-label">Selected: {selectedNode.name}</p>
+              <Input value={selectedNode.name} onChange={(e) => updateSelected({ name: e.target.value })} className="bg-input border-border text-xs" />
+              <select value={selectedNode.kind} onChange={(e) => updateSelected({ kind: e.target.value })} className="w-full bg-input border border-border rounded-sm p-1.5 text-xs text-secondary-foreground font-heading tracking-wide">
+                {KIND_ORDER.map((k) => <option key={k} value={k}>{NODE_KINDS[k].label}</option>)}
+              </select>
+              <Button size="sm" variant="outline" onClick={removeSelected} className="border-rust/60 text-rust font-heading uppercase text-[10px] w-full">
+                <Trash2 className="w-3 h-3 mr-1" /> Strike from the Chart
+              </Button>
+            </div>
+          )}
+
+          {error && <p className="text-xs text-rust font-mono">{error}</p>}
+          <Button disabled={!canPublish || saving} onClick={publish} className="w-full bg-brass hover:bg-brass-bright text-primary-foreground font-heading uppercase tracking-[0.25em] h-10 text-xs">
+            {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null} File with the Registry
+          </Button>
+          {!canPublish && (
+            <p className="font-mono text-[9px] text-muted-foreground tracking-wide">
+              A CHART NEEDS A NAME, ≥ 8 SETTLEMENTS AND AT LEAST {Math.max(playerCount, 2)} CITIES (SPAWN GROUNDS).
+            </p>
+          )}
         </div>
       </div>
     </div>

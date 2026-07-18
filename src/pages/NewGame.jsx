@@ -4,8 +4,7 @@ import { base44 } from "@/api/base44Client";
 import useUser from "@/hooks/useUser";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, RefreshCw } from "lucide-react";
-import HexBoard from "@/components/hexmap/HexBoard";
+import { Loader2 } from "lucide-react";
 import PlanetPicker from "@/components/setup/PlanetPicker";
 
 const DOCTRINE_OPTS = ["aggressive", "economic", "defensive"];
@@ -18,17 +17,13 @@ export default function NewGame() {
   const [name, setName] = useState("");
   const [factions, setFactions] = useState([]);
   const [factionId, setFactionId] = useState("");
-  const [mapSource, setMapSource] = useState(preselectedMapId ? "library" : "generate");
   const [maps, setMaps] = useState([]);
   const [mapId, setMapId] = useState(preselectedMapId || "");
   const [planetId, setPlanetId] = useState("cindara");
-  const [genPreview, setGenPreview] = useState(null);
-  const [generating, setGenerating] = useState(false);
-  const [tileCount, setTileCount] = useState(26);
   const [humanCount, setHumanCount] = useState(2);
   const [npcs, setNpcs] = useState([]);
-  const [winType, setWinType] = useState("capitals");
-  const [winValue, setWinValue] = useState(15);
+  const [winType, setWinType] = useState("territory");
+  const [winValue, setWinValue] = useState(60);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
 
@@ -48,20 +43,6 @@ export default function NewGame() {
     if (isCampaign && npcs.length === 0) setNpcs(["aggressive"]);
   }, [isCampaign, npcs.length]);
 
-  const generate = async () => {
-    setGenerating(true);
-    setError("");
-    try {
-      const res = await base44.functions.invoke("generateMap", {
-        tileCount, playerCount: Math.max(totalSlots, 2),
-      });
-      setGenPreview(res.data.map);
-    } catch (e) {
-      setError(e.response?.data?.error || "Map generation failed");
-    }
-    setGenerating(false);
-  };
-
   const create = async () => {
     setCreating(true);
     setError("");
@@ -73,11 +54,11 @@ export default function NewGame() {
         factionId,
         humanCount,
         npcConfigs: npcs.map((d) => ({ doctrine: d })),
+        worldModel: "macro",
+        planetId,
       };
       if (isCampaign) payload.campaignWinCondition = { type: winType, value: Number(winValue) };
-      payload.planetId = planetId;
-      if (mapSource === "library") payload.mapId = mapId;
-      else payload.mapData = genPreview;
+      if (mapId) payload.mapId = mapId;
       const res = await base44.functions.invoke("gameEngine", payload);
       navigate(`/game/${res.data.gameId}`);
     } catch (e) {
@@ -86,9 +67,7 @@ export default function NewGame() {
     }
   };
 
-  const canCreate =
-    factionId && totalSlots >= 2 && totalSlots <= 4 &&
-    ((mapSource === "library" && mapId) || (mapSource === "generate" && genPreview));
+  const canCreate = factionId && totalSlots >= 2 && totalSlots <= 4;
 
   return (
     <div className="max-w-3xl mx-auto space-y-5">
@@ -144,68 +123,36 @@ export default function NewGame() {
             <div>
               <label className="cq-label text-brass">Campaign Victory Condition</label>
               <select value={winType} onChange={(e) => setWinType(e.target.value)} className="w-full bg-input border border-border rounded-sm p-2 text-sm mt-1 text-secondary-foreground font-heading tracking-wide">
-                <option value="capitals">Capture all capitals</option>
-                <option value="survive">Survive N turns</option>
-                <option value="territory">Control % of territory</option>
+                <option value="territory">Control % of settlements</option>
+                <option value="survive">Survive N days</option>
               </select>
             </div>
-            {winType !== "capitals" && (
-              <div>
-                <label className="cq-label">{winType === "survive" ? "Turns" : "Percent"}</label>
-                <Input type="number" value={winValue} onChange={(e) => setWinValue(e.target.value)} className="bg-input border-border mt-1" />
-              </div>
-            )}
+            <div>
+              <label className="cq-label">{winType === "survive" ? "Days" : "Percent"}</label>
+              <Input type="number" value={winValue} onChange={(e) => setWinValue(e.target.value)} className="bg-input border-border mt-1" />
+            </div>
           </div>
         )}
       </div>
 
       <div className="cq-panel p-5 space-y-3">
         <PlanetPicker value={planetId} onChange={setPlanetId} />
-        <div className="flex gap-2 border-t border-border pt-3">
-          <button onClick={() => setMapSource("generate")} className={`text-xs font-heading uppercase tracking-[0.2em] px-3 py-1.5 rounded-sm ${mapSource === "generate" ? "bg-brass/15 text-brass-bright border-b-2 border-brass" : "text-muted-foreground"}`}>Generate Map</button>
-          <button onClick={() => setMapSource("library")} className={`text-xs font-heading uppercase tracking-[0.2em] px-3 py-1.5 rounded-sm ${mapSource === "library" ? "bg-brass/15 text-brass-bright border-b-2 border-brass" : "text-muted-foreground"}`}>From Library</button>
+        <div className="border-t border-border pt-3">
+          <label className="cq-label">Charted Map (optional)</label>
+          <p className="font-mono text-[10px] text-muted-foreground tracking-wide mt-0.5 mb-1">
+            USE A CHART DRAFTED IN THE CARTOGRAPHY BUREAU — THE WORLD IS GROWN AROUND ITS SETTLEMENTS. LEAVE BLANK FOR THE THEATER WORLD ABOVE.
+          </p>
+          <select
+            value={mapId}
+            onChange={(e) => setMapId(e.target.value)}
+            className="w-full bg-input border border-border rounded-sm p-2 text-sm text-secondary-foreground font-heading tracking-wide"
+          >
+            <option value="">— Generated theater world —</option>
+            {maps.filter((m) => (m.nodes || []).length > 1).map((m) => (
+              <option key={m.id} value={m.id}>{m.name} ({(m.nodes || []).length} settlements)</option>
+            ))}
+          </select>
         </div>
-
-        {mapSource === "generate" ? (
-          <div className="space-y-3">
-            <div className="flex items-end gap-3">
-              <div>
-                <label className="cq-label">Territories</label>
-                <Input type="number" min={12} max={60} value={tileCount} onChange={(e) => setTileCount(Number(e.target.value))} className="bg-input border-border w-24 mt-1" />
-              </div>
-              <Button onClick={generate} disabled={generating} variant="outline" className="border-brass/60 text-brass-bright hover:bg-brass/10 font-heading uppercase text-xs tracking-[0.2em]">
-                {generating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <RefreshCw className="w-4 h-4 mr-2" />}
-                {genPreview ? "Regenerate" : "Generate"}
-              </Button>
-            </div>
-            {genPreview && (
-              <div className="bg-background rounded-sm border border-border p-2">
-                <p className="text-xs text-muted-foreground font-mono mb-1">{genPreview.name} · {genPreview.tiles.length} zones</p>
-                <HexBoard tiles={genPreview.tiles} maxHeight={300} />
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="space-y-3">
-            <select
-              value={mapId}
-              onChange={(e) => {
-                setMapId(e.target.value);
-                const m = maps.find((x) => x.id === e.target.value);
-                if (m?.planetId) setPlanetId(m.planetId);
-              }}
-              className="w-full bg-input border border-border rounded-sm p-2 text-sm text-secondary-foreground font-heading tracking-wide"
-            >
-              <option value="">Select a map…</option>
-              {maps.map((m) => <option key={m.id} value={m.id}>{m.name} ({m.tiles?.length} zones, {m.recommendedPlayerCount}p)</option>)}
-            </select>
-            {mapId && maps.find((m) => m.id === mapId) && (
-              <div className="bg-background rounded-sm border border-border p-2">
-                <HexBoard tiles={maps.find((m) => m.id === mapId).tiles} maxHeight={300} />
-              </div>
-            )}
-          </div>
-        )}
       </div>
 
       {error && <p className="text-sm text-rust font-mono">{error}</p>}
