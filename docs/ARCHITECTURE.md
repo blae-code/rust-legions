@@ -4,10 +4,9 @@
 
 ### Game (one document per war — the entire live game state)
 - `name`, `mode` (`multiplayer` | `campaign`), `status` (`lobby` | `active` | `complete`), `hostUserId`, `winnerSlot`
-- `mapId`, `tiles[]` (hex tiles: `id`, `q`, `r`, `name`, `terrain`, `isSea`, `isCapital`, `baseIncome`, `resourceBonus`, `adjacentIds[]`)
+- `mapId`, `worldModel: "macro"`, `macro{seed, nodes[], routes[], continents[], size, control{}, bases{}, columns[]}` — the ministry-chart world (stored at creation; single truth)
 - `factionSlots[]`: per-player slot — `slotIndex`, `userId`, `factionId`, `factionName`, `isNPC`, `doctrine`, `traits[]`, `pointBuy[]`, `mods` (compiled perks + research/decrees), `color`, `capitalTileId`, `eliminated`, `generals[]`, `armiesRaised`, `dispositions` (NPC only), `research{focus, progress, completed}`, `unlocks[]` (armory), `base{tileId, modules, movedTurn}` / `baseLost` (fortress-base)
 - `turnOrder[]`, `currentTurnIndex`, `turnNumber`, `weather`
-- `territoryStates{tileId}`: `owner` (slotIndex|null), `units{unitKey: count}`, `buildings[{type, level, pending}]`, `lastBombardTurn`
 - `treasuries{slotIndex}`: `{manpower, steel, fuel}`
 - `armies[]`: field armies — `id`, `owner`, `tileId`, `name`, `generalId`, `battles`, `design`, `regiments{}`
 - `activeBattle` (live mass battle state) / `lastBattle` (after-action report) / `battleArchives[]` (last 15 reports w/ round history)
@@ -18,7 +17,7 @@
 
 ### Other entities
 - **Faction** — player-authored banner: `factionName`, `lore`, `doctrine`, `traits[]`, `insigniaDescription`, `lifepathChoices`, `pointBuy`, `npcDispositions`, `isPublished`
-- **GameMap** — `name`, `description`, `tiles[]`, `recommendedPlayerCount`, `isPublished`, `loreBlurb`
+- **GameMap** — a Bureau war chart: `name`, `description`, `nodes[]`, `routes[]`, `recommendedPlayerCount`, `isPublished`
 - **ArmyDesign** — doctrine template: `name`, `formation`, `weapon`, `armor`, `support` (per-user via `created_by_id`)
 - **UserProfile** — `displayName`, `avatarUrl`, `gamesPlayed`, `gamesWon`, `campaignsCompleted`, `mapsCreated`, `isAdmin`
 - **Patch** — live-service dispatch: `version`, `codename`, `title`, `summary` (markdown), `releaseDate`, `isPublished`, `changes[{category, title, description, impact}]`
@@ -34,33 +33,25 @@ Action-dispatch over POST body `{ action, gameId?, ...params }`. Frontend calls 
 | Action | Params | Purpose |
 | --- | --- | --- |
 | `listMyGames` | — | Games where caller is host or seated |
-| `createGame` | name, mode, mapId/mapData, factionId, humanCount, npcConfigs, campaignWinCondition | Create lobby |
+| `createGame` | name, mode, factionId, humanCount, npcConfigs, campaignWinCondition, planetId, mapId? (Bureau chart) | Create lobby — generates + stores the ministry-chart world |
 | `joinGame` | gameId, factionId | Claim an open slot |
-| `startGame` | gameId | Host only — seed capitals, garrisons, treasuries, generals |
+| `startGame` | gameId | Host only — spread spawn cities, anchor bases, field escorts, seed treasuries |
 | `getState` | gameId | Full fog-filtered view + presence heartbeat |
-| `moveUnits` | fromTileId, toTileId, units | Garrison move (friendly, adjacent) |
-| `attack` | fromTileId, toTileId, units | Garrison combat (§5 of rules) |
-| `build` | tileId, buildingType | Start construction/upgrade |
-| `purchaseUnits` | tileId, units | Buy + deploy units |
-| `musterArmy` | tileId, regiments, generalId (`"recruit"` to buy), designId? | Raise a field army |
-| `moveArmy` | armyId, toTileId | March / engage (may open a mass battle) |
-| `reinforceArmy` | armyId, regiments | Feed garrison companies into a supplied army |
-| `disbandArmy` | armyId | Return regiments to garrison |
 | `battleChoice` | gameId, maneuver | Issue secret orders for the active battle |
-| `bombard` | fromTileId, toTileId | Artillery barrage |
-| `probe` | tileId | Recon — returns partial `intel` |
-| `installModule` | moduleKey | Refit a fortress-base bay (prototypes need armory unlock) |
-| `refitVehicle` | generalId, modKey | Refit a general's command vehicle bay (instant at depots, next-turn via supply convoy) |
-| `moveBase` | toTileId | Crawl the fortress-base 1 friendly zone (engine + fuel) |
 | `proposeDiplomacy` | targetSlot, kind (`truce`/`nap`/`trade`), give, want | Dispatch an envoy (NPCs decide inline) |
 | `respondDiplomacy` | offerId, accept | Accept/decline a pending offer (usable off-turn) |
-| `endTurn` | gameId | Advance turn; NPCs play inline; weather + research tick per cycle |
+| `endTurn` | gameId | Advance turn; NPCs play inline; weather + research tick per cycle; macro: dawn march resolution |
+| `macroPlotMarch` | columnId, toNodeId | Macro only — Dijkstra-validated march plan (redirects from the node ahead) |
+| `macroEngage` | columnId, toNodeId | Macro only — assault an adjacent node held by foreign columns (opens a mass battle) |
+| `macroMoveBase` | toNodeId | Macro only — roll the fortress-base along the graph (slow; re-anchors supply) |
+| `macroHalt` | columnId | Macro only — stand down at the next node reached |
+| `macroMusterColumn` | nodeId, regiments, generalId (`"recruit"` to buy) | Macro only — levy a column at a controlled city / the base anchor |
+| `macroDisbandColumn` | columnId | Macro only — dissolve at a controlled settlement |
 
-Turn enforcement via `requireMyTurn()`; most army actions blocked while `activeBattle` exists. On completion, fires `logGameToSheet` + `exportChronicleToDoc` (non-blocking).
+Turn enforcement via `requireMyTurn()`; army actions blocked while `activeBattle` exists. The world lives in `Game.macro` (design: `docs/MACRO_ENGINE.md`); the hex world model is deleted. On completion, fires `logGameToSheet` + `exportChronicleToDoc` (non-blocking).
 
 ### Other functions
 - **concurrentPlay** — off-turn ("concurrent play") actions that never touch contested state: `setResearchFocus` (doctrine tree) and `unlockItem` (State Armory prototypes/decrees). Callable at any time by any seated player.
-- **generateMap** — procedural hex map generation (used by NewGame/MapEditor)
 - **synthesizeFaction** — LLM synthesis of faction lore/traits from lifepath choices (InvokeLLM)
 - **npcHerald** — background AI herald: per turn, reads front reports/control/dispositions and generates one in-character radio broadcast per NPC faction (InvokeLLM → `NpcDispatch` records; triggered fire-and-forget by `NpcIntercepts` on GamePage, deduped per faction per turn)
 - **logGameToSheet** — appends completed-game summary to a master Google Sheet (googlesheets connector)
@@ -76,11 +67,11 @@ Connectors authorized: `googlesheets`, `googledocs` (shared mode, builder's acco
 
 ### Pages
 - **Home** — 100dvh three-column command deck: `StormFront25D` video backdrop (locked-off trench-front loop + live lightning/artillery FX), `GameMenu` order plates, `FrontCard` game list, dossier/intel/ticker panels, `BootSequence`, ambient audio unlock.
-- **GamePage** — the war room: command bar (factions, weather badge, resources, end turn), `HexBoard3D` tactical theater, side panels (`ArmyPanel`, `MusterPanel`, `ProbePanel`, `TilePanel`, `BuildPanel`, `PurchasePanel`, `DispatchArchive`, `CombatLog`), `WarCharts`, modal `BattleView` (+ `BattleDiorama` animated combat) and `BattleReport`. Polls `getState` (4s / 2.5s in battle).
+- **GamePage** — the war room: command bar (factions, weather badge, research/diplomacy, end turn), `MacroWarRoom` (the Ministry Chart with orders), `WarCharts`, `NpcIntercepts`, `DispatchArchive`, `CombatLog`, chat, modal `BattleView` (+ `BattleDiorama`) and `BattleReport`. Polls `getState` (4s / 2.5s in battle).
 - **GamePage side systems** — `DoctrinePanel` (research tree + `ArmoryPanel`), `FortressBay`/`RefitYard` (base modules & movement), `DiplomacyPanel` (Envoy Desk: offers, accords ledger, trade log), `GameChat` (Field Wire), `CombatResolution` (post-battle losses screen).
 - **NewGame / MapLibrary / MapEditor / FactionBuilder / ArmyDesigner / PatchNotes** — setup & meta tools.
 - **Walkthrough** — 5-step "Field Induction" interactive tutorial (base refitting, ideology, treads primer).
-- **StarMap** — the **War Table**, the canonical v2.x macro map (docs/MACRO_MAP.md): one orbital 3D campaign world (`src/lib/macro/planets.js`, picked at operation setup via `?planet=`) carrying the node-and-route network; clicking a settlement opens a **radial orders menu** (`NodeRadialMenu`) with context-eligible options (stage column → march here / restage / stand down, anchor/weigh fortress-base); marches render as great-circle trails with daily camps (`MarchTrail`); Dijkstra day-rate march planning (`MarchPlanner`) plus a toggleable tactical overlay (supply arteries via all-pairs betweenness, top-5 capture objectives). Client-side sandbox — not wired into `gameEngine`.
+- **StarMap** — the **War Table** planning sandbox: the Ministry Chart (`MinistryChart`) for the theater world picked via `?planet=`, with the radial orders menu, `MarchPlanner` day-rate itineraries, and the tactical overlay analysis. (In play the same chart renders live server state inside `MacroWarRoom`.)
 - **AssetRegistry** — Illustration Directorate (image plates, `src/lib/imageLibrary.js`) + Sound Registry (`src/lib/audioLibrary.js`); every asset carries a generation-ready prompt and delivery status.
 
 ### Component directories
@@ -91,7 +82,7 @@ Connectors authorized: `googlesheets`, `googledocs` (shared mode, builder's acco
 - `src/components/walkthrough/`, `src/components/induction/` — Field Induction tutorial & commissioning
 - `src/components/assets/` — asset registry cards (image + audio)
 - `src/components/audio/MusicController.jsx` — persistent soundtrack controls (mounted in Layout)
-- `src/components/hexmap3d/` — Three.js board: `HexBoard3D`, `TerrainTile`, `TileDecor`, `TileLabels`, `ArmyFlag3D`, `Weather3D` (3D rain/fog/snow/lightning), `TileFX`, `DriftingHaze`
+- `src/components/chart/` — the Ministry Chart: `MinistryChart` (SVG pan/zoom war chart), `NodeRadialMenu`
 - `src/components/patch/` — patch dispatch display + admin composer (`patchMeta.js` category codes)
 - `src/components/faction/`, `src/components/army/` — builder sub-UIs
 - `src/components/ui/` — shadcn primitives (button/panel variants restyled dieselpunk)

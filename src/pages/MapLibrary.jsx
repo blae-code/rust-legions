@@ -3,17 +3,24 @@ import { Link } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
-import HexBoard from "@/components/hexmap/HexBoard";
+import { buildWorldFromNodes } from "@/lib/macro/worlds";
+import { CHART } from "@/lib/macro/graph";
+import MinistryChart from "@/components/chart/MinistryChart";
 
 export default function MapLibrary() {
   const [maps, setMaps] = useState(null);
   const [previewId, setPreviewId] = useState(null);
 
   useEffect(() => {
-    base44.entities.GameMap.filter({ isPublished: true }, "-created_date", 100).then(setMaps);
+    // Only node-based war charts survive the hex retirement
+    base44.entities.GameMap.filter({ isPublished: true }, "-created_date", 100)
+      .then((all) => setMaps(all.filter((m) => (m.nodes || []).length > 0)));
   }, []);
 
   const preview = maps?.find((m) => m.id === previewId);
+  const previewWorld = preview
+    ? buildWorldFromNodes(preview.nodes.map((n) => ({ ...n })), (preview.routes || []).map((r) => [...r]), 7)
+    : { nodes: [], routes: [], continents: [], size: { ...CHART } };
 
   return (
     <div className="space-y-4">
@@ -44,7 +51,7 @@ export default function MapLibrary() {
                 className={`w-full text-left border rounded-sm p-3 transition-colors ${previewId === m.id ? "border-brass bg-brass/10" : "border-border bg-card hover:border-steel"}`}
               >
                 <p className="font-heading font-semibold tracking-wide text-foreground text-sm">{m.name}</p>
-                <p className="text-xs text-muted-foreground font-mono">{m.tiles?.length} zones · {m.recommendedPlayerCount} players</p>
+                <p className="text-xs text-muted-foreground font-mono">{(m.nodes || []).length} settlements · {m.recommendedPlayerCount} players</p>
                 {m.description && <p className="text-[11px] text-muted-foreground/70 mt-1 line-clamp-2">{m.description}</p>}
               </button>
             ))}
@@ -58,7 +65,7 @@ export default function MapLibrary() {
                     <Button size="sm" className="bg-rust hover:bg-destructive text-destructive-foreground text-xs font-heading uppercase tracking-[0.2em]">Play This Map</Button>
                   </Link>
                 </div>
-                <HexBoard tiles={preview.tiles} maxHeight={480} />
+                <MinistryChart world={previewWorld} height="56vh" />
               </div>
             ) : (
               <p className="text-sm text-muted-foreground text-center py-16 font-heading tracking-wide">Select a map to preview it.</p>
