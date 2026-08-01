@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
@@ -13,12 +13,20 @@ const IDENTITY_GROUPS = [
   { key: "value", title: "Cultural Value", options: VALUES },
 ];
 
+// The registration file is kept on the desk — a reload or a stray navigation
+// must never send a commander back to Chapter 1.
+const DRAFT_KEY = "cq_lifepath_draft";
+const readDraft = () => {
+  try { return JSON.parse(localStorage.getItem(DRAFT_KEY)) || {}; } catch { return {}; }
+};
+
 export default function FactionBuilder() {
   const navigate = useNavigate();
-  const [step, setStep] = useState(0);
-  const [choices, setChoices] = useState({});
-  const [identity, setIdentity] = useState({});
-  const [picks, setPicks] = useState([]);
+  const saved = readDraft();
+  const [step, setStep] = useState(saved.step || 0);
+  const [choices, setChoices] = useState(saved.choices || {});
+  const [identity, setIdentity] = useState(saved.identity || {});
+  const [picks, setPicks] = useState(saved.picks || []);
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -28,6 +36,12 @@ export default function FactionBuilder() {
   const isArmouryStep = step === LIFEPATH_CHAPTERS.length + 1;
   const isReviewStep = step === LIFEPATH_CHAPTERS.length + 2;
   const chapter = LIFEPATH_CHAPTERS[step];
+
+  useEffect(() => {
+    // Never file the review step — synthesis is re-run on return
+    const s = Math.min(step, LIFEPATH_CHAPTERS.length + 1);
+    localStorage.setItem(DRAFT_KEY, JSON.stringify({ step: s, choices, identity, picks }));
+  }, [step, choices, identity, picks]);
 
   const synthesize = async () => {
     setLoading(true);
@@ -59,6 +73,7 @@ export default function FactionBuilder() {
         pointBuy: { picks },
         isNPC: false,
       });
+      localStorage.removeItem(DRAFT_KEY);
       navigate("/");
     } catch {
       setError("Failed to save faction");
