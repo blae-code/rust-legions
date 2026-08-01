@@ -120,10 +120,14 @@ export default function GamePage() {
       const sfxMap = { endTurn: "endTurn", battleChoice: "attack", proposeDiplomacy: "purchase", respondDiplomacy: "purchase" };
       if (sfxMap[payload.action]) playSfx(sfxMap[payload.action]);
       await refresh();
+      setBusy(false);
+      return null;
     } catch (e) {
-      setError(e.response?.data?.error || "Order failed");
+      const msg = e.response?.data?.error || "Order failed";
+      setError(msg);
+      setBusy(false);
+      return msg;
     }
-    setBusy(false);
   };
 
   // Research focus is an off-turn ("concurrent play") action — routed to its own engine

@@ -89,6 +89,7 @@ export default function MinistryChart({
   selectedColumnId = null,
   menuNodeId = null,
   menuOptions = null,
+  targetableNodeIds = [],      // ground the pending order may be pointed at
   onCloseMenu,
   onCanvasClick,               // (x, y) world coords — the Cartography Bureau's placement hook
   height = "62vh",
@@ -96,6 +97,7 @@ export default function MinistryChart({
   const size = world.size || { w: 1000, h: 620 };
   const byId = useMemo(() => Object.fromEntries(world.nodes.map((n) => [n.id, n])), [world.nodes]);
   const observedSet = useMemo(() => (observed ? new Set(observed) : null), [observed]);
+  const targetableSet = useMemo(() => new Set(targetableNodeIds), [targetableNodeIds]);
   const seen = (nid) => !observedSet || observedSet.has(nid);
 
   const [view, setView] = useState({ x: 0, y: 0, k: 1 });
@@ -255,6 +257,11 @@ export default function MinistryChart({
         {/* Node reticles */}
         {world.nodes.map((n) => (
           <g key={n.id}>
+            {targetableSet.has(n.id) && (
+              <circle cx={n.x} cy={n.y} r={(KIND_R[n.kind] || 4) + 7} fill="none" stroke="#E8C15A" strokeWidth="1" strokeDasharray="2 3" opacity="0.8">
+                <animate attributeName="r" values={`${(KIND_R[n.kind] || 4) + 5};${(KIND_R[n.kind] || 4) + 10};${(KIND_R[n.kind] || 4) + 5}`} dur="1.6s" repeatCount="indefinite" />
+              </circle>
+            )}
             <NodeGlyph
               node={n}
               r={KIND_R[n.kind] || 4}

@@ -28,6 +28,7 @@ export default function MacroWarRoom({ game, busy, onAction }) {
   const [plotting, setPlotting] = useState(null);  // columnId awaiting an objective
   const [selectedColumn, setSelectedColumn] = useState(null);
   const [muster, setMuster] = useState(null);      // { nodeId, regiments, generalId }
+  const [orderError, setOrderError] = useState(""); // refused march/base order
 
   const myBase = macro.bases.find((b) => b.slot === game.mySlot);
   const suppliedSet = useMemo(() => new Set(macro.supplied || []), [macro.supplied]);
@@ -44,16 +45,22 @@ export default function MacroWarRoom({ game, busy, onAction }) {
   const hostilesAt = (nodeId) => macro.columns.filter((c) => c.owner !== game.mySlot && c.nodeId === nodeId);
   const routeBetween = (a, b) => macro.routes.find(([x, y]) => (x === a && y === b) || (x === b && y === a));
 
-  const onNodeClick = (node) => {
+  // A refused order keeps the objective prompt open so the commander can pick
+  // different ground, with the Ministry's refusal shown right there.
+  const onNodeClick = async (node) => {
     playSfx("select");
     if (movingBase) {
-      onAction({ action: "macroMoveBase", toNodeId: node.id });
+      setOrderError("");
+      const err = await onAction({ action: "macroMoveBase", toNodeId: node.id });
+      if (err) { setOrderError(err); return; }
       playSfx("move");
       setMovingBase(false);
       return;
     }
     if (plotting) {
-      onAction({ action: "macroPlotMarch", columnId: plotting, toNodeId: node.id });
+      setOrderError("");
+      const err = await onAction({ action: "macroPlotMarch", columnId: plotting, toNodeId: node.id });
+      if (err) { setOrderError(err); return; }
       playSfx("move");
       setPlotting(null);
       setSelectedColumn(null);
@@ -62,13 +69,26 @@ export default function MacroWarRoom({ game, busy, onAction }) {
     setMenu((m) => (m === node.id ? null : node.id));
   };
 
+  const beginPlot = (columnId) => {
+    setOrderError("");
+    setPlotting(columnId);
+    setSelectedColumn(columnId);
+    setMovingBase(false);
+  };
+
+  // Ground the commander may point at while an objective is being chosen
+  const plotOriginId = plotting ? myColumns.find((c) => c.id === plotting)?.nodeId : movingBase ? myBase?.nodeId : null;
+  const targetable = (plotting || movingBase)
+    ? macro.nodes.filter((n) => macro.observed.includes(n.id) && n.id !== plotOriginId).map((n) => n.id)
+    : [];
+
   const menuOptionsFor = (node) => {
     const done = (fn, sound = "select") => () => { playSfx(sound); fn(); closeMenu(); };
     const opts = [];
     if (!canOrder) return opts;
     const here = columnsAt(node.id);
     for (const c of here.slice(0, 2)) {
-      opts.push({ key: `march-${c.id}`, label: `March ${c.name}`, icon: Flag, act: done(() => { setPlotting(c.id); setSelectedColumn(c.id); }) });
+      opts.push({ key: `march-${c.id}`, label: `March ${c.name}`, icon: Flag, act: done(() => beginPlot(c.id)) });
     }
     // A foreign column in reach — order the assault from an adjacent staging node
     if (hostilesAt(node.id).length > 0) {
@@ -115,6 +135,7 @@ export default function MacroWarRoom({ game, busy, onAction }) {
           selectedColumnId={selectedColumn}
           menuNodeId={menu}
           menuOptions={menu ? menuOptionsFor(byId[menu]) : null}
+          targetableNodeIds={targetable}
           onCloseMenu={closeMenu}
           height="64vh"
         />
@@ -125,17 +146,19 @@ export default function MacroWarRoom({ game, busy, onAction }) {
             <p className="font-mono text-[10px] text-brass-bright tracking-widest flex items-center gap-2">
               {getImage("macro_mark_objective")
                 ? <img src={getImage("macro_mark_objective")} alt="" aria-hidden="true" className="w-4 h-4 object-contain select-none" />
-                : <Crosshair className="w-3 h-3" />} SELECT AN OBJECTIVE — THE COLUMN MARCHES AT DAWN
-              <button onClick={() => setPlotting(null)} className="text-rust hover:text-brass-bright ml-2">CANCEL</button>
+                : <Crosshair className="w-3 h-3" />} SELECT AN OBJECTIVE — CLICK ANY MARKED SITE
+              <button onClick={() => { setPlotting(null); setOrderError(""); }} className="text-rust hover:text-brass-bright ml-2">CANCEL</button>
             </p>
+            {orderError && <p className="font-mono text-[10px] text-rust tracking-widest mt-1">✕ {orderError.toUpperCase()}</p>}
           </div>
         )}
         {movingBase && (
           <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 cq-panel px-3 py-1.5 bg-card/95 border-rust/70">
             <p className="font-mono text-[10px] text-rust tracking-widest flex items-center gap-2">
               <Home className="w-3 h-3" /> SELECT GROUND FOR THE FORTRESS-BASE — IT ROLLS SLOWLY (LAND ROUTES ONLY)
-              <button onClick={() => setMovingBase(false)} className="text-brass-bright hover:text-rust ml-2">CANCEL</button>
+              <button onClick={() => { setMovingBase(false); setOrderError(""); }} className="text-brass-bright hover:text-rust ml-2">CANCEL</button>
             </p>
+            {orderError && <p className="font-mono text-[10px] text-rust tracking-widest mt-1">✕ {orderError.toUpperCase()}</p>}
           </div>
         )}
         <div className="absolute bottom-3 left-3 z-10 cq-panel p-2.5 bg-card/90 max-w-xs">
@@ -154,7 +177,7 @@ export default function MacroWarRoom({ game, busy, onAction }) {
           <p className="font-mono text-[9px] text-muted-foreground mt-1 border-t border-border pt-1">
             ⌂ FORTRESS-BASE {myBase?.march ? "ON THE MOVE — ROLLING" : myBase?.nodeId ? `ANCHORED AT ${byId[myBase.nodeId]?.name?.toUpperCase() || "?"}` : "—"}
             {canOrder && myBase?.nodeId && (
-              <button onClick={() => { playSfx("select"); setMovingBase(true); closeMenu(); }} className="text-rust hover:text-brass-bright ml-2">MARCH ▸</button>
+              <button onClick={() => { playSfx("select"); setOrderError(""); setPlotting(null); setMovingBase(true); closeMenu(); }} className="text-rust hover:text-brass-bright ml-2">MARCH ▸</button>
             )}
           </p>
         </div>
@@ -184,7 +207,7 @@ export default function MacroWarRoom({ game, busy, onAction }) {
                 {c.nodeId ? `AT ${byId[c.nodeId]?.name?.toUpperCase() || "?"}` : `→ ${byId[c.march.path[c.march.path.length - 1]]?.name?.toUpperCase() || "?"}`}
               </span>
               {canOrder && c.nodeId && (
-                <Button size="sm" variant="outline" className="h-6 px-2 text-[10px] border-brass/50 text-brass-bright font-heading uppercase" onClick={() => { playSfx("select"); setPlotting(c.id); setSelectedColumn(c.id); }}>
+                <Button size="sm" variant="outline" className="h-6 px-2 text-[10px] border-brass/50 text-brass-bright font-heading uppercase" onClick={() => { playSfx("select"); beginPlot(c.id); }}>
                   March
                 </Button>
               )}
