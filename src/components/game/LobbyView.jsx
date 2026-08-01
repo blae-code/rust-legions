@@ -4,10 +4,12 @@ import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Copy, Check } from "lucide-react";
 import GameChat from "@/components/game/chat/GameChat";
+import HostLobbyPanel from "@/components/game/lobby/HostLobbyPanel";
+import LobbySlotRow from "@/components/game/lobby/LobbySlotRow";
 import { getImage } from "@/lib/imageLibrary";
 import { WORLDS } from "@/lib/macro/worlds";
 
-export default function LobbyView({ game, onJoin, onStart, busy, error }) {
+export default function LobbyView({ game, onJoin, onStart, onAction, busy, error }) {
   const [myFactions, setMyFactions] = useState([]);
   const [factionId, setFactionId] = useState("");
   const [copied, setCopied] = useState(false);
@@ -50,17 +52,21 @@ export default function LobbyView({ game, onJoin, onStart, busy, error }) {
         </p>
         <div className="space-y-2">
           {game.factions.map((f) => (
-            <div key={f.slotIndex} className="flex items-center gap-3 border border-border bg-secondary/30 rounded-sm p-3">
-              <div className="w-3 h-3 rounded-full ring-1 ring-black/50" style={{ background: f.color }} />
-              <span className="text-sm font-heading tracking-wide text-secondary-foreground flex-1">
-                {f.factionName || <span className="text-muted-foreground italic">Open slot — awaiting commander</span>}
-              </span>
-              <span className="cq-tag border-border text-muted-foreground">
-                {f.isNPC ? `NPC · ${f.doctrine}` : f.isMe ? "You" : f.isOpen ? "Open" : "Player"}
-              </span>
-            </div>
+            <LobbySlotRow
+              key={f.slotIndex}
+              faction={f}
+              isHost={game.isHost}
+              busy={busy}
+              onSetSlotType={(slotIndex, type, doctrine) => onAction({ action: "setSlotType", slotIndex, type, doctrine })}
+            />
           ))}
         </div>
+
+        {game.isHost && (
+          <div className="mt-4">
+            <HostLobbyPanel game={game} busy={busy} onConfigure={(cfg) => onAction({ action: "configureLobby", ...cfg })} />
+          </div>
+        )}
 
         {!iAmIn && openSlots > 0 && (
           <div className="mt-4 flex gap-2">

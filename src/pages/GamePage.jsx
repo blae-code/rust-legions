@@ -162,6 +162,7 @@ export default function GamePage() {
         error={error}
         onJoin={(factionId) => act({ action: "joinGame", factionId })}
         onStart={() => act({ action: "startGame" })}
+        onAction={act}
       />
     );
   }

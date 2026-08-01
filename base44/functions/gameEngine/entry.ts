@@ -1517,6 +1517,12 @@ Deno.serve(async (req) => {
     // All remaining actions operate on an existing game
     const game = await svc.entities.Game.get(body.gameId);
     if (!game) return Response.json({ error: 'Game not found' }, { status: 404 });
+    // Normalize the stored chart so every reader can trust its shape
+    if (game.macro && typeof game.macro === 'object') {
+      game.macro.control = game.macro.control || {};
+      game.macro.bases = game.macro.bases || {};
+      game.macro.columns = game.macro.columns || [];
+    }
     const mySlotObj = (game.factionSlots || []).find((s) => s.userId === user.id);
     const mySlot = mySlotObj ? mySlotObj.slotIndex : null;
 
@@ -1579,7 +1585,10 @@ Deno.serve(async (req) => {
           };
         })(),
         worldModel: 'macro',
-        macro: macroVisibleFor(game, mySlot),
+        mapId: game.mapId || null,
+        // Legacy fronts filed before the macro engine carry no chart — hand back
+        // an empty theater instead of crashing the war room
+        macro: game.macro?.nodes ? macroVisibleFor(game, mySlot) : { seed: 0, nodes: [], routes: [], continents: [], size: { ...MACRO_CHART }, control: {}, observed: [], supplied: [], bases: [], columns: [], settlementCount: 0 },
         isMyTurn: active && game.factionSlots?.[currentSlotIdx]?.userId === user.id,
         mySlot,
         myResources: mySlot !== null ? getTreasury(game, mySlot) : null,
@@ -1641,6 +1650,104 @@ Deno.serve(async (req) => {
       open.npcDispositions = faction.npcDispositions || {};
       await svc.entities.Game.update(game.id, { factionSlots: game.factionSlots });
       return Response.json({ ok: true, slotIndex: open.slotIndex });
+    }
+
+    // ----- Host lobby administration (staging only) -----
+    const requireHostInLobby = () => {
+      if (game.hostUserId !== user.id) throw new Error('Only the host may amend the staging orders');
+      if (game.status !== 'lobby') throw new Error('The front is already live — orders are locked');
+    };
+
+    // Re-issue the theater: swap the charted map and/or the planet, regenerating
+    // the world the operation will be fought on.
+    GAME_ACTIONS.configureLobby = async () => {
+      requireHostInLobby();
+      const { mapId, planetId, mode, campaignWinCondition } = body;
+      const patch = {};
+
+      if (mode !== undefined && mode !== game.mode) {
+        if (!['multiplayer', 'campaign'].includes(mode)) return Response.json({ error: 'Unknown mode' }, { status: 400 });
+        const humans = game.factionSlots.filter((s) => !s.isNPC).length;
+        if (mode === 'campaign' && humans !== 1) {
+          return Response.json({ error: 'Campaign mode is solo — convert the other human slots to NPC factions first' }, { status: 400 });
+        }
+        game.mode = mode;
+        patch.mode = mode;
+      }
+
+      const wantsWorldRebuild = mapId !== undefined || planetId !== undefined;
+      if (wantsWorldRebuild) {
+        const nextMapId = mapId === undefined ? game.mapId : mapId || null;
+        let nextPlanet = planetId === undefined ? (game.planetId || 'cindara') : planetId;
+        let world = null;
+        if (nextMapId) {
+          const m = await svc.entities.GameMap.get(nextMapId).catch(() => null);
+          if (!m || !(m.nodes || []).length) return Response.json({ error: 'That chart is not on file' }, { status: 400 });
+          if (planetId === undefined && m.planetId) nextPlanet = m.planetId;
+          world = { seed: 7, ...macroBuildWorld(m.nodes.map((n) => ({ ...n })), (m.routes || []).map((r) => [...r]), 7) };
+        } else {
+          world = macroGenerateWorld(nextPlanet);
+        }
+        game.mapId = nextMapId;
+        game.planetId = nextPlanet;
+        game.macro = { ...world, control: {}, bases: {}, columns: [] };
+        patch.mapId = nextMapId;
+        patch.planetId = nextPlanet;
+        patch.macro = game.macro;
+      }
+
+      if (campaignWinCondition !== undefined) {
+        const { type, value } = campaignWinCondition || {};
+        if (type && !['survive', 'territory'].includes(type)) return Response.json({ error: 'Unknown win condition' }, { status: 400 });
+        const cond = type ? { type, value: Math.max(Number(value) || 0, 1) } : {};
+        game.campaignWinCondition = cond;
+        patch.campaignWinCondition = cond;
+      }
+
+      if (Object.keys(patch).length > 0) await svc.entities.Game.update(game.id, patch);
+      return Response.json({ ok: true });
+    }
+
+    // Convert a slot between an open human seat and an NPC faction. A seated
+    // commander is stood down first — their chair simply opens back up.
+    GAME_ACTIONS.setSlotType = async () => {
+      requireHostInLobby();
+      const { slotIndex, type, doctrine } = body;
+      const slot = game.factionSlots[slotIndex];
+      if (!slot) return Response.json({ error: 'No such slot' }, { status: 404 });
+      if (slot.userId === user.id) return Response.json({ error: 'You cannot vacate your own command' }, { status: 400 });
+      if (!['npc', 'open'].includes(type)) return Response.json({ error: 'Unknown slot type' }, { status: 400 });
+
+      if (type === 'npc') {
+        const d = ['aggressive', 'economic', 'defensive'].includes(doctrine) ? doctrine : 'aggressive';
+        const names = NPC_NAMES[d];
+        const taken = new Set(game.factionSlots.map((s) => s.factionName));
+        slot.isNPC = true;
+        slot.userId = null;
+        slot.factionId = null;
+        slot.doctrine = d;
+        // Keep the roster distinct — an NPC only renames when its doctrine shifts
+        if (!slot.factionName || !names.includes(slot.factionName)) {
+          slot.factionName = names.find((n) => !taken.has(n)) || names[0];
+        }
+        slot.traits = [];
+        slot.pointBuy = [];
+        slot.dispositions = {};
+      } else {
+        if (game.mode === 'campaign' && !slot.isNPC) {
+          return Response.json({ error: 'Campaign mode is solo — that seat must stay an NPC faction' }, { status: 400 });
+        }
+        slot.isNPC = false;
+        slot.userId = null;
+        slot.factionId = null;
+        slot.factionName = null;
+        slot.doctrine = null;
+        slot.traits = [];
+        slot.pointBuy = [];
+        delete slot.dispositions;
+      }
+      await svc.entities.Game.update(game.id, { factionSlots: game.factionSlots });
+      return Response.json({ ok: true });
     }
 
     // ----- startGame -----
