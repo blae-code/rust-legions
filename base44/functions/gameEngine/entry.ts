@@ -247,13 +247,56 @@ function surveySettlement(game, slotIdx, nodeId) {
   const d = settlementDossier(node);
   const slot = game.factionSlots[slotIdx];
   game.macro.dossiers[nodeId] = { ...d, foundBy: slotIdx, foundTurn: game.turnNumber, faction: slot.factionName };
-  const t = getTreasury(game, slotIdx);
-  for (const [k, v] of Object.entries(d.spoils)) t[k] = (t[k] || 0) + v;
-  const spoilText = Object.entries(d.spoils).map(([k, v]) => `+${v} ${k}`).join(', ');
+  // The elders await terms — the commander must settle the charter before the
+  // stores move (resolved via the macroResolveCharter action).
+  game.macro.charters = game.macro.charters || [];
+  game.macro.charters.push({ nodeId, slot: slotIdx, turn: game.turnNumber });
   game.combatLog.push({
     turn: game.turnNumber, type: 'event',
-    text: `${slot.factionName}'s survey party files a dossier on ${node.name}: ${d.text} Stores recovered — ${spoilText}.`,
+    text: `${slot.factionName}'s survey party files a dossier on ${node.name}: ${d.text} The elders await terms.`,
   });
+  // NPC staffs settle terms on the spot, by doctrine
+  if (slot.isNPC) {
+    const entry = game.macro.charters.pop();
+    applyCharter(game, entry, slot.doctrine === 'economic' ? 'autonomy' : slot.doctrine === 'defensive' ? 'levy' : 'requisition');
+  }
+}
+
+// Terms a commander may offer a newly surveyed settlement
+function charterOptions(dossier) {
+  const [res, amt] = Object.entries(dossier.spoils || { manpower: 2 })[0];
+  return [
+    { id: 'requisition', label: 'Requisition the Stores', detail: `Strip the depots bare — +${amt * 2} ${res} now, and the townsfolk remember it.` },
+    { id: 'levy', label: 'Raise a Levy', detail: `Take the stores and press volunteers — +${amt} ${res} and +3 manpower.` },
+    { id: 'autonomy', label: 'Grant a Charter of Autonomy', detail: `Leave the stores be — the settlement yields +1 ${res} every day it stays yours.` },
+  ];
+}
+
+function applyCharter(game, entry, choiceId) {
+  const d = game.macro.dossiers?.[entry.nodeId];
+  const node = macroNode(game.macro, entry.nodeId);
+  if (!d) return 'The dossier is missing.';
+  const [res, amt] = Object.entries(d.spoils || { manpower: 2 })[0];
+  const t = getTreasury(game, entry.slot);
+  let text;
+  if (choiceId === 'requisition') {
+    t[res] = (t[res] || 0) + amt * 2;
+    text = `strips ${node?.name} to the rafters — +${amt * 2} ${res} hauled off.`;
+  } else if (choiceId === 'levy') {
+    t[res] = (t[res] || 0) + amt;
+    t.manpower = (t.manpower || 0) + 3;
+    text = `raises a levy at ${node?.name} — +${amt} ${res}, +3 manpower.`;
+  } else {
+    game.macro.charterBoost = game.macro.charterBoost || {};
+    game.macro.charterBoost[entry.nodeId] = res;
+    text = `signs a charter of autonomy with ${node?.name} — the settlement pledges +1 ${res} daily.`;
+  }
+  d.charter = choiceId;
+  game.combatLog.push({
+    turn: game.turnNumber, type: 'event',
+    text: `${game.factionSlots[entry.slot]?.factionName} ${text}`,
+  });
+  return null;
 }
 
 const MAP_CONTROL_PCT = 60;
@@ -295,6 +338,8 @@ function factionProduction(game, slotIdx) {
     const node = (game.macro?.nodes || []).find((n) => n.id === nid);
     const y = MACRO_SETTLEMENT_YIELD[node?.kind] || {};
     for (const k of RESOURCE_KEYS) out[k] += y[k] || 0;
+    const boost = game.macro?.charterBoost?.[nid];
+    if (boost) out[boost] += 1;
   }
   return out;
 }
@@ -1375,6 +1420,16 @@ function macroVisibleFor(game, slotIdx) {
     dossiers: Object.entries(game.macro.dossiers || {})
       .filter(([nid]) => observed(nid))
       .map(([nid, d]) => ({ nodeId: nid, ...d })),
+    // Charters of autonomy standing on the chart
+    charterBoost: Object.fromEntries(Object.entries(game.macro.charterBoost || {}).filter(([nid]) => observed(nid))),
+    // Terms awaiting this commander at a freshly surveyed settlement
+    charter: (() => {
+      const e = (game.macro.charters || []).find((c) => c.slot === slotIdx);
+      if (!e) return null;
+      const d = game.macro.dossiers?.[e.nodeId];
+      if (!d) return null;
+      return { nodeId: e.nodeId, dossier: d, options: charterOptions(d) };
+    })(),
     // Dig sites: an observed deep ruin shows survey traces; the find itself is
     // only named once someone has broken the seals.
     relicSites: Object.entries(game.macro.relics || {})
@@ -2171,6 +2226,24 @@ Deno.serve(async (req) => {
       }
       await persistMacro();
       return Response.json({ ok: true, etaDays: Math.ceil(found.totalDays) });
+    }
+
+    // Settle terms with a newly surveyed settlement (off-turn allowed — the
+    // elders wait on the commander who took the ground, not on the clock)
+    GAME_ACTIONS.macroResolveCharter = async () => {
+      requireMacro();
+      const mySlot = game.factionSlots.findIndex((s) => s.userId === user.id);
+      if (mySlot < 0) return Response.json({ error: 'You hold no command here' }, { status: 403 });
+      const list = game.macro.charters || [];
+      const idx = list.findIndex((c) => c.slot === mySlot && c.nodeId === body.nodeId);
+      if (idx < 0) return Response.json({ error: 'No terms pending at that settlement' }, { status: 404 });
+      const valid = ['requisition', 'levy', 'autonomy'];
+      if (!valid.includes(body.choiceId)) return Response.json({ error: 'Unknown terms' }, { status: 400 });
+      const err = applyCharter(game, list[idx], body.choiceId);
+      if (err) return Response.json({ error: err }, { status: 400 });
+      list.splice(idx, 1);
+      await persistMacro();
+      return Response.json({ ok: true });
     }
 
     GAME_ACTIONS.macroMoveBase = async () => {

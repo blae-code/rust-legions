@@ -15,6 +15,7 @@ import CombatLog from "@/components/game/CombatLog";
 import FieldReportSummary from "@/components/game/FieldReportSummary";
 import RelicVault from "@/components/game/relics/RelicVault";
 import SettlementDossiers from "@/components/game/relics/SettlementDossiers";
+import CharterParley from "@/components/game/relics/CharterParley";
 import ReplayTheater from "@/components/game/replay/ReplayTheater";
 import StalemateAlert from "@/components/game/StalemateAlert";
 import AttritionBanner from "@/components/game/AttritionBanner";
@@ -358,6 +359,13 @@ export default function GamePage() {
           )}
         </div>
       </div>
+
+      {game.status === "active" && !game.battle && (
+        <CharterParley
+          charter={game.macro?.charter}
+          onChoose={(nodeId, choiceId) => act({ action: "macroResolveCharter", nodeId, choiceId })}
+        />
+      )}
 
       {showReplay && <ReplayTheater game={game} onClose={() => setShowReplay(false)} />}
       <QuartermasterLedger open={showLedger} onClose={() => setShowLedger(false)} game={game} />

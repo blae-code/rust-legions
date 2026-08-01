@@ -27,8 +27,8 @@ export default function SettlementDossiers({ game }) {
               <p className="font-heading uppercase tracking-[0.14em] text-xs text-brass-bright">{d.title}</p>
               <p className="text-[11px] text-secondary-foreground leading-snug mt-0.5">{d.text}</p>
               <p className="font-mono text-[9px] text-muted-foreground tracking-wider mt-1">
-                DAY {d.foundTurn} · SURVEYED BY {String(d.faction || "?").toUpperCase()} · STORES{" "}
-                {Object.entries(d.spoils || {}).map(([k, v]) => `+${v} ${k.toUpperCase()}`).join(", ")}
+                DAY {d.foundTurn} · SURVEYED BY {String(d.faction || "?").toUpperCase()} · TERMS{" "}
+                {d.charter ? d.charter.toUpperCase() : "PENDING"}
               </p>
             </div>
           ))}
