@@ -23,8 +23,8 @@ export default function Home() {
 
   useEffect(() => {
     if (!user) return;
-    base44.functions.invoke("gameEngine", { action: "listMyGames" }).then((r) => setGames(r.data.games));
-    base44.entities.Faction.filter({ created_by_id: user.id }).then(setFactions);
+    base44.functions.invoke("gameEngine", { action: "listMyGames" }).then((r) => setGames(r.data.games)).catch(() => setGames([]));
+    base44.entities.Faction.filter({ created_by_id: user.id }).then(setFactions).catch(() => setFactions([]));
     // First login: no profile yet — run the commissioning ceremony instead of silent creation
     base44.entities.UserProfile.filter({ created_by_id: user.id }).then((profiles) => {
       if (profiles.length === 0) setNeedsInduction(true);

@@ -4,6 +4,7 @@ import { WORLDS } from "@/lib/macro/worlds";
 import { UNIT_MARCH } from "@/lib/macro/march";
 import { playSfx } from "@/lib/sfx";
 import MinistryChart from "@/components/chart/MinistryChart";
+import MarchDestinationPicker from "@/components/game/macro/MarchDestinationPicker";
 import { getImage } from "@/lib/imageLibrary";
 import { Button } from "@/components/ui/button";
 
@@ -99,6 +100,16 @@ export default function MacroWarRoom({ game, busy, onAction }) {
   const targetable = (plotting || movingBase)
     ? macro.nodes.filter((n) => macro.observed.includes(n.id) && n.id !== plotOriginId).map((n) => n.id)
     : [];
+
+  // The written objective register — every surveyed site the order may name
+  const destinationList = useMemo(
+    () =>
+      macro.nodes
+        .filter((n) => targetable.includes(n.id))
+        .slice()
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [macro.nodes, targetable]
+  );
 
   const menuOptionsFor = (node) => {
     const done = (fn, sound = "select") => () => { playSfx(sound); fn(); closeMenu(); };
@@ -213,10 +224,15 @@ export default function MacroWarRoom({ game, busy, onAction }) {
       <div className="cq-panel p-4">
         <p className="cq-label mb-2">Order of March</p>
         {plotting && (
-          <p className="font-mono text-[10px] text-brass-bright tracking-widest mb-2 border border-brass/50 rounded-sm px-2 py-1">
-            ▸ AWAITING OBJECTIVE — CLICK A MARKED SITE ON THE CHART ABOVE
-            <button onClick={() => { setPlotting(null); setOrderError(""); }} className="text-rust hover:text-brass-bright ml-2">CANCEL</button>
-          </p>
+          <div className="mb-2">
+            <MarchDestinationPicker
+              destinations={destinationList}
+              busy={busy}
+              error={orderError}
+              onConfirm={(nodeId) => onNodeClick({ id: nodeId })}
+              onCancel={() => { setPlotting(null); setOrderError(""); }}
+            />
+          </div>
         )}
         {myColumns.length === 0 && <p className="font-mono text-[10px] text-muted-foreground">NO COLUMNS IN THE FIELD — MUSTER AT A CITY OR THE FORTRESS-BASE.</p>}
         <div className="space-y-1.5">
