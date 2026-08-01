@@ -8,6 +8,8 @@ import { playSfx, sfxEnabled, setSfxEnabled } from "@/lib/sfx";
 import { setScoreSuppressed } from "@/lib/ambience";
 import CombatLog from "@/components/game/CombatLog";
 import FieldReportSummary from "@/components/game/FieldReportSummary";
+import ReplayTheater from "@/components/game/replay/ReplayTheater";
+import { Film } from "lucide-react";
 import LobbyView from "@/components/game/LobbyView";
 import WarChronicle from "@/components/game/WarChronicle";
 import WarCharts from "@/components/game/charts/WarCharts";
@@ -33,6 +35,7 @@ export default function GamePage() {
   const [sound, setSound] = useState(sfxEnabled());
   const [report, setReport] = useState(null);
   const [showDiplomacy, setShowDiplomacy] = useState(false);
+  const [showReplay, setShowReplay] = useState(false);
   const [showDoctrine, setShowDoctrine] = useState(false);
   const pollRef = useRef(null);
   const prevBattleRef = useRef(false);
@@ -241,6 +244,14 @@ export default function GamePage() {
           <p className="cq-display text-2xl text-brass-bright relative">
             {game.winnerName ? `${game.winnerName} has won the war` : "The war has ended"}
           </p>
+          <Button
+            size="sm"
+            variant="outline"
+            className="relative mt-3 border-brass/50 text-brass-bright font-heading uppercase text-xs tracking-[0.2em]"
+            onClick={() => { playSfx("select"); setShowReplay(true); }}
+          >
+            <Film className="w-3.5 h-3.5" /> Watch War Replay
+          </Button>
           <motion.span
             initial={{ scale: 2.4, opacity: 0, rotate: -20 }}
             animate={{ scale: 1, opacity: 1, rotate: -8 }}
@@ -299,6 +310,7 @@ export default function GamePage() {
         </div>
       </div>
 
+      {showReplay && <ReplayTheater game={game} onClose={() => setShowReplay(false)} />}
       <DiplomacyPanel open={showDiplomacy} onClose={() => setShowDiplomacy(false)} game={game} busy={busy} onAction={act} />
       <DoctrinePanel open={showDoctrine} onClose={() => setShowDoctrine(false)} research={game.myResearch} busy={busy} onSetFocus={setResearchFocus} game={game} onUnlock={unlockItem} />
       <BattleView battle={game.battle} busy={busy} onChoose={(maneuver) => act({ action: "battleChoice", maneuver })} />
