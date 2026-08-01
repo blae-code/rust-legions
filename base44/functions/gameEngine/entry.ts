@@ -202,7 +202,7 @@ function factionProduction(game, slotIdx) {
   const out = emptyResources();
   for (const [nid, owner] of Object.entries(game.macro?.control || {})) {
     if (owner !== slotIdx) continue;
-    const node = game.macro.nodes.find((n) => n.id === nid);
+    const node = (game.macro?.nodes || []).find((n) => n.id === nid);
     const y = MACRO_SETTLEMENT_YIELD[node?.kind] || {};
     for (const k of RESOURCE_KEYS) out[k] += y[k] || 0;
   }
@@ -990,10 +990,12 @@ function macroFindPath(macro, fromId, toId, dayRate, opts = {}) {
   return { path, totalDays: dist[toId] };
 }
 
-const macroSettlements = (macro) => macro.nodes.filter((n) => n.kind !== 'crossroads');
-const macroColumnsAt = (game, nodeId) => (game.macro.columns || []).filter((c) => c.nodeId === nodeId);
+// Legacy fronts filed before the macro engine carry no chart — every reader
+// below treats a missing chart as an empty theater rather than throwing.
+const macroSettlements = (macro) => (macro?.nodes || []).filter((n) => n.kind !== 'crossroads');
+const macroColumnsAt = (game, nodeId) => (game.macro?.columns || []).filter((c) => c.nodeId === nodeId);
 const macroForeignBaseAt = (game, nodeId, slotIdx) =>
-  Object.entries(game.macro.bases || {}).some(([slot, b]) => Number(slot) !== slotIdx && b.nodeId === nodeId);
+  Object.entries(game.macro?.bases || {}).some(([slot, b]) => Number(slot) !== slotIdx && b.nodeId === nodeId);
 // A node blocks foreign movement when foreign columns hold it or a foreign
 // fortress-base is anchored there (boarding assaults arrive in slice M5)
 const macroBlockedAgainst = (game, nodeId, slotIdx) =>
@@ -1004,6 +1006,7 @@ const macroBlockedAgainst = (game, nodeId, slotIdx) =>
 // controls or that stand neutral. Returns the Set of in-supply node ids.
 function macroSupplied(game, slotIdx) {
   const macro = game.macro;
+  if (!macro?.nodes) return new Set();
   const passable = (nid) => macro.control[nid] === slotIdx || macro.control[nid] === null || macro.control[nid] === undefined;
   const sources = [];
   const base = macro.bases?.[String(slotIdx)];
@@ -1035,7 +1038,7 @@ const macroColumnAnchor = (column) => column.nodeId || column.march?.path[0];
 function macroControlPct(game, slotIdx) {
   const settlements = macroSettlements(game.macro);
   if (settlements.length === 0) return 0;
-  const mine = settlements.filter((n) => game.macro.control[n.id] === slotIdx).length;
+  const mine = settlements.filter((n) => game.macro.control?.[n.id] === slotIdx).length;
   return (mine / settlements.length) * 100;
 }
 

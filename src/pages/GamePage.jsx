@@ -31,6 +31,7 @@ import WeatherOverlay from "@/components/game/weather/WeatherOverlay";
 import DiplomacyPanel from "@/components/game/diplomacy/DiplomacyPanel";
 import DoctrinePanel from "@/components/game/research/DoctrinePanel";
 import MacroWarRoom from "@/components/game/macro/MacroWarRoom";
+import NoChartNotice from "@/components/game/macro/NoChartNotice";
 import GameChat from "@/components/game/chat/GameChat";
 import { RESOURCE_KEYS, RESOURCE_META } from "@/lib/units";
 import { getImage } from "@/lib/imageLibrary";
@@ -316,7 +317,7 @@ export default function GamePage() {
 
       <div className="grid lg:grid-cols-[1fr_320px] gap-4">
         <div className="space-y-4">
-          <MacroWarRoom game={game} busy={busy} onAction={act} />
+          {game.macro?.nodes?.length ? <MacroWarRoom game={game} busy={busy} onAction={act} /> : <NoChartNotice />}
           <WarCharts history={game.statHistory} factions={game.factions} />
         </div>
         <div className="space-y-4">

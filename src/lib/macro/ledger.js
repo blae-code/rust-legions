@@ -27,8 +27,8 @@ export function ledgerReport(game) {
   const supplied = new Set(macro.supplied || []);
   const myBaseNode = (macro.bases || []).find((b) => b.slot === game.mySlot)?.nodeId || null;
 
-  const holdings = macro.nodes
-    .filter((n) => n.kind !== "crossroads" && macro.control[n.id] === game.mySlot)
+  const holdings = (macro.nodes || [])
+    .filter((n) => n.kind !== "crossroads" && macro.control?.[n.id] === game.mySlot)
     .map((n) => ({
       id: n.id,
       name: n.name,
