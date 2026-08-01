@@ -16,6 +16,8 @@ import FieldReportSummary from "@/components/game/FieldReportSummary";
 import RelicVault from "@/components/game/relics/RelicVault";
 import SettlementDossiers from "@/components/game/relics/SettlementDossiers";
 import CharterParley from "@/components/game/relics/CharterParley";
+import LocalAccordsPanel from "@/components/game/relics/LocalAccordsPanel";
+import { Landmark } from "lucide-react";
 import ReplayTheater from "@/components/game/replay/ReplayTheater";
 import StalemateAlert from "@/components/game/StalemateAlert";
 import AttritionBanner from "@/components/game/AttritionBanner";
@@ -51,6 +53,7 @@ export default function GamePage() {
   const [showDoctrine, setShowDoctrine] = useState(false);
   const [showLedger, setShowLedger] = useState(false);
   const [showCodex, setShowCodex] = useState(false);
+  const [showAccords, setShowAccords] = useState(false);
   const pollRef = useRef(null);
   const prevBattleRef = useRef(false);
   const [turnStinger, setTurnStinger] = useState(0);
@@ -241,6 +244,15 @@ export default function GamePage() {
             <ClipboardList className="w-3.5 h-3.5" />
           </button>
         )}
+        {game.status === "active" && game.mySlot !== null && game.mySlot !== undefined && (
+          <button
+            onClick={() => { playSfx("select"); setShowAccords(true); }}
+            title="Governor's Desk — integrate, trade with, or tax your settlements"
+            className="p-1.5 rounded-sm border border-border text-muted-foreground hover:text-brass-bright hover:border-brass/50 transition-colors"
+          >
+            <Landmark className="w-3.5 h-3.5" />
+          </button>
+        )}
         <button
           onClick={() => { playSfx("select"); setShowCodex(true); }}
           title="The Archive — factions, worlds & campaign annals"
@@ -368,6 +380,13 @@ export default function GamePage() {
       )}
 
       {showReplay && <ReplayTheater game={game} onClose={() => setShowReplay(false)} />}
+      <LocalAccordsPanel
+        open={showAccords}
+        onClose={() => setShowAccords(false)}
+        game={game}
+        busy={busy}
+        onSet={(nodeId, policy) => act({ action: "macroSetPolicy", nodeId, policy })}
+      />
       <QuartermasterLedger open={showLedger} onClose={() => setShowLedger(false)} game={game} />
       <CodexPanel open={showCodex} onClose={() => setShowCodex(false)} activePlanetId={game.planetId} />
       <DiplomacyPanel open={showDiplomacy} onClose={() => setShowDiplomacy(false)} game={game} busy={busy} onAction={act} />

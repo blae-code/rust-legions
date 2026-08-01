@@ -262,6 +262,14 @@ function surveySettlement(game, slotIdx, nodeId) {
   }
 }
 
+// Standing accords with a held settlement's populace (docs: local governance)
+const POLICY_COOLDOWN_DAYS = 3;
+const POLICY_LOG = {
+  integrate: 'integrates the populace of',
+  trade: 'opens the market roads of',
+  tax: 'levies a war tax on',
+};
+
 // Terms a commander may offer a newly surveyed settlement
 function charterOptions(dossier) {
   const [res, amt] = Object.entries(dossier.spoils || { manpower: 2 })[0];
@@ -340,6 +348,14 @@ function factionProduction(game, slotIdx) {
     for (const k of RESOURCE_KEYS) out[k] += y[k] || 0;
     const boost = game.macro?.charterBoost?.[nid];
     if (boost) out[boost] += 1;
+    // Standing accord with the local populace (integrate / trade / tax)
+    const pol = game.macro?.policies?.[nid]?.policy;
+    if (pol === 'integrate') out.manpower += 2;
+    else if (pol === 'trade') { out.steel += 1; out.fuel += 1; }
+    else if (pol === 'tax') {
+      const primary = Object.keys(y)[0];
+      if (primary) out[primary] += y[primary] || 0;
+    }
   }
   return out;
 }
@@ -1420,6 +1436,10 @@ function macroVisibleFor(game, slotIdx) {
     dossiers: Object.entries(game.macro.dossiers || {})
       .filter(([nid]) => observed(nid))
       .map(([nid, d]) => ({ nodeId: nid, ...d })),
+    // Standing accords with local populaces (only your own are legible)
+    policies: Object.fromEntries(
+      Object.entries(game.macro.policies || {}).filter(([nid]) => observed(nid) && game.macro.control[nid] === slotIdx)
+    ),
     // Charters of autonomy standing on the chart
     charterBoost: Object.fromEntries(Object.entries(game.macro.charterBoost || {}).filter(([nid]) => observed(nid))),
     // Terms awaiting this commander at a freshly surveyed settlement
@@ -2242,6 +2262,30 @@ Deno.serve(async (req) => {
       const err = applyCharter(game, list[idx], body.choiceId);
       if (err) return Response.json({ error: err }, { status: 400 });
       list.splice(idx, 1);
+      await persistMacro();
+      return Response.json({ ok: true });
+    }
+
+    // Standing accord with a captured settlement's populace. Terms may be
+    // re-cut, but the locals need time to trust a new arrangement.
+    GAME_ACTIONS.macroSetPolicy = async () => {
+      requireMacro();
+      const slotIdx = requireMyTurn();
+      const { nodeId, policy } = body;
+      if (!['integrate', 'trade', 'tax'].includes(policy)) return Response.json({ error: 'Unknown terms' }, { status: 400 });
+      if (game.macro.control[nodeId] !== slotIdx) return Response.json({ error: 'You do not hold that settlement' }, { status: 403 });
+      if (!game.macro.dossiers?.[nodeId]) return Response.json({ error: 'That settlement has not been surveyed' }, { status: 400 });
+      game.macro.policies = game.macro.policies || {};
+      const cur = game.macro.policies[nodeId];
+      if (cur?.policy === policy) return Response.json({ error: 'Those terms already stand' }, { status: 400 });
+      if (cur && game.turnNumber - cur.since < POLICY_COOLDOWN_DAYS) {
+        return Response.json({ error: `The locals are still settling into the last arrangement — ${POLICY_COOLDOWN_DAYS - (game.turnNumber - cur.since)} day(s) remain` }, { status: 400 });
+      }
+      game.macro.policies[nodeId] = { policy, since: game.turnNumber };
+      game.combatLog.push({
+        turn: game.turnNumber, type: 'event',
+        text: `${game.factionSlots[slotIdx].factionName} ${POLICY_LOG[policy]} ${macroNode(game.macro, nodeId)?.name}.`,
+      });
       await persistMacro();
       return Response.json({ ok: true });
     }
