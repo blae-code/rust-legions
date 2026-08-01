@@ -70,6 +70,11 @@ export default function GamePage() {
   const refresh = useCallback(async () => {
     try {
       const res = await base44.functions.invoke("gameEngine", { action: "getState", gameId });
+      // A malformed dispatch must never reach the war room — hold the front screen instead
+      if (!res.data?.id) {
+        setError(res.data?.error || "The Signals Directorate could not raise this front");
+        return;
+      }
       setGame(res.data);
     } catch (e) {
       setError(e.response?.data?.error || "Failed to load game");

@@ -12,7 +12,21 @@ const MUSTER_KEYS = ["riflemen", "crawler", "artillery", "fighter"];
 // The macro command surface: the ministry tactical chart with live control,
 // columns and march plotting, driven entirely by fog-filtered server state.
 export default function MacroWarRoom({ game, busy, onAction }) {
-  const macro = game.macro;
+  // Legacy or partially-filed charts may arrive without a control map, bases or
+  // columns — normalize once so the war room never reads through a hole.
+  const raw = game.macro || {};
+  const macro = useMemo(
+    () => ({
+      ...raw,
+      nodes: raw.nodes || [],
+      routes: raw.routes || [],
+      control: raw.control || {},
+      bases: raw.bases || [],
+      columns: raw.columns || [],
+      observed: raw.observed || [],
+    }),
+    [raw]
+  );
   const worldSpec = WORLDS.find((w) => w.id === game.planetId);
   const world = useMemo(
     () => ({ nodes: macro.nodes, routes: macro.routes, continents: macro.continents || [], size: macro.size }),

@@ -1697,8 +1697,8 @@ Deno.serve(async (req) => {
         mapPlanet = m.planetId || null;
         macroWorld = { seed: 7, ...macroBuildWorld(m.nodes.map((n) => ({ ...n })), (m.routes || []).map((r) => [...r]), 7) };
       }
-      const faction = await svc.entities.Faction.get(factionId);
-      if (!faction) return Response.json({ error: 'Faction not found' }, { status: 404 });
+      const faction = factionId ? await svc.entities.Faction.get(factionId).catch(() => null) : null;
+      if (!faction) return Response.json({ error: 'That faction is no longer on file — pick or forge another before mustering' }, { status: 404 });
 
       const humans = Math.min(Math.max(humanCount, 1), 4);
       const npcs = npcConfigs.slice(0, 4 - humans);
@@ -1874,8 +1874,8 @@ Deno.serve(async (req) => {
       if (mySlot !== null) return Response.json({ error: 'Already joined' }, { status: 400 });
       const open = game.factionSlots.find((s) => !s.isNPC && !s.userId);
       if (!open) return Response.json({ error: 'No open slots' }, { status: 400 });
-      const faction = await svc.entities.Faction.get(body.factionId);
-      if (!faction) return Response.json({ error: 'Faction not found' }, { status: 404 });
+      const faction = body.factionId ? await svc.entities.Faction.get(body.factionId).catch(() => null) : null;
+      if (!faction) return Response.json({ error: 'That faction is no longer on file — pick or forge another before joining' }, { status: 404 });
       open.userId = user.id;
       open.factionId = faction.id;
       open.factionName = faction.factionName;
