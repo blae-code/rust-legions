@@ -1,13 +1,25 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { motion } from "framer-motion";
 import { X } from "lucide-react";
 import { playSfx } from "@/lib/sfx";
 
 // Radial orders menu — rendered centered on a settlement node. Options are
 // pre-filtered by the caller so only eligible orders ever appear.
+// Quick-select: number keys 1–9 fire the matching order, Esc dismisses.
 export default function NodeRadialMenu({ node, kindLabel, options = [], onClose }) {
   const R = 62;
   const n = Math.max(options.length, 1);
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || e.target.tagName === "SELECT") return;
+      if (e.key === "Escape") { playSfx("select"); onClose(); return; }
+      const idx = parseInt(e.key, 10) - 1;
+      if (idx >= 0 && idx < options.length) { e.preventDefault(); options[idx].act(); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [options, onClose]);
   return (
     <div className="relative" style={{ width: 0, height: 0 }}>
       <motion.div initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.16 }}>
@@ -40,11 +52,16 @@ export default function NodeRadialMenu({ node, kindLabel, options = [], onClose 
               style={{ left: x, top: y }}
             >
               <span
-                className={`w-9 h-9 rounded-full cq-metal bg-secondary border flex items-center justify-center transition-transform hover:scale-110 ${
+                className={`relative w-9 h-9 rounded-full cq-metal bg-secondary border flex items-center justify-center transition-transform hover:scale-110 ${
                   o.tone === "rust" ? "border-rust/60 text-rust" : "border-brass/60 text-brass-bright"
                 }`}
               >
                 <Icon className="w-4 h-4" />
+                {i < 9 && (
+                  <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-sm bg-black/90 border border-brass/50 text-brass-bright font-mono text-[8px] leading-none flex items-center justify-center">
+                    {i + 1}
+                  </span>
+                )}
               </span>
               <span className="font-mono text-[8px] tracking-widest bg-black/85 border border-border px-1 py-px rounded-sm whitespace-nowrap text-brass-bright">
                 {o.label.toUpperCase()}
@@ -59,6 +76,9 @@ export default function NodeRadialMenu({ node, kindLabel, options = [], onClose 
         >
           {node.name.toUpperCase()}
           <span className="text-muted-foreground"> · {kindLabel.toUpperCase()}</span>
+          {options.length > 0 && (
+            <span className="text-muted-foreground"> · 1–{Math.min(options.length, 9)} QUICK ORDER · ESC</span>
+          )}
         </div>
       </motion.div>
     </div>
