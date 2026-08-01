@@ -186,10 +186,17 @@ Cadence tuning per map size; whether ideology is seeded from the creation lifepa
 
 Shipped and planned content, in order. Each expansion arrives as Field Amendment patch dispatches (see the Patch workflow in `CLAUDE.md`).
 
+> **Scope decision (locked, 2026-08-01): v1.0 includes ALL land-based content.** The 1.0 stamp is
+> not granted until the entire land war is in service — the full mobile-base rules (boarding
+> assaults, base-loss consequences, remaining module families), the completed macro engine,
+> precursor technology & the relic victory, settlements as minor polities, and the in-game
+> Political Ideology Lifepath — plus the vanilla-era gaps in §7.1 (stalemate protection, turn
+> notifications, war market). Only the Air and Sea theaters ship after 1.0.
+
 | Phase | Name | Contents |
 | --- | --- | --- |
 | **v1.x (shipped, ongoing)** | The Vanilla Front | Everything in `docs/GAME_RULES.md` — including the shipped diplomacy (§17), fortress-base slice (§18), research tree (§19), and State Armory (§20) |
-| **v2.x (next major)** | Mobile Bases & Macro Map redesign | §3–§5 above: full mobile-base rules (boarding assaults, base-loss consequences, remaining module families), permanent settlements as minor polities, precursor tech & relic victory, and the graph-based macro map with day-rate movement (one turn = one day) |
+| **v1.0 gate (next, formerly "v2.x")** | Mobile Bases & Macro Map redesign | §3–§5 above: full mobile-base rules (boarding assaults, base-loss consequences, remaining module families), permanent settlements as minor polities, precursor tech & relic victory, and the graph-based macro map with day-rate movement (one turn = one day) |
 | **Expansion: AIR** | *Sky Captain-inspired* | Aerial theater: airships and sky-fortresses, air lanes/altitude as a movement layer, air piracy, possibly airborne mobile bases. Rocketeer/pulp-aviation flavor grafted onto the dieselpunk base. |
 | **Expansion: SEA** | *Waterworld / Foxhole-naval-inspired* | Ocean theater: naval mobile bases (floating fortress flotillas), sea-borne settlements, amphibious operations, deep-sea precursor vaults. Resolves the current sea-transport gap as a full expansion rather than a patch. |
 

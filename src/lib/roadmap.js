@@ -28,11 +28,11 @@ export const PHASES = [
       { title: "Fortress-base slice", done: true, note: "Three module bays, refit yard, base movement, wreck-on-capture." },
       { title: "Research tree & State Armory", done: true, note: "Doctrine research plus off-turn prototype and decree unlocks." },
     ],
-    aim: "Stabilise to a confident v1.0 — the solid ground every later theater is launched from.",
+    aim: "Stabilise the baseline — v1.0 ships only once the entire land war, including The Long March below, is in service.",
   },
   {
     id: "v2",
-    era: "v2.x",
+    era: "v1.0 gate",
     codename: "The Long March",
     title: "Mobile Bases & the Macro Map",
     theater: "land",
@@ -40,7 +40,7 @@ export const PHASES = [
     tagline: "Capitals come off their foundations. The whole world becomes a road.",
     summary:
       "The largest planned redesign. Permanent capitals are replaced by nomadic mobile fortress-bases roaming a continuous, painterly macro map; permanent settlements become minor polities to trade with, coerce, or raid; and the abandonment premise becomes mechanical — buried precursor technology, contested dig sites, and a relic victory: assembling the Key, the way off the dead world.",
-    prereq: "Launches from a stable v1.0 core.",
+    prereq: "Required for v1.0 — by decree, every land-based system ships before the 1.0 stamp. Only the Air and Sea theaters lie beyond it.",
     highlights: [
       { title: "Full mobile-base rules", done: false, note: "Boarding assaults, base-loss consequences, the remaining module families (hangar, lab, habitat, aura)." },
       { title: "Graph macro map", done: false, note: "Node-and-route world, one turn = one day, GURPS-style march rates set by the slowest column. Client sandbox live at /star-map — the War Table; server wiring ahead." },
@@ -60,7 +60,7 @@ export const PHASES = [
     tagline: "The war leaves the ground. Sky-fortresses and pulp aviation.",
     summary:
       "The first full expansion after the core redesign. A Sky Captain-inspired aerial theater grafted onto the dieselpunk base: altitude becomes a movement layer, air lanes cross terrain that stops treads, and piracy stalks the sky. The endgame question the design chases: airborne mobile bases — fortresses that fly.",
-    prereq: "Ships after v2.x — needs the mobile base & macro map in place first.",
+    prereq: "First post-1.0 expansion — needs the mobile base & macro map in place first.",
     highlights: [
       { title: "Airships & sky-fortresses", done: false, note: "A new class of unit and, potentially, a new class of mobile base." },
       { title: "Altitude as a movement layer", done: false, note: "Air lanes overlaying the macro-map graph; heights that ignore ground terrain." },
