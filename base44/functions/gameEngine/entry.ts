@@ -137,6 +137,20 @@ const RELICS = {
 };
 const RELIC_KEYS = Object.keys(RELICS);
 
+// Complete a matched set and the pieces work as their makers intended
+const RELIC_SETS = {
+  foundry_patrimony: {
+    label: 'The Foundry Patrimony',
+    members: ['pattern_dies', 'cracking_column', 'gun_lathes', 'reactive_lattice'],
+    mods: { income: { steel: 2, fuel: 1 }, unitStat: { crawler: { attack: 1, defense: 1 } } },
+  },
+  administrative_codex: {
+    label: 'The Administrative Codex',
+    members: ['cogitator_array', 'census_vault', 'survey_engine'],
+    mods: { income: { manpower: 2 }, armyCap: 15, supplyRange: 1 },
+  },
+};
+
 // Seed dig sites into the deep ruins of a freshly started world
 function seedRelics(game) {
   const ruins = game.macro.nodes.filter((n) => n.kind === 'ruin');
@@ -164,6 +178,19 @@ function excavateRelic(game, slotIdx, nodeId) {
     turn: game.turnNumber, type: 'event',
     text: `${slot.factionName}'s engineers break the seals beneath ${macroNode(game.macro, nodeId)?.name} — the ${relic.label} is recovered. ${relic.lore}`,
   });
+
+  // A matched set assembled: the pieces finally work as their makers intended
+  slot.relicSets = slot.relicSets || [];
+  for (const [setId, set] of Object.entries(RELIC_SETS)) {
+    if (slot.relicSets.includes(setId)) continue;
+    if (!set.members.every((m) => slot.relics.includes(m))) continue;
+    slot.relicSets.push(setId);
+    mergeMods(slot.mods, set.mods);
+    game.combatLog.push({
+      turn: game.turnNumber, type: 'event',
+      text: `${slot.factionName} assembles ${set.label} — the recovered works are brought into concert, and the whole is greater than its parts.`,
+    });
+  }
 }
 
 const MAP_CONTROL_PCT = 60;
@@ -1660,6 +1687,7 @@ Deno.serve(async (req) => {
         myRelics: mySlot !== null
           ? (mySlotObj.relics || []).map((id) => ({ id, label: RELICS[id]?.label, lore: RELICS[id]?.lore }))
           : null,
+        myRelicSets: mySlot !== null ? (mySlotObj.relicSets || []) : null,
         relicTotal: Object.keys(game.macro?.relics || {}).length,
         relicsFound: Object.values(game.macro?.relics || {}).filter((s) => s.foundBy !== null && s.foundBy !== undefined).length,
         myUnlocks: mySlot !== null ? (mySlotObj.unlocks || []) : null,
