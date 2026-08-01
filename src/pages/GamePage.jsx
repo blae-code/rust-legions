@@ -3,7 +3,8 @@ import { Link, useParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
-import { Loader2, Volume2, VolumeX, Handshake, FlaskConical } from "lucide-react";
+import { Loader2, Volume2, VolumeX, Handshake, FlaskConical, ClipboardList } from "lucide-react";
+import QuartermasterLedger from "@/components/game/ledger/QuartermasterLedger";
 import { playSfx, sfxEnabled, setSfxEnabled } from "@/lib/sfx";
 import { setScoreSuppressed } from "@/lib/ambience";
 import CombatLog from "@/components/game/CombatLog";
@@ -39,6 +40,7 @@ export default function GamePage() {
   const [showDiplomacy, setShowDiplomacy] = useState(false);
   const [showReplay, setShowReplay] = useState(false);
   const [showDoctrine, setShowDoctrine] = useState(false);
+  const [showLedger, setShowLedger] = useState(false);
   const pollRef = useRef(null);
   const prevBattleRef = useRef(false);
   const [turnStinger, setTurnStinger] = useState(0);
@@ -205,6 +207,15 @@ export default function GamePage() {
             {!game.myResearch.focus && <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-rust cq-lamp text-rust" />}
           </button>
         )}
+        {game.status === "active" && game.mySlot !== null && game.mySlot !== undefined && (
+          <button
+            onClick={() => { playSfx("select"); setShowLedger(true); }}
+            title="Quartermaster's Ledger — holdings, income & supply"
+            className="p-1.5 rounded-sm border border-border text-muted-foreground hover:text-brass-bright hover:border-brass/50 transition-colors"
+          >
+            <ClipboardList className="w-3.5 h-3.5" />
+          </button>
+        )}
         {game.status === "active" && game.diplomacy && (
           <button
             onClick={() => setShowDiplomacy(true)}
@@ -316,6 +327,7 @@ export default function GamePage() {
       </div>
 
       {showReplay && <ReplayTheater game={game} onClose={() => setShowReplay(false)} />}
+      <QuartermasterLedger open={showLedger} onClose={() => setShowLedger(false)} game={game} />
       <DiplomacyPanel open={showDiplomacy} onClose={() => setShowDiplomacy(false)} game={game} busy={busy} onAction={act} />
       <DoctrinePanel open={showDoctrine} onClose={() => setShowDoctrine(false)} research={game.myResearch} busy={busy} onSetFocus={setResearchFocus} game={game} onUnlock={unlockItem} />
       <BattleView battle={game.battle} busy={busy} onChoose={(maneuver) => act({ action: "battleChoice", maneuver })} />
