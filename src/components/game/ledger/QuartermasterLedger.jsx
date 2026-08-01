@@ -55,11 +55,22 @@ export default function QuartermasterLedger({ open, onClose, game }) {
                 {RESOURCE_KEYS.map((k) => (
                   <span key={k} title={RESOURCE_META[k].label} className="inline-flex items-center gap-1.5">
                     {RESOURCE_META[k].icon} +{game.myProduction?.[k] ?? r.income[k]}
-                    {r.lostIncome[k] > 0 && <span className="text-rust text-[10px]">(−{r.lostIncome[k]} cut off)</span>}
+                    {r.lostIncome[k] > 0 && <span className="text-rust text-[10px]">({r.lostIncome[k]} at risk)</span>}
                   </span>
                 ))}
               </div>
             </div>
+
+            {r.hubs.length === 0 && (
+              <div className="border border-dashed border-brass/40 rounded-sm p-3 space-y-1">
+                <p className="font-heading uppercase tracking-[0.2em] text-xs text-brass">No supply network established</p>
+                <p className="text-[11px] text-muted-foreground">
+                  Nothing anchors your supply yet, so every holding sits outside the envelope. Park the
+                  fortress-base on a settlement you control, or take a fuel depot — either becomes a hub
+                  and pushes coverage out roughly three road-days along routes you hold.
+                </p>
+              </div>
+            )}
 
             {(r.cutOff.length > 0 || r.columnsOut.length > 0) && (
               <div className="border border-rust/60 bg-rust/10 rounded-sm p-3 space-y-1">
