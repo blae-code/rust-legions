@@ -4,9 +4,10 @@ import { ArrowLeft, Loader2, Trash2 } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { buildWorldFromNodes } from "@/lib/macro/worlds";
+import { buildWorldFromNodes, WORLDS } from "@/lib/macro/worlds";
 import { NODE_KINDS, CHART } from "@/lib/macro/graph";
 import MinistryChart from "@/components/chart/MinistryChart";
+import SceneErrorBoundary from "@/components/SceneErrorBoundary";
 import { playSfx } from "@/lib/sfx";
 
 const KIND_ORDER = ["city", "town", "depot", "crossroads", "ruin"];
@@ -20,6 +21,7 @@ export default function MapEditor() {
   const [mapName, setMapName] = useState("");
   const [description, setDescription] = useState("");
   const [playerCount, setPlayerCount] = useState(2);
+  const [planetId, setPlanetId] = useState("cindara");
   const [nodes, setNodes] = useState([]);
   const [kind, setKind] = useState("city");
   const [selected, setSelected] = useState(null);
@@ -58,6 +60,7 @@ export default function MapEditor() {
     try {
       await base44.entities.GameMap.create({
         name: mapName, description,
+        planetId,
         nodes, routes: [],
         recommendedPlayerCount: playerCount,
         isPublished: true,
@@ -94,13 +97,15 @@ export default function MapEditor() {
       <div className="grid lg:grid-cols-[1fr_300px] gap-4">
         <div className="cq-panel cq-brackets relative overflow-hidden p-1">
           <div className="cq-hazard absolute top-0 left-0 right-0 z-10" />
-          <MinistryChart
-            world={world}
-            hovered={selectedNode || null}
-            onNodeClick={(n) => { playSfx("select"); setSelected(n.id === selected ? null : n.id); }}
-            onCanvasClick={place}
-            height="64vh"
-          />
+          <SceneErrorBoundary>
+            <MinistryChart
+              world={world}
+              hovered={selectedNode || null}
+              onNodeClick={(n) => { playSfx("select"); setSelected(n.id === selected ? null : n.id); }}
+              onCanvasClick={place}
+              height="64vh"
+            />
+          </SceneErrorBoundary>
           <div className="cq-scanlines absolute inset-0 pointer-events-none z-[5]" />
           <div className="cq-vignette absolute inset-0 pointer-events-none z-[5]" />
         </div>
@@ -114,6 +119,12 @@ export default function MapEditor() {
             <div>
               <label className="cq-label">Ministry Notes</label>
               <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Two continents split by a convoy corridor" className="bg-input border-border mt-1 text-xs" />
+            </div>
+            <div>
+              <label className="cq-label">Theater Planet</label>
+              <select value={planetId} onChange={(e) => setPlanetId(e.target.value)} className="w-full bg-input border border-border rounded-sm p-1.5 text-xs text-secondary-foreground font-heading tracking-wide mt-1">
+                {WORLDS.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
+              </select>
             </div>
             <div>
               <label className="cq-label">Recommended Commanders</label>

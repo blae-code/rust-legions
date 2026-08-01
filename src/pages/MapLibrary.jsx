@@ -3,19 +3,28 @@ import { Link } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
-import { buildWorldFromNodes } from "@/lib/macro/worlds";
+import { buildWorldFromNodes, WORLDS } from "@/lib/macro/worlds";
 import { CHART } from "@/lib/macro/graph";
 import MinistryChart from "@/components/chart/MinistryChart";
+
+const planetName = (id) => WORLDS.find((w) => w.id === id)?.name || "Cindara";
 
 export default function MapLibrary() {
   const [maps, setMaps] = useState(null);
   const [previewId, setPreviewId] = useState(null);
+  const [planetFilter, setPlanetFilter] = useState("all");
+  const [countFilter, setCountFilter] = useState("all");
 
   useEffect(() => {
     // Only node-based war charts survive the hex retirement
     base44.entities.GameMap.filter({ isPublished: true }, "-created_date", 100)
       .then((all) => setMaps(all.filter((m) => (m.nodes || []).length > 0)));
   }, []);
+
+  const filtered = (maps || []).filter((m) =>
+    (planetFilter === "all" || (m.planetId || "cindara") === planetFilter) &&
+    (countFilter === "all" || (m.recommendedPlayerCount || 2) === Number(countFilter))
+  );
 
   const preview = maps?.find((m) => m.id === previewId);
   const previewWorld = preview
@@ -43,18 +52,45 @@ export default function MapLibrary() {
         </p>
       ) : (
         <div className="grid lg:grid-cols-[320px_1fr] gap-4">
-          <div className="space-y-2 max-h-[600px] overflow-y-auto pr-1">
-            {maps.map((m) => (
+          <div className="space-y-2">
+            <div className="flex gap-2">
+              <select
+                value={planetFilter}
+                onChange={(e) => setPlanetFilter(e.target.value)}
+                className="flex-1 bg-input border border-border rounded-sm p-1.5 text-xs text-secondary-foreground font-heading tracking-wide"
+                aria-label="Filter by planet"
+              >
+                <option value="all">All planets</option>
+                {WORLDS.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
+              </select>
+              <select
+                value={countFilter}
+                onChange={(e) => setCountFilter(e.target.value)}
+                className="flex-1 bg-input border border-border rounded-sm p-1.5 text-xs text-secondary-foreground font-heading tracking-wide"
+                aria-label="Filter by recommended commanders"
+              >
+                <option value="all">Any commanders</option>
+                {[2, 3, 4].map((n) => <option key={n} value={n}>{n} commanders</option>)}
+              </select>
+            </div>
+            {filtered.length === 0 && (
+              <p className="text-xs text-muted-foreground font-mono border border-dashed border-border rounded p-4 text-center">
+                NO CHARTS MATCH THESE FILTERS
+              </p>
+            )}
+            <div className="space-y-2 max-h-[560px] overflow-y-auto pr-1">
+            {filtered.map((m) => (
               <button
                 key={m.id}
                 onClick={() => setPreviewId(m.id)}
                 className={`w-full text-left border rounded-sm p-3 transition-colors ${previewId === m.id ? "border-brass bg-brass/10" : "border-border bg-card hover:border-steel"}`}
               >
                 <p className="font-heading font-semibold tracking-wide text-foreground text-sm">{m.name}</p>
-                <p className="text-xs text-muted-foreground font-mono">{(m.nodes || []).length} settlements · {m.recommendedPlayerCount} players</p>
+                <p className="text-xs text-muted-foreground font-mono">{planetName(m.planetId)} · {(m.nodes || []).length} settlements · {m.recommendedPlayerCount} players</p>
                 {m.description && <p className="text-[11px] text-muted-foreground/70 mt-1 line-clamp-2">{m.description}</p>}
               </button>
             ))}
+            </div>
           </div>
           <div className="cq-panel p-3 bg-gradient-to-b from-card to-background">
             {preview ? (

@@ -40,6 +40,7 @@ function NodeGlyph({ node, r, color, dim, ringColor, isBase, baseColor, hovered,
       opacity={dim ? 0.45 : 1}
       style={{ cursor: onClick ? "pointer" : "default" }}
       onClick={onClick ? (e) => { e.stopPropagation(); onClick(node); } : undefined}
+      onPointerUp={onClick ? (e) => e.stopPropagation() : undefined}
       onMouseEnter={onHover ? () => onHover(node) : undefined}
       onMouseLeave={onHover ? () => onHover(null) : undefined}
     >

@@ -1462,9 +1462,11 @@ Deno.serve(async (req) => {
       // Cartography Bureau supplies the settlements; otherwise the theater
       // world generates them. Either way macroBuildWorld grows the landmasses.
       let macroWorld = null;
+      let mapPlanet = null;
       if (mapId) {
         const m = await svc.entities.GameMap.get(mapId).catch(() => null);
         if (!m || !(m.nodes || []).length) return Response.json({ error: 'That chart is not on file' }, { status: 400 });
+        mapPlanet = m.planetId || null;
         macroWorld = { seed: 7, ...macroBuildWorld(m.nodes.map((n) => ({ ...n })), (m.routes || []).map((r) => [...r]), 7) };
       }
       const faction = await svc.entities.Faction.get(factionId);
@@ -1496,7 +1498,7 @@ Deno.serve(async (req) => {
         });
       });
 
-      const chosenPlanet = planetId || 'cindara';
+      const chosenPlanet = planetId || mapPlanet || 'cindara';
       const game = await svc.entities.Game.create({
         name: name || 'Unnamed Front', mode, status: 'lobby', mapId: mapId || null, tiles: [],
         planetId: chosenPlanet,
