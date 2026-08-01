@@ -13,6 +13,7 @@ import { setSoundscape, stopSoundscape } from "@/lib/soundscape";
 import SoundscapeControl from "@/components/audio/SoundscapeControl";
 import CombatLog from "@/components/game/CombatLog";
 import FieldReportSummary from "@/components/game/FieldReportSummary";
+import RelicVault from "@/components/game/relics/RelicVault";
 import ReplayTheater from "@/components/game/replay/ReplayTheater";
 import StalemateAlert from "@/components/game/StalemateAlert";
 import AttritionBanner from "@/components/game/AttritionBanner";
@@ -344,6 +345,7 @@ export default function GamePage() {
               </div>
             </div>
           )}
+          {game.status === "active" && <RelicVault game={game} />}
           <FieldReportSummary entries={game.combatLog} factions={game.factions} turnNumber={game.turnNumber} />
           <NpcIntercepts game={game} />
           <DispatchArchive archives={game.battleArchives} />

@@ -123,6 +123,49 @@ function tickResearch(game) {
   }
 }
 
+// ---------- Precursor relics (mirrors src/lib/relics.js) ----------
+// Deep ruins hide Combine-age technology. Taking such a ruin excavates whatever
+// lies under it; the find is permanent and folds into the faction's modifiers.
+const RELICS = {
+  cogitator_array: { label: 'Combine Cogitator Array', lore: 'A calculating engine that still hums. Staff work sharpens overnight.', mods: { capitalDefense: 1, unitStat: { riflemen: { defense: 1 } } } },
+  pattern_dies: { label: 'Pattern Stamping Dies', lore: 'Original hull dies for a foundry line thought lost.', mods: { income: { steel: 1 } } },
+  cracking_column: { label: 'Catalytic Cracking Column', lore: 'Pre-collapse refining plant, sealed and intact.', mods: { income: { fuel: 1 } } },
+  census_vault: { label: 'The Census Vault', lore: 'Muster rolls of a dead age — and the settlements that still answer them.', mods: { income: { manpower: 1 }, armyCap: 10 } },
+  reactive_lattice: { label: 'Reactive Armor Lattice', lore: 'Plate that hardens as it is struck. The crawler works cannot reproduce it.', mods: { unitStat: { crawler: { defense: 1 } } } },
+  survey_engine: { label: 'Cartographic Survey Engine', lore: 'It charts routes no living quartermaster has walked.', mods: { supplyRange: 1 } },
+  gun_lathes: { label: 'Precision Gun Lathes', lore: 'Barrels bored true to Combine tolerance.', mods: { unitStat: { riflemen: { attack: 1 }, crawler: { attack: 1 } } } },
+};
+const RELIC_KEYS = Object.keys(RELICS);
+
+// Seed dig sites into the deep ruins of a freshly started world
+function seedRelics(game) {
+  const ruins = game.macro.nodes.filter((n) => n.kind === 'ruin');
+  const pool = [...RELIC_KEYS].sort(() => Math.random() - 0.5);
+  const count = Math.min(ruins.length, Math.max(3, Math.round(ruins.length * 0.45)), pool.length);
+  const picked = [...ruins].sort(() => Math.random() - 0.5).slice(0, count);
+  game.macro.relics = {};
+  picked.forEach((n, i) => { game.macro.relics[n.id] = { id: pool[i], foundBy: null, foundTurn: null }; });
+}
+
+// Taking ground over an undisturbed dig site excavates it
+function excavateRelic(game, slotIdx, nodeId) {
+  const site = (game.macro.relics || {})[nodeId];
+  if (!site || site.foundBy !== null && site.foundBy !== undefined) return;
+  const relic = RELICS[site.id];
+  if (!relic) return;
+  site.foundBy = slotIdx;
+  site.foundTurn = game.turnNumber;
+  const slot = game.factionSlots[slotIdx];
+  slot.relics = slot.relics || [];
+  slot.relics.push(site.id);
+  if (!slot.mods) slot.mods = compileMods(slot.pointBuy);
+  mergeMods(slot.mods, relic.mods);
+  game.combatLog.push({
+    turn: game.turnNumber, type: 'event',
+    text: `${slot.factionName}'s engineers break the seals beneath ${macroNode(game.macro, nodeId)?.name} — the ${relic.label} is recovered. ${relic.lore}`,
+  });
+}
+
 const MAP_CONTROL_PCT = 60;
 // Stalemate prevention (War of Attrition)
 const ATTRITION_TRIGGER_TURNS = 8;   // turns without a capture before attrition is declared
@@ -1016,6 +1059,7 @@ function macroFlipControl(game, column, nodeId) {
     });
     noteCapture(game);
   }
+  excavateRelic(game, column.owner, nodeId);
 }
 
 // Advance one marching mover (column or fortress-base) by `days` of budget along
@@ -1233,6 +1277,16 @@ function macroVisibleFor(game, slotIdx) {
       .filter((c) => c.owner === slotIdx || (c.nodeId ? observed(c.nodeId) : observed(c.march.path[0]) || observed(c.march.path[1])))
       .map(columnView),
     settlementCount: macroSettlements(game.macro).length,
+    // Dig sites: an observed deep ruin shows survey traces; the find itself is
+    // only named once someone has broken the seals.
+    relicSites: Object.entries(game.macro.relics || {})
+      .filter(([nid]) => observed(nid))
+      .map(([nid, s]) => ({
+        nodeId: nid,
+        found: s.foundBy !== null && s.foundBy !== undefined,
+        foundBy: s.foundBy ?? null,
+        relic: s.foundBy !== null && s.foundBy !== undefined ? s.id : null,
+      })),
   };
 }
 
@@ -1397,6 +1451,7 @@ function macroApplyBattleOutcome(game, b, attackerWon) {
       bonus: null, buildings: [], isCapital: false,
     });
     noteCapture(game);
+    excavateRelic(game, b.attacker.slot, b.macro.nodeId);
     return 'captured';
   }
   creditVictory(game, b.defender.slot, b.defender.generalId);
@@ -1599,6 +1654,11 @@ Deno.serve(async (req) => {
         mapControlTarget: MAP_CONTROL_PCT,
         myCosts: mySlot !== null && active ? effectiveCosts(game, mySlot) : null,
         myResearch: mySlot !== null ? (mySlotObj.research || { focus: null, progress: {}, completed: [] }) : null,
+        myRelics: mySlot !== null
+          ? (mySlotObj.relics || []).map((id) => ({ id, label: RELICS[id]?.label, lore: RELICS[id]?.lore }))
+          : null,
+        relicTotal: Object.keys(game.macro?.relics || {}).length,
+        relicsFound: Object.values(game.macro?.relics || {}).filter((s) => s.foundBy !== null && s.foundBy !== undefined).length,
         myUnlocks: mySlot !== null ? (mySlotObj.unlocks || []) : null,
         isHost: game.hostUserId === user.id,
         campaignWinCondition: game.campaignWinCondition,
@@ -1759,6 +1819,7 @@ Deno.serve(async (req) => {
       if (game.worldModel === 'macro') {
         // Macro setup (docs/MACRO_ENGINE.md §9): spread spawn cities, anchor
         // bases, field one escort column per faction
+        seedRelics(game);
         const spawns = macroSpawnCities(game.macro, game.factionSlots.length);
         if (spawns.length < game.factionSlots.length) return Response.json({ error: 'Not enough spawn settlements on this world' }, { status: 400 });
         game.factionSlots.forEach((slot, i) => {
