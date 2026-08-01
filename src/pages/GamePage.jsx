@@ -10,6 +10,7 @@ import CombatLog from "@/components/game/CombatLog";
 import FieldReportSummary from "@/components/game/FieldReportSummary";
 import ReplayTheater from "@/components/game/replay/ReplayTheater";
 import StalemateAlert from "@/components/game/StalemateAlert";
+import AttritionBanner from "@/components/game/AttritionBanner";
 import { Film } from "lucide-react";
 import LobbyView from "@/components/game/LobbyView";
 import WarChronicle from "@/components/game/WarChronicle";
@@ -270,6 +271,7 @@ export default function GamePage() {
 
       {error && <p className="text-xs text-rust font-mono">{error}</p>}
 
+      <AttritionBanner attrition={game.attrition} turnNumber={game.turnNumber} />
       <StalemateAlert game={game} />
 
       <div className="grid lg:grid-cols-[1fr_320px] gap-4">

@@ -124,6 +124,9 @@ function tickResearch(game) {
 }
 
 const MAP_CONTROL_PCT = 60;
+// Stalemate prevention (War of Attrition)
+const ATTRITION_TRIGGER_TURNS = 8;   // turns without a capture before attrition is declared
+const ATTRITION_DEADLINE_TURNS = 10; // attrition turns before the war is decided on points
 const ARMY_CAP_FLOOR = 90;
 const ARMY_CAP_PER_MANPOWER = 10;
 const START_RESOURCES = { manpower: 6, steel: 10, fuel: 6 };
@@ -618,6 +621,7 @@ function advanceTurn(game) {
       }
       game.weather = w;
       macroAdvanceDay(game); // dawn resolution — all columns march
+      tickAttrition(game);   // stalemate watchdog — declare/grind/resolve attrition
       recordSnapshot(game);
       tickResearch(game);
       // Lapsed accords — hostilities may resume
@@ -1010,6 +1014,7 @@ function macroFlipControl(game, column, nodeId) {
       resource: yieldKeys[0] || null, amount: yieldKeys[0] ? (MACRO_SETTLEMENT_YIELD[node.kind] || {})[yieldKeys[0]] : 0,
       buildings: [], isCapital: false,
     });
+    noteCapture(game);
   }
 }
 
@@ -1093,6 +1098,62 @@ const macroTotalCompanies = (column) => MACRO_COLUMN_KEYS.reduce((s, k) => s + (
 function macroAttrit(column) {
   for (const k of MACRO_CASUALTY_ORDER) {
     if ((column.regiments[k] || 0) > 0) { column.regiments[k] -= 1; return; }
+  }
+}
+
+// ---------- Stalemate prevention: War of Attrition ----------
+function getAttrition(game) {
+  if (!game.attrition || typeof game.attrition !== 'object') {
+    game.attrition = { lastCaptureTurn: game.turnNumber, active: false, since: null };
+  }
+  return game.attrition;
+}
+
+// Every settlement capture resets the clock — and lifts an active attrition
+function noteCapture(game) {
+  const at = getAttrition(game);
+  at.lastCaptureTurn = game.turnNumber;
+  if (at.active) {
+    at.active = false;
+    at.since = null;
+    game.combatLog.push({ turn: game.turnNumber, type: 'event', text: 'Ground changes hands — the war of attrition is lifted; the Ministry stands down.' });
+  }
+}
+
+// Dawn check: declare attrition after a captureless stretch; while active,
+// every faction's strongest column bleeds a company daily, and at the deadline
+// the war is decided on points (control %, tiebroken by army strength).
+function tickAttrition(game) {
+  if (game.status !== 'active') return;
+  const at = getAttrition(game);
+  if (!at.active) {
+    if (game.turnNumber - (at.lastCaptureTurn || 1) >= ATTRITION_TRIGGER_TURNS) {
+      at.active = true;
+      at.since = game.turnNumber;
+      game.combatLog.push({ turn: game.turnNumber, type: 'event', text: `The front has frozen for ${ATTRITION_TRIGGER_TURNS} days — the Ministry declares a WAR OF ATTRITION. Take ground within ${ATTRITION_DEADLINE_TURNS} days or the war is decided on points.` });
+    }
+    return;
+  }
+  // The grind — attrition gnaws at every faction's strongest column
+  for (const slot of game.factionSlots) {
+    if (slot.eliminated) continue;
+    const cols = (game.macro.columns || []).filter((c) => c.owner === slot.slotIndex && macroTotalCompanies(c) > 1);
+    if (cols.length === 0) continue;
+    const biggest = cols.reduce((a, b) => (macroTotalCompanies(b) > macroTotalCompanies(a) ? b : a));
+    macroAttrit(biggest);
+  }
+  if (game.turnNumber >= at.since + ATTRITION_DEADLINE_TURNS) {
+    let best = null;
+    for (const slot of game.factionSlots) {
+      if (slot.eliminated) continue;
+      const score = macroControlPct(game, slot.slotIndex) * 1000 + armyPoints(game, slot.slotIndex);
+      if (!best || score > best.score) best = { slot, score };
+    }
+    if (best) {
+      game.status = 'complete';
+      game.winnerSlot = best.slot.slotIndex;
+      game.combatLog.push({ turn: game.turnNumber, type: 'event', text: `The war of attrition runs its course — ${best.slot.factionName} holds the strongest position and is awarded the decision.` });
+    }
   }
 }
 
@@ -1335,6 +1396,7 @@ function macroApplyBattleOutcome(game, b, attackerWon) {
       resource: yieldKeys[0] || 'manpower', amount: (MACRO_SETTLEMENT_YIELD[node?.kind] || {})[yieldKeys[0]] || 1,
       bonus: null, buildings: [], isCapital: false,
     });
+    noteCapture(game);
     return 'captured';
   }
   creditVictory(game, b.defender.slot, b.defender.generalId);
@@ -1504,6 +1566,16 @@ Deno.serve(async (req) => {
         turnNumber: game.turnNumber, currentSlot: currentSlotIdx,
         weather: game.weather || 'clear',
         planetId: game.planetId || 'cindara',
+        attrition: (() => {
+          const at = game.attrition || {};
+          return {
+            active: !!at.active,
+            since: at.since ?? null,
+            deadline: at.active ? at.since + ATTRITION_DEADLINE_TURNS : null,
+            turnsSinceCapture: game.turnNumber - (at.lastCaptureTurn ?? game.turnNumber),
+            triggerAt: ATTRITION_TRIGGER_TURNS,
+          };
+        })(),
         worldModel: 'macro',
         macro: macroVisibleFor(game, mySlot),
         isMyTurn: active && game.factionSlots?.[currentSlotIdx]?.userId === user.id,
@@ -1652,6 +1724,7 @@ Deno.serve(async (req) => {
       battleArchives: game.battleArchives || [],
       diplomacy: game.diplomacy || null,
       macro: game.macro || null,
+      attrition: game.attrition || null,
       status: game.status, winnerSlot: game.winnerSlot, statHistory: game.statHistory,
     });
 
@@ -1793,7 +1866,7 @@ Deno.serve(async (req) => {
     const persistMacro = () => svc.entities.Game.update(game.id, {
       macro: game.macro, treasuries: game.treasuries, factionSlots: game.factionSlots,
       combatLog: game.combatLog, status: game.status, winnerSlot: game.winnerSlot,
-      statHistory: game.statHistory,
+      statHistory: game.statHistory, attrition: game.attrition || null,
     });
 
     GAME_ACTIONS.macroPlotMarch = async () => {
@@ -1963,6 +2036,7 @@ Deno.serve(async (req) => {
         currentTurnIndex: game.currentTurnIndex, turnNumber: game.turnNumber, weather: game.weather || 'clear',
         diplomacy: game.diplomacy || null,
         macro: game.macro || null,
+        attrition: game.attrition || null,
         status: game.status, winnerSlot: game.winnerSlot, statHistory: game.statHistory,
       });
       await logIfComplete();

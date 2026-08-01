@@ -48,6 +48,13 @@
       "type": "string",
       "default": "clear"
     },
+    "attrition": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": true
+    },
     "tiles": {
       "type": "array",
       "items": {
