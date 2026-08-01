@@ -1,12 +1,14 @@
 import React, { useState } from "react";
 import { motion } from "framer-motion";
-import { ScrollText, Loader2 } from "lucide-react";
+import { ScrollText, Loader2, Store } from "lucide-react";
 import { playSfx } from "@/lib/sfx";
+import BazaarPanel from "@/components/game/relics/BazaarPanel";
 
 // Terms of Occupation — raised the moment a neutral settlement is surveyed.
 // The dossier is read out, then the commander sets terms with the elders.
-export default function CharterParley({ charter, onChoose }) {
+export default function CharterParley({ charter, onChoose, game, onBarter }) {
   const [busy, setBusy] = useState(false);
+  const [bazaar, setBazaar] = useState(false);
   if (!charter) return null;
   const { dossier, options, nodeId } = charter;
 
@@ -50,12 +52,24 @@ export default function CharterParley({ charter, onChoose }) {
           ))}
         </div>
 
+        {game && onBarter && (
+          <button
+            onClick={() => { playSfx("select"); setBazaar(true); }}
+            className="mt-3 inline-flex items-center gap-1.5 font-heading uppercase tracking-[0.16em] text-[11px] text-brass hover:text-brass-bright transition-colors"
+          >
+            <Store className="w-3.5 h-3.5" /> Open the Bazaar — trade stores or a relic
+          </button>
+        )}
+
         {busy && (
           <p className="flex items-center gap-2 font-mono text-[10px] text-muted-foreground tracking-widest mt-3">
             <Loader2 className="w-3 h-3 animate-spin" /> SEALING THE TERMS…
           </p>
         )}
       </motion.div>
+      {game && onBarter && (
+        <BazaarPanel open={bazaar} onClose={() => setBazaar(false)} game={game} nodeId={nodeId} onBarter={onBarter} />
+      )}
     </div>
   );
 }

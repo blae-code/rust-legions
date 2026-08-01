@@ -1,8 +1,9 @@
 import React from "react";
+import { Store } from "lucide-react";
 import { POLICIES, POLICY_COOLDOWN_DAYS } from "@/lib/settlementPolicy";
 
 // One held settlement and the terms standing with its populace
-export default function SettlementAccordRow({ node, dossier, current, turnNumber, canOrder, busy, onSet }) {
+export default function SettlementAccordRow({ node, dossier, current, turnNumber, canOrder, busy, onSet, onOpenBazaar }) {
   const locked = current && turnNumber - current.since < POLICY_COOLDOWN_DAYS;
   const daysLeft = current ? POLICY_COOLDOWN_DAYS - (turnNumber - current.since) : 0;
 
@@ -11,6 +12,15 @@ export default function SettlementAccordRow({ node, dossier, current, turnNumber
       <div className="flex items-baseline gap-2">
         <p className="font-heading uppercase tracking-[0.16em] text-xs text-brass-bright">{node?.name || "Unknown"}</p>
         <p className="font-mono text-[9px] text-muted-foreground tracking-widest uppercase">{node?.kind}</p>
+        {onOpenBazaar && (
+          <button
+            onClick={onOpenBazaar}
+            title="Open the bazaar — trade stores or a salvaged relic"
+            className="ml-auto inline-flex items-center gap-1 font-heading uppercase tracking-[0.14em] text-[10px] text-brass hover:text-brass-bright transition-colors"
+          >
+            <Store className="w-3 h-3" /> Bazaar
+          </button>
+        )}
       </div>
       {dossier?.title && <p className="text-[11px] text-muted-foreground italic mt-0.5">{dossier.title}</p>}
 

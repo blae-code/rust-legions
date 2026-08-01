@@ -307,6 +307,40 @@ function applyCharter(game, entry, choiceId) {
   return null;
 }
 
+// ---------- The Bazaar: barter with a settlement's populace ----------
+// (mirrors src/lib/barter.js) Locals will swap stores with an occupying force,
+// and will treat a gifted precursor relic as a civic treasure — the settlement
+// pledges a standing tribute in return.
+const BARTER_COOLDOWN_DAYS = 3;
+const BARTER_PRIMARY = (kind) => Object.keys(MACRO_SETTLEMENT_YIELD[kind] || {})[0] || 'manpower';
+
+function barterDeals(node) {
+  const primary = BARTER_PRIMARY(node.kind);
+  return [
+    { id: 'stores', label: 'Trade Surplus Stores', give: { steel: 4 }, gain: { manpower: 5 }, detail: 'The market takes plate and scrap; the households send sons in return.' },
+    { id: 'fuel_run', label: 'Charter a Fuel Run', give: { manpower: 4 }, gain: { fuel: 4 }, detail: 'Lend the town labor for the pumps and take the drums that come up.' },
+    { id: 'endowment', label: 'Endow the Elders', give: { steel: 3, fuel: 2 }, boost: { res: primary, amt: 1 }, detail: `Fund the council's works and they pledge +1 ${primary} every day the settlement stays yours.` },
+    { id: 'relic_gift', label: 'Gift a Salvaged Relic', relic: true, gain: { steel: 3, manpower: 3 }, boost: { res: primary, amt: 2 }, detail: `Hand a precursor find to the town — it is enshrined, and the settlement pledges +2 ${primary} daily. The relic's own benefit is lost.` },
+  ];
+}
+
+// Relics inside an assembled set are never given away — breaking a set is not offered
+function barterableRelics(slot) {
+  const locked = new Set();
+  for (const setId of slot.relicSets || []) for (const m of RELIC_SETS[setId]?.members || []) locked.add(m);
+  return (slot.relics || []).filter((r) => !locked.has(r));
+}
+
+function negateMods(mods = {}) {
+  const out = { unitStat: {}, income: {}, armyCap: -(mods.armyCap || 0), capitalDefense: -(mods.capitalDefense || 0), supplyRange: -(mods.supplyRange || 0) };
+  for (const [u, stats] of Object.entries(mods.unitStat || {})) {
+    out.unitStat[u] = {};
+    for (const [s, v] of Object.entries(stats)) out.unitStat[u][s] = -v;
+  }
+  for (const k of RESOURCE_KEYS) out.income[k] = -((mods.income || {})[k] || 0);
+  return out;
+}
+
 const MAP_CONTROL_PCT = 60;
 // Stalemate prevention (War of Attrition)
 const ATTRITION_TRIGGER_TURNS = 8;   // turns without a capture before attrition is declared
@@ -348,6 +382,9 @@ function factionProduction(game, slotIdx) {
     for (const k of RESOURCE_KEYS) out[k] += y[k] || 0;
     const boost = game.macro?.charterBoost?.[nid];
     if (boost) out[boost] += 1;
+    // Standing tribute pledged at the bazaar
+    const bz = game.macro?.bazaarBoost?.[nid];
+    if (bz?.res) out[bz.res] += bz.amt || 0;
     // Standing accord with the local populace (integrate / trade / tax)
     const pol = game.macro?.policies?.[nid]?.policy;
     if (pol === 'integrate') out.manpower += 2;
@@ -519,12 +556,7 @@ const MANEUVERS = {
 
 
 // General personality traits — each unlocks one signature maneuver
-const GENERAL_TRAITS = [
-  { key: 'butcher', label: 'the Butcher', signature: 'relentless_pursuit' },
-  { key: 'fox', label: 'the Old Fox', signature: 'ambush' },
-  { key: 'bulwark', label: 'the Bulwark', signature: 'iron_wall' },
-  { key: 'firebrand', label: 'the Firebrand', signature: 'inspiring_charge' },
-];
+const GENERAL_TRAITS = [{ key: 'butcher', label: 'the Butcher', signature: 'relentless_pursuit' }, { key: 'fox', label: 'the Old Fox', signature: 'ambush' }, { key: 'bulwark', label: 'the Bulwark', signature: 'iron_wall' }, { key: 'firebrand', label: 'the Firebrand', signature: 'inspiring_charge' }];
 const DOCTRINE_TRAIT = { aggressive: 'butcher', economic: 'fox', defensive: 'bulwark' };
 const traitByKey = (k) => GENERAL_TRAITS.find((t) => t.key === k) || null;
 
@@ -570,21 +602,11 @@ const vehicleOf = (g) => {
 };
 
 // Army veterancy — battles survived harden a field army
-const VETERANCY = [
-  { min: 5, label: 'Elite', bonus: 3 },
-  { min: 3, label: 'Veteran', bonus: 2 },
-  { min: 1, label: 'Seasoned', bonus: 1 },
-  { min: 0, label: 'Green', bonus: 0 },
-];
+const VETERANCY = [{ min: 5, label: 'Elite', bonus: 3 }, { min: 3, label: 'Veteran', bonus: 2 }, { min: 1, label: 'Seasoned', bonus: 1 }, { min: 0, label: 'Green', bonus: 0 }];
 const armyRank = (battles = 0) => VETERANCY.find((v) => battles >= v.min);
 
 // Thematic medals — awarded once per general when a battle milestone is reached
-const MEDALS = {
-  iron_hammer: { label: 'Order of the Iron Hammer', desc: 'Three consecutive victories' },
-  brass_star: { label: 'Brass Star of Command', desc: 'A decisive victory with minimal casualties' },
-  defiant_standard: { label: 'The Defiant Standard', desc: 'Victory against a superior force' },
-  marshals_cross: { label: "The Marshal's Cross", desc: 'Five career victories' },
-};
+const MEDALS = { iron_hammer: { label: 'Order of the Iron Hammer', desc: 'Three consecutive victories' }, brass_star: { label: 'Brass Star of Command', desc: 'A decisive victory with minimal casualties' }, defiant_standard: { label: 'The Defiant Standard', desc: 'Victory against a superior force' }, marshals_cross: { label: "The Marshal's Cross", desc: 'Five career victories' } };
 
 function awardMedal(game, g, key) {
   g.medals = g.medals || [];
@@ -890,39 +912,8 @@ function macroMakeName(rand, used) {
 }
 
 // The authored continent (mirrors MACRO_NODES/MACRO_ROUTES in src/lib/macro/graph.js)
-const MACRO_CONTINENT_NODES = [
-  { id: 'kesselgrad', name: 'Kesselgrad', kind: 'city', x: 113, y: 135 },
-  { id: 'ashvale', name: 'Ashvale', kind: 'town', x: 178, y: 102 },
-  { id: 'rustwater', name: 'Rustwater', kind: 'city', x: 257, y: 95 },
-  { id: 'ironmoor', name: 'Ironmoor', kind: 'town', x: 351, y: 110 },
-  { id: 'veldt_cross', name: 'Veldt Cross', kind: 'crossroads', x: 156, y: 185 },
-  { id: 'foundry_91', name: 'Foundry 91', kind: 'depot', x: 228, y: 164 },
-  { id: 'greyspire', name: 'Greyspire', kind: 'city', x: 308, y: 171 },
-  { id: 'pale_marsh', name: 'Pale Marsh', kind: 'ruin', x: 390, y: 178 },
-  { id: 'cinder_flats', name: 'Cinder Flats', kind: 'depot', x: 117, y: 243 },
-  { id: 'old_lorry', name: 'Old Lorry', kind: 'town', x: 192, y: 236 },
-  { id: 'saltglass', name: 'Saltglass', kind: 'crossroads', x: 272, y: 228 },
-  { id: 'verge', name: 'The Verge', kind: 'city', x: 351, y: 243 },
-  { id: 'thornfield', name: 'Thornfield', kind: 'ruin', x: 167, y: 293 },
-  { id: 'terminus', name: 'Terminus', kind: 'city', x: 275, y: 297 },
-  { id: 'black_quay', name: 'Black Quay', kind: 'town', x: 380, y: 300 },
-];
-const MACRO_CONTINENT_ROUTES = [
-  ['kesselgrad', 'ashvale', 42, 'road'], ['ashvale', 'rustwater', 48, 'highway'],
-  ['rustwater', 'ironmoor', 55, 'highway'], ['kesselgrad', 'veldt_cross', 38, 'road'],
-  ['ashvale', 'veldt_cross', 46, 'track'], ['veldt_cross', 'foundry_91', 40, 'road'],
-  ['rustwater', 'foundry_91', 44, 'track'], ['foundry_91', 'greyspire', 46, 'road'],
-  ['rustwater', 'greyspire', 52, 'road'], ['ironmoor', 'greyspire', 42, 'track'],
-  ['ironmoor', 'pale_marsh', 46, 'trail'], ['greyspire', 'pale_marsh', 50, 'trail'],
-  ['veldt_cross', 'cinder_flats', 40, 'track'], ['kesselgrad', 'cinder_flats', 62, 'trail'],
-  ['veldt_cross', 'old_lorry', 36, 'road'], ['old_lorry', 'foundry_91', 44, 'track'],
-  ['old_lorry', 'saltglass', 44, 'road'], ['foundry_91', 'saltglass', 42, 'track'],
-  ['saltglass', 'greyspire', 38, 'road'], ['saltglass', 'verge', 46, 'highway'],
-  ['greyspire', 'verge', 45, 'road'], ['verge', 'pale_marsh', 40, 'trail'],
-  ['cinder_flats', 'thornfield', 42, 'trail'], ['old_lorry', 'thornfield', 38, 'track'],
-  ['thornfield', 'terminus', 58, 'road'], ['saltglass', 'terminus', 40, 'road'],
-  ['terminus', 'black_quay', 56, 'highway'], ['verge', 'black_quay', 38, 'road'],
-];
+const MACRO_CONTINENT_NODES = [['kesselgrad', 'Kesselgrad', 'city', 113, 135], ['ashvale', 'Ashvale', 'town', 178, 102], ['rustwater', 'Rustwater', 'city', 257, 95], ['ironmoor', 'Ironmoor', 'town', 351, 110], ['veldt_cross', 'Veldt Cross', 'crossroads', 156, 185], ['foundry_91', 'Foundry 91', 'depot', 228, 164], ['greyspire', 'Greyspire', 'city', 308, 171], ['pale_marsh', 'Pale Marsh', 'ruin', 390, 178], ['cinder_flats', 'Cinder Flats', 'depot', 117, 243], ['old_lorry', 'Old Lorry', 'town', 192, 236], ['saltglass', 'Saltglass', 'crossroads', 272, 228], ['verge', 'The Verge', 'city', 351, 243], ['thornfield', 'Thornfield', 'ruin', 167, 293], ['terminus', 'Terminus', 'city', 275, 297], ['black_quay', 'Black Quay', 'town', 380, 300]].map(([id, name, kind, x, y]) => ({ id, name, kind, x, y }));
+const MACRO_CONTINENT_ROUTES = [['kesselgrad', 'ashvale', 42, 'road'], ['ashvale', 'rustwater', 48, 'highway'], ['rustwater', 'ironmoor', 55, 'highway'], ['kesselgrad', 'veldt_cross', 38, 'road'], ['ashvale', 'veldt_cross', 46, 'track'], ['veldt_cross', 'foundry_91', 40, 'road'], ['rustwater', 'foundry_91', 44, 'track'], ['foundry_91', 'greyspire', 46, 'road'], ['rustwater', 'greyspire', 52, 'road'], ['ironmoor', 'greyspire', 42, 'track'], ['ironmoor', 'pale_marsh', 46, 'trail'], ['greyspire', 'pale_marsh', 50, 'trail'], ['veldt_cross', 'cinder_flats', 40, 'track'], ['kesselgrad', 'cinder_flats', 62, 'trail'], ['veldt_cross', 'old_lorry', 36, 'road'], ['old_lorry', 'foundry_91', 44, 'track'], ['old_lorry', 'saltglass', 44, 'road'], ['foundry_91', 'saltglass', 42, 'track'], ['saltglass', 'greyspire', 38, 'road'], ['saltglass', 'verge', 46, 'highway'], ['greyspire', 'verge', 45, 'road'], ['verge', 'pale_marsh', 40, 'trail'], ['cinder_flats', 'thornfield', 42, 'trail'], ['old_lorry', 'thornfield', 38, 'track'], ['thornfield', 'terminus', 58, 'road'], ['saltglass', 'terminus', 40, 'road'], ['terminus', 'black_quay', 56, 'highway'], ['verge', 'black_quay', 38, 'road']];
 const MACRO_WORLDS = {
   cindara: { seed: 1917, count: 45, clusters: 2, authored: true },
   veyra: { seed: 2044, count: 55, clusters: 3 },
@@ -1440,6 +1431,10 @@ function macroVisibleFor(game, slotIdx) {
     policies: Object.fromEntries(
       Object.entries(game.macro.policies || {}).filter(([nid]) => observed(nid) && game.macro.control[nid] === slotIdx)
     ),
+    // Bazaar: standing tributes pledged, and when each market last traded
+    bazaarBoost: Object.fromEntries(Object.entries(game.macro.bazaarBoost || {}).filter(([nid]) => observed(nid))),
+    barters: Object.fromEntries(Object.entries(game.macro.barters || {}).filter(([nid]) => observed(nid))),
+    barterCooldown: BARTER_COOLDOWN_DAYS,
     // Charters of autonomy standing on the chart
     charterBoost: Object.fromEntries(Object.entries(game.macro.charterBoost || {}).filter(([nid]) => observed(nid))),
     // Terms awaiting this commander at a freshly surveyed settlement
@@ -2285,6 +2280,52 @@ Deno.serve(async (req) => {
       game.combatLog.push({
         turn: game.turnNumber, type: 'event',
         text: `${game.factionSlots[slotIdx].factionName} ${POLICY_LOG[policy]} ${macroNode(game.macro, nodeId)?.name}.`,
+      });
+      await persistMacro();
+      return Response.json({ ok: true });
+    }
+
+    // Barter at a held settlement's market — stores or a salvaged relic swapped
+    // for materiel or a standing tribute.
+    GAME_ACTIONS.macroBarter = async () => {
+      requireMacro();
+      const slotIdx = requireMyTurn();
+      const { nodeId, dealId, relicId } = body;
+      const node = macroNode(game.macro, nodeId);
+      if (!node) return Response.json({ error: 'Uncharted settlement' }, { status: 400 });
+      if (game.macro.control[nodeId] !== slotIdx) return Response.json({ error: 'You do not hold that settlement' }, { status: 403 });
+      if (!game.macro.dossiers?.[nodeId]) return Response.json({ error: 'That settlement has not been surveyed' }, { status: 400 });
+      const deal = barterDeals(node).find((d) => d.id === dealId);
+      if (!deal) return Response.json({ error: 'The market does not offer that' }, { status: 400 });
+      game.macro.barters = game.macro.barters || {};
+      const last = game.macro.barters[nodeId];
+      if (last && game.turnNumber - last.turn < BARTER_COOLDOWN_DAYS) {
+        return Response.json({ error: `The market is picked over — ${BARTER_COOLDOWN_DAYS - (game.turnNumber - last.turn)} day(s) before it restocks` }, { status: 400 });
+      }
+      const slot = game.factionSlots[slotIdx];
+      const treasury = getTreasury(game, slotIdx);
+      let handed = null;
+      if (deal.relic) {
+        if (!barterableRelics(slot).includes(relicId)) return Response.json({ error: 'You hold no such loose relic' }, { status: 400 });
+        slot.relics = slot.relics.filter((r) => r !== relicId);
+        if (!slot.mods) slot.mods = compileMods(slot.pointBuy);
+        mergeMods(slot.mods, negateMods(RELICS[relicId].mods));
+        handed = RELICS[relicId].label;
+      } else if (!canAfford(treasury, deal.give)) {
+        return Response.json({ error: 'You cannot cover those terms' }, { status: 400 });
+      } else pay(treasury, deal.give);
+      for (const k of RESOURCE_KEYS) treasury[k] = (treasury[k] || 0) + ((deal.gain || {})[k] || 0);
+      if (deal.boost) {
+        game.macro.bazaarBoost = game.macro.bazaarBoost || {};
+        const cur = game.macro.bazaarBoost[nodeId];
+        game.macro.bazaarBoost[nodeId] = { res: deal.boost.res, amt: Math.max(cur?.res === deal.boost.res ? cur.amt : 0, deal.boost.amt) };
+      }
+      game.macro.barters[nodeId] = { turn: game.turnNumber, dealId };
+      game.combatLog.push({
+        turn: game.turnNumber, type: 'event',
+        text: handed
+          ? `${slot.factionName} gifts the ${handed} to the people of ${node.name} — it is enshrined in the square, and the settlement pledges a standing tribute.`
+          : `${slot.factionName} trades at the ${node.name} market — ${deal.label.toLowerCase()}.`,
       });
       await persistMacro();
       return Response.json({ ok: true });

@@ -1,9 +1,11 @@
-import React from "react";
+import React, { useState } from "react";
 import { X, Landmark } from "lucide-react";
 import SettlementAccordRow from "@/components/game/relics/SettlementAccordRow";
+import BazaarPanel from "@/components/game/relics/BazaarPanel";
 
 // The Governor's Desk — standing terms with every surveyed settlement you hold
-export default function LocalAccordsPanel({ open, onClose, game, busy, onSet }) {
+export default function LocalAccordsPanel({ open, onClose, game, busy, onSet, onBarter }) {
+  const [bazaarNode, setBazaarNode] = useState(null);
   if (!open) return null;
   const macro = game.macro || {};
   const mySlot = game.mySlot;
@@ -44,9 +46,13 @@ export default function LocalAccordsPanel({ open, onClose, game, busy, onSet }) 
               canOrder={!!game.isMyTurn}
               busy={busy}
               onSet={onSet}
+              onOpenBazaar={onBarter ? () => setBazaarNode(n.id) : null}
             />
           ))}
         </div>
+        {bazaarNode && (
+          <BazaarPanel open onClose={() => setBazaarNode(null)} game={game} nodeId={bazaarNode} onBarter={onBarter} />
+        )}
 
         {!game.isMyTurn && held.length > 0 && (
           <p className="font-mono text-[9px] text-rust tracking-widest mt-3">TERMS MAY ONLY BE CUT ON YOUR OWN TURN.</p>

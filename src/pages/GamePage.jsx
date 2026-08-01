@@ -140,6 +140,17 @@ export default function GamePage() {
       setBusy(false);
       };
 
+  // Bartering at a settlement market — errors surface inside the Bazaar window
+  const barter = async (payload) => {
+    try {
+      await base44.functions.invoke("gameEngine", { gameId, action: "macroBarter", ...payload });
+      playSfx("purchase");
+      await refresh();
+    } catch (e) {
+      throw new Error(e.response?.data?.error || "The market turns you away");
+    }
+  };
+
   // Armory unlocks are also off-turn — spend treasury on prototypes & decrees while waiting
   const unlockItem = async (itemId) => {
     setBusy(true);
@@ -387,6 +398,8 @@ export default function GamePage() {
         <CharterParley
           charter={game.macro?.charter}
           onChoose={(nodeId, choiceId) => act({ action: "macroResolveCharter", nodeId, choiceId })}
+          game={game}
+          onBarter={barter}
         />
       )}
 
@@ -397,6 +410,7 @@ export default function GamePage() {
         game={game}
         busy={busy}
         onSet={(nodeId, policy) => act({ action: "macroSetPolicy", nodeId, policy })}
+        onBarter={barter}
       />
       <ProtectorateRegister open={showProtectorate} onClose={() => setShowProtectorate(false)} game={game} />
       <QuartermasterLedger open={showLedger} onClose={() => setShowLedger(false)} game={game} />
