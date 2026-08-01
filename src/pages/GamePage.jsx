@@ -5,6 +5,8 @@ import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Loader2, Volume2, VolumeX, Handshake, FlaskConical, ClipboardList } from "lucide-react";
 import QuartermasterLedger from "@/components/game/ledger/QuartermasterLedger";
+import CodexPanel from "@/components/codex/CodexPanel";
+import { BookOpen } from "lucide-react";
 import { playSfx, sfxEnabled, setSfxEnabled } from "@/lib/sfx";
 import { setScoreSuppressed } from "@/lib/ambience";
 import { setSoundscape, stopSoundscape } from "@/lib/soundscape";
@@ -44,6 +46,7 @@ export default function GamePage() {
   const [showReplay, setShowReplay] = useState(false);
   const [showDoctrine, setShowDoctrine] = useState(false);
   const [showLedger, setShowLedger] = useState(false);
+  const [showCodex, setShowCodex] = useState(false);
   const pollRef = useRef(null);
   const prevBattleRef = useRef(false);
   const [turnStinger, setTurnStinger] = useState(0);
@@ -234,6 +237,13 @@ export default function GamePage() {
             <ClipboardList className="w-3.5 h-3.5" />
           </button>
         )}
+        <button
+          onClick={() => { playSfx("select"); setShowCodex(true); }}
+          title="The Archive — factions, worlds & campaign annals"
+          className="p-1.5 rounded-sm border border-border text-muted-foreground hover:text-brass-bright hover:border-brass/50 transition-colors"
+        >
+          <BookOpen className="w-3.5 h-3.5" />
+        </button>
         {game.status === "active" && game.diplomacy && (
           <button
             onClick={() => setShowDiplomacy(true)}
@@ -346,6 +356,7 @@ export default function GamePage() {
 
       {showReplay && <ReplayTheater game={game} onClose={() => setShowReplay(false)} />}
       <QuartermasterLedger open={showLedger} onClose={() => setShowLedger(false)} game={game} />
+      <CodexPanel open={showCodex} onClose={() => setShowCodex(false)} activePlanetId={game.planetId} />
       <DiplomacyPanel open={showDiplomacy} onClose={() => setShowDiplomacy(false)} game={game} busy={busy} onAction={act} />
       <DoctrinePanel open={showDoctrine} onClose={() => setShowDoctrine(false)} research={game.myResearch} busy={busy} onSetFocus={setResearchFocus} game={game} onUnlock={unlockItem} />
       <BattleView battle={game.battle} busy={busy} onChoose={(maneuver) => act({ action: "battleChoice", maneuver })} />
