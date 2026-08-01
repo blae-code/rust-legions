@@ -1743,8 +1743,8 @@ Deno.serve(async (req) => {
     if (PREGAME[action]) return await PREGAME[action]();
 
     // All remaining actions operate on an existing game
-    const game = await svc.entities.Game.get(body.gameId);
-    if (!game) return Response.json({ error: 'Game not found' }, { status: 404 });
+    const game = body.gameId ? await svc.entities.Game.get(body.gameId).catch(() => null) : null;
+    if (!game) return Response.json({ error: 'That front is no longer on file — it may have been struck from the register' }, { status: 404 });
     // Normalize the stored chart so every reader can trust its shape
     if (game.macro && typeof game.macro === 'object') {
       game.macro.control = game.macro.control || {};
