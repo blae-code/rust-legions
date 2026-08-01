@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, Loader2, Trash2 } from "lucide-react";
 import { base44 } from "@/api/base44Client";
@@ -9,6 +9,7 @@ import { NODE_KINDS, CHART } from "@/lib/macro/graph";
 import MinistryChart from "@/components/chart/MinistryChart";
 import SceneErrorBoundary from "@/components/SceneErrorBoundary";
 import { playSfx } from "@/lib/sfx";
+import { loadDraft, saveDraft, clearDraft } from "@/lib/mapDraft";
 
 const KIND_ORDER = ["city", "town", "depot", "crossroads", "ruin"];
 const NAME_SEED = ["Ashfall", "Ironreach", "Rustmoor", "Greyhold", "Blackgate", "Paleyard", "Coldhaven", "Dustspur", "Slagcross", "Tarfield", "Bonequay", "Cinderridge", "Salthollow", "Stormworks", "Coalbarrow", "Brassmarch", "Mirepoint", "Fendeep", "Kraelwatch", "Voststead"];
@@ -18,17 +19,24 @@ const NAME_SEED = ["Ashfall", "Ironreach", "Rustmoor", "Greyhold", "Blackgate", 
 // convoy lanes bridge the seas). Published charts are playable at operation setup.
 export default function MapEditor() {
   const navigate = useNavigate();
-  const [mapName, setMapName] = useState("");
-  const [description, setDescription] = useState("");
-  const [playerCount, setPlayerCount] = useState(2);
-  const [planetId, setPlanetId] = useState("cindara");
-  const [nodes, setNodes] = useState([]);
+  const [draft] = useState(() => loadDraft() || {});
+  const [mapName, setMapName] = useState(draft.mapName || "");
+  const [description, setDescription] = useState(draft.description || "");
+  const [playerCount, setPlayerCount] = useState(draft.playerCount || 2);
+  const [planetId, setPlanetId] = useState(draft.planetId || "cindara");
+  const [nodes, setNodes] = useState(draft.nodes || []);
   const [kind, setKind] = useState("city");
   const [selected, setSelected] = useState(null);
   const [survey, setSurvey] = useState(true); // live world preview
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [serial, setSerial] = useState(1);
+  const [serial, setSerial] = useState(draft.serial || 1);
+
+  // Keep the working chart on the drafting table — a stray navigation or reload
+  // must not cost the commander an afternoon of survey work.
+  useEffect(() => {
+    saveDraft({ mapName, description, playerCount, planetId, nodes, serial });
+  }, [mapName, description, playerCount, planetId, nodes, serial]);
 
   // The Ministry's survey of the drafted chart — same generator the game uses
   const world = useMemo(() => {
@@ -66,6 +74,7 @@ export default function MapEditor() {
         isPublished: true,
       });
       playSfx("endTurn");
+      clearDraft();
       navigate("/maps");
     } catch (e) {
       setError(e.response?.data?.error || "Failed to file the chart");
@@ -165,6 +174,19 @@ export default function MapEditor() {
             </div>
           )}
 
+          {(draft.nodes?.length > 0 || draft.mapName) && (
+            <div className="cq-panel p-3 flex items-center gap-2">
+              <p className="font-mono text-[9px] text-brass tracking-wider flex-1">
+                UNFILED DRAFT RECOVERED FROM THE DRAFTING TABLE
+              </p>
+              <button
+                onClick={() => { playSfx("select"); clearDraft(); setMapName(""); setDescription(""); setNodes([]); setSelected(null); setSerial(1); }}
+                className="font-heading uppercase tracking-widest text-[9px] text-rust hover:text-brass-bright"
+              >
+                Discard
+              </button>
+            </div>
+          )}
           {error && <p className="text-xs text-rust font-mono">{error}</p>}
           <Button disabled={!canPublish || saving} onClick={publish} className="w-full bg-brass hover:bg-brass-bright text-primary-foreground font-heading uppercase tracking-[0.25em] h-10 text-xs">
             {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null} File with the Registry
