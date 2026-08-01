@@ -24,6 +24,7 @@ import DispatchArchive from "@/components/game/DispatchArchive";
 import NpcIntercepts from "@/components/game/NpcIntercepts";
 import CampaignSummary from "@/components/game/CampaignSummary";
 import WeatherBadge from "@/components/game/WeatherBadge";
+import WeatherOverlay from "@/components/game/weather/WeatherOverlay";
 import DiplomacyPanel from "@/components/game/diplomacy/DiplomacyPanel";
 import DoctrinePanel from "@/components/game/research/DoctrinePanel";
 import MacroWarRoom from "@/components/game/macro/MacroWarRoom";
@@ -180,6 +181,7 @@ export default function GamePage() {
 
   return (
     <div className="space-y-4">
+      {game.status === "active" && <WeatherOverlay weather={game.weather} />}
       {/* Command bar */}
       <div className="cq-panel relative overflow-hidden px-4 pt-4 pb-3 flex flex-wrap items-center gap-3">
         <div className="cq-hazard absolute top-0 left-0 right-0" />

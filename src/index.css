@@ -539,6 +539,40 @@
   pointer-events: none;
 }
 
+/* Wind-driven dust & ash — drifting grit sheets across the front */
+.cq-dust {
+  background-image:
+    radial-gradient(ellipse 60% 30% at 20% 30%, hsl(32 24% 42% / 0.20), transparent 70%),
+    radial-gradient(ellipse 55% 28% at 75% 60%, hsl(28 20% 36% / 0.18), transparent 70%),
+    repeating-linear-gradient(96deg, transparent 0 14px, hsl(34 22% 50% / 0.045) 14px 17px);
+  animation: cq-dustdrift 14s linear infinite;
+  pointer-events: none;
+}
+.cq-dust-heavy {
+  animation-duration: 5s;
+  filter: saturate(1.2);
+}
+@keyframes cq-dustdrift {
+  from { background-position: 0 0, 0 0, 0 0; }
+  to { background-position: 120px -20px, -140px 25px, 220px 0; }
+}
+
+/* Falling snow — layered flake fields at differing depths */
+.cq-snowfall {
+  background-image:
+    radial-gradient(2px 2px at 12% 20%, rgba(235, 240, 245, 0.85), transparent),
+    radial-gradient(1.5px 1.5px at 45% 60%, rgba(225, 232, 240, 0.7), transparent),
+    radial-gradient(2px 2px at 78% 35%, rgba(235, 240, 245, 0.75), transparent),
+    radial-gradient(1.5px 1.5px at 63% 82%, rgba(225, 232, 240, 0.6), transparent);
+  background-size: 220px 220px, 170px 170px, 260px 260px, 200px 200px;
+  animation: cq-snowfall 11s linear infinite;
+  pointer-events: none;
+}
+@keyframes cq-snowfall {
+  from { background-position: 0 -220px, 0 -170px, 0 -260px, 0 -200px; }
+  to { background-position: 40px 220px, -30px 170px, 25px 260px, -20px 200px; }
+}
+
 .cq-stormflash {
   opacity: 0;
   animation: cq-stormflash 7s infinite;
