@@ -5,6 +5,8 @@ import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Loader2, Volume2, VolumeX, Handshake, FlaskConical, ClipboardList } from "lucide-react";
 import QuartermasterLedger from "@/components/game/ledger/QuartermasterLedger";
+import FactionOverview from "@/components/game/overview/FactionOverview";
+import { LayoutDashboard } from "lucide-react";
 import CodexPanel from "@/components/codex/CodexPanel";
 import { BookOpen } from "lucide-react";
 import { playSfx, sfxEnabled, setSfxEnabled } from "@/lib/sfx";
@@ -56,6 +58,7 @@ export default function GamePage() {
   const [showReplay, setShowReplay] = useState(false);
   const [showDoctrine, setShowDoctrine] = useState(false);
   const [showLedger, setShowLedger] = useState(false);
+  const [showOverview, setShowOverview] = useState(false);
   const [showCodex, setShowCodex] = useState(false);
   const [showAccords, setShowAccords] = useState(false);
   const [showProtectorate, setShowProtectorate] = useState(false);
@@ -263,6 +266,15 @@ export default function GamePage() {
         )}
         {game.status === "active" && game.mySlot !== null && game.mySlot !== undefined && (
           <button
+            onClick={() => { playSfx("select"); setShowOverview(true); }}
+            title="Faction Overview — holdings, supply network & standing bonuses"
+            className="p-1.5 rounded-sm border border-border text-muted-foreground hover:text-brass-bright hover:border-brass/50 transition-colors"
+          >
+            <LayoutDashboard className="w-3.5 h-3.5" />
+          </button>
+        )}
+        {game.status === "active" && game.mySlot !== null && game.mySlot !== undefined && (
+          <button
             onClick={() => { playSfx("select"); setShowLedger(true); }}
             title="Quartermaster's Ledger — holdings, income & supply"
             className="p-1.5 rounded-sm border border-border text-muted-foreground hover:text-brass-bright hover:border-brass/50 transition-colors"
@@ -435,6 +447,7 @@ export default function GamePage() {
         onBarter={barter}
       />
       <ProtectorateRegister open={showProtectorate} onClose={() => setShowProtectorate(false)} game={game} />
+      <FactionOverview open={showOverview} onClose={() => setShowOverview(false)} game={game} />
       <QuartermasterLedger open={showLedger} onClose={() => setShowLedger(false)} game={game} />
       <CodexPanel open={showCodex} onClose={() => setShowCodex(false)} activePlanetId={game.planetId} />
       <DiplomacyPanel open={showDiplomacy} onClose={() => setShowDiplomacy(false)} game={game} busy={busy} onAction={act} />
