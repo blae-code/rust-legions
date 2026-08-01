@@ -34,11 +34,18 @@ export default function NewGame() {
 
   useEffect(() => {
     if (!user) return;
-    base44.entities.Faction.filter({ created_by_id: user.id }).then((f) => {
-      setFactions(f);
-      if (f.length > 0) setFactionId(f[0].id);
-    });
-    base44.entities.GameMap.filter({ isPublished: true }, "-created_date", 50).then(setMaps);
+    // A failed roster call must not leave the directive blank — report it and
+    // still offer the standing preset factions below.
+    base44.entities.Faction.filter({ created_by_id: user.id })
+      .then((f) => {
+        setFactions(f);
+        if (f.length > 0) setFactionId(f[0].id);
+      })
+      .catch(() => {
+        setFactions([]);
+        setError("The registry could not be raised — requisition a standing faction below.");
+      });
+    base44.entities.GameMap.filter({ isPublished: true }, "-created_date", 50).then(setMaps).catch(() => setMaps([]));
   }, [user]);
 
   useEffect(() => {

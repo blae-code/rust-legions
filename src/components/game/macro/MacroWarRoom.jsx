@@ -43,6 +43,7 @@ export default function MacroWarRoom({ game, busy, onAction }) {
   const [selectedColumn, setSelectedColumn] = useState(null);
   const [muster, setMuster] = useState(null);      // { nodeId, regiments, generalId }
   const [orderError, setOrderError] = useState(""); // refused march/base order
+  const chartRef = React.useRef(null);
 
   const myBase = macro.bases.find((b) => b.slot === game.mySlot);
   const suppliedSet = useMemo(() => new Set(macro.supplied || []), [macro.supplied]);
@@ -88,6 +89,9 @@ export default function MacroWarRoom({ game, busy, onAction }) {
     setPlotting(columnId);
     setSelectedColumn(columnId);
     setMovingBase(false);
+    // The order is given from the roster below — bring the chart back under the
+    // commander's eye so the objective prompt is actually visible.
+    chartRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
   };
 
   // Ground the commander may point at while an objective is being chosen
@@ -130,7 +134,7 @@ export default function MacroWarRoom({ game, busy, onAction }) {
 
   return (
     <div className="space-y-4">
-      <div className="cq-panel cq-brackets relative overflow-hidden p-1">
+      <div ref={chartRef} className="cq-panel cq-brackets relative overflow-hidden p-1">
         <div className="cq-hazard absolute top-0 left-0 right-0 z-10" />
         <MinistryChart
           world={world}
@@ -208,6 +212,12 @@ export default function MacroWarRoom({ game, busy, onAction }) {
       {/* Order of march */}
       <div className="cq-panel p-4">
         <p className="cq-label mb-2">Order of March</p>
+        {plotting && (
+          <p className="font-mono text-[10px] text-brass-bright tracking-widest mb-2 border border-brass/50 rounded-sm px-2 py-1">
+            ▸ AWAITING OBJECTIVE — CLICK A MARKED SITE ON THE CHART ABOVE
+            <button onClick={() => { setPlotting(null); setOrderError(""); }} className="text-rust hover:text-brass-bright ml-2">CANCEL</button>
+          </p>
+        )}
         {myColumns.length === 0 && <p className="font-mono text-[10px] text-muted-foreground">NO COLUMNS IN THE FIELD — MUSTER AT A CITY OR THE FORTRESS-BASE.</p>}
         <div className="space-y-1.5">
           {myColumns.map((c) => (
