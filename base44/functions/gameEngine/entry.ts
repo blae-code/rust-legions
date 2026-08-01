@@ -1003,8 +1003,13 @@ function macroFlipControl(game, column, nodeId) {
   const node = macroNode(game.macro, nodeId);
   if (node && node.kind !== 'crossroads') {
     const taker = game.factionSlots[column.owner].factionName;
-    const from = prevOwner === null || prevOwner === undefined ? '' : ` from ${game.factionSlots[prevOwner].factionName}`;
-    game.combatLog.push({ turn: game.turnNumber, type: 'event', text: `${taker}'s ${column.name} takes ${node.name}${from}.` });
+    const yieldKeys = Object.keys(MACRO_SETTLEMENT_YIELD[node.kind] || {});
+    game.combatLog.push({
+      turn: game.turnNumber, type: 'capture', faction: taker, tileName: node.name,
+      from: prevOwner === null || prevOwner === undefined ? null : game.factionSlots[prevOwner]?.factionName || null,
+      resource: yieldKeys[0] || null, amount: yieldKeys[0] ? (MACRO_SETTLEMENT_YIELD[node.kind] || {})[yieldKeys[0]] : 0,
+      buildings: [], isCapital: false,
+    });
   }
 }
 
