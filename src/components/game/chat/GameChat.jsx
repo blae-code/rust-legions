@@ -9,11 +9,12 @@ export default function GameChat({ gameId, myName }) {
   const [text, setText] = useState("");
   const [meId, setMeId] = useState(null);
   const [sending, setSending] = useState(false);
+  const [wireError, setWireError] = useState("");
   const endRef = useRef(null);
 
   useEffect(() => {
     base44.auth.me().then((u) => setMeId(u.id));
-    base44.entities.ChatMessage.filter({ gameId }, "-created_date", 50).then((m) => setMessages(m.reverse()));
+    base44.entities.ChatMessage.filter({ gameId }, "-created_date", 50).then((m) => setMessages(m.reverse())).catch(() => setMessages([]));
     const unsubscribe = base44.entities.ChatMessage.subscribe((event) => {
       if (event.type !== "create" || event.data?.gameId !== gameId) return;
       setMessages((prev) => (prev.some((x) => x.id === event.data.id) ? prev : [...prev, event.data]));
@@ -25,14 +26,22 @@ export default function GameChat({ gameId, myName }) {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length]);
 
+  // A dropped transmission must not take the page with it — the wire reports
+  // the failure and hands the text back to the commander.
   const send = async (e) => {
     e.preventDefault();
     const t = text.trim();
     if (!t || sending) return;
     setSending(true);
+    setWireError("");
     setText("");
-    const msg = await base44.entities.ChatMessage.create({ gameId, text: t.slice(0, 500), authorName: myName });
-    setMessages((prev) => (prev.some((x) => x.id === msg.id) ? prev : [...prev, msg]));
+    try {
+      const msg = await base44.entities.ChatMessage.create({ gameId, text: t.slice(0, 500), authorName: myName });
+      setMessages((prev) => (prev.some((x) => x.id === msg.id) ? prev : [...prev, msg]));
+    } catch {
+      setText(t);
+      setWireError("The wire is down — transmission not sent");
+    }
     setSending(false);
   };
 
@@ -62,6 +71,7 @@ export default function GameChat({ gameId, myName }) {
           <Send className="w-3.5 h-3.5" />
         </button>
       </form>
+      {wireError && <p className="font-mono text-[9px] text-rust tracking-widest mt-1">✕ {wireError.toUpperCase()}</p>}
     </div>
   );
 }
