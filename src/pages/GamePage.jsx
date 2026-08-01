@@ -7,6 +7,8 @@ import { Loader2, Volume2, VolumeX, Handshake, FlaskConical, ClipboardList } fro
 import QuartermasterLedger from "@/components/game/ledger/QuartermasterLedger";
 import { playSfx, sfxEnabled, setSfxEnabled } from "@/lib/sfx";
 import { setScoreSuppressed } from "@/lib/ambience";
+import { setSoundscape, stopSoundscape } from "@/lib/soundscape";
+import SoundscapeControl from "@/components/audio/SoundscapeControl";
 import CombatLog from "@/components/game/CombatLog";
 import FieldReportSummary from "@/components/game/FieldReportSummary";
 import ReplayTheater from "@/components/game/replay/ReplayTheater";
@@ -62,6 +64,13 @@ export default function GamePage() {
     setScoreSuppressed(!!game && game.status !== "lobby");
   }, [game?.status]);
   useEffect(() => () => setScoreSuppressed(false), []);
+
+  // The field bed follows the theater: planet sets the air, weather reshapes it
+  useEffect(() => {
+    if (game?.status === "active") setSoundscape({ planetId: game.planetId, weather: game.weather });
+    else stopSoundscape();
+  }, [game?.status, game?.planetId, game?.weather]);
+  useEffect(() => () => stopSoundscape(), []);
 
   // Surface the after-action report when a battle we were watching concludes
   useEffect(() => {
@@ -197,6 +206,12 @@ export default function GamePage() {
             </div>
           ))}
         </div>
+        {game.status === "active" && (
+          <SoundscapeControl
+            planetName={WORLDS.find((p) => p.id === game.planetId)?.name || "Cindara"}
+            weather={game.weather}
+          />
+        )}
         {game.status === "active" && <WeatherBadge weather={game.weather} />}
         {game.status === "active" && game.myResearch && (
           <button
