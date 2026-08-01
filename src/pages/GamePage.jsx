@@ -7,6 +7,7 @@ import { Loader2, Volume2, VolumeX, Handshake, FlaskConical } from "lucide-react
 import { playSfx, sfxEnabled, setSfxEnabled } from "@/lib/sfx";
 import { setScoreSuppressed } from "@/lib/ambience";
 import CombatLog from "@/components/game/CombatLog";
+import FieldReportSummary from "@/components/game/FieldReportSummary";
 import LobbyView from "@/components/game/LobbyView";
 import WarChronicle from "@/components/game/WarChronicle";
 import WarCharts from "@/components/game/charts/WarCharts";
@@ -288,6 +289,7 @@ export default function GamePage() {
               </div>
             </div>
           )}
+          <FieldReportSummary entries={game.combatLog} factions={game.factions} turnNumber={game.turnNumber} />
           <NpcIntercepts game={game} />
           <DispatchArchive archives={game.battleArchives} />
           <CombatLog entries={game.combatLog} />
