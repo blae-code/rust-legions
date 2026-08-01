@@ -9,6 +9,7 @@ import { setScoreSuppressed } from "@/lib/ambience";
 import CombatLog from "@/components/game/CombatLog";
 import FieldReportSummary from "@/components/game/FieldReportSummary";
 import ReplayTheater from "@/components/game/replay/ReplayTheater";
+import StalemateAlert from "@/components/game/StalemateAlert";
 import { Film } from "lucide-react";
 import LobbyView from "@/components/game/LobbyView";
 import WarChronicle from "@/components/game/WarChronicle";
@@ -268,6 +269,8 @@ export default function GamePage() {
       {game.status === "complete" && <WarChronicle entries={game.combatLog} />}
 
       {error && <p className="text-xs text-rust font-mono">{error}</p>}
+
+      <StalemateAlert game={game} />
 
       <div className="grid lg:grid-cols-[1fr_320px] gap-4">
         <div className="space-y-4">
