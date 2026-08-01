@@ -16,6 +16,8 @@ import FieldReportSummary from "@/components/game/FieldReportSummary";
 import RelicVault from "@/components/game/relics/RelicVault";
 import SettlementDossiers from "@/components/game/relics/SettlementDossiers";
 import CharterParley from "@/components/game/relics/CharterParley";
+import CrisisDispatch from "@/components/game/crisis/CrisisDispatch";
+import StabilityGauge from "@/components/game/crisis/StabilityGauge";
 import LocalAccordsPanel from "@/components/game/relics/LocalAccordsPanel";
 import ProtectorateRegister from "@/components/game/relics/ProtectorateRegister";
 import { Landmark, Building2 } from "lucide-react";
@@ -380,6 +382,7 @@ export default function GamePage() {
                   </span>
                 ))}
               </div>
+              <StabilityGauge value={game.myStability} />
               <div className="flex justify-between text-[10px] font-mono text-muted-foreground">
                 <span>Army {game.myArmyPoints}/{game.myArmyCap} pts</span>
                 <span>Control {game.myLandControl}% / {game.mapControlTarget}%</span>
@@ -399,6 +402,14 @@ export default function GamePage() {
       </div>
 
       {game.status === "active" && !game.battle && (
+        <CrisisDispatch
+          crisis={game.macro?.crisis}
+          resources={game.myResources || {}}
+          onChoose={(nodeId, choiceId) => act({ action: "macroResolveCrisis", nodeId, choiceId })}
+        />
+      )}
+
+      {game.status === "active" && !game.battle && !game.macro?.crisis && (
         <CharterParley
           charter={game.macro?.charter}
           onChoose={(nodeId, choiceId) => act({ action: "macroResolveCharter", nodeId, choiceId })}

@@ -193,49 +193,12 @@ function excavateRelic(game, slotIdx, nodeId) {
   }
 }
 
-// ---------- Neutral settlement lore (mirrors src/lib/macro/settlementLore.js) ----------
-// Every unclaimed site kept its own history through the collapse. The first
-// faction to march in learns what happened here — and inherits whatever the
-// inhabitants left behind.
-const LORE_ERAS = ['Combine era', 'the Ash Years', 'the Long March', 'the Silent Decade', 'the Second Collapse'];
-const LORE_HOOKS = {
-  city: [
-    'was a Combine assembly seat until the works went cold; its council still meets, gavel and all, over a dead switchboard',
-    'burned for eleven days and was rebuilt from the tram lines outward — the streets follow the old rails',
-    'kept its foundry lit by rationing coal one shovel at a time for two generations',
-  ],
-  town: [
-    'survived on a single artesian well the elders refuse to map for outsiders',
-    'traded its children\'s labor for diesel and has never forgiven the convoy that took them',
-    'holds an annual muster where every household reads the name of someone the roads took',
-  ],
-  depot: [
-    'was a Combine fuel terminal, sealed by its own crew when the orders stopped coming',
-    'has been bled by four different armies and still meters every litre in a leather ledger',
-    'sits atop a cracking plant the locals maintain but do not understand',
-  ],
-  ruin: [
-    'was abandoned mid-shift — lunch pails still sit on the benches',
-    'was struck from every Combine chart, and nobody living knows why',
-    'was picked over by scavengers for a century, yet the deepest levels remain sealed',
-  ],
-};
-const LORE_SPOILS = {
-  city: { steel: 4 }, town: { manpower: 3 }, depot: { fuel: 4 }, ruin: { steel: 3 },
-};
-// Deterministic per-node: the same site always tells the same story
-const loreHash = (s) => { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h; };
-
-function settlementDossier(node) {
-  const h = loreHash(node.id + node.name);
-  const hooks = LORE_HOOKS[node.kind] || LORE_HOOKS.town;
-  const era = LORE_ERAS[h % LORE_ERAS.length];
-  const hook = hooks[(h >> 3) % hooks.length];
-  const spoilBase = LORE_SPOILS[node.kind] || { manpower: 2 };
-  const [res, amt] = Object.entries(spoilBase)[0];
-  const spoils = { [res]: amt + ((h >> 7) % 3) };
-  return { title: node.name, era, text: `${node.name} ${hook}. Standing since ${era}.`, spoils };
-}
+// ---------- Neutral settlement lore & occupation crises (shared modules) ----------
+import { settlementDossier, charterOptions, POLICY_COOLDOWN_DAYS, POLICY_LOG } from '../../shared/settlementLore.ts';
+import {
+  CRISES, rollCrisisId, crisisView, crisisOption, clampStability,
+  STABILITY_START, STABILITY_REVOLT_BELOW, CRISIS_FESTER_STABILITY, CRISIS_CHANCE,
+} from '../../shared/settlementCrisis.ts';
 
 // The first faction into an unclaimed settlement surveys it: the history is
 // recorded on the chart, and whatever stores remain are carted off.
@@ -260,24 +223,6 @@ function surveySettlement(game, slotIdx, nodeId) {
     const entry = game.macro.charters.pop();
     applyCharter(game, entry, slot.doctrine === 'economic' ? 'autonomy' : slot.doctrine === 'defensive' ? 'levy' : 'requisition');
   }
-}
-
-// Standing accords with a held settlement's populace (docs: local governance)
-const POLICY_COOLDOWN_DAYS = 3;
-const POLICY_LOG = {
-  integrate: 'integrates the populace of',
-  trade: 'opens the market roads of',
-  tax: 'levies a war tax on',
-};
-
-// Terms a commander may offer a newly surveyed settlement
-function charterOptions(dossier) {
-  const [res, amt] = Object.entries(dossier.spoils || { manpower: 2 })[0];
-  return [
-    { id: 'requisition', label: 'Requisition the Stores', detail: `Strip the depots bare — +${amt * 2} ${res} now, and the townsfolk remember it.` },
-    { id: 'levy', label: 'Raise a Levy', detail: `Take the stores and press volunteers — +${amt} ${res} and +3 manpower.` },
-    { id: 'autonomy', label: 'Grant a Charter of Autonomy', detail: `Leave the stores be — the settlement yields +1 ${res} every day it stays yours.` },
-  ];
 }
 
 function applyCharter(game, entry, choiceId) {
@@ -311,18 +256,8 @@ function applyCharter(game, entry, choiceId) {
 // (mirrors src/lib/barter.js) Locals will swap stores with an occupying force,
 // and will treat a gifted precursor relic as a civic treasure — the settlement
 // pledges a standing tribute in return.
-const BARTER_COOLDOWN_DAYS = 3;
+import { BARTER_COOLDOWN_DAYS, barterDeals } from '../../shared/barterDeals.ts';
 const BARTER_PRIMARY = (kind) => Object.keys(MACRO_SETTLEMENT_YIELD[kind] || {})[0] || 'manpower';
-
-function barterDeals(node) {
-  const primary = BARTER_PRIMARY(node.kind);
-  return [
-    { id: 'stores', label: 'Trade Surplus Stores', give: { steel: 4 }, gain: { manpower: 5 }, detail: 'The market takes plate and scrap; the households send sons in return.' },
-    { id: 'fuel_run', label: 'Charter a Fuel Run', give: { manpower: 4 }, gain: { fuel: 4 }, detail: 'Lend the town labor for the pumps and take the drums that come up.' },
-    { id: 'endowment', label: 'Endow the Elders', give: { steel: 3, fuel: 2 }, boost: { res: primary, amt: 1 }, detail: `Fund the council's works and they pledge +1 ${primary} every day the settlement stays yours.` },
-    { id: 'relic_gift', label: 'Gift a Salvaged Relic', relic: true, gain: { steel: 3, manpower: 3 }, boost: { res: primary, amt: 2 }, detail: `Hand a precursor find to the town — it is enshrined, and the settlement pledges +2 ${primary} daily. The relic's own benefit is lost.` },
-  ];
-}
 
 // Relics inside an assembled set are never given away — breaking a set is not offered
 function barterableRelics(slot) {
@@ -837,6 +772,7 @@ function advanceTurn(game) {
       }
       game.weather = w;
       macroAdvanceDay(game); // dawn resolution — all columns march
+      tickCrises(game);      // occupation crises, stability & revolts
       tickAttrition(game);   // stalemate watchdog — declare/grind/resolve attrition
       recordSnapshot(game);
       tickResearch(game);
@@ -1291,6 +1227,69 @@ function macroAttrit(column) {
   }
 }
 
+// ---------- Faction stability & occupation crises ----------
+// Held settlements throw up trouble; the commander's answer moves stability.
+// A protectorate that loses its grip starts shedding ground at dawn.
+function getStability(slot) {
+  if (typeof slot.stability !== 'number') slot.stability = STABILITY_START;
+  return slot.stability;
+}
+
+// Apply a chosen response: pay, collect, and move stability
+function resolveCrisis(game, entry, choiceId) {
+  const opt = crisisOption(entry.crisisId, choiceId);
+  if (!opt) return 'Unknown response';
+  const slot = game.factionSlots[entry.slot];
+  const t = getTreasury(game, entry.slot);
+  if (opt.give && !canAfford(t, opt.give)) return 'You cannot cover that response';
+  if (opt.give) pay(t, opt.give);
+  for (const k of RESOURCE_KEYS) t[k] = (t[k] || 0) + ((opt.gain || {})[k] || 0);
+  getStability(slot);
+  slot.stability = clampStability(slot.stability + (opt.stability || 0));
+  game.combatLog.push({
+    turn: game.turnNumber, type: 'event',
+    text: `${slot.factionName} answers the ${CRISES[entry.crisisId].title.toLowerCase()} at ${macroNode(game.macro, entry.nodeId)?.name} — ${opt.label.toLowerCase()}. Stability ${(opt.stability || 0) >= 0 ? '+' : ''}${opt.stability || 0} (now ${slot.stability}).`,
+  });
+  return null;
+}
+
+// Dawn: unanswered crises fester, new trouble surfaces, shaky ground revolts
+function tickCrises(game) {
+  if (game.status !== 'active' || !game.macro?.nodes) return;
+  game.macro.crises = game.macro.crises || [];
+  for (const slot of game.factionSlots) {
+    if (slot.eliminated) continue;
+    const idx = slot.slotIndex;
+    getStability(slot);
+    const held = game.macro.nodes.filter(
+      (n) => game.macro.control[n.id] === idx && n.kind !== 'crossroads' && game.macro.dossiers?.[n.id]
+    );
+    const pending = game.macro.crises.find((c) => c.slot === idx);
+    if (pending) {
+      slot.stability = clampStability(slot.stability - CRISIS_FESTER_STABILITY);
+      game.combatLog.push({ turn: game.turnNumber, type: 'event', text: `${slot.factionName} leaves the trouble at ${macroNode(game.macro, pending.nodeId)?.name} unanswered — stability slips to ${slot.stability}.` });
+    } else if (held.length > 0 && Math.random() < CRISIS_CHANCE) {
+      const node = held[Math.floor(Math.random() * held.length)];
+      const crisisId = rollCrisisId(node.kind);
+      const entry = { slot: idx, nodeId: node.id, crisisId, turn: game.turnNumber };
+      if (slot.isNPC) resolveCrisis(game, entry, CRISES[crisisId].options[slot.doctrine === 'economic' ? 1 : 0].id);
+      else {
+        game.macro.crises.push(entry);
+        game.combatLog.push({ turn: game.turnNumber, type: 'event', text: `${CRISES[crisisId].title} at ${node.name} — ${slot.factionName}'s staff awaits a ruling.` });
+      }
+    }
+    // A protectorate losing its grip sheds ground
+    if (slot.stability < STABILITY_REVOLT_BELOW && held.length > 0 && Math.random() < 0.35) {
+      const lost = held[Math.floor(Math.random() * held.length)];
+      if (game.macro.bases?.[String(idx)]?.nodeId !== lost.id && macroColumnsAt(game, lost.id).length === 0) {
+        game.macro.control[lost.id] = null;
+        slot.stability = clampStability(slot.stability + 6); // the grievance is spent with the ground
+        game.combatLog.push({ turn: game.turnNumber, type: 'event', text: `${lost.name} throws off ${slot.factionName}'s administration — the flag comes down and the settlement stands alone.` });
+      }
+    }
+  }
+}
+
 // ---------- Stalemate prevention: War of Attrition ----------
 function getAttrition(game) {
   if (!game.attrition || typeof game.attrition !== 'object') {
@@ -1444,6 +1443,11 @@ function macroVisibleFor(game, slotIdx) {
       const d = game.macro.dossiers?.[e.nodeId];
       if (!d) return null;
       return { nodeId: e.nodeId, dossier: d, options: charterOptions(d) };
+    })(),
+    // Occupation crisis awaiting this commander's ruling
+    crisis: (() => {
+      const e = (game.macro.crises || []).find((c) => c.slot === slotIdx);
+      return e ? crisisView(e, macroNode(game.macro, e.nodeId)?.name || 'the settlement') : null;
     })(),
     // Dig sites: an observed deep ruin shows survey traces; the find itself is
     // only named once someone has broken the seals.
@@ -1830,6 +1834,7 @@ Deno.serve(async (req) => {
         relicTotal: Object.keys(game.macro?.relics || {}).length,
         relicsFound: Object.values(game.macro?.relics || {}).filter((s) => s.foundBy !== null && s.foundBy !== undefined).length,
         myUnlocks: mySlot !== null ? (mySlotObj.unlocks || []) : null,
+        myStability: mySlot !== null ? getStability(mySlotObj) : null,
         isHost: game.hostUserId === user.id,
         campaignWinCondition: game.campaignWinCondition,
         factions: (game.factionSlots || []).map((s) => ({
@@ -2295,7 +2300,7 @@ Deno.serve(async (req) => {
       if (!node) return Response.json({ error: 'Uncharted settlement' }, { status: 400 });
       if (game.macro.control[nodeId] !== slotIdx) return Response.json({ error: 'You do not hold that settlement' }, { status: 403 });
       if (!game.macro.dossiers?.[nodeId]) return Response.json({ error: 'That settlement has not been surveyed' }, { status: 400 });
-      const deal = barterDeals(node).find((d) => d.id === dealId);
+      const deal = barterDeals(BARTER_PRIMARY(node.kind)).find((d) => d.id === dealId);
       if (!deal) return Response.json({ error: 'The market does not offer that' }, { status: 400 });
       game.macro.barters = game.macro.barters || {};
       const last = game.macro.barters[nodeId];
@@ -2327,6 +2332,20 @@ Deno.serve(async (req) => {
           ? `${slot.factionName} gifts the ${handed} to the people of ${node.name} — it is enshrined in the square, and the settlement pledges a standing tribute.`
           : `${slot.factionName} trades at the ${node.name} market — ${deal.label.toLowerCase()}.`,
       });
+      await persistMacro();
+      return Response.json({ ok: true });
+    }
+
+    // Rule on an occupation crisis (off-turn allowed — the staff needs an answer now)
+    GAME_ACTIONS.macroResolveCrisis = async () => {
+      requireMacro();
+      if (mySlot === null) return Response.json({ error: 'You hold no command here' }, { status: 403 });
+      const list = game.macro.crises || [];
+      const idx = list.findIndex((c) => c.slot === mySlot && c.nodeId === body.nodeId);
+      if (idx < 0) return Response.json({ error: 'No crisis pending at that settlement' }, { status: 404 });
+      const err = resolveCrisis(game, list[idx], body.choiceId);
+      if (err) return Response.json({ error: err }, { status: 400 });
+      list.splice(idx, 1);
       await persistMacro();
       return Response.json({ ok: true });
     }
