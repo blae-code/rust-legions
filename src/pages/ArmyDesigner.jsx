@@ -2,10 +2,11 @@ import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, Trash2, Shield, Pencil } from "lucide-react";
+import { Loader2, Shield } from "lucide-react";
 import SlotPicker from "@/components/army/SlotPicker";
 import DesignStats from "@/components/army/DesignStats";
-import { SLOT_KEYS, DESIGN_SLOTS, DEFAULT_DESIGN, compileDesign } from "@/lib/armyDesign";
+import DesignCard from "@/components/army/DesignCard";
+import { SLOT_KEYS, DEFAULT_DESIGN, compileDesign } from "@/lib/armyDesign";
 
 export default function ArmyDesigner() {
   const [designs, setDesigns] = useState(null);
@@ -27,6 +28,18 @@ export default function ArmyDesigner() {
     setEditingId(null);
     await load();
     setBusy(false);
+  };
+
+  // Recall a filed pattern onto the drafting table — missing slots fall back to issue standard
+  const recall = (d) => {
+    setEditingId(d.id);
+    setDraft({
+      name: d.name || "",
+      formation: d.formation || DEFAULT_DESIGN.formation,
+      weapon: d.weapon || DEFAULT_DESIGN.weapon,
+      armor: d.armor || DEFAULT_DESIGN.armor,
+      support: d.support || DEFAULT_DESIGN.support,
+    });
   };
 
   const remove = async (id) => {
@@ -75,18 +88,7 @@ export default function ArmyDesigner() {
             <p className="text-xs text-muted-foreground font-mono">No designs on file. Draft your first doctrine pattern.</p>
           ) : (
             designs.map((d) => (
-              <div key={d.id} className="cq-panel p-3">
-                <div className="flex items-start justify-between gap-2">
-                  <p className="font-heading font-semibold text-sm tracking-wide text-foreground">{d.name}</p>
-                  <div className="flex gap-1">
-                    <button title="Edit" onClick={() => { setEditingId(d.id); setDraft({ name: d.name, formation: d.formation, weapon: d.weapon, armor: d.armor, support: d.support }); }} className="text-muted-foreground hover:text-brass-bright"><Pencil className="w-3.5 h-3.5" /></button>
-                    <button title="Delete" onClick={() => remove(d.id)} className="text-muted-foreground hover:text-rust"><Trash2 className="w-3.5 h-3.5" /></button>
-                  </div>
-                </div>
-                <p className="text-[10px] font-mono text-muted-foreground mt-1">
-                  {SLOT_KEYS.map((s) => DESIGN_SLOTS[s].options[d[s]]?.label).filter(Boolean).join(" · ")}
-                </p>
-              </div>
+              <DesignCard key={d.id} design={d} active={editingId === d.id} onRecall={recall} onDelete={remove} />
             ))
           )}
         </div>
