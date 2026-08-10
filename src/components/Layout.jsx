@@ -41,34 +41,47 @@ export default function Layout() {
   return (
     <div className="min-h-screen">
       <MusicController />
-      <header className="sticky top-0 z-40 border-b border-border bg-card/95 backdrop-blur-sm">
+      <header className="sticky top-0 z-40 border-b border-border bg-card/95 backdrop-blur-sm cq-metal">
         <div className="cq-hazard" />
         <div className="max-w-7xl mx-auto px-4 h-14 flex items-center gap-6">
-          <Link to="/" className="flex items-center gap-2 text-brass font-display text-xl tracking-[0.2em] uppercase">
-            <Shield className="w-5 h-5" /> Rust Legions
+          <Link to="/" className="group flex items-center gap-2 text-brass font-display text-xl tracking-[0.2em] uppercase transition-colors hover:text-brass-bright">
+            <Shield className="w-5 h-5 transition-transform group-hover:scale-110" /> Rust Legions
           </Link>
           <span className="cq-tag border-rust/60 text-rust whitespace-nowrap hidden md:inline-flex" title="This game is under active development">⚠ Dev Build</span>
           <nav className="flex gap-1 overflow-x-auto">
-            {NAV.map((n) => (
-              <Link
-                key={n.to}
-                to={n.to}
-                className={`px-3 py-1.5 text-xs font-heading uppercase tracking-[0.2em] rounded-sm whitespace-nowrap transition-colors ${
-                  location.pathname === n.to
-                    ? "bg-brass/15 text-brass-bright border-b-2 border-brass"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {n.label}
-              </Link>
-            ))}
+            {NAV.map((n) => {
+              const active = location.pathname === n.to;
+              return (
+                <Link
+                  key={n.to}
+                  to={n.to}
+                  className={`relative px-3 py-1.5 text-xs font-heading uppercase tracking-[0.2em] rounded-sm whitespace-nowrap transition-colors flex items-center gap-1.5 ${
+                    active
+                      ? "bg-brass/15 text-brass-bright"
+                      : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
+                  }`}
+                >
+                  {active && <span className="w-1.5 h-1.5 rounded-full bg-brass cq-lamp text-brass shrink-0" />}
+                  {n.label}
+                  {active && <span className="absolute left-2 right-2 -bottom-px h-0.5 bg-brass" />}
+                </Link>
+              );
+            })}
           </nav>
-          <div className="ml-auto text-xs font-mono text-muted-foreground truncate hidden sm:block">{user.full_name || user.email}</div>
+          <div className="ml-auto items-center gap-2 hidden sm:flex">
+            <span className="w-1.5 h-1.5 rounded-full bg-olive cq-lamp text-olive" />
+            <span className="text-xs font-mono text-muted-foreground truncate">CMDR {(user.full_name || user.email || "").split(" ")[0]?.toUpperCase()}</span>
+          </div>
         </div>
       </header>
-      <main className="max-w-7xl mx-auto px-4 py-6">
+      <main key={location.pathname} className="cq-page-in max-w-7xl mx-auto px-4 py-6">
         <Outlet />
       </main>
+      <footer className="max-w-7xl mx-auto px-4 pb-4">
+        <p className="font-mono text-[9px] text-muted-foreground/50 tracking-[0.3em] text-center border-t border-border/50 pt-3">
+          MINISTRY OF WAR · FIELD TERMINAL 7-A · ALL TRANSMISSIONS MONITORED
+        </p>
+      </footer>
     </div>
   );
 }
