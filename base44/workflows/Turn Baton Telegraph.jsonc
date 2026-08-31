@@ -1,0 +1,40 @@
+{
+  "name": "Turn Baton Telegraph",
+  "description": "Emails the commander whose turn it now is, whenever the turn advances in an active multiplayer game.",
+  "trigger": {
+    "config": {
+      "trigger_type": "entity",
+      "entity_name": "Game",
+      "events": [
+        "update"
+      ]
+    },
+    "condition": "${ .trigger.data.status == \"active\" and .trigger.data.mode == \"multiplayer\" and ((.trigger.changed_fields | index(\"currentTurnIndex\") != null) or (.trigger.changed_fields | index(\"turnNumber\") != null)) }"
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "turn_baton_telegraph",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "notify_commander": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "notifyTurnPassed",
+            "args": {
+              "gameId": "${ .trigger.entity_id }"
+            }
+          },
+          "then": "end",
+          "x-base44": {
+            "title": "Wire the commander",
+            "description": "Email: it's your turn"
+          }
+        }
+      }
+    ]
+  }
+}

@@ -97,8 +97,12 @@ export const AMENDMENTS = [
   { title: "Sea-transport convoy", note: "Stopgap ferry action between friendly coasts, ahead of the full Sea theater." },
   { title: "Neutral war market", note: "Lossy resource conversion (~3:1) when no willing trade partner exists." },
   { title: "Stalemate protection", note: "Optional turn deadline with auto-skip and a max-turn scored victory." },
-  { title: "Field Manual", note: "In-game ministry codex — combat math, weather, supply, veterancy, and the lore bible." },
   { title: "Turn notifications", note: "Email nudge to registered players when the baton passes." },
+];
+
+// Amendments from the queue above that have since shipped — kept for the record.
+export const SHIPPED_AMENDMENTS = [
+  { title: "Field Manual", note: "In service at /field-manual — the ministry codex of combat math, weather, supply, and veterancy." },
 ];
 
 export const STATUS_META = {
