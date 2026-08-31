@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import NodeRadialMenu from "@/components/chart/NodeRadialMenu";
+import { useFogReveals, FogRevealBurst } from "@/components/chart/FogReveal";
 import { NODE_KINDS } from "@/lib/macro/graph";
 
 // The Ministry Tactical Chart — the canonical macro map (docs/MACRO_MAP.md).
@@ -38,7 +39,7 @@ function NodeGlyph({ node, r, color, dim, ringColor, isBase, baseColor, hovered,
   return (
     <g
       opacity={dim ? 0.45 : 1}
-      style={{ cursor: onClick ? "pointer" : "default" }}
+      style={{ cursor: onClick ? "pointer" : "default", transition: "opacity 1.6s cubic-bezier(0.3, 0, 0.2, 1)" }}
       onClick={onClick ? (e) => { e.stopPropagation(); onClick(node); } : undefined}
       onPointerUp={onClick ? (e) => e.stopPropagation() : undefined}
       onMouseEnter={onHover ? () => onHover(node) : undefined}
@@ -99,6 +100,7 @@ export default function MinistryChart({
   const observedSet = useMemo(() => (observed ? new Set(observed) : null), [observed]);
   const targetableSet = useMemo(() => new Set(targetableNodeIds), [targetableNodeIds]);
   const seen = (nid) => !observedSet || observedSet.has(nid);
+  const reveals = useFogReveals(observed); // freshly surveyed sites get the reveal ceremony
 
   const [view, setView] = useState({ x: 0, y: 0, k: 1 });
   const svgRef = useRef(null);
@@ -215,8 +217,10 @@ export default function MinistryChart({
           const A = byId[a], B = byId[b];
           if (!A || !B) return null;
           const dimmed = !seen(a) && !seen(b);
+          // Newly charted roads ink themselves in slowly rather than snapping
+          const routeFade = { transition: "opacity 1.8s cubic-bezier(0.3, 0, 0.2, 1)" };
           if (quality === "sealane") {
-            return <path key={i} d={seaLanePath(A, B).d} fill="none" stroke={QUALITY_COLORS.sealane} strokeWidth="1.1" strokeDasharray="6 5" opacity={dimmed ? 0.2 : 0.55} />;
+            return <path key={i} d={seaLanePath(A, B).d} fill="none" stroke={QUALITY_COLORS.sealane} strokeWidth="1.1" strokeDasharray="6 5" opacity={dimmed ? 0.2 : 0.55} style={routeFade} />;
           }
           return (
             <line
@@ -226,6 +230,7 @@ export default function MinistryChart({
               strokeWidth={quality === "highway" ? 1.7 : 1.1}
               strokeDasharray={quality === "trail" ? "3 3" : undefined}
               opacity={dimmed ? 0.18 : quality === "trail" ? 0.4 : 0.6}
+              style={routeFade}
             />
           );
         })}
@@ -284,7 +289,7 @@ export default function MinistryChart({
                 fontSize={Math.max(7, 9 / Math.sqrt(view.k))}
                 fill={hovered?.id === n.id ? "#E8C15A" : "#9a927f"}
                 opacity={seen(n.id) ? 0.9 : 0.4}
-                style={{ pointerEvents: "none", letterSpacing: "0.08em" }}
+                style={{ pointerEvents: "none", letterSpacing: "0.08em", transition: "opacity 1.6s ease" }}
               >
                 {n.name.toUpperCase()}
               </text>
@@ -322,6 +327,12 @@ export default function MinistryChart({
               )}
             </g>
           );
+        })}
+
+        {/* Fog-of-war reveal ceremonies over freshly surveyed ground */}
+        {reveals.map((rv) => {
+          const n = byId[rv.id];
+          return n ? <FogRevealBurst key={rv.key} x={n.x} y={n.y} /> : null;
         })}
       </svg>
 
