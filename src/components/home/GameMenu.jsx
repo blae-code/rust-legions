@@ -17,6 +17,7 @@ export default function GameMenu({ continueGame }) {
     { to: "/patch-notes", label: "Field Amendments", sub: "Patch dispatches from the War Ministry", tip: "Read the Ministry's patch dispatches — what changed and why." },
     { to: "/asset-registry", label: "Illustration Directorate", sub: "The master registry of commissioned art plates", tip: "The master registry of commissioned art plates used across the app." },
     { to: "/star-map", label: "The War Table", sub: "Orbit the theater world and plot day-rate marches", tip: "Orbit the theater worlds in 3D and plot day-rate marches." },
+    { to: "/install", label: "The Field Terminal", sub: "Install Rust Legions on your device", tip: "Install the app on your phone or desktop — full-screen, from your home screen." },
   ].filter(Boolean);
 
   return (

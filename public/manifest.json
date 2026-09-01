@@ -1,0 +1,26 @@
+{
+  "name": "Rust Legions",
+  "short_name": "Rust Legions",
+  "description": "Dieselpunk turn-based strategy — command a nomadic faction and its mobile fortress-base across a war-torn continent.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#101315",
+  "theme_color": "#101315",
+  "icons": [
+    {
+      "src": "https://media.base44.com/images/public/6a58196dcd485ecc774cae1b/9cea89369_generated_image.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "https://media.base44.com/images/public/6a58196dcd485ecc774cae1b/9cea89369_generated_image.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

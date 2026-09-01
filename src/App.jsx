@@ -27,6 +27,7 @@ import StarMap from './pages/StarMap';
 import Walkthrough from './pages/Walkthrough';
 import Roadmap from './pages/Roadmap';
 import FieldManual from './pages/FieldManual';
+import InstallApp from './pages/InstallApp';
 import DevConsole from './components/debug/DevConsole';
 
 const AuthenticatedApp = () => {
@@ -69,6 +70,7 @@ const AuthenticatedApp = () => {
         <Route path="/walkthrough" element={<Walkthrough />} />
         <Route path="/roadmap" element={<Roadmap />} />
         <Route path="/field-manual" element={<FieldManual />} />
+        <Route path="/install" element={<InstallApp />} />
       </Route>
       <Route path="*" element={<PageNotFound />} />
     </Routes>
