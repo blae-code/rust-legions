@@ -3,6 +3,7 @@ import { base44 } from "@/api/base44Client";
 import useUser from "@/hooks/useUser";
 import { Shield, Loader2 } from "lucide-react";
 import AudioHud from "@/components/home/AudioHud";
+import LogoutButton from "@/components/auth/LogoutButton";
 import StormFront25D from "@/components/home/StormFront25D";
 import BootSequence from "@/components/home/BootSequence";
 import GameMenu from "@/components/home/GameMenu";
@@ -67,6 +68,7 @@ export default function Home() {
               ⁜ SECURE CHANNEL · CMDR {((user?.full_name || user?.email || "").split(" ")[0] || "UNSIGNED").toUpperCase()} ⁜
             </p>
             <AudioHud />
+            <LogoutButton />
           </div>
         </div>
 
