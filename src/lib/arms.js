@@ -372,7 +372,7 @@ export const CALIBRES = {
   sg20_bore: {
     key: 'sg20_bore', label: "20-Bore Trench Shell", class: 'shotgun',
     damage: 3.6, armorPen: 1, range: 2, weight: 3.9, logisticsClass: 'riflemen',
-    lore: "A brass-headed paper shell of buck, standardised by the Prize Yard for boarding work because the bore forgives a barrel nobody has measured. Ruinous against a greatcoat, useless against a skirt of plate at any distance whatever.",
+    lore: "A metal-headed paper shell of buck, standardised by the Prize Yard for boarding work because the bore forgives a barrel nobody has measured. Ruinous against a greatcoat, useless against a skirt of plate at any distance whatever.",
   },
   mg13_sustained: {
     key: 'mg13_sustained', label: "M.G.13 Sustained-Fire Link", class: 'hmg',
@@ -1053,7 +1053,7 @@ export const MODIFICATIONS = {
     appliesTo: ['hmg', 'anti_armor', 'mortar', 'crawler_gun', 'artillery'],
     mods: { accuracy: 0.13, range: 2 },
     tradeoff: { weight: 2.6, rateOfFire: -0.2 },
-    blurb: "A brass-cased instrument with two windows and one answer, issued against signature and returned against signature. It converts a gun crew into a survey party for the length of a laying.",
+    blurb: "A cased optical instrument with two windows and one answer, issued against signature and returned against signature. It converts a gun crew into a survey party for the length of a laying.",
   },
   optic_dark_run_prism: {
     key: 'optic_dark_run_prism', label: "Dark-Run Prism", slot: 'optic', pts: 0.45,
@@ -2019,3 +2019,79 @@ export const loadoutProfile = (squad, ctx) => {
   const miss = 1 - b.reliability;
   return { armorPen: b.armorPen, damageType: b.damageType, aoe: b.aoe, misfire: round2(clampTo(miss, 0, 0.5)) };
 };
+
+// ---------------------------------------------------------------------------
+// 12. The Points Audit — mechanical, not prose
+//
+// A points audit written by hand rots: someone re-tunes a barrel, nobody
+// re-adds the column, and the document goes on asserting a total that its own
+// tables contradict. So the audit is CODE. docs/ARMS_CATALOGUE.md §11 prints
+// what these four functions return, and test/arms-mirror.test.js §21.e reads
+// that table back out of the markdown and re-computes every cell — a stale
+// number in the document is a failing test, not a reader's problem.
+//
+// Two rates, because ANTI-ARMOUR VALUE IS PRICED SEPARATELY FROM
+// ANTI-PERSONNEL VALUE. One rate would make a heavy anti-crawler rifle free
+// against infantry — it would be priced only on the soft-target damage it is
+// bad at, and its armour-killing would cost nothing. Splitting the terms is
+// what makes the anti-tank rifle pay for the thing it is FOR.
+//
+//   AP_RATE  anti-personnel value one point buys — calibrated so the reference
+//            pattern, the 141 Levy Rifle at issue grade, costs exactly 1.
+//   AA_RATE  anti-armour value one point buys. Deliberately LOWER than
+//            AP_RATE: a point buys less armour-killing than it buys
+//            man-killing, because on this ground armour-killing is the scarce
+//            thing. At these two rates armour value costs ~1.49x per unit.
+//
+// THE ANCHOR, and it is not the number the brief's prose reaches for first.
+// SquadType.pts is the cost of a SQUAD, not of a figure: SQUAD_TYPES.riflemen
+// is 100 points for ten figures. WeaponPattern.pts is the cost of ONE weapon —
+// the 141 Levy Rifle is 1 point per figure. A ten-figure rifle section
+// therefore carries 10 points of weapon inside a 100-point squad, and the arms
+// layer is a tenth of what the squad costs. deriveLoadout returns its pts as a
+// DELTA for exactly that reason (LOADOUT_KEYS.pts === 'delta'): the weapons
+// adjust the squad's price, they do not set it.
+// ---------------------------------------------------------------------------
+
+export const POINTS_MODEL = {
+  AP_RATE: 1.7887,
+  AA_RATE: 1.2,
+  rangeFactorDivisor: 20,
+  apReferenceKey: 'hw141_levy_rifle_mk2',
+  aaReferenceKey: 'cl281_openhand_shaped_lance_mk1',
+  efficiencyCap: 1.6,
+};
+
+// The pattern as the Ministry issues it: issue grade, no mods, no context, so
+// only an `always` quirk is in force. Every valuation below is priced HERE and
+// nowhere else — a weapon is worth what a line soldier gets handed, not what a
+// relic-grade example with three mod kits on it can do.
+const issueBase = (pattern) => resolveWeapon({ patternKey: pattern.key, quality: 'issue', mods: [], quirks: [] }, {});
+
+// Expected shots on target per fire order: how often it fires, how often it
+// hits, how often it works at all.
+const shotsOf = (b) => b.rateOfFire * b.accuracy * b.reliability;
+
+// Reach is worth points. A weapon that kills at 14 hexes is not the same
+// purchase as one that kills at 2, even for identical damage.
+const rangeFactor = (b) => 1 + b.range / POINTS_MODEL.rangeFactorDivisor;
+
+// Anti-personnel value: what it does to a greatcoat and a sandbag lip.
+export const apValue = (pattern) => {
+  const b = issueBase(pattern);
+  return round4(resolveHit({ weapon: b, target: ARMOUR_CLASSES.soft }).effective * shotsOf(b) * rangeFactor(b));
+};
+
+// Anti-armour value: what it does to a breakthrough crawler's glacis. Zero for
+// most of the catalogue, and that zero is the point of the whole damage model.
+export const aaValue = (pattern) => {
+  const b = issueBase(pattern);
+  return round4(resolveHit({ weapon: b, target: ARMOUR_CLASSES.heavy }).effective * shotsOf(b) * rangeFactor(b));
+};
+
+// What the pattern OUGHT to cost, from its own numbers.
+export const fairPts = (pattern) => round4(apValue(pattern) / POINTS_MODEL.AP_RATE + aaValue(pattern) / POINTS_MODEL.AA_RATE);
+
+// What it is worth divided by what it is charged. Above 1 is a bargain; the
+// cap is POINTS_MODEL.efficiencyCap and it is asserted for every pattern.
+export const patternEfficiency = (pattern) => round4(fairPts(pattern) / pattern.pts);

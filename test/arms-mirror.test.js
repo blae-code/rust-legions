@@ -17,6 +17,8 @@
 import { describe, it, expect } from "vitest";
 import { readRepoFile, extractConst } from "./helpers/extract-const.js";
 import * as MIRROR from "@/lib/arms.js";
+import { IMAGE_LIBRARY, IMAGE_CATEGORIES, HOUSE_STYLE } from "@/lib/imageLibrary.js";
+import { ENTRIES } from "@/lib/wiki/entries.js";
 
 const CANON_SRC = readRepoFile("base44/shared/arms.ts");
 const MIRROR_SRC = readRepoFile("src/lib/arms.js");
@@ -53,6 +55,7 @@ const TABLES = [
   "SQUAD_VALUE_KEYS",
   "LOADOUT_KEYS",
   "LOADOUT_SHARES",
+  "POINTS_MODEL",
 ];
 
 // `export const NAME = (` / `= arg =>` — an exported function rather than a
@@ -1081,5 +1084,403 @@ describe("quirks (Work item 12)", () => {
     // the remainder are reachable by definition; what would NOT be reachable
     // is a key on a pattern that the table does not declare.
     for (const q of onPatterns) expect(KEYS, `pattern quirk '${q}' is not declared`).toContain(q);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// §21.e THE POINTS AUDIT.
+//
+// A points audit written by hand rots. This one is code, and this block is
+// what makes that true: it re-computes every valuation from the tables, and
+// then reads docs/ARMS_CATALOGUE.md §11.4 back out of the markdown and checks
+// it CELL BY CELL against those values. A stale number in the document is a
+// red test rather than a reader's problem — which is the whole difference
+// between an audit and a claim.
+// ---------------------------------------------------------------------------
+
+describe("the Points Audit (Work item 16)", () => {
+  const WP = CANON("WEAPON_PATTERNS");
+  const MODEL = CANON("POINTS_MODEL");
+  const PATTERNS = Object.values(WP);
+
+  it("the reference pattern is priced at exactly 1 point", () => {
+    expect(WP[MODEL.apReferenceKey], `${MODEL.apReferenceKey} is not in the register`).toBeDefined();
+    expect(WP[MODEL.apReferenceKey].pts).toBe(1);
+    expect(MODEL.apReferenceKey).toBe("hw141_levy_rifle_mk2");
+  });
+
+  it("the model is calibrated: fairPts(reference) === 1 to within 0.005", () => {
+    const fair = MIRROR.fairPts(WP[MODEL.apReferenceKey]);
+    expect(Math.abs(fair - 1), `fairPts(${MODEL.apReferenceKey}) = ${fair}`).toBeLessThanOrEqual(0.005);
+  });
+
+  it("the anti-armour term is a real share of the anti-armour reference's price", () => {
+    const ref = WP[MODEL.aaReferenceKey];
+    expect(ref, `${MODEL.aaReferenceKey} is not in the register`).toBeDefined();
+    expect(ref.class).toBe("anti_armor");
+    const aaTerm = MIRROR.aaValue(ref) / MODEL.AA_RATE;
+    const share = aaTerm / MIRROR.fairPts(ref);
+    expect(share, `aa term ${aaTerm} of fairPts ${MIRROR.fairPts(ref)} = ${(share * 100).toFixed(1)}%`).toBeGreaterThanOrEqual(0.4);
+  });
+
+  // Two rates is the mechanism, not the decoration. If AA_RATE could be
+  // anything at all without moving a price, the separation would be a comment
+  // rather than a model — so prove it moves the number it claims to.
+  it("anti-armour value is genuinely priced SEPARATELY from anti-personnel value", () => {
+    const ref = WP[MODEL.aaReferenceKey];
+    const ap = MIRROR.apValue(ref);
+    const aa = MIRROR.aaValue(ref);
+    expect(aa, "the anti-armour reference has no anti-armour value at all").toBeGreaterThan(0);
+    // Priced on the anti-personnel term alone it would be a different weapon.
+    const apOnly = ap / MODEL.AP_RATE;
+    expect(MIRROR.fairPts(ref)).toBeGreaterThan(apOnly);
+    // And the two rates are not the same number wearing two names.
+    expect(MODEL.AA_RATE).not.toBe(MODEL.AP_RATE);
+  });
+
+  it("no pattern exceeds the efficiency cap", () => {
+    const over = PATTERNS.map((p) => [p.key, MIRROR.patternEfficiency(p)]).filter(([, e]) => e > MODEL.efficiencyCap);
+    expect(over, `over the ${MODEL.efficiencyCap} cap: ${over.map(([k, e]) => `${k} ${e}`).join(", ")}`).toEqual([]);
+  });
+
+  it("every anti_armor, crawler_gun and artillery pattern has anti-armour value", () => {
+    const armourKillers = PATTERNS.filter((p) => ["anti_armor", "crawler_gun", "artillery"].includes(p.class));
+    expect(armourKillers.length).toBeGreaterThan(8);
+    for (const p of armourKillers) {
+      expect(MIRROR.aaValue(p), `${p.key} (${p.class}) is worth nothing against heavy armour`).toBeGreaterThan(0);
+    }
+  });
+
+  it("every valuation is a finite, non-negative number for every pattern", () => {
+    for (const p of PATTERNS) {
+      for (const [name, v] of [["apValue", MIRROR.apValue(p)], ["aaValue", MIRROR.aaValue(p)],
+        ["fairPts", MIRROR.fairPts(p)], ["patternEfficiency", MIRROR.patternEfficiency(p)]]) {
+        expect(Number.isFinite(v), `${name}(${p.key}) = ${v}`).toBe(true);
+        expect(v, `${name}(${p.key})`).toBeGreaterThanOrEqual(0);
+      }
+    }
+  });
+
+  // The instruction the sister lane got wrong: a cost curve whose totals were
+  // arithmetically false against its own tree, restated in three places and
+  // checked by nothing. This is the check.
+  it("docs/ARMS_CATALOGUE.md §11.4 is arithmetically true against the tables, cell by cell", () => {
+    const doc = readRepoFile("docs/ARMS_CATALOGUE.md");
+    const start = doc.indexOf("### 11.4");
+    expect(start, "§11.4 is missing from the catalogue").toBeGreaterThan(-1);
+    const region = doc.slice(start, doc.indexOf("\n## ", start));
+    const cell = (c) => c.trim().replace(/[`*]/g, "");
+    const rows = region.split("\n")
+      .filter((l) => /^\| `[a-z0-9_]+` \|/.test(l))
+      .map((l) => l.split("|").slice(1, -1).map(cell));
+
+    expect(rows.length, "no audit rows parsed out of §11.4 — the table shape moved").toBe(Object.keys(WP).length);
+
+    for (const [key, cls, maker, pts, ap, aa, fair, eff] of rows) {
+      const p = WP[key];
+      expect(p, `§11.4 names '${key}', which is not in WEAPON_PATTERNS`).toBeDefined();
+      expect(cls, `${key} class`).toBe(p.class);
+      expect(maker, `${key} maker`).toBe(p.maker);
+      expect(Number(pts), `${key} pts`).toBe(p.pts);
+      expect(Number(ap), `${key} apValue`).toBe(MIRROR.apValue(p));
+      expect(Number(aa), `${key} aaValue`).toBe(MIRROR.aaValue(p));
+      expect(Number(fair), `${key} fairPts`).toBe(MIRROR.fairPts(p));
+      expect(Number(eff), `${key} efficiency`).toBe(MIRROR.patternEfficiency(p));
+    }
+    // Every pattern is in the table, not just every table row in the register.
+    const documented = new Set(rows.map((r) => r[0]));
+    for (const k of Object.keys(WP)) expect(documented.has(k), `${k} is missing from §11.4`).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// §21.f PLATES AND KEYS.
+//
+// Content lanes never ship visuals (drift guard 10). Art is REQUESTED, as a
+// placeholder row with url null, and the prompt must not restate HOUSE_STYLE —
+// which is prepended at generation, so a prompt that repeats it is fighting it.
+// ---------------------------------------------------------------------------
+
+describe("placeholder plates (Work item 18)", () => {
+  const WP = CANON("WEAPON_PATTERNS");
+  const MAKERS = CANON("MANUFACTURERS");
+  const MODS = CANON("MODIFICATIONS");
+  const byKey = new Map(IMAGE_LIBRARY.map((p) => [p.key, p]));
+  const mine = IMAGE_LIBRARY.filter((p) => p.category === "arms");
+
+  it("declares the arms category in IMAGE_CATEGORIES", () => {
+    expect(IMAGE_CATEGORIES.arms, "the arms category is missing").toBeDefined();
+    expect(typeof IMAGE_CATEGORIES.arms.label).toBe("string");
+    expect(IMAGE_CATEGORIES.arms.label.length).toBeGreaterThan(0);
+    expect(typeof IMAGE_CATEGORIES.arms.desc).toBe("string");
+  });
+
+  it("every weapon pattern has an arms_<key> plate", () => {
+    for (const k of Object.keys(WP)) {
+      expect(byKey.has(`arms_${k}`), `arms_${k} is missing from IMAGE_LIBRARY`).toBe(true);
+    }
+    expect(Object.keys(WP).length).toBeGreaterThanOrEqual(42);
+  });
+
+  // Scoped to THIS lane's nine keys on purpose. Lane J appends mw_* rows to
+  // MANUFACTURERS after this lane merges, and a sweep over the whole table
+  // would go red on main, in someone else's PR, for a plate Lane J was never
+  // told to author.
+  it("every one of Lane I's nine manufacturers has a maker_<key> plate", () => {
+    const LANE_I_MAKERS = [
+      "hundredweight_works", "reclamation_state_arsenal", "emberwright_foundries",
+      "ferrymen_shrine_armoury", "salvage_court_prize_yard", "crossloom_pattern_house",
+      "ascendancy_signal_works", "outrider_wheelwrights", "tarpool_burnworks",
+    ];
+    for (const k of LANE_I_MAKERS) {
+      expect(MAKERS[k], `${k} is not in MANUFACTURERS`).toBeDefined();
+      expect(byKey.has(`maker_${k}`), `maker_${k} is missing from IMAGE_LIBRARY`).toBe(true);
+    }
+    // The gate on the table itself is >= 8, never an exact count.
+    expect(Object.keys(MAKERS).length).toBeGreaterThanOrEqual(8);
+  });
+
+  it("every modification has a mod_kit_<key> plate", () => {
+    for (const k of Object.keys(MODS)) {
+      expect(byKey.has(`mod_kit_${k}`), `mod_kit_${k} is missing from IMAGE_LIBRARY`).toBe(true);
+    }
+  });
+
+  it("every arms plate is a REQUEST: url null, a real prompt, and a declared aspect", () => {
+    expect(mine.length).toBeGreaterThanOrEqual(77);
+    for (const p of mine) {
+      expect(p.url, `${p.key} ships a url — content lanes never ship visuals`).toBe(null);
+      expect(typeof p.prompt, `${p.key} prompt`).toBe("string");
+      expect(p.prompt.trim().length, `${p.key} has an empty prompt`).toBeGreaterThan(20);
+      expect(p.title.trim().length, `${p.key} has no title`).toBeGreaterThan(0);
+      expect(["1:1", "16:9", "4:3", "3:4", "9:16"], `${p.key} aspect`).toContain(p.aspect);
+    }
+  });
+
+  it("no arms plate prompt restates the house style", () => {
+    // "Any substring" is not a checkable rule — every single character is a
+    // substring. The checkable rule is the one that matters: no PHRASE of the
+    // house style is repeated, where a phrase is one of its comma-separated
+    // clauses.
+    const phrases = HOUSE_STYLE.split(",").map((s) => s.trim().toLowerCase()).filter((s) => s.length > 6);
+    expect(phrases.length, "HOUSE_STYLE did not split into phrases — the guard has rotted").toBeGreaterThan(4);
+    for (const p of mine) {
+      const prompt = p.prompt.toLowerCase();
+      for (const phrase of phrases) {
+        expect(prompt.includes(phrase), `${p.key} restates the house style: "${phrase}"`).toBe(false);
+      }
+      expect(prompt.includes(HOUSE_STYLE.toLowerCase()), `${p.key} embeds HOUSE_STYLE whole`).toBe(false);
+    }
+  });
+
+  it("adds no duplicate key to the shared library", () => {
+    const keys = IMAGE_LIBRARY.map((p) => p.key);
+    const dupes = keys.filter((k, i) => keys.indexOf(k) !== i);
+    expect(dupes, `duplicate plate keys: ${dupes.join(", ")}`).toEqual([]);
+  });
+
+  it("docs/ARMS_CATALOGUE.md §12 registers exactly the plates that shipped", () => {
+    const doc = readRepoFile("docs/ARMS_CATALOGUE.md");
+    const start = doc.indexOf("## 12. Plate register");
+    const region = doc.slice(start, doc.indexOf("\n## 13.", start));
+    const rows = [...region.matchAll(/^\| `((?:arms_|maker_|mod_kit_)[a-z0-9_]+)` \| ([\d:]+) \| (.+) \|$/gm)];
+    expect(rows.length, "§12's plate register did not parse").toBe(mine.length);
+    for (const [, key, aspect, title] of rows) {
+      const plate = byKey.get(key);
+      expect(plate, `§12 registers '${key}', which is not in IMAGE_LIBRARY`).toBeDefined();
+      expect(plate.aspect, `${key} aspect`).toBe(aspect);
+      expect(plate.title, `${key} title`).toBe(title.trim());
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// §21.g THE CODEX.
+//
+// The entries are SHIPPED into src/lib/wiki/entries.js, not handed over as
+// prose — a lane that hands its Codex over as prose is a lane whose Codex
+// never lands. Lane H owns the file and merges after this lane, so the block
+// is append-only and the link integrity of the WHOLE corpus is what is
+// asserted: Lane H's acceptance depends on it staying 100% link-clean.
+// ---------------------------------------------------------------------------
+
+describe("Codex entries (Work item 19)", () => {
+  const MAKERS = CANON("MANUFACTURERS");
+  const CALIBRES = CANON("CALIBRES");
+  const LANE_I_MAKERS = [
+    "hundredweight_works", "reclamation_state_arsenal", "emberwright_foundries",
+    "ferrymen_shrine_armoury", "salvage_court_prize_yard", "crossloom_pattern_house",
+    "ascendancy_signal_works", "outrider_wheelwrights", "tarpool_burnworks",
+  ];
+  const slug = (k) => k.replace(/_/g, "-");
+  const ids = new Set(ENTRIES.map((e) => e.id));
+
+  it("every entry id in the whole corpus is unique", () => {
+    const seen = ENTRIES.map((e) => e.id);
+    const dupes = seen.filter((k, i) => seen.indexOf(k) !== i);
+    expect(dupes, `duplicate entry ids: ${dupes.join(", ")}`).toEqual([]);
+  });
+
+  it("every `see` link in the whole corpus resolves", () => {
+    const broken = [];
+    for (const e of ENTRIES) for (const target of e.see || []) if (!ids.has(target)) broken.push(`${e.id} → ${target}`);
+    expect(broken, `broken Codex links: ${broken.join(", ")}`).toEqual([]);
+  });
+
+  it("ships an entry for every Lane I manufacturer and every calibre", () => {
+    for (const k of LANE_I_MAKERS) {
+      expect(MAKERS[k], `${k} is not in MANUFACTURERS`).toBeDefined();
+      expect(ids.has(`maker-${slug(k)}`), `maker-${slug(k)} is missing from ENTRIES`).toBe(true);
+    }
+    for (const k of Object.keys(CALIBRES)) {
+      expect(ids.has(`calibre-${slug(k)}`), `calibre-${slug(k)} is missing from ENTRIES`).toBe(true);
+    }
+    const mine = ENTRIES.filter((e) => e.id.startsWith("maker-") || e.id.startsWith("calibre-"));
+    expect(mine.length, "fewer than 24 Lane I Codex entries").toBeGreaterThanOrEqual(24);
+  });
+
+  it("every Lane I entry is complete and correctly categorised", () => {
+    const mine = ENTRIES.filter((e) => e.id.startsWith("maker-") || e.id.startsWith("calibre-"));
+    for (const e of mine) {
+      expect(e.category, `${e.id} category`).toBe(e.id.startsWith("maker-") ? "powers" : "war");
+      expect(e.tag, `${e.id} tag`).toMatch(/^Arms Catalogue §[34]$/);
+      expect(["canon", "contested", "unanswered", "thin"], `${e.id} status`).toContain(e.status);
+      expect(typeof e.summary, `${e.id} summary`).toBe("string");
+      expect(e.summary.length, `${e.id} summary is empty`).toBeGreaterThan(10);
+      expect(Array.isArray(e.blocks) && e.blocks.length >= 3, `${e.id} blocks`).toBe(true);
+      expect(Array.isArray(e.see) && e.see.length > 0, `${e.id} see`).toBe(true);
+    }
+  });
+
+  // Marking invented ground as sealed is how a wiki starts lying. Only the two
+  // rows a governing document actually supports may read "canon".
+  it("claims canon only where a governing document supports it", () => {
+    const mine = ENTRIES.filter((e) => e.id.startsWith("maker-") || e.id.startsWith("calibre-"));
+    const canon = mine.filter((e) => e.status === "canon").map((e) => e.id).sort();
+    expect(canon).toEqual(["calibre-r13-line", "maker-hundredweight-works"]);
+  });
+
+  it("docs/ARMS_CATALOGUE.md §13 reproduces the shipped block byte for byte", () => {
+    const shippedSrc = readRepoFile("src/lib/wiki/entries.js");
+    const bstart = shippedSrc.indexOf("  // ——— LANE I: makers & calibres ———");
+    expect(bstart, "the Lane I banner block is missing from entries.js").toBeGreaterThan(-1);
+    const bend = shippedSrc.indexOf("\n];\n\nexport const ENTRY_BY_ID");
+    expect(bend, "the ENTRIES array terminator moved").toBeGreaterThan(bstart);
+    const shipped = shippedSrc.slice(bstart, bend).replace(/\n+$/, "");
+
+    const doc = readRepoFile("docs/ARMS_CATALOGUE.md");
+    const marker = "The rows exactly as they shipped:\n\n```js\n";
+    const dstart = doc.indexOf(marker);
+    expect(dstart, "§13's shipped-rows block is missing").toBeGreaterThan(-1);
+    const dend = doc.indexOf("\n```", dstart + marker.length);
+    const documented = doc.slice(dstart + marker.length, dend);
+    expect(documented, "§13 has drifted from what shipped in entries.js").toBe(shipped);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// §21.h THE DOCUMENT ITSELF.
+//
+// docs/ARMS_CATALOGUE.md §14 and docs/GAME_RULES.md's appended section are the
+// same text in two files, and two copies of one paragraph is exactly the shape
+// that rots. So they are compared rather than trusted.
+// ---------------------------------------------------------------------------
+
+describe("the catalogue document (Work item 17)", () => {
+  const doc = readRepoFile("docs/ARMS_CATALOGUE.md");
+
+  it("carries all fourteen sections, in order", () => {
+    const headings = [...doc.matchAll(/^## (\d+)\. /gm)].map((m) => Number(m[1]));
+    // §14 quotes the GAME_RULES section verbatim, heading included, so the
+    // last number in the file is the rules section's — not a fifteenth section.
+    expect(headings.slice(0, 14)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]);
+  });
+
+  // Found by inspection, not by a gate: §9.3 once printed TIER_RANK's keys as
+  // 'II: Cache' because the renderer put a space after every colon. It read as
+  // a plausible constant and was a lie about the source. Any `export const`
+  // snippet the document prints is therefore EVALUATED and deep-equalled
+  // against the real table — a snippet is a claim about code, so check it
+  // against the code.
+  it("every `export const` snippet in the document evaluates to the real table", () => {
+    const snippets = [...doc.matchAll(/^export const (\w+) = (.+);$/gm)];
+    expect(snippets.length, "no single-line export snippets found — the guard has rotted").toBeGreaterThanOrEqual(3);
+    let checked = 0;
+    for (const [, name, literal] of snippets) {
+      if (MIRROR[name] === undefined) continue; // a function signature, not a table
+      let value;
+      try {
+        value = Function(`return (${literal});`)();
+      } catch {
+        throw new Error(`§ snippet for ${name} is not evaluable: ${literal}`);
+      }
+      expect(value, `the document's ${name} snippet does not match the module`).toEqual(MIRROR[name]);
+      checked++;
+    }
+    expect(checked, "no snippet was actually compared against a table").toBeGreaterThanOrEqual(3);
+  });
+
+  it("§2's damage-model tables are the tables, not a paraphrase of them", () => {
+    const AC = CANON("ARMOUR_CLASSES");
+    const PEN = CANON("PEN_TABLE");
+    const MATRIX = CANON("TYPE_MATRIX");
+    const CLASS_KEYS = Object.keys(AC);
+    const cell = (c) => c.trim().replace(/[`*]/g, "");
+
+    // 2.1 — one row per armour class, with its armourValue and sealed flag.
+    const acRows = [...doc.matchAll(/^\| `(\w+)` \| (\d+) \| (\*\*yes\*\*|no) \| (.+) \|$/gm)];
+    expect(acRows.length, "§2.1 did not parse").toBe(CLASS_KEYS.length);
+    for (const [, key, value, sealed, blurb] of acRows) {
+      expect(AC[key], `§2.1 names armour class '${key}'`).toBeDefined();
+      expect(Number(value), `${key} armourValue`).toBe(AC[key].armourValue);
+      expect(sealed === "**yes**", `${key} sealed`).toBe(AC[key].sealed);
+      expect(blurb.trim(), `${key} blurb`).toBe(AC[key].blurb);
+    }
+
+    // 2.2 — the penetration curve, in order, including the mandatory zero row.
+    const penRows = [...doc.matchAll(/^\| `(-?\d+)` \| ([\d.]+) \| .+ \|$/gm)];
+    expect(penRows.length, "§2.2 did not parse").toBe(PEN.length);
+    penRows.forEach(([, minDelta, mult], i) => {
+      expect(Number(minDelta), `PEN_TABLE row ${i} minDelta`).toBe(PEN[i].minDelta);
+      expect(Number(mult), `PEN_TABLE row ${i} mult`).toBe(PEN[i].mult);
+    });
+
+    // 2.3 — all 49 numbers of the type matrix.
+    const start = doc.indexOf("### 2.3");
+    const region = doc.slice(start, doc.indexOf("### 2.4", start));
+    const rows = region.split("\n").filter((l) => /^\| `\w+` \|/.test(l)).map((l) => l.split("|").slice(1, -1).map(cell));
+    expect(rows.length, "§2.3 did not parse").toBe(Object.keys(MATRIX).length);
+    for (const [type, ...cells] of rows) {
+      expect(MATRIX[type], `§2.3 names damage type '${type}'`).toBeDefined();
+      expect(cells.length, `${type} row width`).toBe(CLASS_KEYS.length);
+      CLASS_KEYS.forEach((cls, i) => {
+        expect(Number(cells[i]), `TYPE_MATRIX.${type}.${cls}`).toBe(MATRIX[type][cls]);
+      });
+    }
+  });
+
+  it("§14 and the appended docs/GAME_RULES.md section are the same text", () => {
+    const rules = readRepoFile("docs/GAME_RULES.md");
+    const H = "## 23. The Arms Catalogue & the Universal Damage Model [PROPOSED — awaiting platform wiring]";
+    const inDoc = doc.slice(doc.indexOf(H)).trim();
+    const inRules = rules.slice(rules.indexOf(H)).trim();
+    expect(inDoc.length, "§14's proposed section is missing from the catalogue").toBeGreaterThan(500);
+    expect(inRules.length, "section 23 is missing from GAME_RULES.md").toBeGreaterThan(500);
+    expect(inDoc, "the two copies of the proposed rules section have drifted").toBe(inRules);
+  });
+
+  // Drift guard 4 and Work item 10.3: the grade's colour and visual treatment
+  // belong to the Base44 session, not to this lane. A guard pointed only at the
+  // markdown would be a guard on a proxy — the strings that reach a UI live in
+  // arms.ts, and the strings that reach an image generator live in the plate
+  // prompts. All three surfaces are swept.
+  it("names no colour anywhere — the palette is not this lane's to assign", () => {
+    const COLOURS = /\b(red|green|blue|amber|brass|olive|rust|umber|gold|golden|silver|crimson|scarlet|azure|violet|magenta|cyan|teal|ochre|sepia)\b/gi;
+    const prompts = IMAGE_LIBRARY.filter((p) => p.category === "arms").map((p) => `${p.key}: ${p.prompt} ${p.title} ${p.desc}`).join("\n");
+    for (const [where, text] of [["docs/ARMS_CATALOGUE.md", doc], ["base44/shared/arms.ts", CANON_SRC],
+      ["src/lib/arms.js", MIRROR_SRC], ["the arms plate prompts", prompts]]) {
+      const hits = [...text.matchAll(COLOURS)].map((m) => m[0]);
+      expect(hits, `colour words in ${where}: ${[...new Set(hits)].join(", ")}`).toEqual([]);
+    }
   });
 });
