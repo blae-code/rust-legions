@@ -343,3 +343,71 @@ are untouched and remain authoritative for hex games.
   supply as it goes and flips settlements it rolls through; it cannot enter
   contested ground (foreign columns or a foreign base). Boarding assaults on an
   anchored base remain reserved for M5.
+
+## 23. Doctrine, Armory & Relic Projects [PROPOSED — awaiting platform wiring]
+
+> Every number in this section is read from `base44/shared/catalog.ts`; nothing here is live until the
+> platform lane wires it. Extends §19 (Doctrine Research) and §20 (The State Armory). Design record and
+> cost-curve reasoning: `docs/TECH_DESIGN.md` §8–§12.
+
+**Branches and tiers.** Five branches — Armament, Industry, Logistics, **Signals**, **Reclamation** —
+each with four tiers and exactly one tier-4 capstone. Research points accrue at **1 per completed full
+round** as today. Cost is fixed by tier and identical in every branch: **tier 1 = 3 RP · tier 2 = 4 RP ·
+tier 3 = 6 RP · tier 4 = 9 RP**. One branch end to end is **22 RP**; the whole tree is **110 RP**, which
+is longer than a campaign — the tree is a commitment, not a checklist.
+
+- **Signals** buys line of sight, initiative and steadier morale tests. Capstone: **the Intercept
+  Bureau**.
+- **Reclamation** buys dig speed, fragment yield and shorter relic works. Capstone: **the Pattern Book**.
+
+**Prerequisites.** A doctrine names one prerequisite, several, or none. Every named prerequisite sits at
+a **strictly lower tier**, which is what makes a cycle impossible. Every tier-4 capstone names **at least
+two**, of which **at least one belongs to a different branch** — no branch can be climbed alone.
+
+**Creed locks.** Four doctrines are held by a single Departure and are not offered to any other house:
+the Vigil Watch (Recall) · Bonded Manifests (Finished Ledger) · Sealing Protocols (Flight) · the
+Stripping Yards (Discarding). No branch-and-tier cell contains *only* locked doctrines, so no house is
+ever offered an empty shelf, and no capstone's direct prerequisites are locked.
+
+**The State Armory: three kinds.** `module` certifies a fortress-bay prototype (its bonus applies once the
+module is fitted). `decree` is an act of the Assembly and applies the moment it is enacted.
+`relic_project` is the Armory face of a Tier-III work.
+
+**Decrees move an ideology axis.** Every decree — including the four shipped in §20 — carries an **axis**
+(Authority, Economy, Creed, Mobilization) and a **direction** (−1 or +1) toward the poles of
+`docs/VISION.md` §6.1: Authority −1 Council Rule / +1 Iron Autocracy · Economy −1 War Communalism /
++1 Charter Syndicates · Creed −1 Reclaimer / +1 Restorationist · Mobilization −1 Citizen Levy /
++1 Professional Corps. Enacting a decree applies its effects and shifts that axis one step. **All eight
+poles are purchasable.** Four decrees are creed-locked (one per Departure), and every pole keeps at least
+one decree that is not — an axis no house can move is not an axis.
+
+A decree is a **trade, not a pure gain**: the Emergency Powers Act buys initiative and costs the ability
+to rally; the Standing Corps Act hardens the line and shrinks the army cap; the Reliquary Act speeds the
+digging and stalls the foundries.
+
+**Tier gates and fragments.** Every Armory row and every relic project carries a tier:
+
+| Tier | Costs | Notes |
+| --- | --- | --- |
+| `I` | Manpower / Steel / Fuel only | No fragments, ever |
+| `II:Cache` · `II:Eng` · `II:Ciph` · `II:Wake` | conventional resources **plus** its own class of fragment | Exactly one class, at 1 or more |
+| `III` | conventional resources plus **two or more** fragment classes | Relic projects only |
+
+Every cost value is a positive integer. An affordability check that reads only Manpower/Steel/Fuel will
+report a Tier-II item as purchasable and fail at the server; fragments are part of the price.
+
+**Relic Projects.** Four, all Tier `III`, each keyed to an intact Object of its class held in the keel's
+Laboratory:
+
+| Project | Object class | Build days | Held by |
+| --- | --- | --- | --- |
+| The Land-Dreadnought | Engine | 24 | any house |
+| The Lance Carriage | Wake | 18 | any house |
+| The Beacon | Cipher | 40 | the Recall only |
+| The New Ignition | Cache | 40 | the Discarding only |
+
+Each additionally requires **two or more completed doctrines, at least one of them in Reclamation**, and
+none is gated behind a creed-locked doctrine. Construction runs on the **map's clock** in whole days, is
+visible to enemy probes and intercepts while it runs, and **dies with the keel** — a relic project is a
+race that can be interrupted, not a quiet unlock. The Beacon and the New Ignition are the two creed forks
+of the Exodus Works and cost the same forty days.

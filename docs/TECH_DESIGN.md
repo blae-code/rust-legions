@@ -147,3 +147,140 @@ designed now has a reason to be fought over.
 6. Should Tier I nodes migrate to Tier II at all, or leave the shipped tree untouched in slice 1?
 7. NPC houses: full tech-hunger AI, or scripted class preferences per doctrine? (Leaning: preferences —
    Reclamation hunts Wakes, Combine trades fragments, Synod hoards Ciphers. Cheap and in-character.)
+
+---
+
+## 8. Cost Curve (LOCKED)
+
+Research points accrue at **1 per completed full round**. Cost is fixed by tier and **uniform across all
+five branches** — a tier-3 node in Signals costs exactly what a tier-3 node in Armament costs. Nothing in
+`base44/shared/catalog.ts` carries a per-tech price, and `test/catalog-mirror.test.js` fails any row that
+tries to.
+
+| Tier | RP | Cumulative down one line | Unlocked ~turn (1 RP/round) |
+| --- | --- | --- | --- |
+| 1 | **3** | 3 | ~**3** |
+| 2 | **4** | 7 | ~**7** |
+| 3 | **6** | 13 | ~**13** |
+| 4 (capstone) | **9** | 22 | ~**22** |
+
+| Scope | RP |
+| --- | --- |
+| One branch, every node (4 tiers, one line) | **22** |
+| The whole tree (5 branches × 22) | **110** |
+
+**No single game finishes the tree, and that is the intent.** At 1 RP/round a house reaches roughly one
+capstone by turn 22 and a second by turn 44; 110 rounds is longer than any campaign this ruleset expects
+to run. Research is therefore a *commitment*, not a checklist — the interesting question is never "what
+have I unlocked" but "which two branches did I give up".
+
+Two structural brakes sit on top of the curve and are what stop a rush:
+
+- **Cross-branch capstones.** Every tier-4 node names ≥2 prerequisites, at least one of them in a
+  *different* branch. The top of Armament is not reachable by climbing Armament alone.
+- **Creed locks.** Four techs and four decrees are held by a single Departure. A house sees roughly
+  three quarters of the catalog; no (branch, tier) cell is *only* creed-locked, so nobody is ever offered
+  an empty shelf.
+
+## 9. Fragment Economy
+
+Tier `I` is bought with conventional resources alone. Everything at `II:` demands **exactly one** classed
+fragment and nothing else, per the `docs/GEAR_LIBRARY.md` gate; Tier `III` relic projects demand several.
+
+| Tier gate | Fragment class | Source (§1) |
+| --- | --- | --- |
+| `II:Cache` | `cache` — alloys | Sealed imperial stores; still-city ruins |
+| `II:Eng` | `engine` — drivetrain scrap | Dig sites, the commonest class |
+| `II:Ciph` | `cipher` — shards | Anchor Fields, marked stones |
+| `II:Wake` | `wake` — cores | Defeating or surviving a Wake. Nothing else yields them |
+
+Demand implied by the shipped catalog (`ARMORY_ITEMS` + the four `RELIC_PROJECTS`, which share their
+`cost` objects — the counts below are per Armory row, not double-counted):
+
+| Class | Rows demanding it | Total units demanded | Rows |
+| --- | --- | --- | --- |
+| `engine` | **4** | 18 | Launch Rails 3 · Land-Dreadnought 6 · Lance Carriage 3 · New Ignition 6 |
+| `cache` | **4** | 17 | Sloped Casemates 3 · Pattern Shop 2 · Land-Dreadnought 4 · New Ignition 8 |
+| `wake` | **3** | 13 | Wakewatch Act 3 · Lance Carriage 6 · Beacon 4 |
+| `cipher` | **2** | 11 | March Klaxons 3 · Beacon 8 |
+
+**A finding, reported rather than papered over.** The Tier-II layer is Engine- and Cache-heavy because
+`GEAR_LIBRARY.md` §2 is: of the bay modules it names, three gate on `II:Eng`, two on `II:Cache`, one on
+`II:Ciph` and **none** on `II:Wake` (the Wake-class gear in that document is all ♦ Tier III). Cipher and
+Wake demand is therefore concentrated in the endgame — the Beacon, the Lance Carriage — which is
+consistent with §5's map-demand loop (weapons factions must court Wakes; Key-seekers must hold
+Cipher-rich Anchor Fields) but leaves the *middle* game short of reasons to hunt those two classes.
+This lane placed one `II:Wake` row (the Wakewatch Act) rather than inventing bay modules another
+document owns. **If the middle game needs more Cipher/Wake pull, the fix belongs in `GEAR_LIBRARY.md`
+§2 as new Laboratory and Aura bay modules, not in a decree.**
+
+## 10. Appendix A — [PROPOSED — awaiting platform wiring] GAME_RULES draft
+
+Shipped verbatim as `docs/GAME_RULES.md` §23. Kept here as the design record; the file is the delivery.
+
+- **Five branches, four tiers.** Armament, Industry, Logistics, **Signals**, **Reclamation**. Costs
+  3/4/6/9 RP by tier. One capstone per branch: Saturation Barrage, the Continuous Casting Order,
+  Grand Quartermastery, the Intercept Bureau, the Pattern Book.
+- **Cross-branch prerequisite rule.** Every capstone names ≥2 completed doctrines, ≥1 from another
+  branch. Ordinary nodes may name one, several, or none, and a prerequisite always sits at a strictly
+  lower tier — which is what makes a cycle impossible.
+- **Creed locks.** A locked node is offered only to a house holding that Departure: the Vigil Watch
+  (Recall), Bonded Manifests (Finished Ledger), Sealing Protocols (Flight), the Stripping Yards
+  (Discarding). No branch-and-tier cell holds *only* locked nodes.
+- **Decrees move an axis.** Every Armory decree carries an ideology axis and a direction (`VISION` §6.1).
+  Enacting it applies its effects and shifts that axis one step toward the named pole. All eight poles
+  are purchasable; four decrees are creed-locked and each pole keeps at least one decree that is not.
+- **Tier gates and fragments.** `I` costs conventional resources only. `II:Cache`/`II:Eng`/`II:Ciph`/
+  `II:Wake` each additionally cost their own class of fragment. `III` is a relic project.
+- **Relic Projects.** Four: the Land-Dreadnought (Engine, 24 days), the Lance Carriage (Wake, 18 days),
+  the Beacon (Cipher, 40 days, Recall only) and the New Ignition (Cache, 40 days, Discarding only).
+  Each needs a housed Object of its class, ≥2 completed doctrines of which ≥1 is Reclamation, heavy
+  conventional resources and ≥2 classes of fragment. Construction runs on the map's clock, is visible to
+  enemy probes and intercepts, and dies with the keel.
+
+## 11. Appendix B — Codex entries for Lane H
+
+**Lane H owns `src/lib/wiki/entries.js`.** These fifteen entries are **already shipped into that file**
+as one appended tail block (`// ——— LANE G: doctrine, decrees & relic projects ———`); this appendix is
+the design record and the place to revise the copy, not a hand-over queue. Status is `canon` only where
+this document or `docs/LORE.md` already supports the claim, and `thin` everywhere this lane extended
+past the bible.
+
+| id | Title | Category | Status | Covers |
+| --- | --- | --- | --- | --- |
+| `branch-signals` | The Signals Branch | war | thin | New branch |
+| `branch-reclamation` | The Reclamation Branch | leavings | thin | New branch |
+| `relic-project-land-dreadnought` | The Land-Dreadnought | leavings | canon | §2 Tier III |
+| `relic-project-lance-carriage` | The Lance Carriage | leavings | thin | §2 names it the *Lance Battery* |
+| `relic-project-the-beacon` | The Beacon | leavings | canon | §2 Exodus Works, Restorationist fork |
+| `relic-project-the-new-ignition` | The New Ignition | leavings | canon | §2 Exodus Works, Reclaimer fork |
+| `decree-emergency-powers` | The Emergency Powers Act | powers | thin | Authority +1 |
+| `decree-sealed-sites` | The Sealed-Sites Order | powers | thin | Authority +1, Flight |
+| `decree-standing-corps` | The Standing Corps Act | powers | thin | Mobilization +1 |
+| `decree-charter-of-passage` | The Charter of Passage | powers | thin | Economy +1, Finished Ledger |
+| `decree-reliquary-act` | The Reliquary Act | powers | thin | Creed +1 |
+| `decree-writ-of-consecration` | The Writ of Consecration | powers | thin | Creed +1, Recall |
+| `decree-breaking-yards` | The Breaking-Yards Act | powers | thin | Creed −1, Discarding |
+| `decree-ordinance-common-metal` | The Ordinance of Common Metal | powers | thin | Creed −1 |
+| `decree-wakewatch` | The Wakewatch Act | powers | thin | Economy +1, `II:Wake` |
+
+Cross-links were chosen to knit the new corpus into the old rather than into itself: the two branch
+entries point at `war-sciences`, `fog-of-war`, `dig-sites` and `the-leavings`; the two Exodus forks point
+at `the-key`, `four-departures` and at each other; every creed-locked decree points at `four-departures`.
+`test/catalog-mirror.test.js` asserts that **every** `see` target in the whole array resolves, so the
+corpus stays 100% link-clean.
+
+## 12. Consumer follow-ups (for the UI / platform lane)
+
+Two shipped call sites are wrong against this catalog. **Neither is Lane G's file and neither was
+touched.** Both are latent today only because the shipped tables had no array prereqs and no fragment
+costs; the moment `catalog.ts` is wired in they are visible bugs.
+
+| Site | What it does | Why it breaks | Fix |
+| --- | --- | --- | --- |
+| `src/components/game/research/TechCard.jsx:8` | `const locked = tech.prereq && !(research.completed \|\| []).includes(tech.prereq)` | With an **array** `prereq`, `includes` compares an array against strings and is always false, so all 9 array-prereq techs — **including every capstone** — render permanently locked. | `prereqList(tech).every((p) => completed.includes(p))`, importing `prereqList` from `@/lib/doctrine.js`. |
+| `src/components/game/research/ArmoryPanel.jsx:9` | computes `affords` over `RESOURCE_KEYS` only | `cost.fragments` is invisible, so every `II:*` and `III` row reads as affordable and the purchase fails server-side instead. | Consume `fragmentCost(item)` from `@/lib/armory.js` alongside the three conventional resources. |
+
+Two display notes for the same lane, neither a bug: `DoctrinePanel`'s branch grid is `sm:grid-cols-3` and
+now holds **5** branches, and `ArmoryPanel`'s kind grid is `sm:grid-cols-2` and now holds **3** kinds.
+Both wrap and render correctly; both would read better retuned.
