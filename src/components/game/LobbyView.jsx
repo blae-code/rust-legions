@@ -6,6 +6,7 @@ import { Copy, Check } from "lucide-react";
 import GameChat from "@/components/game/chat/GameChat";
 import HostLobbyPanel from "@/components/game/lobby/HostLobbyPanel";
 import LobbySlotRow from "@/components/game/lobby/LobbySlotRow";
+import BriefingDossier from "@/components/game/lobby/BriefingDossier";
 import { getImage } from "@/lib/imageLibrary";
 import { WORLDS } from "@/lib/macro/worlds";
 
@@ -108,6 +109,8 @@ export default function LobbyView({ game, onJoin, onStart, onAction, busy, error
           )}
         </div>
       </div>
+
+      <BriefingDossier game={game} />
 
       <GameChat gameId={game.id} myName={game.factions.find((f) => f.isMe)?.factionName || "Commander"} />
     </div>
