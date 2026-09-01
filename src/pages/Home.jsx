@@ -13,11 +13,9 @@ import HudTelemetry from "@/components/home/HudTelemetry";
 import IntelBrief from "@/components/home/IntelBrief";
 import StandingOrders from "@/components/home/StandingOrders";
 import InductionExperience from "@/components/induction/InductionExperience";
-import { callsignOf } from "@/lib/warrant";
 
 export default function Home() {
   const { user } = useUser();
-  const callsign = callsignOf();
   const [games, setGames] = useState(null);
   const [factions, setFactions] = useState(null);
   const [profile, setProfile] = useState(null);
@@ -25,7 +23,6 @@ export default function Home() {
 
   useEffect(() => {
     if (!user) {
-      // A warrant-only commander has no account file — the deck still stands up
       setGames([]);
       setFactions([]);
       return;
@@ -67,7 +64,7 @@ export default function Home() {
           <div className="hidden md:block"><HudTelemetry /></div>
           <div className="flex items-center gap-3">
             <p className="font-mono text-[10px] text-muted-foreground tracking-widest hidden sm:block cq-flicker">
-              ⁜ SECURE CHANNEL · CMDR {(callsign || (user?.full_name || "").split(" ")[0] || "UNSIGNED").toUpperCase()} ⁜
+              ⁜ SECURE CHANNEL · CMDR {((user?.full_name || user?.email || "").split(" ")[0] || "UNSIGNED").toUpperCase()} ⁜
             </p>
             <AudioHud />
           </div>

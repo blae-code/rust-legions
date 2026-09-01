@@ -1,7 +1,6 @@
 import React from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import useUser from "@/hooks/useUser";
-import { callsignOf } from "@/lib/warrant";
 import { Shield } from "lucide-react";
 import MusicController from "@/components/audio/MusicController";
 
@@ -27,8 +26,8 @@ export default function Layout() {
     );
   }
 
-  // Identity is the warrant's callsign; a signed-in admin keeps their own name.
-  const commander = callsignOf() || (user?.full_name || "").split(" ")[0] || "UNSIGNED";
+  // Identity comes from the signed-in Google account.
+  const commander = (user?.full_name || user?.email || "").split(" ")[0] || "UNSIGNED";
 
   // The command HQ is a full-screen game menu — no web chrome there
   const isMenu = location.pathname === "/";

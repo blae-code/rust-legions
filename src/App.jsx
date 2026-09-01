@@ -28,9 +28,8 @@ import Walkthrough from './pages/Walkthrough';
 import Roadmap from './pages/Roadmap';
 import FieldManual from './pages/FieldManual';
 import InstallApp from './pages/InstallApp';
-import WarrantOffice from './pages/WarrantOffice';
 import Leaderboard from './pages/Leaderboard';
-import WarrantCheck from './components/access/WarrantCheck';
+import ProtectedRoute from '@/components/ProtectedRoute';
 import DevConsole from './components/debug/DevConsole';
 
 const AuthenticatedApp = () => {
@@ -59,11 +58,10 @@ const AuthenticatedApp = () => {
       <Route path="/reset-password" element={<ResetPassword />} />
 
       {/* Add your page Route elements here */}
-      {/* Enlistment is by warrant only — no valid code, no war room */}
-      <Route element={<WarrantCheck />}>
+      {/* Sign in with Google to reach the war room */}
+      <Route element={<ProtectedRoute fallback={<AuthBooting />} unauthenticatedElement={<Navigate to="/login" replace />} />}>
       <Route element={<Layout />}>
         <Route path="/" element={<Home />} />
-        <Route path="/warrant-office" element={<WarrantOffice />} />
         <Route path="/new-game" element={<NewGame />} />
         <Route path="/game/:gameId" element={<GamePage />} />
         <Route path="/faction-builder" element={<FactionBuilder />} />
