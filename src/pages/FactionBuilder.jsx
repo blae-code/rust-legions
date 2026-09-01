@@ -1,17 +1,19 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
-import { Loader2, RefreshCw, Check } from "lucide-react";
-import { LIFEPATH_CHAPTERS, DOCTRINES, PHILOSOPHIES, VALUES, availableOptions } from "@/lib/lifepath";
-import { PERK_BY_ID, pickError } from "@/lib/pointBuy";
+import { Loader2, Hammer } from "lucide-react";
+import { LIFEPATH_CHAPTERS, availableOptions } from "@/lib/lifepath";
+import { pickError } from "@/lib/pointBuy";
+import { playSfx } from "@/lib/sfx";
 import PointBuyPanel from "@/components/faction/PointBuyPanel";
-
-const IDENTITY_GROUPS = [
-  { key: "doctrine", title: "Military Doctrine", options: DOCTRINES },
-  { key: "philosophy", title: "Economic Philosophy", options: PHILOSOPHIES },
-  { key: "value", title: "Cultural Value", options: VALUES },
-];
+import FoundryHeader from "@/components/faction/FoundryHeader";
+import ChapterRegister from "@/components/faction/ChapterRegister";
+import ChapterCard from "@/components/faction/ChapterCard";
+import IdentityCard from "@/components/faction/IdentityCard";
+import RegistrationFile from "@/components/faction/RegistrationFile";
+import ReviewDossier from "@/components/faction/ReviewDossier";
 
 // The registration file is kept on the desk — a reload or a stray navigation
 // must never send a commander back to Chapter 1.
@@ -19,6 +21,8 @@ const DRAFT_KEY = "cq_lifepath_draft";
 const readDraft = () => {
   try { return JSON.parse(localStorage.getItem(DRAFT_KEY)) || {}; } catch { return {}; }
 };
+
+const STEP_LABELS = [...LIFEPATH_CHAPTERS.map((c) => c.title), "Identity", "Armoury", "Review"];
 
 export default function FactionBuilder() {
   const navigate = useNavigate();
@@ -74,6 +78,7 @@ export default function FactionBuilder() {
         isNPC: false,
       });
       localStorage.removeItem(DRAFT_KEY);
+      playSfx("select");
       navigate("/");
     } catch {
       setError("Failed to save faction");
@@ -81,158 +86,85 @@ export default function FactionBuilder() {
     }
   };
 
+  const nav = (back, next, nextDisabled, nextLabel = "Continue") => (
+    <div className="flex justify-between mt-4">
+      <Button variant="outline" disabled={back === null} onClick={() => { playSfx("select"); setStep(back); }} className="text-xs">
+        Back
+      </Button>
+      <Button disabled={nextDisabled} onClick={next} className="text-xs">
+        {nextLabel}
+      </Button>
+    </div>
+  );
+
   return (
-    <div className="max-w-2xl mx-auto space-y-5">
-      <div>
-        <p className="cq-label">Ministry of Heraldry · Registration</p>
-        <h1 className="cq-display text-4xl">Faction Lifepath</h1>
-        <p className="text-sm text-muted-foreground font-heading tracking-wide mt-1">Your choices become your nation's history — synthesized into traits, lore, and standing with NPC powers.</p>
-      </div>
+    <div className="max-w-3xl xl:max-w-6xl mx-auto space-y-4 cq-page-in">
+      <FoundryHeader />
+      <ChapterRegister labels={STEP_LABELS} step={step} onJump={(i) => { playSfx("select"); setStep(i); }} />
 
-      <div className="flex gap-1">
-        {[...LIFEPATH_CHAPTERS.map((c) => c.title), "Identity", "Armoury", "Review"].map((t, i) => (
-          <div key={t} className={`h-1 flex-1 rounded-full ${i <= step ? "bg-brass" : "bg-secondary"}`} />
-        ))}
-      </div>
-
-      {!isIdentityStep && !isArmouryStep && !isReviewStep && (
-        <div className="cq-panel p-6 space-y-4">
-          <div>
-            <p className="cq-label text-brass">Chapter {step + 1} — {chapter.title}</p>
-            <h2 className="text-xl font-heading font-semibold tracking-wide text-foreground mt-1">{chapter.prompt}</h2>
-          </div>
-          <div className="space-y-2">
-            {availableOptions(chapter, choices).map((o) => (
-              <button
-                key={o.id}
-                onClick={() => setChoices({ ...choices, [chapter.id]: o.id })}
-                className={`w-full text-left border rounded-sm p-4 transition-colors ${
-                  choices[chapter.id] === o.id ? "border-brass bg-brass/10" : "border-border hover:border-steel"
-                }`}
-              >
-                <p className="font-heading font-semibold tracking-wide text-foreground text-sm">{o.label}</p>
-                <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{o.desc}</p>
-              </button>
-            ))}
-          </div>
-          <div className="flex justify-between">
-            <Button variant="outline" disabled={step === 0} onClick={() => setStep(step - 1)} className="border-border text-muted-foreground text-xs font-heading uppercase tracking-[0.2em]">Back</Button>
-            <Button disabled={!choices[chapter.id]} onClick={() => setStep(step + 1)} className="bg-brass hover:bg-brass-bright text-primary-foreground text-xs font-heading uppercase tracking-[0.2em]">Continue</Button>
-          </div>
-        </div>
-      )}
-
-      {isIdentityStep && (
-        <div className="cq-panel p-6 space-y-5">
-          <p className="cq-label text-brass">Final Chapter — Doctrine & Identity</p>
-          {IDENTITY_GROUPS.map((g) => (
-            <div key={g.key}>
-              <h3 className="text-sm font-heading font-semibold tracking-wide text-foreground mb-2">{g.title}</h3>
-              <div className="grid sm:grid-cols-3 gap-2">
-                {g.options.map((o) => (
-                  <button
-                    key={o.id}
-                    onClick={() => setIdentity({ ...identity, [g.key]: o.id })}
-                    className={`text-left border rounded-sm p-3 transition-colors ${
-                      identity[g.key] === o.id ? "border-brass bg-brass/10" : "border-border hover:border-steel"
-                    }`}
-                  >
-                    <p className="font-heading font-semibold tracking-wide text-foreground text-xs">{o.label}</p>
-                    <p className="text-[11px] text-muted-foreground mt-1">{o.desc}</p>
-                  </button>
-                ))}
-              </div>
-            </div>
-          ))}
-          {error && <p className="text-xs text-rust font-mono">{error}</p>}
-          <div className="flex justify-between">
-            <Button variant="outline" onClick={() => setStep(step - 1)} className="border-border text-muted-foreground text-xs font-heading uppercase tracking-[0.2em]">Back</Button>
-            <Button
-              disabled={!identity.doctrine || !identity.philosophy || !identity.value}
-              onClick={() => setStep(step + 1)}
-              className="bg-brass hover:bg-brass-bright text-primary-foreground text-xs font-heading uppercase tracking-[0.2em]"
-            >
-              Continue
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {isArmouryStep && (
-        <div className="cq-panel p-6 space-y-4">
-          <div>
-            <p className="cq-label text-brass">Requisition Bureau — Assets & Liabilities</p>
-            <h2 className="text-xl font-heading font-semibold tracking-wide text-foreground mt-1">Balance the national ledger</h2>
-            <p className="text-xs text-muted-foreground mt-1">Every asset and unit upgrade must be funded by accepting liabilities — the ledger cannot run a deficit. A blank ledger is a perfectly balanced nation.</p>
-          </div>
-          <PointBuyPanel picks={picks} setPicks={setPicks} />
-          {error && <p className="text-xs text-rust font-mono">{error}</p>}
-          <div className="flex justify-between">
-            <Button variant="outline" onClick={() => setStep(step - 1)} className="border-border text-muted-foreground text-xs font-heading uppercase tracking-[0.2em]">Back</Button>
-            <Button
-              disabled={!!pickError(picks) || loading}
-              onClick={synthesize}
-              className="bg-rust hover:bg-destructive text-destructive-foreground text-xs font-heading uppercase tracking-[0.2em]"
-            >
-              {loading ? <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Synthesizing history…</> : "Forge the Nation"}
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {isReviewStep && result && (
-        <div className="cq-panel p-6 space-y-4 relative overflow-hidden">
-          <div className="cq-hazard absolute top-0 left-0 right-0" />
-          <div className="pt-1">
-            <p className="cq-label text-brass">Dossier Complete</p>
-            <h2 className="cq-display text-3xl mt-1">{result.factionName}</h2>
-            <p className="text-xs text-muted-foreground italic mt-1">{result.insigniaDescription}</p>
-          </div>
-          <p className="text-sm text-secondary-foreground whitespace-pre-line leading-relaxed">{result.lore}</p>
-          <div>
-            <h3 className="cq-label mb-2">National Traits</h3>
-            <div className="space-y-2">
-              {result.traits.map((t, i) => (
-                <div key={i} className="border border-border bg-secondary/30 rounded-sm p-3">
-                  <p className="text-sm font-heading font-semibold tracking-wide text-brass-bright">{t.name}</p>
-                  <p className="text-xs text-muted-foreground">{t.description}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-          {picks.length > 0 && (
-            <div>
-              <h3 className="cq-label mb-2">Requisition Ledger</h3>
-              <div className="flex flex-wrap gap-1.5">
-                {picks.map((id) => (
-                  <span key={id} className={`cq-tag ${PERK_BY_ID[id]?.cat === "liability" ? "border-rust/60 text-rust" : "border-brass/60 text-brass-bright"}`}>
-                    {PERK_BY_ID[id]?.label}
-                  </span>
-                ))}
-              </div>
-            </div>
+      <div className="grid xl:grid-cols-[1fr_300px] gap-5 items-start">
+        <div>
+          {!isIdentityStep && !isArmouryStep && !isReviewStep && (
+            <>
+              <ChapterCard
+                step={String(step + 1).padStart(2, "0")}
+                title={chapter.title}
+                prompt={chapter.prompt}
+                options={availableOptions(chapter, choices)}
+                value={choices[chapter.id]}
+                onPick={(id) => setChoices({ ...choices, [chapter.id]: id })}
+              />
+              {nav(step === 0 ? null : step - 1, () => { playSfx("select"); setStep(step + 1); }, !choices[chapter.id])}
+            </>
           )}
-          <div>
-            <h3 className="cq-label mb-1">Standing with NPC Powers</h3>
-            <div className="flex gap-4 text-xs font-mono">
-              {Object.entries(result.npcDispositions).map(([k, v]) => (
-                <span key={k} className={v > 5 ? "text-olive" : v < -5 ? "text-rust" : "text-muted-foreground"}>
-                  {k}: {v > 0 ? "+" : ""}{v}
-                </span>
-              ))}
-            </div>
-          </div>
-          {error && <p className="text-xs text-rust font-mono">{error}</p>}
-          <div className="flex justify-between">
-            <Button variant="outline" disabled={loading} onClick={synthesize} className="border-border text-muted-foreground text-xs font-heading uppercase tracking-[0.2em]">
-              {loading ? <Loader2 className="w-3 h-3 animate-spin mr-2" /> : <RefreshCw className="w-3 h-3 mr-2" />} Rewrite History
-            </Button>
-            <Button disabled={saving} onClick={save} className="bg-brass hover:bg-brass-bright text-primary-foreground text-xs font-heading uppercase tracking-[0.2em]">
-              {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Check className="w-4 h-4 mr-2" />} Enlist Faction
-            </Button>
-          </div>
+
+          {isIdentityStep && (
+            <>
+              <IdentityCard step={String(step + 1).padStart(2, "0")} identity={identity} setIdentity={setIdentity} />
+              {error && <p className="font-mono text-[10px] text-rust mt-2">{error}</p>}
+              {nav(step - 1, () => { playSfx("select"); setStep(step + 1); }, !identity.doctrine || !identity.philosophy || !identity.value)}
+            </>
+          )}
+
+          {isArmouryStep && (
+            <>
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="cq-panel p-4 sm:p-5">
+                <div className="flex items-center gap-2.5 mb-1">
+                  <span className="flex items-center justify-center w-7 h-7 rounded-sm border border-brass/50 bg-brass/10 font-display text-sm text-brass-bright shrink-0">
+                    {String(step + 1).padStart(2, "0")}
+                  </span>
+                  <label className="cq-label text-foreground/90">Requisition Bureau — Assets & Liabilities</label>
+                </div>
+                <p className="text-xs text-muted-foreground mb-4 ml-9">
+                  Every asset and unit upgrade must be funded by accepting liabilities — the ledger cannot run a deficit. A blank ledger is a perfectly balanced nation.
+                </p>
+                <PointBuyPanel picks={picks} setPicks={setPicks} />
+              </motion.div>
+              {error && <p className="font-mono text-[10px] text-rust mt-2">{error}</p>}
+              <div className="flex justify-between mt-4">
+                <Button variant="outline" onClick={() => { playSfx("select"); setStep(step - 1); }} className="text-xs">Back</Button>
+                <Button variant="destructive" disabled={!!pickError(picks) || loading} onClick={synthesize} className="text-xs">
+                  {loading ? <><Loader2 className="w-4 h-4 animate-spin" /> Synthesizing history…</> : <><Hammer className="w-4 h-4" /> Forge the Nation</>}
+                </Button>
+              </div>
+            </>
+          )}
+
+          {isReviewStep && result && (
+            <ReviewDossier
+              result={result}
+              picks={picks}
+              loading={loading}
+              saving={saving}
+              error={error}
+              onRewrite={synthesize}
+              onSave={save}
+            />
+          )}
         </div>
-      )}
+
+        <RegistrationFile choices={choices} identity={identity} picks={picks} factionName={result?.factionName} />
+      </div>
     </div>
   );
 }
