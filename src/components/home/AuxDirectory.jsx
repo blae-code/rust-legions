@@ -1,9 +1,10 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { GraduationCap, Layers, Map, Globe2, FileText, Image, MonitorSmartphone } from "lucide-react";
+import { GraduationCap, Layers, Map, Globe2, FileText, Image, MonitorSmartphone, ShieldAlert } from "lucide-react";
 import { playSfx } from "@/lib/sfx";
 import CommandTip from "@/components/ui/CommandTip";
+import useUser from "@/hooks/useUser";
 
 // Auxiliary directorates — the secondary services, compressed into a stamped chip grid.
 const AUX = [
@@ -17,6 +18,10 @@ const AUX = [
 ];
 
 export default function AuxDirectory() {
+  const { user } = useUser();
+  const items = user?.role === "admin"
+    ? [...AUX, { to: "/game-registry", icon: ShieldAlert, label: "Registry", tip: "Ministry oversight — manage every live and archived front." }]
+    : AUX;
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
@@ -26,7 +31,7 @@ export default function AuxDirectory() {
     >
       <p className="cq-label mb-1.5">Auxiliary Directorates</p>
       <div className="flex flex-wrap gap-1.5">
-        {AUX.map((a) => (
+        {items.map((a) => (
           <CommandTip key={a.to} title={a.label} body={a.tip} side="top">
             <Link
               to={a.to}

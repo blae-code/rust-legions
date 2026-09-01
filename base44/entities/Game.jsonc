@@ -18,9 +18,18 @@
       "enum": [
         "lobby",
         "active",
-        "complete"
+        "paused",
+        "complete",
+        "cancelled"
       ],
       "default": "lobby"
+    },
+    "pausedStatus": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "The status the front held before it was suspended, restored on resume"
     },
     "mapId": {
       "type": "string"

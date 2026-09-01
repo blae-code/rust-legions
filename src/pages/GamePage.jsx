@@ -49,6 +49,7 @@ import DoctrinePanel from "@/components/game/research/DoctrinePanel";
 import MacroWarRoom from "@/components/game/macro/MacroWarRoom";
 import NoChartNotice from "@/components/game/macro/NoChartNotice";
 import GameChat from "@/components/game/chat/GameChat";
+import OperationControls from "@/components/game/manage/OperationControls";
 import { RESOURCE_KEYS, RESOURCE_META } from "@/lib/units";
 import { getImage } from "@/lib/imageLibrary";
 import { WORLDS } from "@/lib/macro/worlds";
@@ -239,6 +240,8 @@ export default function GamePage() {
 
   if (game.status === "lobby") {
     return (
+      <>
+      <OperationControls game={game} onChanged={refresh} floating />
       <LobbyView
         game={game}
         busy={busy}
@@ -247,6 +250,7 @@ export default function GamePage() {
         onStart={() => act({ action: "startGame" })}
         onAction={act}
       />
+      </>
     );
   }
 
@@ -373,6 +377,7 @@ export default function GamePage() {
             </button>
           </CommandTip>
         )}
+        <OperationControls game={game} onChanged={refresh} />
         <CommandTip title="Battlefield Audio" body={sound ? "Mute clicks, marches and battle effects." : "Enable clicks, marches and battle effects."}>
           <button
             onClick={() => { setSfxEnabled(!sound); setSound(!sound); }}
@@ -403,6 +408,27 @@ export default function GamePage() {
           )
         )}
       </div>
+
+      {game.status === "paused" && (
+        <div className="relative cq-panel border-brass/60 p-4 text-center overflow-hidden">
+          <div className="cq-hazard absolute top-0 left-0 right-0" />
+          <p className="cq-display text-xl text-brass-bright">Operations Suspended</p>
+          <p className="font-mono text-[9px] text-muted-foreground tracking-[0.25em] mt-1">
+            THE MINISTRY HOLDS ALL ORDERS — THE FRONT RESUMES ON THE HOST'S COMMAND
+          </p>
+        </div>
+      )}
+
+      {game.status === "cancelled" && (
+        <div className="relative cq-panel border-rust/60 p-5 text-center overflow-hidden">
+          <div className="cq-hazard absolute top-0 left-0 right-0" />
+          <p className="cq-display text-2xl text-rust">Struck from the Register</p>
+          <p className="font-mono text-[9px] text-muted-foreground tracking-[0.25em] mt-1">
+            THE WAR ENDED WITHOUT DECISION — THIS FILE IS CLOSED
+          </p>
+          <span className="cq-stamp absolute top-3 right-4 text-sm">Void</span>
+        </div>
+      )}
 
       {game.status === "complete" && (
         <div className="relative cq-panel border-brass/70 p-5 text-center overflow-hidden">
