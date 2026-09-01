@@ -57,7 +57,7 @@ export default function Home() {
       <div className="absolute inset-0 cq-scanlines opacity-20 pointer-events-none" />
       <div className="absolute inset-0 cq-vignette pointer-events-none" />
 
-      <div className="relative z-10 h-full max-w-[1600px] mx-auto px-4 md:px-8 pt-4 pb-2 flex flex-col">
+      <div className="relative z-10 h-full max-w-[1600px] mx-auto px-4 md:px-8 pt-3 pb-1 flex flex-col">
         {/* HUD top strip */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-brass font-display text-xl tracking-[0.25em] uppercase">
