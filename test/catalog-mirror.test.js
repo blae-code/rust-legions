@@ -9,6 +9,25 @@
 // `docs/TACTICAL_SQUAD_PLAN.md` §4, the tier/cost curve, the prereq DAG, the
 // effect-key vocabulary and the byte-identity of every legacy key that live saves
 // reference. A row that satisfies the mirror but breaks a rule fails here.
+//
+// MUTATION-CHECKED. A gate nobody has seen fail is a gate that might be reading a
+// proxy, so each of the load-bearing assertions below was defeated on purpose and
+// confirmed to go red on exactly the rule it names — and on nothing else:
+//
+//   mutation                                            red assertion
+//   ------------------------------------------------    --------------------------------
+//   hardened_plate cost 4 → 5 in BOTH catalog+mirror     legacy freeze (+ the tier-cost curve)
+//   "Cipher Hall" → "Cipher Halls" in the mirror only    ARMORY_ITEMS deep-equal
+//   a prereq renamed to a tech that does not exist       prereq DAG
+//   effect key losRange → sightRange                     effects[] vocabulary
+//   plate key tech_pattern_book renamed                  plate coverage (+ category registry)
+//   one Codex `see` target made dangling                 corpus link-cleanliness
+//
+// The first case is the one that matters most: mutating BOTH sides keeps every
+// deep-equal assertion green, so only the hard-coded legacy literal can catch it.
+// That literal was copied from `git show HEAD:src/lib/doctrine.js` and must never
+// be regenerated from the working tree — a freeze that reads its own subject is
+// exactly the proxy this comment exists to rule out.
 import { describe, it, expect } from "vitest";
 import { readRepoFile, extractConst } from "./helpers/extract-const.js";
 
