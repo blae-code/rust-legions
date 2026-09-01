@@ -41,6 +41,18 @@ const TABLES = [
   "MANUFACTURERS",
   "CALIBRES",
   "WEAPON_PATTERNS",
+  "MODIFICATIONS",
+  "QUALITY_ORDER",
+  "SPECIALIST_KEYS",
+  "QUIRK_CONDITION_KEYS",
+  "QUIRKS",
+  "WEAPON_BASE_KEYS",
+  "TIER_RANK",
+  "LUCK_SLOPE",
+  "MOD_COUNT_BY_QUALITY",
+  "SQUAD_VALUE_KEYS",
+  "LOADOUT_KEYS",
+  "LOADOUT_SHARES",
 ];
 
 // `export const NAME = (` / `= arg =>` — an exported function rather than a
@@ -97,6 +109,36 @@ describe("arms mirror — arms.ts ↔ src/lib/arms.js", () => {
     expect(fns).toContain("resolveHit");
     for (const name of fns) {
       expect(fnSource(MIRROR_SRC, name), `${name} drifted`).toEqual(fnSource(CANON_SRC, name));
+    }
+  });
+
+  // The exported surface is not the whole module. round4, round2, applyDelta,
+  // applyMult, clampTo, nativeHousesOf, activeQuirkKeys, withoutBlades,
+  // SERIAL_ALPHABET and WEIGHT_PER_SPEED_STEP are module-level and NOT
+  // exported, so the table comparison never sees them and the function-source
+  // comparison only catches the ones that happen to sit inside an exported
+  // function's slice. WEIGHT_PER_SPEED_STEP is a balance constant; applyDelta
+  // decides whether a delta adds or replaces. Either could drift between the
+  // two files with every other assertion in this file still green.
+  it("every module-level helper and constant is identical in both files", () => {
+    const helpers = (src) => {
+      const out = {};
+      const re = /^const (\w+) = /gm;
+      let m;
+      while ((m = re.exec(src)) !== null) {
+        const start = m.index;
+        const rest = src.slice(start + m[0].length);
+        const stop = rest.search(/^(?:export )?const /m);
+        out[m[1]] = src.slice(start, stop === -1 ? src.length : start + m[0].length + stop).replace(/\s+/g, " ").trim();
+      }
+      return out;
+    };
+    const canon = helpers(CANON_SRC);
+    const mirror = helpers(MIRROR_SRC);
+    expect(Object.keys(canon).length, "no module-level helpers found — the regex has rotted").toBeGreaterThan(4);
+    expect(Object.keys(mirror).sort()).toEqual(Object.keys(canon).sort());
+    for (const name of Object.keys(canon)) {
+      expect(mirror[name], `helper ${name} drifted between the two files`).toEqual(canon[name]);
     }
   });
 });
@@ -618,6 +660,8 @@ describe("weapon patterns (Work items 9.1–9.7)", () => {
       expect(new Set(p.slots).size, `${k}.slots has a duplicate`).toBe(p.slots.length);
       for (const s of p.slots) expect(SLOTS, `${k}.slots`).toContain(s);
       expect(Array.isArray(p.quirks), `${k}.quirks`).toBe(true);
+      expect(new Set(p.quirks).size, `${k}.quirks has a duplicate`).toBe(p.quirks.length);
+      for (const q of p.quirks) expect(Object.keys(CANON("QUIRKS")), `${k}.quirks`).toContain(q);
       expect(p.appliesTo.length, `${k}.appliesTo`).toBeGreaterThanOrEqual(1);
       expect(new Set(p.appliesTo).size, `${k}.appliesTo has a duplicate`).toBe(p.appliesTo.length);
       for (const a of p.appliesTo) expect(APPLIES, `${k}.appliesTo`).toContain(a);
@@ -660,18 +704,18 @@ describe("THE CLASS SWEEP — the design invariant the damage model exists to ex
   const MAKERS = MIRROR.MANUFACTURERS;
   const AC = MIRROR.ARMOUR_CLASSES;
 
-  // resolveWeapon's step 1 → step 2, and no further: the pattern's own base
-  // with its maker's additive signature laid on top. That is exactly the
-  // weapon an ISSUE-grade, un-modded, no-quirk-active instance resolves to,
-  // because `issue` is the neutral grade (every multiplier exactly 1) and mods
-  // and quirks are additive deltas that are, here, absent. When resolveWeapon
-  // lands this helper is replaced by a call to it; the assertions do not move.
-  const issueBase = (key) => {
-    const p = WP[key];
-    const b = { ...p.base };
-    for (const [k, v] of Object.entries(MAKERS[p.maker].signature)) b[k] = b[k] + v;
-    return b;
-  };
+  // THE REAL FUNCTION, not a hand-rolled stand-in. Step 2 of this lane proved
+  // the sweep against a two-line helper that reproduced resolveWeapon's steps
+  // 1→2 by hand; the moment resolveWeapon landed, the helper became a second
+  // implementation of the thing under test — a gate on a proxy. The assertions
+  // did not move, and they still pass, which is the evidence that the helper
+  // was faithful and that it is now redundant.
+  //
+  // An ISSUE-grade, un-modded instance under an EMPTY context resolves to the
+  // pattern's base plus its maker's signature and nothing else: `issue` is the
+  // neutral grade (every multiplier exactly 1), there are no mods, and no
+  // conditional quirk fires against a context that says nothing.
+  const issueBase = (key) => MIRROR.resolveWeapon({ patternKey: key, quality: "issue", mods: [], quirks: [] }, {});
 
   const SMALL_ARMS = ["sidearm", "carbine", "rifle", "smg", "lmg", "hmg", "shotgun", "marksman", "flame"];
   const ARMOUR_KILLERS = ["anti_armor", "crawler_gun", "artillery"];
@@ -714,6 +758,57 @@ describe("THE CLASS SWEEP — the design invariant the damage model exists to ex
     }
   });
 
+  it("AND NOT AT ANY GRADE, HOWEVER FITTED, UNDER ANY CONDITION — the containment sweep", () => {
+    // The sweep above proves a much weaker claim than the design makes: it
+    // fires an ISSUE-grade, UN-MODDED weapon under an EMPTY context. The claim
+    // the model actually rests on is unqualified — no rifle company ever
+    // acquires the ability to kill crawlers — so this test closes the three
+    // remaining doors by construction rather than by sampling.
+    //
+    // effective = damage × penMult × typeMult, and penMult is 0 whenever the
+    // delta is below −6. Damage and damage type therefore cannot break the
+    // sweep at all: only `armorPen` can. So the whole claim reduces to one
+    // arithmetic ceiling, and there are exactly three ways to raise it:
+    //   quality — the grade multipliers do not name armorPen at all;
+    //   quirks  — no quirk in the table writes armorPen;
+    //   mods    — no armorPen-adding mod lists a small-arm class in appliesTo.
+    // Each is asserted below over the whole table, and then the worst possible
+    // fitted weapon is priced: every armorPen-adding mod that is legal for the
+    // pattern, one per slot, plus every armorPen-adding quirk in the catalogue.
+    for (const g of Object.values(MIRROR.QUALITY_GRADES)) {
+      expect(Object.keys(g.mult), `${g.key}.mult names armorPen`).not.toContain("armorPen");
+    }
+    for (const [qk, q] of Object.entries(MIRROR.QUIRKS)) {
+      expect(Object.keys(q.mods), `quirk ${qk} writes armorPen`).not.toContain("armorPen");
+    }
+    for (const [mk, mod] of Object.entries(MIRROR.MODIFICATIONS)) {
+      if (!((mod.mods.armorPen || 0) > 0)) continue;
+      for (const cls of mod.appliesTo) {
+        expect(SMALL_ARMS, `mod ${mk} adds armorPen and is legal on a ${cls}`).not.toContain(cls);
+      }
+    }
+
+    let priced = 0;
+    for (const [k, p] of Object.entries(WP)) {
+      if (!SMALL_ARMS.includes(p.class)) continue;
+      const best = {};
+      for (const mod of Object.values(MIRROR.MODIFICATIONS)) {
+        if (!p.slots.includes(mod.slot) || !mod.appliesTo.includes(p.class)) continue;
+        const delta = (mod.mods.armorPen || 0) + (mod.tradeoff.armorPen || 0);
+        if (delta > 0) best[mod.slot] = Math.max(best[mod.slot] || 0, delta);
+      }
+      let ceiling = p.base.armorPen + (MAKERS[p.maker].signature.armorPen || 0);
+      for (const v of Object.values(best)) ceiling += v;
+      for (const q of Object.values(MIRROR.QUIRKS)) if ((q.mods.armorPen || 0) > 0) ceiling += q.mods.armorPen;
+      // Below 4 is not a round number chosen for comfort: heavy armour rates
+      // 10, and PEN_TABLE still passes a tenth of the damage at a delta of −6.
+      expect(ceiling, `${k}: best-case fitted armour penetration`).toBeLessThan(4);
+      expect(MIRROR.penMultFor(ceiling - AC.heavy.armourValue), `${k} vs heavy at its ceiling`).toBe(0);
+      priced++;
+    }
+    expect(priced, "the containment sweep found no small arms — it has rotted").toBeGreaterThanOrEqual(25);
+  });
+
   it("mortar and aircraft_gun are deliberately unconstrained by the sweep", () => {
     // Not an accident and not an oversight: a mortar is bought to kill men and
     // a wing cannon to kill aircraft. Neither answers for a crawler, and
@@ -725,5 +820,266 @@ describe("THE CLASS SWEEP — the design invariant the damage model exists to ex
       expect(SMALL_ARMS).not.toContain(p.class);
       expect(ARMOUR_KILLERS).not.toContain(p.class);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Modifications and quirks. Both tables are asserted MECHANICALLY over their
+// whole contents rather than by spot-checking rows: the acceptance criteria
+// say "every one with a non-empty numeric tradeoff" and "every one with a
+// machine-evaluable condition", and a test that names three examples proves
+// neither.
+// ---------------------------------------------------------------------------
+
+describe("modifications (Work item 11)", () => {
+  const MODS = CANON("MODIFICATIONS");
+  const SLOTS = CANON("MOD_SLOTS");
+  const CLASSES = CANON("WEAPON_CLASSES");
+  const TYPES = CANON("DAMAGE_TYPES");
+  const WP = CANON("WEAPON_PATTERNS");
+  // The seven numeric WeaponBase fields. `damageType` and `aoe` are the two
+  // replacements and are handled separately — they are not better or worse.
+  const NUMERIC = ["accuracy", "rateOfFire", "damage", "armorPen", "range", "reliability", "weight"];
+  // Weight is the one field where MORE is worse; everything else, less is worse.
+  const isCost = (k, v) => (k === "weight" ? v > 0 : v < 0);
+  const KEYS = Object.keys(MODS);
+
+  it("declares at least 26 modifications", () => {
+    expect(KEYS.length).toBeGreaterThanOrEqual(26);
+  });
+
+  it("fills every one of the eight slots at least three deep", () => {
+    const perSlot = {};
+    for (const m of Object.values(MODS)) perSlot[m.slot] = (perSlot[m.slot] || 0) + 1;
+    for (const s of SLOTS) {
+      expect(perSlot[s] || 0, `${s}: ${perSlot[s] || 0} mods`).toBeGreaterThanOrEqual(3);
+    }
+    expect(Object.keys(perSlot).sort()).toEqual([...SLOTS].sort());
+  });
+
+  it("every row is complete, keyed to its own slot, and priced", () => {
+    for (const [k, m] of Object.entries(MODS)) {
+      expect(m.key, `${k}.key`).toBe(k);
+      expect(k, `${k} is not a stable snake_case key`).toMatch(/^[a-z][a-z0-9_]*$/);
+      expect(SLOTS, `${k}.slot`).toContain(m.slot);
+      expect(m.appliesTo.length, `${k}.appliesTo`).toBeGreaterThanOrEqual(1);
+      expect(new Set(m.appliesTo).size, `${k}.appliesTo has a duplicate`).toBe(m.appliesTo.length);
+      for (const c of m.appliesTo) expect(CLASSES, `${k}.appliesTo`).toContain(c);
+      expect(Number.isFinite(m.pts), `${k}.pts`).toBe(true);
+      expect(m.pts, `${k}.pts`).toBeGreaterThanOrEqual(0);
+      expect(m.label.length, `${k}.label`).toBeGreaterThan(3);
+      expect(m.blurb.trim().length, `${k}.blurb`).toBeGreaterThan(60);
+    }
+  });
+
+  it("EVERY MOD HAS A NON-EMPTY TRADEOFF, AND EVERY ENTRY IN IT IS GENUINELY WORSE", () => {
+    // The acceptance criterion of this table. A mod that is pure upside is a
+    // bug in this lane: it collapses the choice the slot exists to pose.
+    for (const [k, m] of Object.entries(MODS)) {
+      const cost = Object.entries(m.tradeoff);
+      expect(cost.length, `${k}.tradeoff is empty — no mod may be pure upside`).toBeGreaterThanOrEqual(1);
+      for (const [f, v] of cost) {
+        expect(NUMERIC, `${k}.tradeoff.${f} is not a numeric WeaponBase field`).toContain(f);
+        expect(Number.isFinite(v), `${k}.tradeoff.${f}`).toBe(true);
+        expect(isCost(f, v), `${k}.tradeoff.${f} = ${v} is not a cost`).toBe(true);
+      }
+    }
+  });
+
+  it("every mod's benefits are non-empty and genuinely better", () => {
+    for (const [k, m] of Object.entries(MODS)) {
+      const gain = Object.entries(m.mods);
+      expect(gain.length, `${k}.mods is empty`).toBeGreaterThanOrEqual(1);
+      for (const [f, v] of gain) {
+        if (f === "damageType" || f === "aoe") continue;
+        expect(NUMERIC, `${k}.mods.${f} is not a numeric WeaponBase field`).toContain(f);
+        expect(Number.isFinite(v), `${k}.mods.${f}`).toBe(true);
+        expect(isCost(f, v), `${k}.mods.${f} = ${v} is a cost, not a benefit`).toBe(false);
+      }
+    }
+  });
+
+  it("mods and tradeoff never name the same field — the two are disjoint", () => {
+    for (const [k, m] of Object.entries(MODS)) {
+      for (const f of Object.keys(m.mods)) {
+        expect(Object.keys(m.tradeoff), `${k}: ${f} is in both mods and tradeoff`).not.toContain(f);
+      }
+    }
+  });
+
+  it("the two replacement fields appear only in mods, are valid, and are still paid for", () => {
+    // damageType and aoe are set, not added. Neither is better or worse in the
+    // abstract — a shaped filling is a trade — so a mod that sets one must
+    // still carry a numeric cost, which the tradeoff assertion already forces.
+    // What is asserted here is that the values are legal and that they never
+    // appear on the cost side, where "worse" would be meaningless.
+    let setters = 0;
+    for (const [k, m] of Object.entries(MODS)) {
+      expect(Object.keys(m.tradeoff), `${k}.tradeoff sets damageType`).not.toContain("damageType");
+      expect(Object.keys(m.tradeoff), `${k}.tradeoff sets aoe`).not.toContain("aoe");
+      if (m.mods.damageType !== undefined) {
+        expect(TYPES, `${k}.mods.damageType`).toContain(m.mods.damageType);
+        setters++;
+      }
+      if (m.mods.aoe !== undefined) {
+        expect(Number.isInteger(m.mods.aoe.radius), `${k}.mods.aoe.radius`).toBe(true);
+        expect(m.mods.aoe.radius, `${k}.mods.aoe.radius`).toBeGreaterThanOrEqual(1);
+        expect(m.mods.aoe.falloff, `${k}.mods.aoe.falloff`).toBeGreaterThan(0);
+        expect(m.mods.aoe.falloff, `${k}.mods.aoe.falloff`).toBeLessThanOrEqual(1);
+        setters++;
+      }
+    }
+    expect(setters, "no modification changes a damage type or adds a burst — the fitting has no teeth").toBeGreaterThan(0);
+  });
+
+  it("every weapon class a pattern actually offers can be fitted in every slot it offers", () => {
+    // A pattern that declares a slot no modification can fill is a slot that
+    // is decoration. Checked against the patterns rather than against the
+    // class list, because the classes only matter where a pattern uses them.
+    for (const [pk, p] of Object.entries(WP)) {
+      let legal = 0;
+      for (const s of p.slots) {
+        const fits = Object.values(MODS).filter((m) => m.slot === s && m.appliesTo.includes(p.class));
+        expect(fits.length, `${pk} (${p.class}) declares slot '${s}' and nothing fits it`).toBeGreaterThan(0);
+        legal += fits.length;
+      }
+      expect(legal, `${pk} has fewer than two fittable modifications`).toBeGreaterThanOrEqual(2);
+    }
+  });
+
+  it("the bayonet slot is the catalogue's only melee channel, and every blade carries a weight cost", () => {
+    const blades = Object.entries(MODS).filter(([, m]) => m.slot === "bayonet");
+    expect(blades.length).toBeGreaterThanOrEqual(3);
+    for (const [k, m] of blades) {
+      expect(m.mods.damage, `${k}: a bayonet with no blade value`).toBeGreaterThan(0);
+      expect(m.tradeoff.weight, `${k}: a bayonet that weighs nothing`).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe("quirks (Work item 12)", () => {
+  const QUIRKS = CANON("QUIRKS");
+  const VOCAB = CANON("QUIRK_CONDITION_KEYS");
+  const SPECIALISTS = CANON("SPECIALIST_KEYS");
+  const GRADES = CANON("QUALITY_ORDER");
+  const AC = CANON("ARMOUR_CLASSES");
+  const HOUSES = CANON("HOUSE_KEYS");
+  const WEATHERS = ["clear", "rain", "snow", "fog", "storm"];
+  const BASE_FIELDS = ["accuracy", "rateOfFire", "damage", "armorPen", "range", "reliability", "weight"];
+  const KEYS = Object.keys(QUIRKS);
+
+  it("declares at least 20 quirks", () => {
+    expect(KEYS.length).toBeGreaterThanOrEqual(20);
+  });
+
+  it("names the four the contract calls for, in spirit and in numbers", () => {
+    expect(QUIRKS.cold_forged.condition).toEqual({ key: "weather", value: "snow" });
+    expect(QUIRKS.cold_forged.mods.reliability).toBeCloseTo(0.1, 6);
+    expect(QUIRKS.ferrymans_blessing.condition).toEqual({ key: "adjacent_specialist", value: "relic_bearer" });
+    expect(QUIRKS.ferrymans_blessing.mods.morale).toBe(1);
+    expect(QUIRKS.runs_hot.condition).toEqual({ key: "consecutive_fire", value: 2 });
+    expect(QUIRKS.runs_hot.mods.rateOfFire).toBeCloseTo(0.15, 6);
+    expect(QUIRKS.runs_hot.mods.reliability).toBeCloseTo(-0.1, 6);
+    expect(QUIRKS.prize_taken.condition).toEqual({ key: "vs_house", value: "native_house" });
+    expect(QUIRKS.prize_taken.mods.morale).toBe(1);
+  });
+
+  it("EVERY QUIRK HAS A CONDITION, AND EVERY CONDITION IS IN THE PUBLISHED VOCABULARY", () => {
+    for (const [k, q] of Object.entries(QUIRKS)) {
+      expect(q.key, `${k}.key`).toBe(k);
+      expect(q.condition, `${k} has no condition — an effect that exists only in prose`).toBeTruthy();
+      expect(Object.keys(VOCAB), `${k}.condition.key`).toContain(q.condition.key);
+    }
+  });
+
+  it("condition.value matches the valueType the vocabulary declares, and 'none' carries no value", () => {
+    for (const [k, q] of Object.entries(QUIRKS)) {
+      const declared = VOCAB[q.condition.key].valueType;
+      if (declared === "none") {
+        expect(Object.prototype.hasOwnProperty.call(q.condition, "value"), `${k}: a valueless condition carries a value`).toBe(false);
+      } else {
+        expect(Object.prototype.hasOwnProperty.call(q.condition, "value"), `${k}: missing condition.value`).toBe(true);
+        expect(typeof q.condition.value, `${k}.condition.value`).toBe(declared);
+      }
+    }
+  });
+
+  it("every condition value names something that actually exists in this repository", () => {
+    // The vocabulary types a value as a string; this checks it is a string
+    // FROM THE RIGHT SET, which is the difference between a machine-evaluable
+    // condition and a typo that silently never fires.
+    for (const [k, q] of Object.entries(QUIRKS)) {
+      const c = q.condition;
+      if (c.key === "weather") expect(WEATHERS, `${k}.condition.value`).toContain(c.value);
+      if (c.key === "adjacent_specialist") expect(SPECIALISTS, `${k}.condition.value`).toContain(c.value);
+      if (c.key === "vs_armour_class") expect(Object.keys(AC), `${k}.condition.value`).toContain(c.value);
+      if (c.key === "quality_at_least") expect(GRADES, `${k}.condition.value`).toContain(c.value);
+      if (c.key === "vs_house" && c.value !== "native_house") expect(HOUSES, `${k}.condition.value`).toContain(c.value);
+    }
+  });
+
+  it("every one of the twelve published condition keys is actually used by a quirk", () => {
+    // A vocabulary entry no quirk uses is an instruction to the platform lane
+    // to implement something nothing needs.
+    const used = new Set(Object.values(QUIRKS).map((q) => q.condition.key));
+    for (const key of Object.keys(VOCAB)) {
+      expect([...used], `condition key '${key}' is published and unused`).toContain(key);
+    }
+  });
+
+  it("mods are non-empty and confined to WeaponBase fields or morale/initiative", () => {
+    for (const [k, q] of Object.entries(QUIRKS)) {
+      const entries = Object.entries(q.mods);
+      expect(entries.length, `${k}.mods is empty`).toBeGreaterThanOrEqual(1);
+      for (const [f, v] of entries) {
+        expect([...BASE_FIELDS, "morale", "initiative"], `${k}.mods.${f}`).toContain(f);
+        expect(Number.isFinite(v), `${k}.mods.${f}`).toBe(true);
+      }
+      expect(q.blurb.trim().length, `${k}.blurb`).toBeGreaterThan(60);
+    }
+  });
+
+  it("an 'always' quirk is an INSTANCE quirk and is never authored onto a pattern", () => {
+    // An unconditional modifier attached to a design is indistinguishable from
+    // the design's own numbers and belongs in `base`. Keeping them off the
+    // patterns is also what keeps the Points Audit honest: every pattern is
+    // priced with ctx = {}, and an always-on quirk would move that price.
+    const unconditional = Object.keys(QUIRKS).filter((k) => QUIRKS[k].condition.key === "always");
+    expect(unconditional.length, "no unconditional quirks at all — rollWeapon has nothing to hang on an instance").toBeGreaterThan(0);
+    for (const [pk, p] of Object.entries(CANON("WEAPON_PATTERNS"))) {
+      for (const q of p.quirks) {
+        expect(unconditional, `${pk} carries the unconditional quirk '${q}'`).not.toContain(q);
+      }
+    }
+  });
+
+  it("evaluateQuirk is total: a boolean for every quirk, against an empty and a full context, never throwing", () => {
+    const full = {
+      weather: "snow", terrain: "rubble", night: true, adjacentSpecialists: [...SPECIALISTS],
+      consecutiveFire: 9, vsHouse: "reclamation", nativeHouses: ["reclamation"], vsArmourClass: "heavy",
+      quality: "relic", range: 0, figures: 12, round: 12,
+    };
+    for (const [k, q] of Object.entries(QUIRKS)) {
+      for (const [label, ctx] of [["empty", {}], ["full", full], ["undefined", undefined]]) {
+        const out = MIRROR.evaluateQuirk(q, ctx);
+        expect(typeof out, `${k} against the ${label} context`).toBe("boolean");
+      }
+      // The empty context is the one the Points Audit uses: nothing but an
+      // unconditional quirk may fire against it.
+      expect(MIRROR.evaluateQuirk(q, {}), `${k} fires against an empty context`).toBe(q.condition.key === "always");
+    }
+    expect(MIRROR.evaluateQuirk({ key: "x", label: "x", mods: {}, condition: { key: "not_a_real_key" } }, {})).toBe(false);
+    expect(MIRROR.evaluateQuirk({ key: "x", label: "x", mods: {} }, {})).toBe(false);
+    expect(MIRROR.evaluateQuirk(undefined, {})).toBe(false);
+  });
+
+  it("every quirk is reachable — on a pattern, or drawable onto an instance", () => {
+    const onPatterns = new Set();
+    for (const p of Object.values(CANON("WEAPON_PATTERNS"))) for (const q of p.quirks) onPatterns.add(q);
+    expect(onPatterns.size, "no pattern carries a quirk").toBeGreaterThan(10);
+    // rollWeapon draws extras from every key not already on the pattern, so
+    // the remainder are reachable by definition; what would NOT be reachable
+    // is a key on a pattern that the table does not declare.
+    for (const q of onPatterns) expect(KEYS, `pattern quirk '${q}' is not declared`).toContain(q);
   });
 });
