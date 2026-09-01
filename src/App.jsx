@@ -28,6 +28,8 @@ import Walkthrough from './pages/Walkthrough';
 import Roadmap from './pages/Roadmap';
 import FieldManual from './pages/FieldManual';
 import InstallApp from './pages/InstallApp';
+import WarrantOffice from './pages/WarrantOffice';
+import WarrantCheck from './components/access/WarrantCheck';
 import DevConsole from './components/debug/DevConsole';
 
 const AuthenticatedApp = () => {
@@ -56,8 +58,11 @@ const AuthenticatedApp = () => {
       <Route path="/reset-password" element={<ResetPassword />} />
 
       {/* Add your page Route elements here */}
-      <Route element={authed ? <Layout /> : <Navigate to="/login" replace />}>
+      {/* Enlistment is by warrant only — no valid code, no war room */}
+      <Route element={authed ? <WarrantCheck /> : <Navigate to="/login" replace />}>
+      <Route element={<Layout />}>
         <Route path="/" element={<Home />} />
+        <Route path="/warrant-office" element={<WarrantOffice />} />
         <Route path="/new-game" element={<NewGame />} />
         <Route path="/game/:gameId" element={<GamePage />} />
         <Route path="/faction-builder" element={<FactionBuilder />} />
@@ -71,6 +76,7 @@ const AuthenticatedApp = () => {
         <Route path="/roadmap" element={<Roadmap />} />
         <Route path="/field-manual" element={<FieldManual />} />
         <Route path="/install" element={<InstallApp />} />
+      </Route>
       </Route>
       <Route path="*" element={<PageNotFound />} />
     </Routes>

@@ -107,7 +107,7 @@ export default function Register() {
     <AuthScene
       eyebrow="Ministry of War · Enlistment"
       title="Request a Commission"
-      subtitle="OPEN A COMMANDER'S FILE TO JOIN THE MARCH"
+      subtitle="ENLISTMENT IS BY WARRANT ONLY — HAVE YOUR CODE READY"
       footer={
         <span className="font-mono text-[11px] text-muted-foreground tracking-wide">
           Already commissioned?{" "}
@@ -115,6 +115,13 @@ export default function Register() {
         </span>
       }
     >
+      <div className="cq-slip rounded-sm px-3 py-2 mb-4">
+        <p className="font-mono text-[10px] text-muted-foreground leading-relaxed">
+          A warrant code issued by the High Command is required to reach the war room. Open a file below, then
+          present your code at the checkpoint.
+        </p>
+      </div>
+
       <ProviderButton onClick={handleGoogle} />
       <AuthDivider label="or open a file" />
 

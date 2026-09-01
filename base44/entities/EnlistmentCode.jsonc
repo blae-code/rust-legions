@@ -1,0 +1,58 @@
+{
+  "name": "EnlistmentCode",
+  "type": "object",
+  "properties": {
+    "code": {
+      "type": "string",
+      "description": "The redeemable warrant code, uppercase"
+    },
+    "label": {
+      "type": "string",
+      "description": "Who this warrant is intended for \u2014 a callsign or nickname, never an email"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "open",
+        "redeemed",
+        "revoked"
+      ],
+      "default": "open"
+    },
+    "redeemedByUserId": {
+      "type": "string"
+    },
+    "redeemedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "note": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "code"
+  ],
+  "rls": {
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}
