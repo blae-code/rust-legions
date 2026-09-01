@@ -1,15 +1,39 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
 import { base44 } from "@/api/base44Client";
 import useUser from "@/hooks/useUser";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2 } from "lucide-react";
 import PlanetPicker from "@/components/setup/PlanetPicker";
 import LabelTip from "@/components/ui/LabelTip";
+import DirectiveHeader from "@/components/setup/DirectiveHeader";
+import FactionSelect from "@/components/setup/FactionSelect";
+import CommandRoster from "@/components/setup/CommandRoster";
+import OrderOfBattle from "@/components/setup/OrderOfBattle";
 import { PRESET_FACTIONS, presetToFactionRecord } from "@/lib/presetFactions";
 
-const DOCTRINE_OPTS = ["aggressive", "economic", "defensive"];
+// Numbered directive section — each field of Form 7-K
+function Section({ step, title, tip, children, delay = 0 }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay, duration: 0.35 }}
+      className="cq-panel p-4"
+    >
+      <div className="flex items-center gap-2.5 mb-2.5">
+        <span className="flex items-center justify-center w-7 h-7 rounded-sm border border-brass/50 bg-brass/10 font-display text-sm text-brass-bright">
+          {step}
+        </span>
+        <label className="cq-label text-foreground/90">
+          {title}
+          {tip && <LabelTip title={title} body={tip} />}
+        </label>
+      </div>
+      {children}
+    </motion.div>
+  );
+}
 
 export default function NewGame() {
   const { user } = useUser();
@@ -91,118 +115,93 @@ export default function NewGame() {
   };
 
   const canCreate = factionId && totalSlots >= 2 && totalSlots <= 4;
+  const selectedFaction = factions.find((f) => f.id === factionId);
+  const selectedMap = maps.find((m) => m.id === mapId);
 
   return (
-    <div className="max-w-3xl xl:max-w-6xl mx-auto space-y-5">
-      <div>
-        <p className="cq-label">War Ministry · Directive</p>
-        <h1 className="cq-display text-4xl">Open a New Front</h1>
-      </div>
+    <div className="max-w-3xl xl:max-w-6xl mx-auto space-y-5 cq-page-in">
+      <DirectiveHeader />
 
-      <div className="grid xl:grid-cols-2 gap-5 items-start">
-      <div className="cq-panel p-5 space-y-4">
-        <div>
-          <label className="cq-label">Operation Name</label>
-          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Operation Ironfall" className="bg-input border-border mt-1 font-heading tracking-wide" />
-        </div>
+      <div className="grid xl:grid-cols-[1fr_320px] gap-5 items-start">
+        <div className="space-y-4">
+          <Section step="01" title="Operation Name" delay={0.05}>
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Operation Ironfall — leave blank and the Ministry names it"
+              className="bg-input border-border font-heading tracking-wide"
+            />
+          </Section>
 
-        <div>
-          <label className="cq-label">Your Faction<LabelTip title="Your Faction" body="The banner you take the field under. Presets are ready-made; the Faction Foundry forges custom nations." /></label>
-          {factions.length === 0 ? (
-            <div className="mt-1 space-y-2">
-              <p className="text-xs text-muted-foreground">No factions on file — requisition a standing faction to take the field now, or forge a custom nation in the Faction Builder.</p>
-              <div className="grid sm:grid-cols-3 gap-2">
-                {PRESET_FACTIONS.map((p) => (
-                  <button
-                    key={p.id}
-                    type="button"
-                    disabled={!!forgingId}
-                    onClick={() => forgePreset(p)}
-                    className="text-left border border-border rounded-sm p-3 transition-colors hover:border-brass disabled:opacity-50"
-                  >
-                    <p className="font-heading font-semibold tracking-wide text-foreground text-sm flex items-center gap-1.5">
-                      {forgingId === p.id && <Loader2 className="w-3 h-3 animate-spin" />}
-                      {p.factionName}
-                    </p>
-                    <p className="text-[10px] uppercase tracking-[0.2em] text-brass mt-1 font-heading">{p.doctrine}</p>
-                  </button>
-                ))}
+          <Section step="02" title="Your Banner" tip="The banner you take the field under. Presets are ready-made; the Faction Foundry forges custom nations." delay={0.1}>
+            <FactionSelect
+              factions={factions}
+              factionId={factionId}
+              setFactionId={setFactionId}
+              forgingId={forgingId}
+              forgePreset={forgePreset}
+            />
+          </Section>
+
+          <Section step="03" title="Command Roster" tip="Who takes the four chairs at the war table. One human alone opens a solo campaign against machine rivals." delay={0.15}>
+            <CommandRoster
+              humanCount={humanCount}
+              setHumanCount={setHumanCount}
+              npcs={npcs}
+              setNpcs={setNpcs}
+              isCampaign={isCampaign}
+            />
+            {isCampaign && (
+              <div className="grid grid-cols-2 gap-4 border-t border-border pt-3 mt-3">
+                <div>
+                  <label className="cq-label text-brass">Victory Condition<LabelTip title="Victory Condition" body="What wins the campaign: controlling a share of the world's settlements, or simply surviving a number of days." /></label>
+                  <select value={winType} onChange={(e) => setWinType(e.target.value)} className="w-full bg-input border border-border rounded-sm p-2 text-sm mt-1 text-secondary-foreground font-heading tracking-wide">
+                    <option value="territory">Control % of settlements</option>
+                    <option value="survive">Survive N days</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="cq-label">{winType === "survive" ? "Days" : "Percent"}</label>
+                  <Input type="number" value={winValue} onChange={(e) => setWinValue(e.target.value)} className="bg-input border-border mt-1" />
+                </div>
               </div>
-            </div>
-          ) : (
-            <select value={factionId} onChange={(e) => setFactionId(e.target.value)} className="w-full bg-input border border-border rounded-sm p-2 text-sm mt-1 text-secondary-foreground font-heading tracking-wide">
-              {factions.map((f) => <option key={f.id} value={f.id}>{f.factionName}</option>)}
-            </select>
-          )}
-        </div>
+            )}
+          </Section>
 
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="cq-label">Human Commanders<LabelTip title="Human Commanders" body="How many human players take a slot. One commander alone opens a solo campaign against NPC factions." /></label>
-            <select value={humanCount} onChange={(e) => { setHumanCount(Number(e.target.value)); setNpcs(npcs.slice(0, 4 - Number(e.target.value))); }} className="w-full bg-input border border-border rounded-sm p-2 text-sm mt-1 text-secondary-foreground font-heading tracking-wide">
-              {[1, 2, 3, 4].map((n) => <option key={n} value={n}>{n}{n === 1 ? " (solo campaign)" : ""}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="cq-label">NPC Factions ({npcs.length})<LabelTip title="NPC Factions" body="Machine-run rivals. Their doctrine — aggressive, economic, or defensive — sets their personality on the front." /></label>
-            <div className="flex gap-1 mt-1 flex-wrap">
-              {npcs.map((d, i) => (
-                <select key={i} value={d} onChange={(e) => setNpcs(npcs.map((x, j) => (j === i ? e.target.value : x)))} className="bg-input border border-border rounded-sm p-1.5 text-xs text-secondary-foreground font-heading tracking-wide">
-                  {DOCTRINE_OPTS.map((o) => <option key={o} value={o}>{o}</option>)}
-                </select>
-              ))}
-              {totalSlots < 4 && (
-                <Button size="sm" variant="outline" className="border-border text-xs h-8 font-heading" onClick={() => setNpcs([...npcs, "aggressive"])}>+ NPC</Button>
-              )}
-              {npcs.length > (isCampaign ? 1 : 0) && (
-                <Button size="sm" variant="outline" className="border-border text-xs h-8" onClick={() => setNpcs(npcs.slice(0, -1))}>−</Button>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {isCampaign && (
-          <div className="grid grid-cols-2 gap-4 border-t border-border pt-3">
-            <div>
-              <label className="cq-label text-brass">Campaign Victory Condition<LabelTip title="Victory Condition" body="What wins the campaign: controlling a share of the world's settlements, or simply surviving a number of days." /></label>
-              <select value={winType} onChange={(e) => setWinType(e.target.value)} className="w-full bg-input border border-border rounded-sm p-2 text-sm mt-1 text-secondary-foreground font-heading tracking-wide">
-                <option value="territory">Control % of settlements</option>
-                <option value="survive">Survive N days</option>
+          <Section step="04" title="Theater of War" delay={0.2}>
+            <PlanetPicker value={planetId} onChange={setPlanetId} />
+            <div className="border-t border-border pt-3 mt-3">
+              <label className="cq-label">Charted Map (optional)<LabelTip title="Charted Map" body="Fight on a chart drafted in the Cartography Bureau. Leave blank and the theater world above is generated for you." /></label>
+              <select
+                value={mapId}
+                onChange={(e) => setMapId(e.target.value)}
+                className="w-full bg-input border border-border rounded-sm p-2 text-sm mt-1 text-secondary-foreground font-heading tracking-wide"
+              >
+                <option value="">— Generated theater world —</option>
+                {maps.filter((m) => (m.nodes || []).length > 1).map((m) => (
+                  <option key={m.id} value={m.id}>{m.name} ({(m.nodes || []).length} settlements)</option>
+                ))}
               </select>
             </div>
-            <div>
-              <label className="cq-label">{winType === "survive" ? "Days" : "Percent"}</label>
-              <Input type="number" value={winValue} onChange={(e) => setWinValue(e.target.value)} className="bg-input border-border mt-1" />
-            </div>
-          </div>
-        )}
-      </div>
-
-      <div className="cq-panel p-5 space-y-3">
-        <PlanetPicker value={planetId} onChange={setPlanetId} />
-        <div className="border-t border-border pt-3">
-          <label className="cq-label">Charted Map (optional)<LabelTip title="Charted Map" body="Fight on a chart drafted in the Cartography Bureau. Leave blank and the theater world above is generated for you." /></label>
-          <p className="font-mono text-[10px] text-muted-foreground tracking-wide mt-0.5 mb-1">
-            USE A CHART DRAFTED IN THE CARTOGRAPHY BUREAU — THE WORLD IS GROWN AROUND ITS SETTLEMENTS. LEAVE BLANK FOR THE THEATER WORLD ABOVE.
-          </p>
-          <select
-            value={mapId}
-            onChange={(e) => setMapId(e.target.value)}
-            className="w-full bg-input border border-border rounded-sm p-2 text-sm text-secondary-foreground font-heading tracking-wide"
-          >
-            <option value="">— Generated theater world —</option>
-            {maps.filter((m) => (m.nodes || []).length > 1).map((m) => (
-              <option key={m.id} value={m.id}>{m.name} ({(m.nodes || []).length} settlements)</option>
-            ))}
-          </select>
+          </Section>
         </div>
-      </div>
-      </div>
 
-      {error && <p className="text-sm text-rust font-mono">{error}</p>}
-      <Button disabled={!canCreate || creating} onClick={create} className="w-full bg-rust hover:bg-destructive text-destructive-foreground font-heading uppercase tracking-[0.3em] h-11 text-sm">
-        {creating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null} Muster Forces
-      </Button>
+        <OrderOfBattle
+          name={name}
+          factionName={selectedFaction?.factionName}
+          planetId={planetId}
+          mapName={selectedMap?.name}
+          humanCount={humanCount}
+          npcs={npcs}
+          isCampaign={isCampaign}
+          winType={winType}
+          winValue={winValue}
+          canCreate={canCreate}
+          creating={creating}
+          error={error}
+          onCreate={create}
+        />
+      </div>
     </div>
   );
 }

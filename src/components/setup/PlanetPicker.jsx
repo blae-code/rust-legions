@@ -35,11 +35,16 @@ export default function PlanetPicker({ value, onChange }) {
             type="button"
             onClick={() => onChange(w.id)}
             title={w.blurb}
-            className={`text-left p-2 rounded-sm border transition-colors ${
-              value === w.id ? "border-brass bg-brass/10" : "border-border bg-secondary/30 hover:border-brass/50"
+            className={`cq-metal text-left p-2 rounded-sm border transition-all ${
+              value === w.id
+                ? "border-brass bg-brass/10 shadow-[0_0_14px_hsl(40_20%_54%/0.18)]"
+                : "border-border bg-secondary/30 hover:border-brass/50"
             }`}
           >
-            <WorldSilhouette world={w} />
+            <div className="relative rounded-sm overflow-hidden">
+              <WorldSilhouette world={w} />
+              <div className="absolute inset-0 cq-scanlines opacity-25 pointer-events-none" />
+            </div>
             <span className={`block mt-1.5 font-heading uppercase tracking-widest text-xs ${value === w.id ? "text-brass-bright" : "text-secondary-foreground"}`}>
               {w.name}
             </span>
