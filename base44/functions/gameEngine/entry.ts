@@ -33,6 +33,12 @@ const CASUALTY_ORDER = ['riflemen', 'crawler', 'gunboat', 'artillery', 'fighter'
 // Point-buy perk compiler & modifier merge — shared module (base44/shared/perkMods.ts)
 import { compileMods, mergeMods } from '../../shared/perkMods.ts';
 
+// Tactical formation battles — canonical rules and state machine
+import {
+  createTactical, submitFormations, autoFormations, autoOrders, resolveOrders,
+  activeFormation, battleResult, tacticalView,
+} from '../../shared/tacticalEngine.ts';
+
 const slotMods = (slot) => slot?.mods || compileMods(slot?.pointBuy);
 
 // ---------- Research / doctrine tree (mirrors src/lib/doctrine.js) ----------
@@ -69,75 +75,8 @@ function tickResearch(game) {
   }
 }
 
-// ---------- Precursor relics (mirrors src/lib/relics.js) ----------
-// Deep ruins hide Combine-age technology. Taking such a ruin excavates whatever
-// lies under it; the find is permanent and folds into the faction's modifiers.
-const RELICS = {
-  cogitator_array: { label: 'Combine Cogitator Array', lore: 'A calculating engine that still hums. Staff work sharpens overnight.', mods: { capitalDefense: 1, unitStat: { riflemen: { defense: 1 } } } },
-  pattern_dies: { label: 'Pattern Stamping Dies', lore: 'Original hull dies for a foundry line thought lost.', mods: { income: { steel: 1 } } },
-  cracking_column: { label: 'Catalytic Cracking Column', lore: 'Pre-collapse refining plant, sealed and intact.', mods: { income: { fuel: 1 } } },
-  census_vault: { label: 'The Census Vault', lore: 'Muster rolls of a dead age — and the settlements that still answer them.', mods: { income: { manpower: 1 }, armyCap: 10 } },
-  reactive_lattice: { label: 'Reactive Armor Lattice', lore: 'Plate that hardens as it is struck. The crawler works cannot reproduce it.', mods: { unitStat: { crawler: { defense: 1 } } } },
-  survey_engine: { label: 'Cartographic Survey Engine', lore: 'It charts routes no living quartermaster has walked.', mods: { supplyRange: 1 } },
-  gun_lathes: { label: 'Precision Gun Lathes', lore: 'Barrels bored true to Combine tolerance.', mods: { unitStat: { riflemen: { attack: 1 }, crawler: { attack: 1 } } } },
-};
-const RELIC_KEYS = Object.keys(RELICS);
-
-// Complete a matched set and the pieces work as their makers intended
-const RELIC_SETS = {
-  foundry_patrimony: {
-    label: 'The Foundry Patrimony',
-    members: ['pattern_dies', 'cracking_column', 'gun_lathes', 'reactive_lattice'],
-    mods: { income: { steel: 2, fuel: 1 }, unitStat: { crawler: { attack: 1, defense: 1 } } },
-  },
-  administrative_codex: {
-    label: 'The Administrative Codex',
-    members: ['cogitator_array', 'census_vault', 'survey_engine'],
-    mods: { income: { manpower: 2 }, armyCap: 15, supplyRange: 1 },
-  },
-};
-
-// Seed dig sites into the deep ruins of a freshly started world
-function seedRelics(game) {
-  const ruins = game.macro.nodes.filter((n) => n.kind === 'ruin');
-  const pool = [...RELIC_KEYS].sort(() => Math.random() - 0.5);
-  const count = Math.min(ruins.length, Math.max(3, Math.round(ruins.length * 0.45)), pool.length);
-  const picked = [...ruins].sort(() => Math.random() - 0.5).slice(0, count);
-  game.macro.relics = {};
-  picked.forEach((n, i) => { game.macro.relics[n.id] = { id: pool[i], foundBy: null, foundTurn: null }; });
-}
-
-// Taking ground over an undisturbed dig site excavates it
-function excavateRelic(game, slotIdx, nodeId) {
-  const site = (game.macro.relics || {})[nodeId];
-  if (!site || site.foundBy !== null && site.foundBy !== undefined) return;
-  const relic = RELICS[site.id];
-  if (!relic) return;
-  site.foundBy = slotIdx;
-  site.foundTurn = game.turnNumber;
-  const slot = game.factionSlots[slotIdx];
-  slot.relics = slot.relics || [];
-  slot.relics.push(site.id);
-  if (!slot.mods) slot.mods = compileMods(slot.pointBuy);
-  mergeMods(slot.mods, relic.mods);
-  game.combatLog.push({
-    turn: game.turnNumber, type: 'event',
-    text: `${slot.factionName}'s engineers break the seals beneath ${macroNode(game.macro, nodeId)?.name} — the ${relic.label} is recovered. ${relic.lore}`,
-  });
-
-  // A matched set assembled: the pieces finally work as their makers intended
-  slot.relicSets = slot.relicSets || [];
-  for (const [setId, set] of Object.entries(RELIC_SETS)) {
-    if (slot.relicSets.includes(setId)) continue;
-    if (!set.members.every((m) => slot.relics.includes(m))) continue;
-    slot.relicSets.push(setId);
-    mergeMods(slot.mods, set.mods);
-    game.combatLog.push({
-      turn: game.turnNumber, type: 'event',
-      text: `${slot.factionName} assembles ${set.label} — the recovered works are brought into concert, and the whole is greater than its parts.`,
-    });
-  }
-}
+// Precursor relics — shared module (base44/shared/relics.ts)
+import { RELICS, RELIC_SETS, seedRelics, excavateRelic } from '../../shared/relics.ts';
 
 // ---------- Neutral settlement lore & occupation crises (shared modules) ----------
 import { settlementDossier, charterOptions, POLICY_COOLDOWN_DAYS, POLICY_LOG } from '../../shared/settlementLore.ts';
@@ -1532,6 +1471,7 @@ function macroCreateBattle(game, slotIdx, column, nodeId) {
     round: 1,
     terrain: null,
     weather,
+    mode: null, // the attacking commander elects tactical or quick resolution
     log: [`The ${column.name} under ${attGeneral.name} assaults ${node.name}.`],
   };
   const attVeh = vehicleOf(attGeneral), defVeh = vehicleOf(defGeneral);
@@ -1727,6 +1667,8 @@ Deno.serve(async (req) => {
             fortBonus: ab.defender.fortBonus,
             log: ab.log.slice(-14),
             waitingOnMe: !(myRole === 'attacker' ? ab.attacker : ab.defender).choice,
+            mode: ab.mode === undefined ? 'quick' : ab.mode,
+            tactical: ab.tactical ? tacticalView(ab.tactical, myRole) : null,
           };
         }
       }
@@ -2027,6 +1969,7 @@ Deno.serve(async (req) => {
       const b = game.activeBattle;
       if (!b) return Response.json({ error: 'No battle in progress' }, { status: 400 });
       const { maneuver } = body;
+      if (b.mode === null || b.mode === 'tactical') return Response.json({ error: 'This engagement awaits a resolution order from the attacking commander' }, { status: 400 });
       if (!MANEUVERS[maneuver]) return Response.json({ error: 'Unknown maneuver' }, { status: 400 });
       const defSlotObj = b.defender.slot !== null && b.defender.slot !== undefined ? game.factionSlots[b.defender.slot] : null;
       const isAtt = game.factionSlots[b.attacker.slot]?.userId === user.id;
@@ -2047,6 +1990,82 @@ Deno.serve(async (req) => {
         if (!live) setChoice(b.defender, aiManeuver(b.defender, defSlotObj?.doctrine));
       }
       if (b.attacker.choice && b.defender.choice) resolveBattleRound(game, b);
+      if (game.status !== 'active') recordSnapshot(game);
+      await persistWar();
+      await logIfComplete();
+      return Response.json({ ok: true, resolved: !game.activeBattle });
+    }
+
+    // ----- Tactical formation battles -----
+    const battleRole = (b) => {
+      const defObj = b.defender.slot !== null && b.defender.slot !== undefined ? game.factionSlots[b.defender.slot] : null;
+      if (game.factionSlots[b.attacker.slot]?.userId === user.id) return 'attacker';
+      if (defObj?.userId === user.id) return 'defender';
+      return null;
+    };
+    const defenderLive = (b) => b.defender.interactive && defenderIsLive(game, game.factionSlots[b.defender.slot]);
+    // Absent staffs (NPC, neutral, offline commander) fight their own formations
+    const runAutoTurns = (b) => {
+      const t = b.tactical;
+      for (let guard = 0; guard < 60 && t.status === 'fighting' && !battleResult(t); guard++) {
+        const f = activeFormation(t);
+        if (!f || (f.side === 'attacker') || (f.side === 'defender' && defenderLive(b))) break;
+        const o = autoOrders(t, f);
+        if (!o || resolveOrders(t, f.id, o.moveTo, o.actionKey, o.targetId)) break;
+      }
+      const r = battleResult(t);
+      if (!r) return;
+      t.status = 'done';
+      for (const [side, units] of [[b.attacker, r.attackerUnits], [b.defender, r.defenderUnits]]) {
+        side.losses = totalUnits(side.units) - totalUnits(units);
+        side.units = units;
+        side.morale = totalUnits(units) > 0 ? 60 : 0;
+      }
+      b.round = t.round + 1;
+      b.log.push(r.attackerWon ? `${b.attacker.generalName}'s formations carry the field.` : `${b.defender.generalName}'s formations hold the ground.`);
+      finishBattle(game, b, r.attackerWon);
+    };
+
+    GAME_ACTIONS.battleSetMode = async () => {
+      const b = game.activeBattle;
+      if (!b) return Response.json({ error: 'No battle in progress' }, { status: 400 });
+      if (battleRole(b) !== 'attacker') return Response.json({ error: 'The attacking commander elects how the engagement is fought' }, { status: 403 });
+      if (b.mode) return Response.json({ error: 'The resolution order is already filed' }, { status: 400 });
+      if (!['quick', 'tactical'].includes(body.mode)) return Response.json({ error: 'Unknown resolution' }, { status: 400 });
+      b.mode = body.mode;
+      if (b.mode === 'tactical') {
+        b.tactical = createTactical(b.attacker.units, b.defender.units);
+        if (!defenderLive(b)) submitFormations(b.tactical, 'defender', autoFormations(b.tactical.pools.defender));
+        b.log.push('The staffs deploy for a set-piece engagement.');
+      }
+      await persistWar();
+      return Response.json({ ok: true });
+    }
+
+    GAME_ACTIONS.tacticalDeploy = async () => {
+      const b = game.activeBattle;
+      if (!b?.tactical) return Response.json({ error: 'No tactical engagement in progress' }, { status: 400 });
+      const role = battleRole(b);
+      if (!role) return Response.json({ error: 'You are not a party to this battle' }, { status: 403 });
+      const err = submitFormations(b.tactical, role, body.formations);
+      if (err) return Response.json({ error: err }, { status: 400 });
+      runAutoTurns(b);
+      if (game.status !== 'active') recordSnapshot(game);
+      await persistWar();
+      await logIfComplete();
+      return Response.json({ ok: true, resolved: !game.activeBattle });
+    }
+
+    GAME_ACTIONS.tacticalOrders = async () => {
+      const b = game.activeBattle;
+      if (!b?.tactical) return Response.json({ error: 'No tactical engagement in progress' }, { status: 400 });
+      const role = battleRole(b);
+      if (!role) return Response.json({ error: 'You are not a party to this battle' }, { status: 403 });
+      const f = activeFormation(b.tactical);
+      if (!f || f.side !== role) return Response.json({ error: 'It is not your formation\'s turn' }, { status: 400 });
+      const err = resolveOrders(b.tactical, body.formationId, body.moveTo || null, body.action, body.targetId || null);
+      if (err) return Response.json({ error: err }, { status: 400 });
+      runAutoTurns(b);
       if (game.status !== 'active') recordSnapshot(game);
       await persistWar();
       await logIfComplete();
