@@ -8,6 +8,8 @@ import CommsCenter from "@/components/comms/CommsCenter";
 import StormFront25D from "@/components/home/StormFront25D";
 import BootSequence from "@/components/home/BootSequence";
 import GameMenu from "@/components/home/GameMenu";
+import AuxDirectory from "@/components/home/AuxDirectory";
+import FrontTempo from "@/components/home/FrontTempo";
 import DossierPanel from "@/components/home/DossierPanel";
 import FrontCard from "@/components/home/FrontCard";
 import OpenFrontsPanel from "@/components/home/OpenFrontsPanel";
@@ -94,6 +96,8 @@ export default function Home() {
             <p className="font-mono text-[9px] text-rust/90 tracking-[0.25em] mt-1">⚠ FIELD TRIAL BUILD — SYSTEMS SUBJECT TO CHANGE WITHOUT NOTICE</p>
             <div className="cq-hazard w-40 mt-2" />
             <GameMenu continueGame={continueGame} />
+            <AuxDirectory />
+            <FrontTempo games={games?.filter((g) => g.status !== "complete")} />
             <div className="mt-auto pt-3 hidden 2xl:block max-w-md">
               <IntelBrief />
             </div>
