@@ -112,7 +112,9 @@ Delivers:
 Acceptance: mirror test green; Points Audit complete; each new type has a `unit_<key>_token` placeholder (vehicles also `unit_<key>_action`); ≥1 Codex entry per type.
 
 #### Lane G — Research, armory & decrees
-Owns: `base44/shared/catalog.ts` (NEW — canonical `TECHS`, `ARMORY_ITEMS`, `RELIC_PROJECTS`), `src/lib/doctrine.js`, `src/lib/armory.js`, `docs/TECH_DESIGN.md`, `imageLibrary.js` § doctrine/decrees/relics placeholders, `test/catalog-mirror.test.js`.
+Owns: `base44/shared/catalog.ts` (NEW — canonical `TECHS`, `CREEDS`, `ARMORY_ITEMS`, `RELIC_PROJECTS`), `src/lib/doctrine.js`, `src/lib/armory.js`, `docs/TECH_DESIGN.md`, `imageLibrary.js` § doctrine/decrees/relics placeholders, `test/catalog-mirror.test.js`, `test/rules-mirror.test.js` *(legacy-scope narrowing only — see AMENDMENT below)*.
+
+> **AMENDMENT 2026-09-01 (Lane G, Amendment 3).** `test/rules-mirror.test.js` asserts that `gameEngine.TECHS`, `concurrentPlay.TECHS` and `src/lib/doctrine.js` declare an **identical** key set, and likewise for `concurrentPlay.ARMORY` ↔ `src/lib/armory.js`. Growing the frontend mirrors before the platform lane imports `catalog.ts` (phase C3) makes those two assertions red by construction. The file is assigned to no lane, so Lane G claims it explicitly and narrows exactly two `it(...)` bodies to a superset check, leaving the per-key field-by-field loops untouched. Equality returns at C3.
 Delivers:
 - **Doctrine tree 3×3 (9) → 5 branches × 4 tiers (≥20 + capstones)**: the 9 existing keys stay byte-identical in `label/cost/prereq/effect` (live saves reference them). Add branches `signals` (recon, intercept, initiative) and `reclamation` (dig/relic/fragment), a tier-4 capstone per branch, cross-branch prereqs (`prereq: string | string[]`). Effects become a typed `effects[]` (§4) with the human `effect` line kept.
 - **Armory 7 → 20+**: ≥6 new modules (laboratory/hangar/aura bays from `GEAR_LIBRARY §2`), ≥6 new decrees (each tagged with an ideology `axis` + `direction`, `VISION §6.1`), and ≥4 **Relic Projects** (fragment-costed `[II]`/`[III]`: `land_dreadnought`, `lance_carriage`, `the_beacon`, `the_new_ignition`).
@@ -213,6 +215,13 @@ Specialist = { key, label, pts, mods: { morale?, initiative?, recoverPerTurn?, m
 Upgrade    = { key, label, appliesTo: SquadTypeKey[], pts, tier, mods: Partial<SquadType values>, blurb }
 Tech       = { key, branch, tier: 1|2|3|4, label, cost, prereq: string|string[]|null, creedLock?, effect: string, effects: [{ scope: 'macro'|'tactical'|'economy', key: string, value: number }], desc }
 ArmoryItem = { key, kind: 'module'|'decree'|'relic_project', label, cost: { steel?, manpower?, fuel?, fragments?: { cache?, engine?, cipher?, wake? } }, tier, axis?: 'authority'|'economy'|'creed'|'mobilization', direction?: -1|1, creedLock?, effects: Tech['effects'], desc }
+RelicProject = { key, label, objectClass: 'engine'|'cache'|'cipher'|'wake', prereq: string|string[]|null, buildDays: number, cost: ArmoryItem['cost'], creedLock?, effects: Tech['effects'], desc }
+// AMENDMENT 2026-09-01 (Lane G, Amendment 1): §3 Lane G requires RELIC_PROJECTS but §4 defined no
+// shape for it, and no shape at all for the creed vocabulary that Tech.creedLock / ArmoryItem.creedLock
+// already referenced. Both are added here.
+// Every RelicProject key also has an ARMORY_ITEMS row with the same key and kind 'relic_project'
+Creed      = { key: 'recall'|'finished_ledger'|'flight'|'discarding', label, axisLean: -1|0|1, blurb }
+// Tech.creedLock and ArmoryItem.creedLock take a Creed key
 Preset     = existing PRESET_FACTIONS row + { house: string, uniqueRoster: { squads: SquadTypeKey[], upgrades: UpgradeKey[], decree: ArmoryKey, patterns: WeaponPatternKey[] }, heraldVoice: string }
 // AMENDMENT 2026-09-01 (orchestrator, Q3b): NO `keel` field is added. §3 Lane H's required
 // `keel_<key>` plate is keyed off the existing `house` value (`keel_<houseKey>`), so the row needs

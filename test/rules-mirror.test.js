@@ -53,10 +53,21 @@ describe("research tree — TECHS across gameEngine, concurrentPlay, and doctrin
   const GE_TECHS = GE("TECHS");
   const CP_TECHS = CP("TECHS");
 
-  it("all three sources declare the same tech keys", () => {
-    const keys = Object.keys(GE_TECHS).sort();
-    expect(Object.keys(CP_TECHS).sort()).toEqual(keys);
-    expect(Object.keys(MIRROR_TECHS).sort()).toEqual(keys);
+  it("both backends declare the same tech keys", () => {
+    expect(Object.keys(CP_TECHS).sort()).toEqual(Object.keys(GE_TECHS).sort());
+  });
+
+  // NARROWED (Lane G, plan §3 Amendment 3): the frontend mirror is now grown from
+  // base44/shared/catalog.ts, which the backends do not import until plan phase C3.
+  // Until C3 the mirror is a strict SUPERSET of the backend tables — every legacy
+  // key must still be present and field-identical (the per-key loop below), but the
+  // mirror may declare keys the backends have not been given yet. Equality returns
+  // at C3, when gameEngine and concurrentPlay import the catalog and retire their
+  // inlined copies.
+  it("the frontend mirror is a superset of the backend tech keys (equality returns at C3)", () => {
+    for (const key of Object.keys(GE_TECHS)) {
+      expect(MIRROR_TECHS, `mirror is missing backend tech ${key}`).toHaveProperty(key);
+    }
   });
 
   for (const key of Object.keys(GE("TECHS"))) {
@@ -98,8 +109,13 @@ describe("state armory — concurrentPlay.ARMORY ↔ armory.js ARMORY_ITEMS", ()
   const ARMORY = CP("ARMORY");
   const fields = ["kind", "cost"];
 
-  it("has the same armory keys on both sides", () => {
-    expect(Object.keys(ARMORY).sort()).toEqual(Object.keys(ARMORY_ITEMS).sort());
+  // NARROWED (Lane G, plan §3 Amendment 3): same reasoning as the tech tree above —
+  // the mirror is grown from base44/shared/catalog.ts and is a strict superset of the
+  // backend ARMORY until plan phase C3, when concurrentPlay imports the catalog.
+  it("the frontend mirror is a superset of the backend armory keys (equality returns at C3)", () => {
+    for (const key of Object.keys(ARMORY)) {
+      expect(ARMORY_ITEMS, `mirror is missing backend armory item ${key}`).toHaveProperty(key);
+    }
   });
 
   for (const key of Object.keys(CP("ARMORY"))) {
