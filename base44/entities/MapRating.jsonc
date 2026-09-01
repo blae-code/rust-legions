@@ -1,0 +1,38 @@
+{
+  "name": "MapRating",
+  "type": "object",
+  "description": "A commander's assessment of a published war chart \u2014 one per commander per map, enforced in code",
+  "properties": {
+    "mapId": {
+      "type": "string"
+    },
+    "stars": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 5
+    },
+    "remark": {
+      "type": "string",
+      "description": "Optional short field assessment"
+    },
+    "callsign": {
+      "type": "string",
+      "description": "Rater's chosen callsign at time of rating \u2014 never a real name or email"
+    }
+  },
+  "required": [
+    "mapId",
+    "stars"
+  ],
+  "rls": {
+    "create": {
+      "created_by_id": "{{user.id}}"
+    },
+    "update": {
+      "created_by_id": "{{user.id}}"
+    },
+    "delete": {
+      "created_by_id": "{{user.id}}"
+    }
+  }
+}
