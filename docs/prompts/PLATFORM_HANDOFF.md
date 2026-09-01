@@ -15,7 +15,8 @@ Nothing here has been applied except where a row says APPLIED.
 
 | File | Change | Why | Risk |
 | --- | --- | --- | --- |
-| `base44/functions/gameEngine/entry.ts` | Two **comment lines only**, added around the settlement-charter block: `// ---------- Begin settlement charter (harness marker) ----------` at :88 and `// ---------- End settlement charter (harness marker) ----------` at :140 | `test/helpers/macro-harness.js` lifts marked regions of this file textually so the macro simulation tests exercise the real engine instead of stubs. The identical convention already existed in this file for the macro-engine block. | None — zero behaviour change, no deploy required. But if the Base44 builder rewrites this file and drops the comments, `test/macro-engine-sim.test.js` fails with `harness region markers not found`. Re-add the two comments. |
+| `base44/functions/gameEngine/entry.ts` | Two **comment lines only**, added around the settlement-charter block: `// ---------- Begin settlement charter (harness marker) ----------` and `// ---------- End settlement charter (harness marker) ----------` | `test/helpers/macro-harness.js` lifts marked regions of this file textually so the macro simulation tests exercise the real engine instead of stubs. The identical convention already existed in this file for the macro-engine block. | None — zero behaviour change, no deploy required. **Verified surviving** after the 2026-09-01 platform sync. |
+| `base44/functions/gameEngine/entry.ts` → `base44/shared/commandVehicles.ts`, `base44/shared/macroGraph.ts` | **Platform-side extraction (2026-09-01):** command-vehicle tables and macro route/weather/pathing/supply math lifted into shared modules; engine imports them. Engine 2,459 → 2,393 lines. Harness now injects both modules and lifts the macro region from `const MACRO_UNIT_MARCH = {`; mirror tests assert import-not-inlined. | Headroom for P3 wiring. | Lanes must **import, never edit** these modules. Rebase lane branches onto the synced `main`; `npm test` = 97 passed. |
 
 ---
 
@@ -23,13 +24,11 @@ Nothing here has been applied except where a row says APPLIED.
 
 - [ ] `createTactical` call site passes `{ seed, nodeKind, weather, fortBonus }`.
 - [ ] `tacticalDeploy` accepts `squads: [{ name, type, figures, specialists: [], at?: {q,r}, loadout? }]`.
-- [ ] **`tacticalOrders` reads `body.orderAction`, not `body.action`.** Contract amendment Q1 (2026-09-01):
-      §4 declared `action` twice in that body, so the squad's action key was shadowed by the dispatch verb
-      and the request could not route. The envelope key `action` stays `'tacticalOrders'`; the squad's
-      action is `orderAction`. **Confirm what the live handler does today** — it appears to forward
-      `body.action` (the literal string `"tacticalOrders"`) into `resolveOrders`.
-- [ ] New action `tacticalAuto { gameId }` — auto-resolve the remaining turns for the caller's side.
-      Lane E ships the button already wired and **disabled**; it enables when this action exists.
+- [x] **APPLIED 2026-09-01** — `tacticalOrders` reads `body.orderAction` (Q1). Envelope `action` stays the
+      dispatch verb; `squadId` (legacy `formationId`) and `target.squadId` (legacy `targetId`) are accepted.
+- [x] **APPLIED 2026-09-01** — `tacticalAuto { gameId }` hands the caller's side to the staff: deploys via
+      `autoFormations` if not yet filed, then runs `autoOrders` turns until the engagement settles. Both sides
+      may hand off; the shared `settleTactical` tail persists and archives. **Lane E may ship its button enabled.**
 - [ ] `tacticalView` fields persisted via `persistWar()`.
 - [ ] Field Amendment `Patch` dispatch filed.
 
@@ -53,7 +52,6 @@ Nothing here has been applied except where a row says APPLIED.
 ## Lane-appended items
 
 *(Lanes append below, one `### Lane <X>` block each, with exact bodies/schemas/action names.)*
-
 ### Lane G — the catalog (`base44/shared/catalog.ts`)
 
 **What landed in the worktree, and what it cannot do by itself.** `base44/shared/catalog.ts` is now the
