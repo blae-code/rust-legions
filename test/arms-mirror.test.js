@@ -40,6 +40,7 @@ const TABLES = [
   "ACCESS_COST",
   "MANUFACTURERS",
   "CALIBRES",
+  "WEAPON_PATTERNS",
 ];
 
 // `export const NAME = (` / `= arg =>` — an exported function rather than a
@@ -487,5 +488,242 @@ describe("calibres (Work item 8.2)", () => {
   it("every logistics class is actually fed by at least one calibre", () => {
     const fed = new Set(Object.values(CAL).map((c) => c.logisticsClass));
     expect([...fed].sort()).toEqual([...LOGI].sort());
+  });
+});
+
+describe("weapon patterns (Work items 9.1–9.7)", () => {
+  const WP = CANON("WEAPON_PATTERNS");
+  const MAKERS = CANON("MANUFACTURERS");
+  const CAL = CANON("CALIBRES");
+  const CLASSES = CANON("WEAPON_CLASSES");
+  const SLOTS = CANON("MOD_SLOTS");
+  const TYPES = CANON("DAMAGE_TYPES");
+  const APPLIES = CANON("APPLIES_TO_KEYS");
+  const KEYS = Object.keys(WP);
+
+  // §4 SquadType tier values, verbatim. Declared here rather than imported:
+  // arms.ts never imports tactical.ts (a Deno shared module borrowing another
+  // module's union is exactly the coupling §3 forbids).
+  const TIERS = ["I", "II:Cache", "II:Eng", "II:Ciph", "II:Wake", "III"];
+
+  // Work item 9.2's regex, verbatim from the brief.
+  const LABEL_RE = /^[A-Za-z'’-]+(?: [A-Za-z'’-]+)* \d{3} [A-Za-z0-9'’-]+(?: [A-Za-z0-9'’-]+)*, Mk [IVX]+$/;
+
+  // The per-class floors of Work item 9.1. Read as "at least this many", never
+  // as an exact count — a later step may add rows to any class.
+  const CLASS_FLOORS = {
+    sidearm: 3, carbine: 3, rifle: 6, smg: 3, lmg: 3, hmg: 2, shotgun: 2,
+    marksman: 3, anti_armor: 3, flame: 2, mortar: 3, crawler_gun: 3,
+    artillery: 3, aircraft_gun: 2,
+  };
+
+  it("declares at least 40 hand-authored patterns", () => {
+    expect(KEYS.length).toBeGreaterThanOrEqual(40);
+  });
+
+  it("covers every WeaponClass, at or above its per-class floor", () => {
+    const seen = {};
+    for (const p of Object.values(WP)) seen[p.class] = (seen[p.class] || 0) + 1;
+    expect(Object.keys(CLASS_FLOORS).sort()).toEqual([...CLASSES].sort());
+    for (const [cls, floor] of Object.entries(CLASS_FLOORS)) {
+      expect(seen[cls] || 0, `${cls}: ${seen[cls] || 0} patterns, floor ${floor}`).toBeGreaterThanOrEqual(floor);
+    }
+  });
+
+  it("the reference pattern is the baseline of the whole Points Audit", () => {
+    const p = WP.hw141_levy_rifle_mk2;
+    expect(p, "hw141_levy_rifle_mk2 missing").toBeDefined();
+    expect(p.label).toBe("Hundredweight 141 Levy Rifle, Mk II");
+    expect(p.maker).toBe("hundredweight_works");
+    expect(p.calibre).toBe("r13_line");
+    expect(p.class).toBe("rifle");
+    expect(p.tier).toBe("I");
+    expect(p.pts).toBe(1);
+  });
+
+  it("every row carries every §4 field, and nothing else", () => {
+    const FIELDS = ["key", "label", "maker", "calibre", "class", "tier", "base", "slots", "quirks", "pts", "appliesTo", "blurb"];
+    for (const [k, p] of Object.entries(WP)) {
+      expect(Object.keys(p).sort(), `${k} fields`).toEqual([...FIELDS].sort());
+      expect(p.key, `${k}.key`).toBe(k);
+    }
+  });
+
+  it("every maker, calibre, class and tier resolves to a declared row", () => {
+    for (const [k, p] of Object.entries(WP)) {
+      expect(Object.keys(MAKERS), `${k}.maker`).toContain(p.maker);
+      expect(Object.keys(CAL), `${k}.calibre`).toContain(p.calibre);
+      expect(CLASSES, `${k}.class`).toContain(p.class);
+      expect(TIERS, `${k}.tier`).toContain(p.tier);
+    }
+  });
+
+  it("nomenclature holds: stem, three-digit F.I. year in 141–383, name, mark", () => {
+    for (const [k, p] of Object.entries(WP)) {
+      expect(p.label, `${k}.label`).toMatch(LABEL_RE);
+      const year = Number(p.label.match(/ (\d{3}) /)[1]);
+      expect(year, `${k} pattern year`).toBeGreaterThanOrEqual(141);
+      expect(year, `${k} pattern year`).toBeLessThanOrEqual(383);
+      const stems = MAKERS[p.maker].nameStems;
+      expect(
+        stems.some((s) => p.label.startsWith(s + " ")),
+        `${k}: "${p.label}" begins with none of ${p.maker}'s stems ${JSON.stringify(stems)}`,
+      ).toBe(true);
+    }
+  });
+
+  it("base is a COMPLETE WeaponBase on every row — all nine keys, no exceptions", () => {
+    const BASE = ["accuracy", "rateOfFire", "damage", "armorPen", "range", "reliability", "weight", "damageType", "aoe"];
+    for (const [k, p] of Object.entries(WP)) {
+      expect(Object.keys(p.base).sort(), `${k}.base`).toEqual([...BASE].sort());
+      for (const f of ["accuracy", "rateOfFire", "damage", "range", "reliability", "weight"]) {
+        expect(Number.isFinite(p.base[f]), `${k}.base.${f}`).toBe(true);
+        expect(p.base[f], `${k}.base.${f}`).toBeGreaterThan(0);
+      }
+      expect(Number.isFinite(p.base.armorPen), `${k}.base.armorPen`).toBe(true);
+      expect(p.base.armorPen, `${k}.base.armorPen`).toBeGreaterThanOrEqual(0);
+      expect(p.base.reliability, `${k}.base.reliability`).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it("damageType is one of the seven, and every one of the seven is actually used", () => {
+    const used = new Set();
+    for (const [k, p] of Object.entries(WP)) {
+      expect(TYPES, `${k}.base.damageType`).toContain(p.base.damageType);
+      used.add(p.base.damageType);
+    }
+    // A damage type declared in the matrix and carried by no pattern is 49
+    // numbers doing nothing — the matrix and the catalogue must agree.
+    expect([...used].sort(), "an unused damage type").toEqual([...TYPES].sort());
+  });
+
+  it("aoe is null for point fire, or a whole-hex radius with a real falloff", () => {
+    let bursts = 0;
+    for (const [k, p] of Object.entries(WP)) {
+      const a = p.base.aoe;
+      if (a === null) continue;
+      bursts++;
+      expect(Object.keys(a).sort(), `${k}.base.aoe`).toEqual(["falloff", "radius"]);
+      expect(Number.isInteger(a.radius), `${k}.aoe.radius`).toBe(true);
+      expect(a.radius, `${k}.aoe.radius`).toBeGreaterThanOrEqual(1);
+      expect(a.falloff, `${k}.aoe.falloff`).toBeGreaterThan(0);
+      expect(a.falloff, `${k}.aoe.falloff`).toBeLessThanOrEqual(1);
+    }
+    expect(bursts, "no bursting weapon in the catalogue").toBeGreaterThan(0);
+  });
+
+  it("slots, quirks and appliesTo are valid, deduplicated and non-empty", () => {
+    for (const [k, p] of Object.entries(WP)) {
+      expect(p.slots.length, `${k}.slots`).toBeGreaterThanOrEqual(2);
+      expect(new Set(p.slots).size, `${k}.slots has a duplicate`).toBe(p.slots.length);
+      for (const s of p.slots) expect(SLOTS, `${k}.slots`).toContain(s);
+      expect(Array.isArray(p.quirks), `${k}.quirks`).toBe(true);
+      expect(p.appliesTo.length, `${k}.appliesTo`).toBeGreaterThanOrEqual(1);
+      expect(new Set(p.appliesTo).size, `${k}.appliesTo has a duplicate`).toBe(p.appliesTo.length);
+      for (const a of p.appliesTo) expect(APPLIES, `${k}.appliesTo`).toContain(a);
+    }
+  });
+
+  it("pts is a positive finite number and blurb is Ministry-voice prose", () => {
+    for (const [k, p] of Object.entries(WP)) {
+      expect(Number.isFinite(p.pts), `${k}.pts`).toBe(true);
+      expect(p.pts, `${k}.pts`).toBeGreaterThan(0);
+      expect(p.blurb.trim().length, `${k}.blurb`).toBeGreaterThan(60);
+    }
+  });
+
+  it("CALIBRES HAVE TEETH — every base value sits within ±50 % of its calibre (Work item 8.3)", () => {
+    for (const [k, p] of Object.entries(WP)) {
+      const c = CAL[p.calibre];
+      for (const f of ["damage", "armorPen", "range", "weight"]) {
+        expect(p.base[f], `${k}.base.${f} vs ${p.calibre}.${f} (${c[f]})`).toBeGreaterThanOrEqual(c[f] * 0.5);
+        expect(p.base[f], `${k}.base.${f} vs ${p.calibre}.${f} (${c[f]})`).toBeLessThanOrEqual(c[f] * 1.5);
+      }
+    }
+  });
+
+  it("every maker builds something and every calibre feeds something", () => {
+    const makers = new Set(Object.values(WP).map((p) => p.maker));
+    const calibres = new Set(Object.values(WP).map((p) => p.calibre));
+    for (const m of Object.keys(MAKERS)) expect([...makers], `${m} builds nothing`).toContain(m);
+    for (const c of Object.keys(CAL)) expect([...calibres], `${c} feeds nothing`).toContain(c);
+  });
+
+  it("keys are unique, kebab-free and stable — live saves reference them", () => {
+    for (const k of KEYS) expect(k, `${k}`).toMatch(/^[a-z][a-z0-9_]*$/);
+    expect(new Set(KEYS).size).toBe(KEYS.length);
+  });
+});
+
+describe("THE CLASS SWEEP — the design invariant the damage model exists to express (Work item 9.8)", () => {
+  const WP = MIRROR.WEAPON_PATTERNS;
+  const MAKERS = MIRROR.MANUFACTURERS;
+  const AC = MIRROR.ARMOUR_CLASSES;
+
+  // resolveWeapon's step 1 → step 2, and no further: the pattern's own base
+  // with its maker's additive signature laid on top. That is exactly the
+  // weapon an ISSUE-grade, un-modded, no-quirk-active instance resolves to,
+  // because `issue` is the neutral grade (every multiplier exactly 1) and mods
+  // and quirks are additive deltas that are, here, absent. When resolveWeapon
+  // lands this helper is replaced by a call to it; the assertions do not move.
+  const issueBase = (key) => {
+    const p = WP[key];
+    const b = { ...p.base };
+    for (const [k, v] of Object.entries(MAKERS[p.maker].signature)) b[k] = b[k] + v;
+    return b;
+  };
+
+  const SMALL_ARMS = ["sidearm", "carbine", "rifle", "smg", "lmg", "hmg", "shotgun", "marksman", "flame"];
+  const ARMOUR_KILLERS = ["anti_armor", "crawler_gun", "artillery"];
+
+  it("NOTHING a figure carries can scratch heavy or superheavy armour", () => {
+    let swept = 0;
+    for (const [k, p] of Object.entries(WP)) {
+      if (!SMALL_ARMS.includes(p.class)) continue;
+      const w = issueBase(k);
+      for (const t of ["heavy", "superheavy"]) {
+        const r = MIRROR.resolveHit({ weapon: w, target: AC[t] });
+        expect(r.effective, `${k} (${p.class}) vs ${t}`).toBe(0);
+        expect(r.suppressOnly, `${k} (${p.class}) vs ${t}`).toBe(true);
+      }
+      swept++;
+    }
+    expect(swept, "the sweep found no small arms — it has rotted").toBeGreaterThanOrEqual(25);
+  });
+
+  it("every weapon bought to open a hull DOES open a heavy one", () => {
+    let swept = 0;
+    for (const [k, p] of Object.entries(WP)) {
+      if (!ARMOUR_KILLERS.includes(p.class)) continue;
+      const r = MIRROR.resolveHit({ weapon: issueBase(k), target: AC.heavy });
+      expect(r.effective, `${k} (${p.class}) vs heavy`).toBeGreaterThan(0);
+      expect(r.suppressOnly, `${k} (${p.class}) vs heavy`).toBe(false);
+      swept++;
+    }
+    expect(swept, "the sweep found no armour-killers — it has rotted").toBeGreaterThanOrEqual(9);
+  });
+
+  it("the budget behind the sweep: a small arm's penetration plus its maker's lean stays under 4", () => {
+    // Stated as a number rather than only as an outcome, because this is the
+    // constraint a later step authoring a new pattern has to hold in its head.
+    // Heavy armour rates 10 and a delta of −6 still lets a tenth through, so
+    // the ceiling is strict.
+    for (const [k, p] of Object.entries(WP)) {
+      if (!SMALL_ARMS.includes(p.class)) continue;
+      expect(issueBase(k).armorPen, `${k}: base ${p.base.armorPen} + ${p.maker}'s lean`).toBeLessThan(4);
+    }
+  });
+
+  it("mortar and aircraft_gun are deliberately unconstrained by the sweep", () => {
+    // Not an accident and not an oversight: a mortar is bought to kill men and
+    // a wing cannon to kill aircraft. Neither answers for a crawler, and
+    // neither is asserted either way — this test exists so that a later reader
+    // does not "complete" the sweep by adding them to it.
+    const free = Object.values(WP).filter((p) => p.class === "mortar" || p.class === "aircraft_gun");
+    expect(free.length).toBeGreaterThan(0);
+    for (const p of free) {
+      expect(SMALL_ARMS).not.toContain(p.class);
+      expect(ARMOUR_KILLERS).not.toContain(p.class);
+    }
   });
 });

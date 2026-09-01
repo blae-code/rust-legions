@@ -14,6 +14,7 @@ import { describe, it, expect } from "vitest";
 import { readRepoFile } from "./helpers/extract-const.js";
 import {
   ARMOUR_CLASSES, CALIBRES, MANUFACTURERS, QUALITY_GRADES, PEN_TABLE,
+  WEAPON_PATTERNS, SUPPRESSION, DAMAGE_TYPES, TYPE_MATRIX,
   mulberry32, penMultFor, resolveHit, resolveAoe,
 } from "@/lib/arms.js";
 
@@ -211,5 +212,188 @@ describe("the damage model reads as designed against every armour class", () => 
     expect(out[0].effective).toBeGreaterThan(out[1].effective);
     expect(out[2].effective).toBeLessThan(out[1].effective);
     expect(out.every((h) => Number.isFinite(h.effective))).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Vehicle armament. Lane J draws its hardpoint weapons from WEAPON_PATTERNS BY
+// KEY and its facings from ARMOUR_CLASSES, so these rows are not decoration:
+// they are the other lane's parts bin, and the ladder they describe is a
+// contract between the two catalogues.
+// ---------------------------------------------------------------------------
+describe("vehicle armament — the ladder Lane J mounts", () => {
+  const MOUNTABLE = ["crawler_gun", "hmg", "flame", "mortar", "artillery", "aircraft_gun"];
+  const VEHICLE_USERS = ["crawler", "land_dreadnought", "fighter", "artillery", "siege_mortar", "autocar_scouts"];
+
+  // Same helper as the class sweep: pattern base plus maker signature, which
+  // is what an issue-grade un-modded instance resolves to.
+  const issueBase = (key) => {
+    const p = WEAPON_PATTERNS[key];
+    const b = { ...p.base };
+    for (const [k, v] of Object.entries(MANUFACTURERS[p.maker].signature)) b[k] = b[k] + v;
+    return b;
+  };
+  const on = (key, cls) => resolveHit({ weapon: issueBase(key), target: ARMOUR_CLASSES[cls] }).effective;
+  const ofClass = (cls) => Object.entries(WEAPON_PATTERNS).filter(([, p]) => p.class === cls);
+
+  it("every mountable class offers at least one genuinely mountable pattern", () => {
+    for (const cls of MOUNTABLE) {
+      const usable = ofClass(cls).filter(
+        ([, p]) => p.slots.includes("mount") && p.appliesTo.some((a) => VEHICLE_USERS.includes(a)),
+      );
+      expect(usable.length, `${cls}: no pattern with a mount slot and a vehicle in appliesTo`).toBeGreaterThan(0);
+    }
+  });
+
+  it("a land-fort's main gun meets a belt on equal terms", () => {
+    // Not merely "greater than zero": the keel gun's penetration equals the
+    // belt's armour value, which is the top of the penetration curve's neutral
+    // band. Nothing else in the catalogue does that.
+    expect(on("fs198_reliquary_keel_gun_mk1", "superheavy")).toBeGreaterThan(0);
+    expect(penMultFor(issueBase("fs198_reliquary_keel_gun_mk1").armorPen - ARMOUR_CLASSES.superheavy.armourValue)).toBe(1);
+  });
+
+  it("a siege howitzer reduces poured works that a field piece cannot", () => {
+    expect(on("em284_anvilgate_siege_howitzer_mk2", "fortified")).toBeGreaterThan(on("cl235_crossloom_field_piece_mk2", "fortified"));
+    expect(on("em284_anvilgate_siege_howitzer_mk2", "fortified")).toBeGreaterThan(0);
+  });
+
+  it("AN AIRCRAFT GUN DOES NOT PUNCH SUPERHEAVY — not one of them, at any grade of luck", () => {
+    const guns = ofClass("aircraft_gun");
+    expect(guns.length).toBeGreaterThanOrEqual(2);
+    for (const [k] of guns) {
+      expect(on(k, "superheavy"), `${k} vs superheavy`).toBe(0);
+      // and it is still worth carrying: it opens an autocar's skin.
+      expect(on(k, "light"), `${k} vs light`).toBeGreaterThan(0);
+    }
+  });
+
+  it("the crawler-gun ladder: a light bore opens a hull and is spent on a belt; a heavy bore opens the belt", () => {
+    expect(on("sy277_prizeyard_turret_gun_mk3", "medium")).toBeGreaterThan(0);
+    expect(on("sy277_prizeyard_turret_gun_mk3", "heavy")).toBeGreaterThan(0);
+    expect(on("sy277_prizeyard_turret_gun_mk3", "superheavy")).toBe(0);
+    expect(on("em291_forgeworks_breakthrough_gun_mk1", "superheavy")).toBeGreaterThan(0);
+    expect(on("cl318_tollgate_casemate_gun_mk1", "superheavy")).toBeGreaterThan(0);
+  });
+
+  it("a shaped casemate shell beats a solid one on plate and is wasted on men", () => {
+    const shaped = "cl318_tollgate_casemate_gun_mk1";
+    const solid = "em291_forgeworks_breakthrough_gun_mk1";
+    expect(on(shaped, "superheavy") / on(solid, "superheavy")).toBeGreaterThan(1);
+    expect(on(shaped, "soft") / on(solid, "soft")).toBeLessThan(1);
+  });
+
+  it("a hull projector burns a trench and never opens the hull it is bolted to", () => {
+    const flame = "tp305_slagline_hull_projector_mk1";
+    expect(on(flame, "soft")).toBeGreaterThan(on(flame, "none"));
+    // Against a line crawler it is not quite zero — a projector finds a vision
+    // slit and a deck grille — but it is a trickle, and the number is stated as
+    // a ratio rather than left as "greater than zero", which would pass on any
+    // amount at all. Against a breakthrough glacis and a fort's belt the
+    // penetration curve takes it to nothing.
+    expect(on(flame, "medium")).toBeLessThan(on(flame, "soft") / 20);
+    for (const c of ["heavy", "superheavy"]) expect(on(flame, c), `${flame} vs ${c}`).toBe(0);
+  });
+
+  it("a fume bomb empties an unsealed position and dies at the first sealed hatch", () => {
+    const gas = "tp317_tarpool_fume_mortar_mk1";
+    expect(WEAPON_PATTERNS[gas].base.damageType).toBe("chemical");
+    for (const c of ["none", "soft", "light"]) expect(on(gas, c), `${gas} vs ${c}`).toBeGreaterThan(0);
+    for (const c of ["medium", "heavy", "superheavy"]) expect(on(gas, c), `${gas} vs ${c}`).toBe(0);
+  });
+
+  it("fume is the one thing in the catalogue a greatcoat is any use against", () => {
+    // Every other damage type rates `soft` at or above `none` — webbing and a
+    // heavy coat do nothing about a bullet and rather less about a fragment.
+    // Chemical is the exception, and it is the exception on purpose.
+    const gas = "tp317_tarpool_fume_mortar_mk1";
+    expect(on(gas, "none")).toBeGreaterThan(on(gas, "soft"));
+    for (const t of DAMAGE_TYPES.filter((x) => x !== "chemical")) {
+      expect(TYPE_MATRIX[t].soft, `${t}`).toBeGreaterThanOrEqual(TYPE_MATRIX[t].none);
+    }
+  });
+
+  it("a concussion bomb is bought for suppression: more raw damage, less of it arrives", () => {
+    // Same bore, same crew, same range — and the blast bomb kills less than the
+    // case bomb it is issued alongside. That is the whole of its argument, and
+    // the reason SUPPRESSION is declared as data rather than inferred.
+    const blast = "rs278_state_concussion_mortar_mk2";
+    const case_ = "cl221_crossloom_light_mortar_mk2";
+    expect(WEAPON_PATTERNS[blast].calibre).toBe(WEAPON_PATTERNS[case_].calibre);
+    expect(WEAPON_PATTERNS[blast].base.damage).toBeGreaterThan(WEAPON_PATTERNS[case_].base.damage);
+    expect(on(blast, "soft")).toBeLessThan(on(case_, "soft"));
+    expect(SUPPRESSION.concussiveBonus).toBeGreaterThan(0);
+  });
+
+  it("a burst rolls every stand around it against its own armour, and falls off per hex", () => {
+    const w = issueBase("em284_anvilgate_siege_howitzer_mk2");
+    const out = resolveAoe({
+      weapon: w,
+      victims: [
+        { target: ARMOUR_CLASSES.none, dist: 0 },
+        { target: ARMOUR_CLASSES.none, dist: 3 },
+        { target: ARMOUR_CLASSES.heavy, dist: 0 },
+        { target: ARMOUR_CLASSES.none, dist: 9 },
+      ],
+    });
+    expect(out).toHaveLength(3);
+    expect(out[0].effective).toBeGreaterThan(out[1].effective);
+    expect(out[0].effective).toBeGreaterThan(out[2].effective);
+  });
+});
+
+describe("the catalogue reads as its makers", () => {
+  // A reader should be able to name the maker from how a weapon shoots. These
+  // are the leans stated as consequences rather than as table values, so a
+  // later step that re-tunes a signature discovers what it broke.
+  const bySame = (calibre) => Object.entries(WEAPON_PATTERNS).filter(([, p]) => p.calibre === calibre);
+  const resolved = (key, field) => {
+    const p = WEAPON_PATTERNS[key];
+    return p.base[field] + (MANUFACTURERS[p.maker].signature[field] || 0);
+  };
+
+  it("the State Arsenal builds the fastest line rifle and the least reliable one", () => {
+    const rifles = bySame("r13_line").filter(([, p]) => p.class === "rifle").map(([k]) => k);
+    const fastest = rifles.reduce((a, b) => (resolved(a, "rateOfFire") >= resolved(b, "rateOfFire") ? a : b));
+    const flakiest = rifles.reduce((a, b) => (resolved(a, "reliability") <= resolved(b, "reliability") ? a : b));
+    expect(WEAPON_PATTERNS[fastest].maker).toBe("reclamation_state_arsenal");
+    expect(WEAPON_PATTERNS[flakiest].maker).toBe("reclamation_state_arsenal");
+  });
+
+  it("the Wheelwrights build the lightest line rifle, and pay for it in reach", () => {
+    const rifles = bySame("r13_line").filter(([, p]) => p.class === "rifle").map(([k]) => k);
+    const lightest = rifles.reduce((a, b) => (resolved(a, "weight") <= resolved(b, "weight") ? a : b));
+    expect(WEAPON_PATTERNS[lightest].maker).toBe("outrider_wheelwrights");
+    expect(resolved(lightest, "range")).toBeLessThan(resolved("hw141_levy_rifle_mk2", "range"));
+  });
+
+  it("the Signal Works builds the longest-reaching rifle and the weakest shot", () => {
+    const rifles = bySame("r13_line").filter(([, p]) => p.class === "rifle").map(([k]) => k);
+    const longest = rifles.reduce((a, b) => (resolved(a, "range") >= resolved(b, "range") ? a : b));
+    const weakest = rifles.reduce((a, b) => (resolved(a, "damage") <= resolved(b, "damage") ? a : b));
+    expect(WEAPON_PATTERNS[longest].maker).toBe("ascendancy_signal_works");
+    expect(WEAPON_PATTERNS[weakest].maker).toBe("ascendancy_signal_works");
+  });
+
+  it("the Foundries build the hardest-hitting line rifle, at the ceiling of what a rifle may open", () => {
+    const rifles = bySame("r13_line").filter(([, p]) => p.class === "rifle").map(([k]) => k);
+    const hardest = rifles.reduce((a, b) => (resolved(a, "armorPen") >= resolved(b, "armorPen") ? a : b));
+    expect(WEAPON_PATTERNS[hardest].maker).toBe("emberwright_foundries");
+    expect(resolved(hardest, "armorPen")).toBeLessThan(4);
+    expect(resolved(hardest, "armorPen")).toBeGreaterThan(3.5);
+  });
+
+  it("every pattern's authored base leans the same way as its maker's signature", () => {
+    // The signature is applied on top of the base; if the base contradicted it
+    // the two would fight and the maker would stop being legible. Checked on
+    // the one field where the lean is unambiguous and shared by three makers:
+    // a maker who leans heavy never builds the lightest thing in its class.
+    for (const cls of ["rifle", "carbine", "smg"]) {
+      const rows = Object.entries(WEAPON_PATTERNS).filter(([, p]) => p.class === cls);
+      if (rows.length < 2) continue;
+      const lightest = rows.reduce((a, b) => (a[1].base.weight <= b[1].base.weight ? a : b));
+      const lean = MANUFACTURERS[lightest[1].maker].signature.weight || 0;
+      expect(lean, `${lightest[0]} is the lightest ${cls} but its maker leans heavy`).toBeLessThanOrEqual(0);
+    }
   });
 });
