@@ -1,19 +1,43 @@
-// Frontend mirror of the research/doctrine tree in gameEngine & concurrentPlay — display only.
-// Progress: 1 research point per completed full round; focus may be set at any time, even off-turn.
+// ---------- The Catalog: doctrine, creeds, armory and relic projects ----------
 //
-// MIRROR. `TECHS` and `CREEDS` below are deep-equal copies of the canonical tables in
-// `base44/shared/catalog.ts`; `test/catalog-mirror.test.js` proves it field for field.
-// Change the catalog first, then copy the literal across — never the other way round,
-// and never add a UI-only field to a mirrored row (this catalog has no allowlist).
-// `DOCTRINE_BRANCHES` is display metadata and is deliberately frontend-only.
-export const DOCTRINE_BRANCHES = {
-  armament: { label: "Armament", icon: "⚔", blurb: "Guns, plate and the doctrine of the assault" },
-  industry: { label: "Industry", icon: "🏭", blurb: "Foundries, fuel and total mobilization" },
-  logistics: { label: "Logistics", icon: "🚚", blurb: "Supply trains, field kitchens and the staff college" },
-  signals: { label: "Signals", icon: "📡", blurb: "Red traffic, listening posts and the reading of the enemy" },
-  reclamation: { label: "Reclamation", icon: "⛏", blurb: "Digs, assays and what the leavings are worth once opened" },
-};
+// CANONICAL. This module is the single source of truth for the research tree
+// (`TECHS`), the Four Departures (`CREEDS`), the State Armory (`ARMORY_ITEMS`)
+// and the Tier-III relic projects (`RELIC_PROJECTS`). The frontend mirrors in
+// `src/lib/doctrine.js` and `src/lib/armory.js` must stay deep-equal to it, and
+// `test/catalog-mirror.test.js` is the mechanical proof — see CLAUDE.md's "One
+// Critical Invariant".
+//
+// `base44/functions/gameEngine/entry.ts` and `base44/functions/concurrentPlay/entry.ts`
+// still carry their own inlined `TECHS` / `ARMORY` tables. They import this module
+// and retire those copies at plan phase C3 (`docs/TACTICAL_SQUAD_PLAN.md` §5);
+// until then the frontend mirrors are a strict SUPERSET of the backend tables and
+// `test/rules-mirror.test.js` is narrowed to say exactly that.
+//
+// DATA ONLY. Every export is a pure object literal — no imports, no functions, no
+// types, no `as const`, no spreads, no computed keys. `test/helpers/extract-const.js`
+// lifts these tables TEXTUALLY and evaluates the slice with no access to module
+// scope, so a single referenced identifier would break every mirror test. Helpers
+// live in `src/lib`.
+//
+// Shapes: `docs/TACTICAL_SQUAD_PLAN.md` §4 (`Tech`, `Creed`, `ArmoryItem`,
+// `RelicProject`). Design record and cost curve: `docs/TECH_DESIGN.md`.
+// Lore authority: `docs/LORE.md` (§2 the Four Departures, §5 the leavings).
 
+// Research points accrue at 1 per completed full round; focus may be set at any
+// time, even off-turn. Cost is fixed by tier and uniform across branches —
+// tier 1 = 3 RP, tier 2 = 4 RP, tier 3 = 6 RP, tier 4 = 9 RP — so a whole branch
+// is 22 RP and the whole tree is 110 RP. No single game finishes the tree; that
+// is the intent (`docs/TECH_DESIGN.md` §8).
+//
+// `prereq` is a key, an array of keys (all of which must be completed), or null.
+// Every prereq sits at a strictly lower tier than the tech that names it, which
+// is what makes cycles impossible. Each branch's tier-4 capstone names at least
+// one prereq from a DIFFERENT branch: the top of a branch is never reachable by
+// climbing that branch alone.
+//
+// `effect` is the human one-line summary rendered in the Doctrine Book.
+// `effects[]` is the machine encoding the engine applies, in the §4 effect-key
+// vocabulary. The two always agree; prose describes, numbers decide.
 export const TECHS = {
   // ── Armament — guns, plate and the doctrine of the assault ──
   standardized_calibers: { key: "standardized_calibers", branch: "armament", tier: 1, label: "Standardized Calibers", cost: 3, prereq: null, effect: "Riflemen attack +1", effects: [{ scope: "macro", key: "unit.riflemen.attack", value: 1 }], desc: "One cartridge for every rifle on the front — no more scavenging mismatched rounds." },
@@ -47,22 +71,15 @@ export const TECHS = {
   pattern_book: { key: "pattern_book", branch: "reclamation", tier: 4, label: "The Pattern Book", cost: 9, prereq: ["assay_procedure", "traffic_analysis"], effect: "Dig speed +2 · fragment yield +1 · build turns -1", effects: [{ scope: "macro", key: "digSpeed", value: 2 }, { scope: "economy", key: "fragmentYield", value: 1 }, { scope: "economy", key: "buildTurns", value: -1 }], desc: "Four hundred years of smudged copies, indexed at last against the pages they were copied from. The bureau no longer guesses what a thing was for, and the works run shorter." },
 };
 
-// The Four Departures (docs/LORE.md §2) — the only legal `creedLock` values.
+// The Four Departures (`docs/LORE.md` §2) — the four readings of why the Empire
+// left, and the only legal `creedLock` values in this catalog. `axisLean` is the
+// row's position on the Creed axis of `docs/VISION.md` §6.1 (Reclaimer −1 …
+// Restorationist +1). The Flight and the Finished Ledger both sit at 0 and for
+// opposite reasons: one refuses the precursor road, the other simply does not
+// believe anyone is at the other end of it.
 export const CREEDS = {
   recall: { key: "recall", label: "The Recall", axisLean: 1, blurb: "The Empire was summoned home to some crisis and means to return. Preserve the works, learn the ways, light the signal; the Key is an appeal." },
   finished_ledger: { key: "finished_ledger", label: "The Finished Ledger", axisLean: 0, blurb: "The planet stopped paying and the crews went home. Nothing personal, and nobody is coming: passage off the Ground is built or bought, never granted." },
   flight: { key: "flight", label: "The Flight", axisLean: 0, blurb: "They did not withdraw, they fled. Whatever they ran from has our address, and so the Key must never be turned by any hand." },
   discarding: { key: "discarding", label: "The Discarding", axisLean: -1, blurb: "Ward is the flattering word: humanity was site labor, discarded with the rest of the gear. We ask the Landlords nothing and climb on our own hull." },
-};
-
-export const techsByBranch = (branch) =>
-  Object.entries(TECHS).filter(([, t]) => t.branch === branch).sort((a, b) => a[1].tier - b[1].tier);
-
-// `prereq` is null, a single key, or an array of keys — normalize to an array so
-// callers never branch on its type. Consumers gating on completion should use
-// `prereqList(tech).every((p) => completed.includes(p))`.
-export const prereqList = (tech) => {
-  const p = tech && tech.prereq;
-  if (p === null || p === undefined) return [];
-  return Array.isArray(p) ? p : [p];
 };
