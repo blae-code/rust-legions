@@ -1,11 +1,18 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
+import { base44 } from "@/api/base44Client";
 import { playSfx } from "@/lib/sfx";
 import CommandTip from "@/components/ui/CommandTip";
 
 // Main-menu navigation — stamped metal order plates with 2.5D depth
 export default function GameMenu({ continueGame }) {
+  // The Warrant Office plate is only stamped for the High Command
+  const [isAdmin, setIsAdmin] = useState(false);
+  useEffect(() => {
+    base44.auth.me().then((u) => setIsAdmin(u?.role === "admin")).catch(() => setIsAdmin(false));
+  }, []);
+
   const items = [
     continueGame && { to: `/game/${continueGame.id}`, label: "Continue War", sub: continueGame.name, hot: true, tip: "Return to your most recent front and resume command." },
     { to: "/new-game", label: "New Operation", sub: "Open a fresh front on the continent", tip: "Muster a new multiplayer war, or a solo campaign against NPC factions." },
@@ -18,6 +25,7 @@ export default function GameMenu({ continueGame }) {
     { to: "/asset-registry", label: "Illustration Directorate", sub: "The master registry of commissioned art plates", tip: "The master registry of commissioned art plates used across the app." },
     { to: "/star-map", label: "The War Table", sub: "Orbit the theater world and plot day-rate marches", tip: "Orbit the theater worlds in 3D and plot day-rate marches." },
     { to: "/install", label: "The Field Terminal", sub: "Install Rust Legions on your device", tip: "Install the app on your phone or desktop — full-screen, from your home screen." },
+    isAdmin && { to: "/warrant-office", label: "The Warrant Office", sub: "Issue and rescind enlistment codes", tip: "High Command only — strike unique warrant codes, hand them out, and rescind them at will." },
   ].filter(Boolean);
 
   return (
