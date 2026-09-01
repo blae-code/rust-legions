@@ -19,7 +19,8 @@ export default function AudioHud() {
 
   useEffect(() => {
     startScore();
-    const unsub = onScoreChange(() => setTitle(currentTrackTitle()));
+    // The score is module-level state — mirror it instead of holding a stale copy
+    const unsub = onScoreChange(() => { setTitle(currentTrackTitle()); setMusic(musicEnabled()); });
     const unlock = () => { unlockAmbience(); setTitle(currentTrackTitle()); };
     window.addEventListener("pointerdown", unlock);
     window.addEventListener("keydown", unlock);

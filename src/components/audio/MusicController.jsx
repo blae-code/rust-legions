@@ -19,7 +19,7 @@ export default function MusicController() {
 
   useEffect(() => {
     startScore();
-    const unsub = onScoreChange(() => setTitle(currentTrackTitle()));
+    const unsub = onScoreChange(() => { setTitle(currentTrackTitle()); setOn(musicEnabled()); });
     const unlock = () => { unlockAmbience(); setTitle(currentTrackTitle()); };
     window.addEventListener("pointerdown", unlock);
     window.addEventListener("keydown", unlock);

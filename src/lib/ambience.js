@@ -63,12 +63,14 @@ export function setMusicVolume(v) {
     clearInterval(track._fade);
     track.volume = v;
   }
+  notify();
 }
 
 export function setMusicEnabled(on) {
   localStorage.setItem(MUSIC_ON_KEY, on ? "1" : "0");
   if (on) startScore();
   else stopScore(true); // mute is immediate — no fade, no timers, no escape
+  notify(); // every control on screen reflects the switch at once
 }
 
 // Each audio element carries its own fade timer, so a new track starting can
@@ -120,7 +122,7 @@ function playIndex(i, attempts = 0) {
     REG.add(audio);
     const p = audio.play();
     if (p?.catch) p.catch(() => { /* autoplay blocked — retried on first gesture */ });
-    fadeTo(audio, musicVolume(), 4000);
+    fadeTo(audio, musicVolume(), 1200); // audible right away when switched on
     track = audio;
     killGhosts(audio); // one voice only — silence anything left over
     notify();
@@ -154,7 +156,7 @@ export function unlockAmbience() {
   if (track.paused) {
     const p = track.play();
     if (p?.catch) p.catch(() => { /* still blocked */ });
-    fadeTo(track, musicVolume(), 4000);
+    fadeTo(track, musicVolume(), 1200);
   }
 }
 
