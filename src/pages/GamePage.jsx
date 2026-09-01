@@ -27,6 +27,8 @@ import LocalAccordsPanel from "@/components/game/relics/LocalAccordsPanel";
 import ProtectorateRegister from "@/components/game/relics/ProtectorateRegister";
 import { Landmark, Building2 } from "lucide-react";
 import ReplayTheater from "@/components/game/replay/ReplayTheater";
+import AfterActionScreen from "@/components/game/summary/AfterActionScreen";
+import { ScrollText } from "lucide-react";
 import StalemateAlert from "@/components/game/StalemateAlert";
 import AttritionBanner from "@/components/game/AttritionBanner";
 import { Film } from "lucide-react";
@@ -66,6 +68,8 @@ export default function GamePage() {
   const [showAccords, setShowAccords] = useState(false);
   const [showProtectorate, setShowProtectorate] = useState(false);
   const [tourOpen, setTourOpen] = useState(false);
+  const [showAfterAction, setShowAfterAction] = useState(false);
+  const afterActionShown = useRef(false);
   const pollRef = useRef(null);
   const prevBattleRef = useRef(false);
   const [turnStinger, setTurnStinger] = useState(0);
@@ -100,6 +104,14 @@ export default function GamePage() {
     const t = setTimeout(() => setTourOpen(true), 1200);
     return () => clearTimeout(t);
   }, [game?.status, game?.mySlot]);
+
+  // The war ends — the Ministry files its dossier and puts it straight on the desk
+  useEffect(() => {
+    if (game?.status !== "complete" || afterActionShown.current) return;
+    afterActionShown.current = true;
+    const t = setTimeout(() => setShowAfterAction(true), 900);
+    return () => clearTimeout(t);
+  }, [game?.status]);
 
   // The field bed follows the theater: planet sets the air, weather reshapes it
   useEffect(() => {
@@ -384,14 +396,23 @@ export default function GamePage() {
           <p className="cq-display text-2xl text-brass-bright relative">
             {game.winnerName ? `${game.winnerName} has won the war` : "The war has ended"}
           </p>
-          <Button
-            size="sm"
-            variant="outline"
-            className="relative mt-3 border-brass/50 text-brass-bright font-heading uppercase text-xs tracking-[0.2em]"
-            onClick={() => { playSfx("select"); setShowReplay(true); }}
-          >
-            <Film className="w-3.5 h-3.5" /> Watch War Replay
-          </Button>
+          <div className="relative mt-3 flex flex-wrap gap-2 justify-center">
+            <Button
+              size="sm"
+              className="font-heading uppercase text-xs tracking-[0.2em]"
+              onClick={() => { playSfx("select"); setShowAfterAction(true); }}
+            >
+              <ScrollText className="w-3.5 h-3.5" /> After-Action Dossier
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-brass/50 text-brass-bright font-heading uppercase text-xs tracking-[0.2em]"
+              onClick={() => { playSfx("select"); setShowReplay(true); }}
+            >
+              <Film className="w-3.5 h-3.5" /> Watch War Replay
+            </Button>
+          </div>
           <motion.span
             initial={{ scale: 2.4, opacity: 0, rotate: -20 }}
             animate={{ scale: 1, opacity: 1, rotate: -8 }}
@@ -475,6 +496,9 @@ export default function GamePage() {
         />
       )}
 
+      {showAfterAction && game.status === "complete" && (
+        <AfterActionScreen game={game} onClose={() => setShowAfterAction(false)} />
+      )}
       {showReplay && <ReplayTheater game={game} onClose={() => setShowReplay(false)} />}
       <LocalAccordsPanel
         open={showAccords}
