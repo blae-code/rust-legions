@@ -77,6 +77,8 @@ function tickResearch(game) {
 
 // Precursor relics — shared module (base44/shared/relics.ts)
 import { RELICS, RELIC_SETS, seedRelics, excavateRelic } from '../../shared/relics.ts';
+import { COMMAND_VEHICLES, SUPREME_VEHICLE, VEHICLE_MODS, vehicleOf } from '../../shared/commandVehicles.ts';
+import { MACRO_ROUTE_QUALITY, MACRO_SUPPLY_MILES, macroWeatherMult, macroFindPath, macroSupplied } from '../../shared/macroGraph.ts';
 
 // ---------- Neutral settlement lore & occupation crises (shared modules) ----------
 import { settlementDossier, charterOptions, POLICY_COOLDOWN_DAYS, POLICY_LOG } from '../../shared/settlementLore.ts';
@@ -382,46 +384,7 @@ const GENERAL_TRAITS = [{ key: 'butcher', label: 'the Butcher', signature: 'rele
 const DOCTRINE_TRAIT = { aggressive: 'butcher', economic: 'fox', defensive: 'bulwark' };
 const traitByKey = (k) => GENERAL_TRAITS.find((t) => t.key === k) || null;
 
-// Command vehicles — a general is no mere foot officer: each fights from a
-// specialized machine suited to their specialty (mirrors src/lib/commandVehicles.js)
-const COMMAND_VEHICLES = {
-  butcher: { key: 'mauler', label: '"Mauler" Assault Crawler', effect: '+10% damage dealt', dmgOut: 1.1 },
-  fox: { key: 'vixen', label: '"Vixen" Scout Autocar', effect: '+1 battle skill', skill: 1 },
-  bulwark: { key: 'redoubt', label: '"Redoubt" Armored Wagon', effect: '−10% damage taken', dmgIn: 0.9 },
-  firebrand: { key: 'clarion', label: '"Clarion" Signal Wagon', effect: '−15% morale damage taken', moraleIn: 0.85 },
-};
-const SUPREME_VEHICLE = { key: 'paramount', label: '"Paramount" Command Land-Train', effect: '+1 battle skill · −10% morale damage taken', skill: 1, moraleIn: 0.9 };
-
-// Vehicle refit bays (mirrors src/lib/commandVehicles.js) — the equipment bay bolsters
-// the attending army; the weapon bay mounts arms themed to the general's vehicle.
-const VEHICLE_MODS = {
-  quartermaster_rig: { bay: 'equipment', label: 'Quartermaster Rig', cost: { steel: 3, manpower: 1 }, dmgIn: 0.95, effect: '−5% damage taken' },
-  observation_balloon: { bay: 'equipment', label: 'Observation Balloon', cost: { steel: 2, fuel: 2 }, skill: 1, effect: '+1 battle skill' },
-  field_hospital: { bay: 'equipment', label: 'Field Hospital Trailer', cost: { manpower: 3, steel: 1 }, moraleIn: 0.9, effect: '−10% morale damage taken' },
-  breaker_ram: { bay: 'weapon', trait: 'butcher', label: 'Breaker Ram', cost: { steel: 4, fuel: 1 }, dmgOut: 1.1, effect: '+10% damage dealt' },
-  whisper_battery: { bay: 'weapon', trait: 'fox', label: 'Whisper Battery', cost: { steel: 3, fuel: 2 }, skill: 1, effect: '+1 battle skill' },
-  bastion_casemate: { bay: 'weapon', trait: 'bulwark', label: 'Bastion Casemate', cost: { steel: 5 }, dmgIn: 0.9, effect: '−10% damage taken' },
-  thunder_klaxon: { bay: 'weapon', trait: 'firebrand', label: 'Thunder Klaxon', cost: { steel: 2, fuel: 2, manpower: 1 }, moraleOut: 1.15, effect: '+15% morale damage dealt' },
-};
-
-// A general's effective vehicle: the trait chassis plus any bay modifications
-const vehicleOf = (g) => {
-  if (!g || !g.id) return null;
-  const chassis = g.supreme ? SUPREME_VEHICLE : COMMAND_VEHICLES[g.trait] || null;
-  if (!chassis) return null;
-  const v = { ...chassis, mods: [] };
-  for (const key of Object.values(g.vehicleMods || {})) {
-    const m = VEHICLE_MODS[key];
-    if (!m) continue;
-    v.skill = (v.skill || 0) + (m.skill || 0);
-    v.dmgOut = (v.dmgOut || 1) * (m.dmgOut || 1);
-    v.dmgIn = (v.dmgIn || 1) * (m.dmgIn || 1);
-    v.moraleIn = (v.moraleIn || 1) * (m.moraleIn || 1);
-    v.moraleOut = (v.moraleOut || 1) * (m.moraleOut || 1);
-    v.mods.push(m.label);
-  }
-  return v;
-};
+// Command vehicles & refit bays live in shared/commandVehicles.ts (imported above)
 
 // Army veterancy — battles survived harden a field army
 const VETERANCY = [{ min: 5, label: 'Elite', bonus: 3 }, { min: 3, label: 'Veteran', bonus: 2 }, { min: 1, label: 'Seasoned', bonus: 1 }, { min: 0, label: 'Green', bonus: 0 }];
@@ -695,7 +658,7 @@ function advanceTurn(game) {
 // generator in src/lib/macro/) and stored on the Game — the stored graph is the
 // single truth both sides render and validate against.
 
-const MACRO_ROUTE_QUALITY = { highway: 1.25, road: 1.0, track: 0.75, trail: 0.5, sealane: 0.6 };
+// MACRO_ROUTE_QUALITY & MACRO_SUPPLY_MILES live in shared/macroGraph.ts (imported above)
 const MACRO_UNIT_MARCH = { riflemen: { rate: 20, ground: true }, crawler: { rate: 16, ground: true }, artillery: { rate: 12, ground: true }, fighter: { rate: 90, ground: false } };
 const MACRO_COLUMN_KEYS = ['riflemen', 'crawler', 'artillery', 'fighter'];
 const MACRO_SETTLEMENT_YIELD = { city: { steel: 2, manpower: 2 }, town: { manpower: 2 }, depot: { fuel: 2 }, ruin: { steel: 1 }, crossroads: {} };
@@ -703,7 +666,6 @@ const MACRO_ESCORT = { riflemen: 2, crawler: 1 };
 const MACRO_SCOUT_HOPS = 1;
 // Supply & the fortress-base (slice M3 — docs/MACRO_ENGINE.md §8)
 const MACRO_BASE_DAY_RATE = 10;        // the base is the slowest thing on the map
-const MACRO_SUPPLY_MILES = 220;        // effective-mile envelope from base/depots (~3 road-days)
 const MACRO_ATTRITION_DAYS = 2;        // out of supply: lose 1 company per this many days
 const MACRO_CASUALTY_ORDER = ['fighter', 'artillery', 'crawler', 'riflemen'];
 
@@ -915,45 +877,7 @@ function macroDayRate(regiments = {}) {
 }
 
 // Rain and snow slow wheels harder than boots (docs/MACRO_ENGINE.md §4)
-function macroWeatherMult(weather, regiments = {}) {
-  if (weather !== 'rain' && weather !== 'snow') return 1;
-  const wheels = (regiments.crawler || 0) > 0 || (regiments.artillery || 0) > 0;
-  return wheels ? 0.6 : 0.85;
-}
-
-// Dijkstra over march-days for a given column pace. opts.landOnly excludes
-// Convoy Lanes — the fortress-base cannot be shipped (boarding/naval is ahead).
-function macroFindPath(macro, fromId, toId, dayRate, opts = {}) {
-  if (!dayRate || fromId === toId) return null;
-  const dist = { [fromId]: 0 };
-  const prev = {};
-  const done = new Set();
-  const queue = [fromId];
-  while (queue.length > 0) {
-    queue.sort((a, b) => dist[a] - dist[b]);
-    const cur = queue.shift();
-    if (cur === toId) break;
-    if (done.has(cur)) continue;
-    done.add(cur);
-    for (const route of macro.routes) {
-      const [a, b, miles, quality] = route;
-      if (opts.landOnly && quality === 'sealane') continue;
-      if (a !== cur && b !== cur) continue;
-      const next = a === cur ? b : a;
-      if (done.has(next)) continue;
-      const nd = dist[cur] + miles / (dayRate * MACRO_ROUTE_QUALITY[quality]);
-      if (dist[next] === undefined || nd < dist[next]) {
-        dist[next] = nd;
-        prev[next] = cur;
-        queue.push(next);
-      }
-    }
-  }
-  if (dist[toId] === undefined) return null;
-  const path = [toId];
-  while (path[0] !== fromId) path.unshift(prev[path[0]]);
-  return { path, totalDays: dist[toId] };
-}
+// macroWeatherMult & macroFindPath live in shared/macroGraph.ts (imported above)
 
 // Legacy fronts filed before the macro engine carry no chart — every reader
 // below treats a missing chart as an empty theater rather than throwing.
@@ -966,35 +890,7 @@ const macroForeignBaseAt = (game, nodeId, slotIdx) =>
 const macroBlockedAgainst = (game, nodeId, slotIdx) =>
   macroColumnsAt(game, nodeId).some((c) => c.owner !== slotIdx) || macroForeignBaseAt(game, nodeId, slotIdx);
 
-// Supply envelope (§8): effective-mile reach from the fortress-base and any
-// controlled fuel depot, flowing only through routes whose far node the faction
-// controls or that stand neutral. Returns the Set of in-supply node ids.
-function macroSupplied(game, slotIdx) {
-  const macro = game.macro;
-  if (!macro?.nodes) return new Set();
-  const passable = (nid) => macro.control[nid] === slotIdx || macro.control[nid] === null || macro.control[nid] === undefined;
-  const sources = [];
-  const base = macro.bases?.[String(slotIdx)];
-  if (base?.nodeId) sources.push(base.nodeId);
-  for (const n of macro.nodes) if (n.kind === 'depot' && macro.control[n.id] === slotIdx) sources.push(n.id);
-  const dist = {};
-  const queue = [];
-  for (const s of sources) { dist[s] = 0; queue.push(s); }
-  while (queue.length > 0) {
-    queue.sort((a, b) => dist[a] - dist[b]);
-    const cur = queue.shift();
-    for (const route of macro.routes) {
-      const [a, b, miles, quality] = route;
-      if (a !== cur && b !== cur) continue;
-      const next = a === cur ? b : a;
-      if (!passable(next)) continue;
-      const nd = dist[cur] + miles / MACRO_ROUTE_QUALITY[quality]; // effective miles
-      if (nd > MACRO_SUPPLY_MILES) continue;
-      if (dist[next] === undefined || nd < dist[next]) { dist[next] = nd; queue.push(next); }
-    }
-  }
-  return new Set(Object.keys(dist));
-}
+// macroSupplied (§8 supply envelope) lives in shared/macroGraph.ts (imported above)
 
 // Where a column effectively sits for supply purposes: its node, or the origin
 // of the leg it is marching (the last friendly ground it touched)
@@ -2006,12 +1902,14 @@ Deno.serve(async (req) => {
       return null;
     };
     const defenderLive = (b) => b.defender.interactive && defenderIsLive(game, game.factionSlots[b.defender.slot]);
-    // Absent staffs (NPC, neutral, offline commander) fight their own formations
+    // Absent staffs (NPC, neutral, offline commander) and sides handed to the staff by
+    // tacticalAuto fight their own formations
+    const staffHolds = (b, side) => !!b.auto?.[side] || (side === 'defender' && !defenderLive(b));
     const runAutoTurns = (b) => {
       const t = b.tactical;
       for (let guard = 0; guard < 60 && t.status === 'fighting' && !battleResult(t); guard++) {
         const f = activeFormation(t);
-        if (!f || (f.side === 'attacker') || (f.side === 'defender' && defenderLive(b))) break;
+        if (!f || !staffHolds(b, f.side)) break;
         const o = autoOrders(t, f);
         if (!o || resolveOrders(t, f.id, o.moveTo, o.actionKey, o.targetId)) break;
       }
@@ -2026,6 +1924,13 @@ Deno.serve(async (req) => {
       b.round = t.round + 1;
       b.log.push(r.attackerWon ? `${b.attacker.generalName}'s formations carry the field.` : `${b.defender.generalName}'s formations hold the ground.`);
       finishBattle(game, b, r.attackerWon);
+    };
+    const settleTactical = async (b) => {
+      runAutoTurns(b);
+      if (game.status !== 'active') recordSnapshot(game);
+      await persistWar();
+      await logIfComplete();
+      return Response.json({ ok: true, resolved: !game.activeBattle });
     };
 
     GAME_ACTIONS.battleSetMode = async () => {
@@ -2049,13 +1954,10 @@ Deno.serve(async (req) => {
       if (!b?.tactical) return Response.json({ error: 'No tactical engagement in progress' }, { status: 400 });
       const role = battleRole(b);
       if (!role) return Response.json({ error: 'You are not a party to this battle' }, { status: 403 });
-      const err = submitFormations(b.tactical, role, body.formations);
+      // §4 contract: `squads`; the Form 9-D deployment screen still files `formations`
+      const err = submitFormations(b.tactical, role, body.squads ?? body.formations);
       if (err) return Response.json({ error: err }, { status: 400 });
-      runAutoTurns(b);
-      if (game.status !== 'active') recordSnapshot(game);
-      await persistWar();
-      await logIfComplete();
-      return Response.json({ ok: true, resolved: !game.activeBattle });
+      return settleTactical(b);
     }
 
     GAME_ACTIONS.tacticalOrders = async () => {
@@ -2063,19 +1965,34 @@ Deno.serve(async (req) => {
       if (!b?.tactical) return Response.json({ error: 'No tactical engagement in progress' }, { status: 400 });
       const role = battleRole(b);
       if (!role) return Response.json({ error: 'You are not a party to this battle' }, { status: 403 });
+      if (b.auto?.[role]) return Response.json({ error: 'Your staff holds the field under standing orders' }, { status: 400 });
       const f = activeFormation(b.tactical);
       if (!f || f.side !== role) return Response.json({ error: 'It is not your formation\'s turn' }, { status: 400 });
-      const err = resolveOrders(b.tactical, body.formationId, body.moveTo || null, body.action, body.targetId || null);
+      // §4 contract (Q1): the squad's action key is `orderAction`; `action` is the dispatch verb.
+      // `target` is { squadId } (hex targets await Lane C). Legacy keys accepted for the interim.
+      const squadId = body.squadId ?? body.formationId;
+      const targetId = body.target?.squadId ?? body.targetId ?? null;
+      const err = resolveOrders(b.tactical, squadId, body.moveTo || null, body.orderAction, targetId);
       if (err) return Response.json({ error: err }, { status: 400 });
-      runAutoTurns(b);
-      if (game.status !== 'active') recordSnapshot(game);
-      await persistWar();
-      await logIfComplete();
-      return Response.json({ ok: true, resolved: !game.activeBattle });
+      return settleTactical(b);
     }
 
-
-
+    // Hand the rest of the engagement to the staff — it deploys (if not yet filed) and fights by doctrine
+    GAME_ACTIONS.tacticalAuto = async () => {
+      const b = game.activeBattle;
+      if (!b?.tactical) return Response.json({ error: 'No tactical engagement in progress' }, { status: 400 });
+      const role = battleRole(b);
+      if (!role) return Response.json({ error: 'You are not a party to this battle' }, { status: 403 });
+      if (b.auto?.[role]) return Response.json({ error: 'The staff already holds the field' }, { status: 400 });
+      const t = b.tactical;
+      b.auto = { ...(b.auto || {}), [role]: true };
+      if (t.status === 'deploy' && !t.deployed[role]) {
+        const err = submitFormations(t, role, autoFormations(t.pools[role]));
+        if (err) return Response.json({ error: err }, { status: 400 });
+      }
+      b.log.push(`${role === 'attacker' ? b.attacker.generalName : b.defender.generalName} hands the field to the staff.`);
+      return settleTactical(b);
+    }
 
 
 

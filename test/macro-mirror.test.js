@@ -10,10 +10,18 @@ import { MACRO_NODES, MACRO_ROUTES, ROUTE_QUALITY } from "@/lib/macro/graph";
 import { UNIT_MARCH } from "@/lib/macro/march";
 
 const src = readRepoFile("base44/functions/gameEngine/entry.ts");
+// Route quality & pathing were lifted into shared/macroGraph.ts (imported by gameEngine).
+const graphSrc = readRepoFile("base44/shared/macroGraph.ts");
 
 describe("macro march tables match the src/lib mirrors", () => {
+  it("gameEngine imports the shared graph module rather than re-inlining it", () => {
+    expect(src).toMatch(/from '\.\.\/\.\.\/shared\/macroGraph\.ts'/);
+    expect(src).not.toMatch(/^const MACRO_ROUTE_QUALITY\s*=/m);
+    expect(src).not.toMatch(/^function macroFindPath\(/m);
+  });
+
   it("route quality multipliers are identical", () => {
-    const server = extractConst(src, "MACRO_ROUTE_QUALITY");
+    const server = extractConst(graphSrc, "MACRO_ROUTE_QUALITY");
     const client = Object.fromEntries(Object.entries(ROUTE_QUALITY).map(([k, v]) => [k, v.mult]));
     expect(server).toEqual(client);
   });

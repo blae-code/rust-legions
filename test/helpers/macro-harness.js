@@ -24,6 +24,9 @@ import {
 } from "../../base44/shared/settlementCrisis.ts";
 import { excavateRelic } from "../../base44/shared/relics.ts";
 import { BARTER_COOLDOWN_DAYS } from "../../base44/shared/barterDeals.ts";
+import {
+  MACRO_ROUTE_QUALITY, MACRO_SUPPLY_MILES, macroWeatherMult, macroFindPath, macroSupplied,
+} from "../../base44/shared/macroGraph.ts";
 
 const SRC = readRepoFile("base44/functions/gameEngine/entry.ts");
 
@@ -34,6 +37,7 @@ const SHARED = {
   settlementDossier, charterOptions, excavateRelic, BARTER_COOLDOWN_DAYS,
   CRISES, rollCrisisId, crisisView, crisisOption, clampStability,
   STABILITY_START, STABILITY_REVOLT_BELOW, CRISIS_FESTER_STABILITY, CRISIS_CHANCE,
+  MACRO_ROUTE_QUALITY, MACRO_SUPPLY_MILES, macroWeatherMult, macroFindPath, macroSupplied,
 };
 
 // Lift the text between two marker strings. Throws loudly when a marker is
@@ -57,11 +61,12 @@ const charterBlock = () =>
     "// ---------- End settlement charter (harness marker) ----------",
   );
 
-// The macro block is contiguous: from the first macro constant to just before
-// the fog-of-war section (see the region markers in entry.ts).
+// The macro block is contiguous: from the first macro constant still declared
+// in entry.ts (route quality & pathing now come from shared/macroGraph.ts) to
+// just before the fog-of-war section (see the region markers in entry.ts).
 const macroBlock = () =>
   region(
-    "const MACRO_ROUTE_QUALITY = {",
+    "const MACRO_UNIT_MARCH = {",
     "// ---------- End macro engine (harness marker) ----------",
     { keepStart: true },
   );

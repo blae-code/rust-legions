@@ -133,10 +133,20 @@ describe("signature cooldowns — gameEngine.MANEUVERS ↔ massCombat.js SIGNATU
 
 
 
-describe("command vehicles — gameEngine ↔ commandVehicles.js", () => {
-  const VEHICLES = GE("COMMAND_VEHICLES");
-  const SUPREME = GE("SUPREME_VEHICLE");
-  const VEHICLE_MODS = GE("VEHICLE_MODS");
+// COMMAND_VEHICLES / SUPREME_VEHICLE / VEHICLE_MODS were lifted into
+// base44/shared/commandVehicles.ts (imported by gameEngine) to keep entry.ts
+// under the platform line limit. The shared module is the server source of truth.
+describe("command vehicles — shared/commandVehicles.ts ↔ commandVehicles.js", () => {
+  const vehiclesSrc = readRepoFile("base44/shared/commandVehicles.ts");
+  const VEHICLES = extractConst(vehiclesSrc, "COMMAND_VEHICLES");
+  const SUPREME = extractConst(vehiclesSrc, "SUPREME_VEHICLE");
+  const VEHICLE_MODS = extractConst(vehiclesSrc, "VEHICLE_MODS");
+
+  it("gameEngine imports the shared tables rather than re-inlining them", () => {
+    expect(gameEngineSrc).toMatch(/from '\.\.\/\.\.\/shared\/commandVehicles\.ts'/);
+    expect(gameEngineSrc).not.toMatch(/^const COMMAND_VEHICLES\s*=/m);
+    expect(gameEngineSrc).not.toMatch(/^const VEHICLE_MODS\s*=/m);
+  });
 
   it("trait vehicles share keys, labels, and effect text", () => {
     expect(Object.keys(VEHICLES).sort()).toEqual(Object.keys(MIRROR_VEHICLES).sort());
