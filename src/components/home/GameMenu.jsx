@@ -21,7 +21,7 @@ export default function GameMenu({ continueGame }) {
   ].filter(Boolean);
 
   return (
-    <nav className="mt-5 space-y-2 max-w-md" style={{ perspective: "900px" }}>
+    <nav className="mt-3 space-y-1.5 max-w-md" style={{ perspective: "900px" }}>
       {items.map((item, i) => (
         <motion.div
           key={item.to}
@@ -34,7 +34,7 @@ export default function GameMenu({ continueGame }) {
             to={item.to}
             onMouseEnter={() => playSfx("hover")}
             onClick={() => playSfx("select")}
-            className={`cq-metal group relative flex items-center gap-3 rounded-sm border pl-3 pr-4 py-2 transition-all duration-200
+            className={`cq-metal group relative flex items-center gap-3 rounded-sm border pl-3 pr-4 py-1.5 transition-all duration-200
               hover:translate-x-1.5 hover:-translate-y-0.5 hover:shadow-[0_6px_16px_rgba(0,0,0,0.6)]
               ${item.hot
                 ? "border-brass/70 bg-brass/10 shadow-[0_4px_12px_rgba(0,0,0,0.55)]"
@@ -47,7 +47,7 @@ export default function GameMenu({ continueGame }) {
               {String(i + 1).padStart(2, "0")}
             </span>
             <span className="min-w-0">
-              <span className={`cq-display block text-lg sm:text-xl leading-tight transition-colors ${
+              <span className={`cq-display block text-base sm:text-lg 2xl:text-xl leading-tight transition-colors ${
                 item.hot ? "text-brass-bright" : "text-foreground/85 group-hover:text-brass-bright"
               }`}>
                 {item.label}

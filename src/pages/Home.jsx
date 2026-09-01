@@ -73,33 +73,33 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="mt-3">
+        <div className="mt-2">
           <DispatchTicker />
         </div>
 
         {/* Command deck — everything fits the viewport; panels scroll internally */}
-        <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[1.1fr_minmax(320px,380px)] xl:grid-cols-[1.05fr_minmax(300px,360px)_minmax(260px,300px)] gap-4 xl:gap-5 pt-4 overflow-y-auto lg:overflow-hidden">
+        <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[1.1fr_minmax(320px,380px)] xl:grid-cols-[1.05fr_minmax(300px,360px)_minmax(260px,300px)] gap-3 xl:gap-4 pt-3 overflow-y-auto lg:overflow-hidden">
           {/* Left: title + main menu + rotating intel */}
           <div className="flex flex-col min-h-0 lg:overflow-y-auto lg:pr-1">
-            <p className="cq-label text-rust mb-1.5">The continent burns · A commander is wanted</p>
+            <p className="cq-label text-rust mb-1">The continent burns · A commander is wanted</p>
             <div className="relative inline-block self-start">
-              <h1 className="cq-display text-5xl sm:text-6xl leading-[0.9]">
+              <h1 className="cq-display text-4xl sm:text-5xl 2xl:text-6xl leading-[0.85]">
                 Rust<br />
                 <span className="text-brass-bright">Legions</span>
               </h1>
               <span className="cq-stamp absolute -right-10 -top-2 text-xs whitespace-nowrap">Under Development</span>
             </div>
-            <p className="font-mono text-[9px] text-rust/90 tracking-[0.25em] mt-1.5">⚠ FIELD TRIAL BUILD — SYSTEMS SUBJECT TO CHANGE WITHOUT NOTICE</p>
-            <div className="cq-hazard w-40 mt-3" />
+            <p className="font-mono text-[9px] text-rust/90 tracking-[0.25em] mt-1">⚠ FIELD TRIAL BUILD — SYSTEMS SUBJECT TO CHANGE WITHOUT NOTICE</p>
+            <div className="cq-hazard w-40 mt-2" />
             <GameMenu continueGame={continueGame} />
-            <div className="mt-auto pt-4 hidden lg:block max-w-md">
+            <div className="mt-auto pt-3 hidden 2xl:block max-w-md">
               <IntelBrief />
             </div>
           </div>
 
           {/* Middle: operations log — full-height, scrolls internally */}
-          <div className="cq-panel cq-brackets p-4 flex flex-col min-h-0 lg:max-h-full">
-            <div className="flex items-center justify-between mb-3 shrink-0">
+          <div className="cq-panel cq-brackets p-3 flex flex-col min-h-0 lg:max-h-full">
+            <div className="flex items-center justify-between mb-2 shrink-0">
               <p className="cq-label">Operations Log</p>
               <span className="font-mono text-[9px] text-muted-foreground">{games?.length ?? 0} ON RECORD</span>
             </div>
@@ -110,13 +110,13 @@ export default function Home() {
                 NO ENGAGEMENTS ON RECORD — OPEN A NEW OPERATION
               </p>
             ) : (
-              <div className="space-y-2.5 flex-1 min-h-0 overflow-y-auto pr-1 max-h-[45vh] lg:max-h-none">
+              <div className="space-y-2 flex-1 min-h-0 overflow-y-auto pr-1 max-h-[38vh] lg:max-h-none">
                 {games.map((g, i) => (
                   <FrontCard key={g.id} game={g} index={i} />
                 ))}
               </div>
             )}
-            <div className="pt-3 shrink-0">
+            <div className="pt-2 shrink-0">
               <OpenFrontsPanel />
             </div>
             {/* Dossier joins this column when the right rail is hidden */}
@@ -126,7 +126,7 @@ export default function Home() {
           </div>
 
           {/* Right rail: dossier + standing orders */}
-          <div className="hidden xl:flex flex-col gap-4 min-h-0 overflow-y-auto">
+          <div className="hidden xl:flex flex-col gap-3 min-h-0 overflow-y-auto">
             <DossierPanel profile={profile} factionCount={factions?.length} />
             <StandingOrders />
             <div className="flex-1" />
