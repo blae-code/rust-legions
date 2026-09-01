@@ -6,6 +6,7 @@ import { buildCommanderRecords, buildMilestones } from "@/lib/afterAction";
 import FinalMapPanel from "@/components/game/summary/FinalMapPanel";
 import CommanderRecordRow from "@/components/game/summary/CommanderRecordRow";
 import MilestoneReel from "@/components/game/summary/MilestoneReel";
+import SheetExportButton from "@/components/game/summary/SheetExportButton";
 import { WORLDS } from "@/lib/macro/worlds";
 import { getImage } from "@/lib/imageLibrary";
 
@@ -83,7 +84,8 @@ export default function AfterActionScreen({ game, onClose }) {
           <MilestoneReel milestones={milestones} />
         </Section>
 
-        <div className="flex justify-center pb-4">
+        <div className="flex flex-col items-center gap-3 pb-4">
+          <SheetExportButton gameId={game.id} />
           <Button onClick={onClose} className="h-10 px-8">Close the Dossier</Button>
         </div>
       </div>
