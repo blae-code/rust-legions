@@ -9,6 +9,7 @@ import BootSequence from "@/components/home/BootSequence";
 import GameMenu from "@/components/home/GameMenu";
 import DossierPanel from "@/components/home/DossierPanel";
 import FrontCard from "@/components/home/FrontCard";
+import OpenFrontsPanel from "@/components/home/OpenFrontsPanel";
 import DispatchTicker from "@/components/home/DispatchTicker";
 import HudTelemetry from "@/components/home/HudTelemetry";
 import IntelBrief from "@/components/home/IntelBrief";
@@ -115,6 +116,9 @@ export default function Home() {
                 ))}
               </div>
             )}
+            <div className="pt-3 shrink-0">
+              <OpenFrontsPanel />
+            </div>
             {/* Dossier joins this column when the right rail is hidden */}
             <div className="xl:hidden pt-3 shrink-0">
               <DossierPanel profile={profile} factionCount={factions?.length} />
