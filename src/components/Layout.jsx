@@ -9,6 +9,7 @@ const NAV = [
   { to: "/", label: "Command HQ" },
   { to: "/new-game", label: "New Game" },
   { to: "/faction-builder", label: "Faction Builder" },
+  { to: "/leaderboard", label: "Roll of Honour" },
   { to: "/maps", label: "Map Library" },
   { to: "/map-editor", label: "Map Editor" },
   { to: "/field-manual", label: "Field Manual" },

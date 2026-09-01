@@ -29,6 +29,7 @@ import Roadmap from './pages/Roadmap';
 import FieldManual from './pages/FieldManual';
 import InstallApp from './pages/InstallApp';
 import WarrantOffice from './pages/WarrantOffice';
+import Leaderboard from './pages/Leaderboard';
 import WarrantCheck from './components/access/WarrantCheck';
 import DevConsole from './components/debug/DevConsole';
 
@@ -76,6 +77,7 @@ const AuthenticatedApp = () => {
         <Route path="/roadmap" element={<Roadmap />} />
         <Route path="/field-manual" element={<FieldManual />} />
         <Route path="/install" element={<InstallApp />} />
+        <Route path="/leaderboard" element={<Leaderboard />} />
       </Route>
       </Route>
       <Route path="*" element={<PageNotFound />} />
