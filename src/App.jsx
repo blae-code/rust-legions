@@ -59,7 +59,7 @@ const AuthenticatedApp = () => {
 
       {/* Add your page Route elements here */}
       {/* Enlistment is by warrant only — no valid code, no war room */}
-      <Route element={authed ? <WarrantCheck /> : <Navigate to="/login" replace />}>
+      <Route element={<WarrantCheck />}>
       <Route element={<Layout />}>
         <Route path="/" element={<Home />} />
         <Route path="/warrant-office" element={<WarrantOffice />} />

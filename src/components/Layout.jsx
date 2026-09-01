@@ -1,6 +1,7 @@
 import React from "react";
-import { Link, Outlet, Navigate, useLocation } from "react-router-dom";
+import { Link, Outlet, useLocation } from "react-router-dom";
 import useUser from "@/hooks/useUser";
+import { callsignOf } from "@/lib/warrant";
 import { Shield } from "lucide-react";
 import MusicController from "@/components/audio/MusicController";
 
@@ -25,11 +26,8 @@ export default function Layout() {
     );
   }
 
-  if (!user) {
-    // App-level routing normally redirects unauthenticated users to /login before
-    // Layout mounts; this is a belt-and-braces fallback that stays in-repo.
-    return <Navigate to="/login" replace />;
-  }
+  // Identity is the warrant's callsign; a signed-in admin keeps their own name.
+  const commander = callsignOf() || (user?.full_name || "").split(" ")[0] || "UNSIGNED";
 
   // The command HQ is a full-screen game menu — no web chrome there
   const isMenu = location.pathname === "/";
@@ -70,7 +68,7 @@ export default function Layout() {
           </nav>
           <div className="ml-auto items-center gap-2 hidden sm:flex">
             <span className="w-1.5 h-1.5 rounded-full bg-olive cq-lamp text-olive" />
-            <span className="text-xs font-mono text-muted-foreground truncate">CMDR {(user.full_name || user.email || "").split(" ")[0]?.toUpperCase()}</span>
+            <span className="text-xs font-mono text-muted-foreground truncate">CMDR {commander.toUpperCase()}</span>
           </div>
         </div>
       </header>

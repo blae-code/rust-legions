@@ -13,16 +13,23 @@ import HudTelemetry from "@/components/home/HudTelemetry";
 import IntelBrief from "@/components/home/IntelBrief";
 import StandingOrders from "@/components/home/StandingOrders";
 import InductionExperience from "@/components/induction/InductionExperience";
+import { callsignOf } from "@/lib/warrant";
 
 export default function Home() {
   const { user } = useUser();
+  const callsign = callsignOf();
   const [games, setGames] = useState(null);
   const [factions, setFactions] = useState(null);
   const [profile, setProfile] = useState(null);
   const [needsInduction, setNeedsInduction] = useState(false);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      // A warrant-only commander has no account file — the deck still stands up
+      setGames([]);
+      setFactions([]);
+      return;
+    }
     base44.functions.invoke("gameEngine", { action: "listMyGames" }).then((r) => setGames(r.data.games)).catch(() => setGames([]));
     base44.entities.Faction.filter({ created_by_id: user.id }).then(setFactions).catch(() => setFactions([]));
     // First login: no profile yet — run the commissioning ceremony instead of silent creation
@@ -60,7 +67,7 @@ export default function Home() {
           <div className="hidden md:block"><HudTelemetry /></div>
           <div className="flex items-center gap-3">
             <p className="font-mono text-[10px] text-muted-foreground tracking-widest hidden sm:block cq-flicker">
-              ⁜ SECURE CHANNEL · CMDR {(user?.full_name || user?.email || "").split(" ")[0]?.toUpperCase()} ⁜
+              ⁜ SECURE CHANNEL · CMDR {(callsign || (user?.full_name || "").split(" ")[0] || "UNSIGNED").toUpperCase()} ⁜
             </p>
             <AudioHud />
           </div>

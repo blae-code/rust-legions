@@ -10,6 +10,10 @@
       "type": "string",
       "description": "Who this warrant is intended for \u2014 a callsign or nickname, never an email"
     },
+    "callsign": {
+      "type": "string",
+      "description": "The callsign the commander chose when mustering with this warrant"
+    },
     "status": {
       "type": "string",
       "enum": [

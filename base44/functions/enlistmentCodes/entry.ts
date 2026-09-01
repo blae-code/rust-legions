@@ -13,13 +13,50 @@ function makeCode() {
 export default async function (req: Request): Promise<Response> {
   try {
     const base44 = createClientFromRequest(req);
-    const user = await base44.auth.me();
-    if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    const user = await base44.auth.me().catch(() => null);
 
     const body = await req.json().catch(() => ({}));
     const action = body.action;
     const svc = base44.asServiceRole.entities.EnlistmentCode;
-    const isAdmin = user.role === 'admin';
+    const isAdmin = user?.role === 'admin';
+
+    // ---- Warrant identity: no account, no email. Code + callsign only. ----
+    if (action === 'muster') {
+      const code = String(body.code || '').trim().toUpperCase();
+      const callsign = String(body.callsign || '').trim().slice(0, 24);
+      if (!code) return Response.json({ error: 'No warrant code given' }, { status: 400 });
+      if (callsign.length < 2) return Response.json({ error: 'A callsign of at least two characters is required' }, { status: 400 });
+
+      const matches = await svc.filter({ code });
+      const warrant = matches[0];
+      if (!warrant) return Response.json({ error: 'No such warrant is on file' }, { status: 400 });
+      if (warrant.status === 'revoked') return Response.json({ error: 'This warrant has been revoked' }, { status: 403 });
+      if (warrant.status === 'redeemed' && warrant.callsign && warrant.callsign !== callsign) {
+        return Response.json({ error: `This warrant is already mustered under the callsign ${warrant.callsign}` }, { status: 409 });
+      }
+
+      await svc.update(warrant.id, {
+        status: 'redeemed',
+        callsign,
+        redeemedAt: warrant.redeemedAt || new Date().toISOString(),
+      });
+      return Response.json({ granted: true, warrantId: warrant.id, code: warrant.code, callsign });
+    }
+
+    // Is the warrant held on a terminal still good?
+    if (action === 'verify') {
+      const code = String(body.code || '').trim().toUpperCase();
+      const matches = code ? await svc.filter({ code }) : [];
+      const warrant = matches[0];
+      if (!warrant) return Response.json({ granted: false, revoked: false });
+      return Response.json({
+        granted: warrant.status === 'redeemed',
+        revoked: warrant.status === 'revoked',
+        callsign: warrant.callsign || null,
+      });
+    }
+
+    if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
     // ---- Any authenticated commander ----
     if (action === 'status') {
