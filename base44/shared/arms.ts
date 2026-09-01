@@ -2000,7 +2000,12 @@ export const deriveLoadout = (squad, ctx) => {
     if (b.range > range) range = b.range;
     pts += share * WEAPON_PATTERNS[instance.patternKey].pts * QUALITY_GRADES[instance.quality].ptsMult;
   }
-  return { melee: round2(melee), ranged: round2(ranged), range: round2(range), speed: -Math.floor(weight / WEIGHT_PER_SPEED_STEP), pts: round2(pts) };
+  // -0 is NOT 0 to Object.is or to a deep-equal, and `speed` is a delta Lane A
+  // adds to a SquadType base value. An unencumbered squad must compare equal to
+  // an unarmed one, so the sign is normalised here, once, at the only place the
+  // negation happens.
+  const drag = Math.floor(weight / WEIGHT_PER_SPEED_STEP);
+  return { melee: round2(melee), ranged: round2(ranged), range: round2(range), speed: drag === 0 ? 0 : -drag, pts: round2(pts) };
 };
 
 // loadoutProfile(squad, ctx) → { armorPen, damageType, aoe, misfire }

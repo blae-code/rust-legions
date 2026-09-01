@@ -16,7 +16,7 @@ import {
   ARMOUR_CLASSES, CALIBRES, MANUFACTURERS, QUALITY_GRADES, PEN_TABLE,
   WEAPON_PATTERNS, SUPPRESSION, DAMAGE_TYPES, TYPE_MATRIX,
   MODIFICATIONS, QUIRKS, QUALITY_ORDER, MOD_COUNT_BY_QUALITY, LUCK_SLOPE,
-  TIER_RANK, LOADOUT_KEYS, LOADOUT_SHARES, SQUAD_VALUE_KEYS, WEAPON_BASE_KEYS,
+  TIER_RANK, LOADOUT_KEYS, LOADOUT_SHARES, SQUAD_VALUE_KEYS, WEAPON_BASE_KEYS, WEAPON_CLASSES,
   mulberry32, penMultFor, resolveHit, resolveAoe,
   resolveWeapon, rollWeapon, deriveLoadout, loadoutProfile, evaluateQuirk,
 } from "@/lib/arms.js";
@@ -149,6 +149,26 @@ describe("THE ACCEPTANCE TEST — a rifle cannot scratch a heavy crawler", () =>
     const r = resolveHit({ weapon: issueWeaponFor("mg13_sustained"), target: ARMOUR_CLASSES.heavy });
     expect(r.suppressOnly).toBe(true);
     expect(PEN_TABLE.some((row) => row.mult === 0)).toBe(true);
+  });
+
+  it("THE PRECONDITION OF EVERY ROLL — every pattern declares armorPen, damageType and aoe", () => {
+    // arms-mirror asserts the whole WeaponBase is complete on every row. This is
+    // the narrower claim THIS file depends on: rollWeapon hands its instances to
+    // resolveWeapon and thence to resolveHit, and resolveHit is undefined
+    // behaviour without these three. A pattern missing one would surface here as
+    // a NaN somewhere far downstream, so it is caught at the source instead.
+    for (const [k, p] of Object.entries(WEAPON_PATTERNS)) {
+      expect(Number.isFinite(p.base.armorPen), `${k}.base.armorPen`).toBe(true);
+      expect(p.base.armorPen, `${k}.base.armorPen`).toBeGreaterThanOrEqual(0);
+      expect(DAMAGE_TYPES, `${k}.base.damageType`).toContain(p.base.damageType);
+      expect(Object.prototype.hasOwnProperty.call(p.base, "aoe"), `${k}.base.aoe is undeclared`).toBe(true);
+      if (p.base.aoe !== null) {
+        expect(Number.isInteger(p.base.aoe.radius), `${k}.base.aoe.radius`).toBe(true);
+        expect(p.base.aoe.radius, `${k}.base.aoe.radius`).toBeGreaterThanOrEqual(1);
+        expect(p.base.aoe.falloff, `${k}.base.aoe.falloff`).toBeGreaterThan(0);
+        expect(p.base.aoe.falloff, `${k}.base.aoe.falloff`).toBeLessThanOrEqual(1);
+      }
+    }
   });
 });
 
@@ -506,7 +526,17 @@ describe("rollWeapon — filters, pools and failure", () => {
   it("AN EMPTY POOL THROWS LOUDLY, naming the filters — it never widens them", () => {
     expect(() => rollWeapon({ seed: 1, class: "marksman", maker: "tarpool_burnworks", tierCap: "III" }))
       .toThrow(/no pattern matches.*marksman.*tarpool_burnworks/);
-    expect(() => rollWeapon({ seed: 1, class: "artillery", tierCap: "I" })).toThrow(/no pattern matches/);
+    // The TIER filter empties a pool on its own, and which classes it empties is
+    // read off the catalogue rather than typed here: a hand-picked example goes
+    // quietly non-empty the day someone certifies one pattern at a lower tier,
+    // and the assertion then passes while proving nothing. The guard on the
+    // derivation is the line above the loop.
+    const tierIClasses = new Set(Object.values(WEAPON_PATTERNS).filter((p) => p.tier === "I").map((p) => p.class));
+    const tierLocked = WEAPON_CLASSES.filter((c) => !tierIClasses.has(c));
+    expect(tierLocked.length, "no class is gated behind a tier, so tierCap can never empty a pool").toBeGreaterThan(0);
+    for (const c of tierLocked) {
+      expect(() => rollWeapon({ seed: 1, class: c, tierCap: "I" }), c).toThrow(new RegExp("no pattern matches.*" + c + ".*tierCap: I"));
+    }
     expect(() => rollWeapon({ seed: 1, class: "not_a_class", tierCap: "III" })).toThrow(/no pattern matches/);
     expect(() => rollWeapon({ seed: 1, tierCap: "IV" })).toThrow(/unknown tierCap/);
   });
