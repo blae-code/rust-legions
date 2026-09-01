@@ -41,12 +41,14 @@ export default function WarrantOffice() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-4">
+    <div className="max-w-7xl mx-auto grid xl:grid-cols-[minmax(340px,420px)_1fr] gap-4 items-start">
+      {/* Left file drawer — the standing orders and the stamp desk */}
+      <div className="space-y-4 xl:sticky xl:top-20">
       <div className="cq-panel relative overflow-hidden p-5">
         <div className="cq-hazard absolute top-0 left-0 right-0" />
         <p className="cq-label pt-1">High Command · Restricted</p>
         <h1 className="cq-display text-3xl">The Warrant Office</h1>
-        <p className="font-body text-sm text-secondary-foreground mt-1 max-w-2xl">
+        <p className="font-body text-sm text-secondary-foreground mt-1">
           Enlistment is closed to the public. Every commander must redeem a warrant code issued here — each
           code is unique, single-use, and may be rescinded at any time to bar that commander from the app.
         </p>
@@ -60,8 +62,10 @@ export default function WarrantOffice() {
       <IssueWarrantForm busy={busy} onIssue={(payload) => run({ action: "issue", ...payload })} />
 
       {error && <p className="font-mono text-xs text-rust">{error}</p>}
+      </div>
 
-      <div className="cq-panel p-4 space-y-2">
+      {/* The register — the wide half of the desk */}
+      <div className="cq-panel p-4 space-y-2 xl:max-h-[calc(100vh-7rem)] xl:overflow-y-auto">
         <p className="cq-label mb-1">The Register</p>
         {codes === null ? (
           <div className="flex items-center gap-2 text-muted-foreground font-mono text-[10px] tracking-widest py-4">
