@@ -15,7 +15,7 @@ function Field({ label, children }) {
   );
 }
 
-export default function BriefingDossier({ game }) {
+export default function BriefingDossier({ game, bare = false }) {
   const world = WORLDS.find((w) => w.id === (game.planetId || "cindara")) || WORLDS[0];
   const weather = WEATHER_META[game.weather || "clear"] || WEATHER_META.clear;
 
@@ -35,7 +35,7 @@ export default function BriefingDossier({ game }) {
       initial={{ opacity: 0, y: 10, rotate: -0.4 }}
       animate={{ opacity: 1, y: 0, rotate: 0 }}
       transition={{ duration: 0.45 }}
-      className="cq-slip relative overflow-hidden rounded-sm p-5"
+      className={bare ? "relative overflow-hidden rounded-sm p-1" : "cq-slip relative overflow-hidden rounded-sm p-5"}
     >
       {/* Punched filing holes down the margin */}
       <div className="absolute left-2 top-8 bottom-8 w-2 flex flex-col justify-between pointer-events-none">
