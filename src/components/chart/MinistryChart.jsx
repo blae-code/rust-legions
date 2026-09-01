@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import NodeRadialMenu from "@/components/chart/NodeRadialMenu";
 import { useFogReveals, FogRevealBurst } from "@/components/chart/FogReveal";
+import HeatField from "@/components/chart/HeatField";
 import { NODE_KINDS } from "@/lib/macro/graph";
 
 // The Ministry Tactical Chart — the canonical macro map (docs/MACRO_MAP.md).
@@ -82,6 +83,7 @@ export default function MinistryChart({
   columns = [],                // fog-filtered server columns
   bases = [],                  // [{ slot, nodeId, march? }]
   marchPaths = [],             // [{ id, path: [nodeIds], color, dashed }]
+  hotspots = [],               // [{ id, node, heat, dominant }] — tactical heat wash
   mySlot = null,
   hovered = null,
   onHoverNode,
@@ -211,6 +213,9 @@ export default function MinistryChart({
             </g>
           );
         })}
+
+        {/* Tactical pressure wash — laid under the ink */}
+        {hotspots.length > 0 && <HeatField hotspots={hotspots} />}
 
         {/* Routes */}
         {world.routes.map((r, i) => {

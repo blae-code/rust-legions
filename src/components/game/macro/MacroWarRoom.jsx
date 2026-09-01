@@ -1,5 +1,7 @@
 import React, { useMemo, useState } from "react";
-import { Flag, Ban, Crosshair, Hammer, Swords, Home } from "lucide-react";
+import { Flag, Ban, Crosshair, Hammer, Swords, Home, Flame } from "lucide-react";
+import { computeHotspots } from "@/lib/macro/hotspots";
+import HotspotLegend from "@/components/game/macro/HotspotLegend";
 import { WORLDS } from "@/lib/macro/worlds";
 import { UNIT_MARCH } from "@/lib/macro/march";
 import { playSfx } from "@/lib/sfx";
@@ -44,6 +46,7 @@ export default function MacroWarRoom({ game, busy, onAction }) {
   const [selectedColumn, setSelectedColumn] = useState(null);
   const [muster, setMuster] = useState(null);      // { nodeId, regiments, generalId }
   const [orderError, setOrderError] = useState(""); // refused march/base order
+  const [showHeat, setShowHeat] = useState(false);  // tactical pressure overlay
   const chartRef = React.useRef(null);
 
   const myBase = macro.bases.find((b) => b.slot === game.mySlot);
@@ -143,6 +146,19 @@ export default function MacroWarRoom({ game, busy, onAction }) {
     ...(myBase?.march?.path?.length > 1 ? [{ id: "base", path: myBase.march.path, color: "#C2503C", dashed: true }] : []),
   ];
 
+  // Where the war has been hot lately — only over ground we have eyes on
+  const hotspots = useMemo(() => {
+    if (!showHeat) return [];
+    const seen = new Set(macro.observed);
+    return computeHotspots({
+      nodes: macro.nodes,
+      columns: macro.columns,
+      combatLog: game.combatLog || [],
+      marchPaths,
+      turnNumber: game.turnNumber,
+    }).filter((h) => seen.has(h.id));
+  }, [showHeat, macro.nodes, macro.columns, macro.observed, game.combatLog, game.turnNumber, marchPaths]);
+
   return (
     <div className="space-y-4">
       <div ref={chartRef} data-tour="chart" className="cq-panel cq-brackets relative overflow-hidden p-1">
@@ -156,6 +172,7 @@ export default function MacroWarRoom({ game, busy, onAction }) {
           columns={macro.columns}
           bases={macro.bases}
           marchPaths={marchPaths}
+          hotspots={hotspots}
           mySlot={game.mySlot}
           hovered={hovered}
           onHoverNode={setHovered}
@@ -175,6 +192,15 @@ export default function MacroWarRoom({ game, busy, onAction }) {
           onCloseMenu={closeMenu}
           height="64vh"
         />
+        <button
+          onClick={() => { playSfx("select"); setShowHeat((v) => !v); }}
+          className={`absolute top-3 right-3 z-10 cq-metal flex items-center gap-1.5 rounded-sm border px-2 py-1 font-heading uppercase tracking-[0.18em] text-[10px] transition-colors ${
+            showHeat ? "border-rust/70 bg-rust/15 text-brass-bright" : "border-border bg-card/90 text-muted-foreground hover:text-brass-bright hover:border-brass/50"
+          }`}
+        >
+          <Flame className="w-3 h-3" /> Pressure Survey
+        </button>
+        {showHeat && <HotspotLegend hotspots={hotspots} />}
         <div className="cq-scanlines absolute inset-0 pointer-events-none z-[5]" />
         <div className="cq-vignette absolute inset-0 pointer-events-none z-[5]" />
         {plotting && (
