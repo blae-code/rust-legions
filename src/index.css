@@ -255,6 +255,36 @@
     opacity: 0.9;
   }
 
+  /* Grit-textured slip — tooltips, briefing cards, survey slips */
+  .cq-slip {
+    position: relative;
+    background-color: hsl(210 7% 10%);
+    background-image:
+      linear-gradient(180deg, hsl(40 22% 100% / 0.05), transparent 40%),
+      repeating-linear-gradient(0deg, transparent 0 2px, hsl(0 0% 0% / 0.16) 2px 3px),
+      radial-gradient(ellipse 70% 60% at 15% 0%, hsl(var(--brass) / 0.10), transparent 70%),
+      radial-gradient(ellipse 60% 50% at 95% 100%, hsl(var(--rust) / 0.07), transparent 70%);
+    border: 1px solid hsl(var(--brass) / 0.5);
+    box-shadow:
+      0 10px 26px hsl(0 0% 0% / 0.72),
+      0 2px 6px hsl(0 0% 0% / 0.6),
+      inset 0 1px 0 hsl(40 22% 100% / 0.09),
+      inset 0 -1px 0 hsl(0 0% 0% / 0.55);
+  }
+  /* Brass corner nicks — a stamped, punched-plate edge */
+  .cq-slip::before,
+  .cq-slip::after {
+    content: "";
+    position: absolute;
+    width: 9px;
+    height: 9px;
+    border-color: hsl(var(--brass) / 0.75);
+    border-style: solid;
+    pointer-events: none;
+  }
+  .cq-slip::before { top: 2px; left: 2px; border-width: 1px 0 0 1px; }
+  .cq-slip::after { bottom: 2px; right: 2px; border-width: 0 1px 1px 0; }
+
   /* War-table map surface */
   .cq-board {
     background:

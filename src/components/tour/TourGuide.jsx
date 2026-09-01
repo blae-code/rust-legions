@@ -68,18 +68,26 @@ export default function TourGuide({ open, steps, onClose }) {
 
   return (
     <div className="fixed inset-0 z-[80]">
+      {/* Grit & scanlines over the darkened room */}
+      <div className="absolute inset-0 cq-scanlines opacity-30" />
+      <div className="absolute inset-0 cq-vignette" />
       {spot ? (
         <div
           className="absolute rounded-sm cq-brackets"
           style={{
             ...spot,
-            boxShadow: "0 0 0 9999px rgba(5, 7, 9, 0.84)",
-            border: "1px solid hsl(var(--brass) / 0.65)",
+            boxShadow:
+              "0 0 0 9999px rgba(5, 7, 9, 0.86), 0 0 22px 2px hsl(var(--brass) / 0.28), inset 0 0 18px hsl(var(--brass) / 0.10)",
+            border: "1px solid hsl(var(--brass) / 0.75)",
             transition: "all 0.55s cubic-bezier(0.3, 0, 0.2, 1)",
           }}
-        />
+        >
+          {/* Hazard-taped survey frame on the spotlit surface */}
+          <span className="absolute -top-[3px] left-0 right-0 h-[3px] opacity-80" style={{ background: "repeating-linear-gradient(-45deg, hsl(var(--brass)) 0 6px, transparent 6px 12px)" }} />
+          <span className="absolute -bottom-[3px] left-0 right-0 h-[3px] opacity-80" style={{ background: "repeating-linear-gradient(-45deg, hsl(var(--brass)) 0 6px, transparent 6px 12px)" }} />
+        </div>
       ) : (
-        <div className="absolute inset-0 bg-black/80" />
+        <div className="absolute inset-0 bg-black/85" />
       )}
       <TourCard step={step} idx={idx} total={liveSteps.length} onPrev={() => advance(-1)} onNext={() => advance(1)} onSkip={onClose} style={cardStyle} />
     </div>

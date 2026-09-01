@@ -342,8 +342,8 @@ export default function MinistryChart({
         const pos = toScreen(hovered.x, hovered.y);
         return (
           <div className="absolute z-10 pointer-events-none -translate-x-1/2" style={{ left: pos.left, top: pos.top + 16 }}>
-            <div className="bg-card/95 border border-brass/40 rounded-sm px-2.5 py-1.5 shadow-[0_4px_12px_rgba(0,0,0,0.6)]">
-              <p className="font-heading uppercase tracking-[0.2em] text-[10px] text-brass-bright whitespace-nowrap">{hovered.name}</p>
+            <div className="cq-slip rounded-sm px-2.5 py-1.5">
+              <p className="font-heading uppercase tracking-[0.2em] text-[10px] text-brass-bright whitespace-nowrap drop-shadow-[0_1px_0_rgba(0,0,0,0.8)]">{hovered.name}</p>
               <p className="font-mono text-[9px] text-muted-foreground whitespace-nowrap">
                 {(NODE_KINDS[hovered.kind]?.label || hovered.kind).toUpperCase()}
                 {nodeTip ? ` — ${nodeTip(hovered).toUpperCase()}` : ""}
