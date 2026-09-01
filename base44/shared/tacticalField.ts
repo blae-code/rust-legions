@@ -427,14 +427,25 @@ export function generateField(opts = {}) {
   // One metalled lane west to east. It is the connectivity backbone and the
   // reason the connectivity repair in step 10 almost never has work to do.
   const arteryHexes = new Set();
-  let ar = (h / 2) | 0;
-  for (let q = 0; q < w; q++) {
-    const tile = tiles[tileKey(q, ar)];
+  const metal = (q, r) => {
+    const tile = tiles[tileKey(q, r)];
     applyTerrain(tile, palette.artery, null);
     tile.elev = TERRAIN[palette.artery].baseElev;
-    arteryHexes.add(tileKey(q, ar));
+    arteryHexes.add(tileKey(q, r));
+  };
+  let ar = (h / 2) | 0;
+  for (let q = 0; q < w; q++) {
+    metal(q, ar);
     const drift = ((rand() * 3) | 0) - 1;
-    ar = Math.max(0, Math.min(h - 1, ar + drift));
+    const next = Math.max(0, Math.min(h - 1, ar + drift));
+    // The six axial neighbours are [+1,0] [+1,-1] [0,-1] [-1,0] [-1,+1] [0,+1].
+    // Read that list: stepping one column east and one row NORTH is adjacent,
+    // stepping one column east and one row SOUTH is NOT — those two hexes are
+    // a distance of 2 apart. A southward drift therefore lays one extra hex in
+    // the next column to bridge the gap, so the lane is a genuinely CONNECTED
+    // chain rather than a dotted line that merely looks like one on a map.
+    if (next === ar + 1 && q + 1 < w) metal(q + 1, ar);
+    ar = next;
   }
 
   // ---- 4. features ----------------------------------------------------------
@@ -529,36 +540,6 @@ export function generateField(opts = {}) {
     for (let i = 0; i < bunkers; i++) stamp('bunker');
   }
 
-  // ---- 10. connectivity repair ---------------------------------------------
-  // Every deploy hex must be walkable from the attacker's corner, or a battle
-  // can be unwinnable before an order is issued. Deterministic: hexLine is
-  // deterministic and `rand` is not consulted here, so the repair cannot make
-  // two identical seeds diverge.
-  const origin = attacker[0];
-  const zone = attacker.concat(defender);
-  const carve = (target, unconditional) => {
-    for (const step of hexLine(origin, target)) {
-      const tile = tiles[tileKey(step.q, step.r)];
-      if (!tile) continue;
-      if (!unconditional && tile.moveCost !== null) continue;
-      applyTerrain(tile, 'open', wf);
-    }
-  };
-  let reached = floodPassable(field, origin);
-  let guard = 0;
-  while (guard < 8) {
-    const missing = zone.filter((hx) => !reached.has(tileKey(hx.q, hx.r)));
-    if (missing.length === 0) break;
-    for (const hx of missing) carve(hx, false);
-    guard++;
-    reached = floodPassable(field, origin);
-  }
-  // Last resort: a hexLine is a chain of adjacent hexes, so opening one whole
-  // and unconditionally cannot fail to connect. The guard counter above is
-  // what stops this loop being unbounded.
-  const stubborn = zone.filter((hx) => !reached.has(tileKey(hx.q, hx.r)));
-  for (const hx of stubborn) carve(hx, true);
-
   field.meta = {
     seed,
     nodeKind: kind,
@@ -567,5 +548,61 @@ export function generateField(opts = {}) {
     losCap: wf.losCap,
     groundsFighters: wf.groundsFighters,
   };
+
+  // ---- 10. connectivity repair ---------------------------------------------
+  repairConnectivity(field);
   return field;
+}
+
+/**
+ * Step 10 — connectivity repair. Every deploy hex must be walkable from the
+ * attacker's corner, or a battle can be unwinnable before an order is issued.
+ *
+ * Deterministic: `hexLine` is deterministic and `rand` is never consulted here,
+ * so the repair cannot make two identical seeds diverge. It reads the weather
+ * off `field.meta`, so it must run AFTER meta is set; that is the only ordering
+ * constraint on it, and nothing else runs after it.
+ *
+ * EXPORTED ON PURPOSE. Work item 7 requires the guard counter to be asserted,
+ * and a guard inside a closure cannot be asserted from outside. On a board the
+ * generator actually produces this pass carves nothing (the arterial lane and
+ * the normalised deploy strips have already connected everything), so leaving
+ * it unexported would leave the whole pass — flood, guard loop, carve and the
+ * unconditional last resort — with no coverage at all. The return value is what
+ * a test reads: `{ passes, carved, forced }`.
+ *
+ * @param {object} field a field with `tiles`, `deploy` and `meta` already set
+ * @returns {{passes:number, carved:number, forced:number}} work actually done
+ */
+export function repairConnectivity(field) {
+  const tiles = field.tiles;
+  const wf = WEATHER_FIELD[field.meta && field.meta.weather] || WEATHER_FIELD.clear;
+  const origin = field.deploy.attacker[0];
+  const zone = field.deploy.attacker.concat(field.deploy.defender);
+  const carved = new Set();
+  const carve = (target, unconditional) => {
+    for (const step of hexLine(origin, target)) {
+      const k = tileKey(step.q, step.r);
+      const tile = tiles[k];
+      if (!tile) continue;
+      if (!unconditional && tile.moveCost !== null) continue;
+      applyTerrain(tile, 'open', wf);
+      carved.add(k);
+    }
+  };
+  let reached = floodPassable(field, origin);
+  let passes = 0;
+  while (passes < 8) {
+    const missing = zone.filter((hx) => !reached.has(tileKey(hx.q, hx.r)));
+    if (missing.length === 0) break;
+    for (const hx of missing) carve(hx, false);
+    passes++;
+    reached = floodPassable(field, origin);
+  }
+  // Last resort: a hexLine is a chain of adjacent hexes, so opening one whole
+  // and unconditionally cannot fail to connect. The guard counter above is what
+  // stops this loop being unbounded; `forced` reports whether it was reached.
+  const stubborn = zone.filter((hx) => !reached.has(tileKey(hx.q, hx.r)));
+  for (const hx of stubborn) carve(hx, true);
+  return { passes, carved: carved.size, forced: stubborn.length };
 }
