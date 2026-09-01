@@ -33,6 +33,7 @@ import StalemateAlert from "@/components/game/StalemateAlert";
 import AttritionBanner from "@/components/game/AttritionBanner";
 import { Film } from "lucide-react";
 import LobbyView from "@/components/game/LobbyView";
+import BriefingScreen from "@/components/game/briefing/BriefingScreen";
 import WarChronicle from "@/components/game/WarChronicle";
 import WarCharts from "@/components/game/charts/WarCharts";
 import BattleView from "@/components/game/BattleView";
@@ -69,6 +70,8 @@ export default function GamePage() {
   const [showProtectorate, setShowProtectorate] = useState(false);
   const [tourOpen, setTourOpen] = useState(false);
   const [showAfterAction, setShowAfterAction] = useState(false);
+  const [showBriefing, setShowBriefing] = useState(false);
+  const briefingShown = useRef(false);
   const afterActionShown = useRef(false);
   const pollRef = useRef(null);
   const prevBattleRef = useRef(false);
@@ -104,6 +107,14 @@ export default function GamePage() {
     const t = setTimeout(() => setTourOpen(true), 1200);
     return () => clearTimeout(t);
   }, [game?.status, game?.mySlot]);
+
+  // The front goes live — the sealed operation file lands on the desk, once per war
+  useEffect(() => {
+    if (game?.status !== "active" || briefingShown.current) return;
+    briefingShown.current = true;
+    if (localStorage.getItem(`cq_briefing_${gameId}`)) return;
+    setShowBriefing(true);
+  }, [game?.status, gameId]);
 
   // The war ends — the Ministry files its dossier and puts it straight on the desk
   useEffect(() => {
@@ -335,6 +346,14 @@ export default function GamePage() {
             </button>
           </CommandTip>
         )}
+        <CommandTip title="Operation Briefing" body="Reopen the sealed briefing file — objectives, terrain and weather conditions.">
+          <button
+            onClick={() => { playSfx("select"); setShowBriefing(true); }}
+            className="p-1.5 rounded-sm border border-border text-muted-foreground hover:text-brass-bright hover:border-brass/50 transition-colors"
+          >
+            <ScrollText className="w-3.5 h-3.5" />
+          </button>
+        </CommandTip>
         <CommandTip title="The Archive" body="Factions, worlds, and the annals of past campaigns.">
           <button
             onClick={() => { playSfx("select"); setShowCodex(true); }}
@@ -498,6 +517,12 @@ export default function GamePage() {
 
       {showAfterAction && game.status === "complete" && (
         <AfterActionScreen game={game} onClose={() => setShowAfterAction(false)} />
+      )}
+      {showBriefing && (
+        <BriefingScreen
+          game={game}
+          onClose={() => { setShowBriefing(false); localStorage.setItem(`cq_briefing_${gameId}`, "1"); }}
+        />
       )}
       {showReplay && <ReplayTheater game={game} onClose={() => setShowReplay(false)} />}
       <LocalAccordsPanel
