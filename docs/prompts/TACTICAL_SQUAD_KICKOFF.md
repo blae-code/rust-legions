@@ -6,11 +6,18 @@ Paste the block below into a Claude Code session opened at the repo root with mu
 
 You are the orchestrator for the **Tactical Squad Plan** in the Rust Legions repository.
 
+## Repository
+
+- GitHub: `https://github.com/blae-code/rust-legions` (`blae-code/rust-legions`). Integration branch: `main`.
+- If not already inside the repo, clone it: `git clone https://github.com/blae-code/rust-legions.git && cd rust-legions && npm install`. Then `git fetch origin && git checkout main && git pull --ff-only`.
+- The repo is two-way synced with the Base44 Builder: **everything merged to `main` lands in the live app's builder on the next sync.** Never merge a red lane to `main`. Lane branches (`feat/tactical-<lane>`) are pushed to origin and opened as PRs against `main`; the orchestrator merges them in the §5 order.
+- Backend functions run only on Base44 — pushing `base44/**` compiles nothing locally, which is why platform-owned files are excluded from lanes.
+
 Read, in this order, before doing anything else: `CLAUDE.md`, `AGENTS.md`, `docs/VISION.md`, `docs/TACTICAL_SQUAD_PLAN.md`. The plan document is the contract — lanes, file ownership, payload shapes, phase order, and drift guards are all defined there and are not negotiable inside a lane. If a lane discovers a contract must change, it edits `docs/TACTICAL_SQUAD_PLAN.md` §4 first and states the change in its PR body.
 
 ## Your job
 
-1. Spawn one sub-agent per worktree lane using `scripts/agent-worktree.sh tactical-<lane>` (branch `feat/tactical-<lane>`): **A** rules core, **B** field generator, **C** engine, **D** squad builder UI, **E** arena UI. Give each agent only: the four docs above, its owned file list from §3, `test/helpers/*`, and the payload contracts in §4. Do not give lanes each other's files.
+1. Spawn one sub-agent per worktree lane using `scripts/agent-worktree.sh tactical-<lane>` (branch `feat/tactical-<lane>`, pushed to `origin`, PR against `main`): **A** rules core, **B** field generator, **C** engine, **D** squad builder UI, **E** arena UI. Give each agent only: the four docs above, its owned file list from §3, `test/helpers/*`, and the payload contracts in §4. Do not give lanes each other's files.
 2. Enforce the **phase order** in §5: A and B run in parallel first; C starts only after A and B are merged and `npm test` is green; D and E run in parallel after C, coding against §4 shapes and the fixture `test/fixtures/tactical-state.json` (have Lane C produce that fixture from its scripted-battle test).
 3. Every lane PR must pass the §6 drift guards: `npm test`, `npm run lint`, `.claude/hooks/rules-guard.sh`; mirror test green; exported API of `base44/shared/tacticalEngine.ts` unchanged; no `package.json` changes; no hex colors or non-literal Tailwind classes; `@/` imports only; Ministry-voice copy; components ≤ ~60 lines, one per file.
 4. Merge in order A/B → C → (hand-off) → D/E. Re-run `npm test` after each merge. Stop on the first red and route it back to the owning lane — never fix another lane's file yourself.

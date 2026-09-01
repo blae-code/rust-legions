@@ -167,10 +167,11 @@ Merge order is strict: A/B → C → platform → D/E. D and E may open PRs earl
 8. **Run before PR:** `npm test`, `npm run lint`, `.claude/hooks/rules-guard.sh` (pre-push does this).
 9. **Doc drift** — a PR that changes any rule number also edits `docs/COMBAT_DESIGN.md` (lanes) and flags `docs/GAME_RULES.md` for the platform lane.
 
-## 7. Worktree protocol
+## 7. Worktree & git protocol
 
+- Repository: `https://github.com/blae-code/rust-legions` — integration branch `main`, two-way synced with the Base44 Builder (a merge to `main` reaches the live app's builder; a red merge breaks the live preview).
 - One worktree per lane: `scripts/agent-worktree.sh tactical-<lane>` → branch `feat/tactical-<lane>`.
 - Lane agents read: `CLAUDE.md`, `docs/VISION.md`, this file, their owned files, and `test/helpers/*`. Nothing else is required context.
-- PR title: `tactical(<lane>): <summary>`; body lists contract sections touched and test names added.
+- Lane branches push to `origin/feat/tactical-<lane>` and open a PR against `main`. PR title: `tactical(<lane>): <summary>`; body lists contract sections touched and test names added.
 - The orchestrator merges in the §5 order, re-running `npm test` after each merge, and stops on the first red.
 - Anything needing the live backend (entity writes, function deploy, `Patch` records) is handed back to the Base44 chat session as a checklist, not attempted from a worktree.
