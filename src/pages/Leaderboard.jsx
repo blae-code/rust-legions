@@ -23,7 +23,7 @@ export default function Leaderboard() {
   }, [profiles]);
 
   return (
-    <div className="space-y-4 max-w-4xl mx-auto">
+    <div className="space-y-4 max-w-6xl mx-auto">
       <div className="cq-panel relative overflow-hidden p-5">
         <div className="cq-hazard absolute top-0 left-0 right-0" />
         <p className="cq-label text-rust pt-1">Ministry of War · Honours Directorate</p>
@@ -44,7 +44,7 @@ export default function Leaderboard() {
           NO SERVICE RECORDS ON FILE — THE ROLL AWAITS ITS FIRST COMMANDER
         </p>
       ) : (
-        <div className="space-y-2">
+        <div className="grid gap-2 xl:grid-cols-2">
           {ranked.map((p, i) => (
             <CommanderRankRow key={p.id} rank={i + 1} profile={p} index={i} />
           ))}

@@ -93,12 +93,13 @@ export default function NewGame() {
   const canCreate = factionId && totalSlots >= 2 && totalSlots <= 4;
 
   return (
-    <div className="max-w-3xl mx-auto space-y-5">
+    <div className="max-w-3xl xl:max-w-6xl mx-auto space-y-5">
       <div>
         <p className="cq-label">War Ministry · Directive</p>
         <h1 className="cq-display text-4xl">Open a New Front</h1>
       </div>
 
+      <div className="grid xl:grid-cols-2 gap-5 items-start">
       <div className="cq-panel p-5 space-y-4">
         <div>
           <label className="cq-label">Operation Name</label>
@@ -195,6 +196,7 @@ export default function NewGame() {
             ))}
           </select>
         </div>
+      </div>
       </div>
 
       {error && <p className="text-sm text-rust font-mono">{error}</p>}

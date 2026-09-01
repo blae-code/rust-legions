@@ -77,7 +77,7 @@ export default function FieldManual() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto pb-16">
+    <div className="max-w-6xl 2xl:max-w-[1400px] mx-auto pb-16">
       {/* masthead */}
       <motion.div
         initial={{ opacity: 0, y: -12 }}

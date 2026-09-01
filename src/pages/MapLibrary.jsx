@@ -51,7 +51,7 @@ export default function MapLibrary() {
           The library is empty. Build a map or generate one when starting a game.
         </p>
       ) : (
-        <div className="grid lg:grid-cols-[320px_1fr] gap-4">
+        <div className="grid lg:grid-cols-[320px_1fr] 2xl:grid-cols-[380px_1fr] gap-4">
           <div className="space-y-2">
             <div className="flex gap-2">
               <select
@@ -78,7 +78,7 @@ export default function MapLibrary() {
                 NO CHARTS MATCH THESE FILTERS
               </p>
             )}
-            <div className="space-y-2 max-h-[560px] overflow-y-auto pr-1">
+            <div className="space-y-2 max-h-[560px] lg:max-h-[calc(100vh-16rem)] overflow-y-auto pr-1">
             {filtered.map((m) => (
               <button
                 key={m.id}

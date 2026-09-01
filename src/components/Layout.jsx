@@ -42,7 +42,7 @@ export default function Layout() {
       <MusicController />
       <header className="sticky top-0 z-40 border-b border-border bg-card/95 backdrop-blur-sm cq-metal">
         <div className="cq-hazard" />
-        <div className="max-w-7xl mx-auto px-4 h-14 flex items-center gap-6">
+        <div className="max-w-7xl 2xl:max-w-[1600px] mx-auto px-4 h-14 flex items-center gap-6">
           <Link to="/" className="group flex items-center gap-2 text-brass font-display text-xl tracking-[0.2em] uppercase transition-colors hover:text-brass-bright">
             <Shield className="w-5 h-5 transition-transform group-hover:scale-110" /> Rust Legions
           </Link>
@@ -73,10 +73,10 @@ export default function Layout() {
           </div>
         </div>
       </header>
-      <main key={location.pathname} className="cq-page-in max-w-7xl mx-auto px-4 py-6">
+      <main key={location.pathname} className="cq-page-in max-w-7xl 2xl:max-w-[1600px] mx-auto px-4 py-6">
         <Outlet />
       </main>
-      <footer className="max-w-7xl mx-auto px-4 pb-4">
+      <footer className="max-w-7xl 2xl:max-w-[1600px] mx-auto px-4 pb-4">
         <p className="font-mono text-[9px] text-muted-foreground/50 tracking-[0.3em] text-center border-t border-border/50 pt-3">
           MINISTRY OF WAR · FIELD TERMINAL 7-A · ALL TRANSMISSIONS MONITORED
         </p>
