@@ -10,7 +10,7 @@ import DirectiveHeader from "@/components/setup/DirectiveHeader";
 import FactionSelect from "@/components/setup/FactionSelect";
 import CommandRoster from "@/components/setup/CommandRoster";
 import OrderOfBattle from "@/components/setup/OrderOfBattle";
-import { PRESET_FACTIONS, presetToFactionRecord } from "@/lib/presetFactions";
+import { presetToFactionRecord } from "@/lib/presetFactions";
 
 // Numbered directive section — each field of Form 7-K
 function Section({ step, title, tip, children, delay = 0 }) {

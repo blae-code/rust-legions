@@ -13,7 +13,7 @@ Read in order: `CLAUDE.md` → `docs/VISION.md` → this file → the lane's own
 | Canonical rules | `base44/shared/tactical.ts` | Formation-mass model: `TROOPS`, `ACTIONS`, `SIZE`, `deriveFormation`, `poolCost`, `toRegiments`, `hexDistance` |
 | Server state machine | `base44/shared/tacticalEngine.ts` | `createTactical`, `submitFormations`, `autoFormations`, `resolveOrders`, `autoOrders`, `activeFormation`, `battleResult`, `tacticalView`. 9×7 axial hex grid, initiative queue, 20-round limit |
 | Engine wiring | `base44/functions/gameEngine/entry.ts` | Actions `battleSetMode {mode}`, `tacticalDeploy {formations}`, `tacticalOrders {formationId, moveTo, action, targetId}`; `runAutoTurns` drives absent staffs; `battleResult` → `finishBattle` → `macroApplyBattleOutcome` |
-| Frontend mirror | `src/lib/tactical/data.js` | Mirrors `tactical.ts` + `hexPixel`, `hexCorners`, `dominantTroop` |
+| Frontend mirror | `src/lib/tactical/data.js` | Mirrors `tactical.ts` + `hexPixel`, `hexCorners`, `dominantTroop`. **Q6 note:** `hexPixel`/`hexCorners` move to `src/lib/tactical/field.js` when Lane B merges; `data.js` keeps re-exporting them so no consumer's import path breaks. |
 | Deployment UI | `src/components/game/tactical/*` | `EngagementStage` (router), `ResolutionElection`, `DeploymentScreen` (drag-and-drop Form 9-D), `FormationSlip`, `FormationStats`, `ReserveRack`, `TroopStack`, `StageFrame` |
 | Sprites / FX | `src/components/game/sprites/UnitSprite.jsx`, `src/index.css` (`.cq-tac-*`) | Silhouettes for riflemen, gunners, scouts, crawler, artillery, fighter, gunboat; frame-stepped idle/attack/hit/boom keyframes |
 
@@ -115,7 +115,7 @@ Acceptance: mirror test green; Points Audit complete; each new type has a `unit_
 Owns: `base44/shared/catalog.ts` (NEW — canonical `TECHS`, `ARMORY_ITEMS`, `RELIC_PROJECTS`), `src/lib/doctrine.js`, `src/lib/armory.js`, `docs/TECH_DESIGN.md`, `imageLibrary.js` § doctrine/decrees/relics placeholders, `test/catalog-mirror.test.js`.
 Delivers:
 - **Doctrine tree 3×3 (9) → 5 branches × 4 tiers (≥20 + capstones)**: the 9 existing keys stay byte-identical in `label/cost/prereq/effect` (live saves reference them). Add branches `signals` (recon, intercept, initiative) and `reclamation` (dig/relic/fragment), a tier-4 capstone per branch, cross-branch prereqs (`prereq: string | string[]`). Effects become a typed `effects[]` (§4) with the human `effect` line kept.
-- **Armory 7 → 20+**: ≥6 new modules (laboratory/hangar/aura bays from `GEAR_LIBRARY §2`), ≥6 new decrees (each tagged with an ideology `axis` + `direction`, `VISION §5`), and ≥4 **Relic Projects** (fragment-costed `[II]`/`[III]`: `land_dreadnought`, `lance_carriage`, `the_beacon`, `the_new_ignition`).
+- **Armory 7 → 20+**: ≥6 new modules (laboratory/hangar/aura bays from `GEAR_LIBRARY §2`), ≥6 new decrees (each tagged with an ideology `axis` + `direction`, `VISION §6.1`), and ≥4 **Relic Projects** (fragment-costed `[II]`/`[III]`: `land_dreadnought`, `lance_carriage`, `the_beacon`, `the_new_ignition`).
 - **Creed-locked content**: ≥1 tech and ≥1 decree per Departure (Recall / Finished Ledger / Flight / Discarding) via `creedLock`.
 - Cost curve in `TECH_DESIGN.md` (RP per tier, expected unlock turn at 1 RP/round).
 Acceptance: existing keys unchanged; catalog mirror test green; every tech has a `tech_<key>` plate and every decree a `decree_<key>` plate; `techsByBranch`/`armoryByKind` signatures unchanged.
@@ -123,7 +123,7 @@ Acceptance: existing keys unchanged; catalog mirror test green; every tech has a
 #### Lane H — Factions, houses & lore
 Owns: `src/lib/presetFactions.js`, `src/lib/lifepath.js` (additions only), `src/lib/pointBuy.js` (new perks only), `src/lib/wiki/entries.js`, `docs/LORE.md`, `docs/FACTION_ROSTER.md`, `docs/HERALD_VOICES.md`, `base44/shared/settlementLore.ts` additions, `imageLibrary.js` § factions/houses/settlements/ideology placeholders, `test/presets.test.js`.
 Delivers:
-- **Presets 3 → 13**: one playable preset per Great House in `FACTION_ROSTER.md` (10) plus the 3 existing. Each a legal point-buy ledger (`netPoints ≤ 0`, ≤3 liabilities), `traits[]` in the validated effect schema, `npcDispositions`, `lifepathChoices`, `insigniaDescription`, 120–180-word `lore`, plus `uniqueRoster: { squads, upgrades, decree }` and `heraldVoice` referencing Lane F/G keys (H lists any not-yet-merged keys in its PR for reconciliation).
+- **Presets 3 → 13**: one playable preset per Great House in `FACTION_ROSTER.md` (10) plus the 3 existing. Each a legal point-buy ledger (`netPoints ≤ 0`, ≤3 liabilities), `traits[]` in the validated effect schema, `npcDispositions`, `lifepathChoices`, `insigniaDescription`, 120–180-word `lore`, plus `uniqueRoster: { squads, upgrades, decree, patterns }` (AMENDMENT 2026-09-01, Q3 — §4 governs; `patterns` was missing here) and `heraldVoice` referencing Lane F/G keys (H lists any not-yet-merged keys in its PR for reconciliation).
 - **Herald voices**: per faction, a `HERALD_VOICES.md` entry (register, catchphrases, 3 sample intercepts per mood) for `npcHerald`.
 - **Point-buy**: ≥8 new perks (4 assets / 4 liabilities) tied to nomad-keel play (graze, swath, columns, boarding).
 - **Lifepath**: 1 new chapter (`VI — The Standard`) with 4 choices setting the army standard (`std_*` plates) plus a small numeric effect.
@@ -181,7 +181,10 @@ SquadTemplate = { name: string, type: SquadTypeKey, specialists: SpecialistKey[]
 { action: 'tacticalDeploy', gameId, squads: [{ name, type, figures, specialists: [], at?: { q, r } }] }
 
 // tacticalOrders body (Lane E → platform → Lane C)
-{ action: 'tacticalOrders', gameId, squadId, moveTo?: { q, r }, action: SquadActionKey, target?: { squadId } | { q, r } }
+{ action: 'tacticalOrders', gameId, squadId, moveTo?: { q, r }, orderAction: SquadActionKey, target?: { squadId } | { q, r } }
+// AMENDMENT 2026-09-01 (orchestrator, Q1): the squad's action key is `orderAction`. The envelope key
+// `action` stays the gameEngine dispatch verb, as in every other action body. gameEngine must read
+// body.orderAction (platform handoff). No lane may re-file this amendment.
 
 // tacticalAuto body (Lane E → platform)
 { action: 'tacticalAuto', gameId }
@@ -211,6 +214,9 @@ Upgrade    = { key, label, appliesTo: SquadTypeKey[], pts, tier, mods: Partial<S
 Tech       = { key, branch, tier: 1|2|3|4, label, cost, prereq: string|string[]|null, creedLock?, effect: string, effects: [{ scope: 'macro'|'tactical'|'economy', key: string, value: number }], desc }
 ArmoryItem = { key, kind: 'module'|'decree'|'relic_project', label, cost: { steel?, manpower?, fuel?, fragments?: { cache?, engine?, cipher?, wake? } }, tier, axis?: 'authority'|'economy'|'creed'|'mobilization', direction?: -1|1, creedLock?, effects: Tech['effects'], desc }
 Preset     = existing PRESET_FACTIONS row + { house: string, uniqueRoster: { squads: SquadTypeKey[], upgrades: UpgradeKey[], decree: ArmoryKey, patterns: WeaponPatternKey[] }, heraldVoice: string }
+// AMENDMENT 2026-09-01 (orchestrator, Q3b): NO `keel` field is added. §3 Lane H's required
+// `keel_<key>` plate is keyed off the existing `house` value (`keel_<houseKey>`), so the row needs
+// nothing new. Lane H must not file an amendment adding one.
 
 // ---- Arms Catalogue (Lane I) ----
 WeaponBase     = { accuracy, rateOfFire, damage, armorPen, range, reliability, weight, damageType: DamageType, aoe: { radius, falloff } | null }
@@ -255,6 +261,8 @@ Effect `key` vocabulary (the engine applies these; add new keys here before usin
 
 Regiments ↔ figures: `1 company = FIGURES_PER_COMPANY` (Lane A sets; default 10 for infantry-derived, 1 for crawler/artillery/fighter — vehicles are single-figure squads). `toRegiments` rounds **down** so battles never create companies.
 
+**AMENDMENT 2026-09-01 (orchestrator, Q5) — `FIGURES_PER_COMPANY` is keyed by REGIMENT, never by squad type.** §3 Lane A's "1 company = 1 squad's default figures" holds only for `riflemen`; it breaks for every specialised type whose default squad is not 10 figures (Lane F ships several). The binding rule: a squad type's `figures` is its own default squad size and may differ freely from its source regiment's company size; `toRegiments` converts surviving figures back through the **regiment's** `FIGURES_PER_COMPANY`. `riflemen`-derived = 10 and `crawler`/`artillery`/`fighter` = 1 are hard values and must be asserted in Lane A's tests.
+
 ---
 
 ## 5. Phases & merge order
@@ -266,9 +274,26 @@ Regiments ↔ figures: `1 company = FIGURES_PER_COMPANY` (Lane A sets; default 1
 | **P3 — Platform wiring** | Platform | `createTactical` field opts, squads deploy, `tacticalAuto`, live test of a full NPC-defended battle via `test_backend_function` |
 | **P4 — UI** | D, E in parallel (against P1 shapes; E stubs `fx`) | Deployment + arena render against a recorded `getState` fixture in `test/fixtures/tactical-state.json` |
 | **P5 — Ship** | Platform | Patch dispatch filed; `docs/GAME_RULES.md` § Set-Piece Engagements; `docs/ARCHITECTURE.md` action rows |
-| **C1 — Catalog contracts** | F, G, I, then J (parallel with P1) | Squad/specialist/upgrade rows, `catalog.ts`, `arms.ts` and `motorPool.ts` merged; mirror + roll tests green; damage-model tables in place; placeholder plates registered; `[PROPOSED]` rules drafted |
+| **C1 — Catalog contracts** | I, then G ∥ J, then F (see the executed wave order below) | Squad/specialist/upgrade rows, `catalog.ts`, `arms.ts` and `motorPool.ts` merged; mirror + roll tests green; damage-model tables in place; placeholder plates registered; `[PROPOSED]` rules drafted |
 | **C2 — Factions & lore** | H (after C1) | 13 presets pass validation; herald voices, codex, settlements, lifepath chapter merged |
 | **C3 — Platform content wiring** | Platform | Catalogs imported into the engine, `effects[]` applied, locks enforced, plates generated & delivered, `[PROPOSED]` promoted, patch dispatch |
+
+**AMENDMENT 2026-09-01 (orchestrator, Q2) — the executed wave order.** The paragraph below was
+internally circular about Lane F: the C1 row put F parallel with A, while §3 Lane F appends rows to
+tables Lane A creates, and §5 itself puts I ahead of A. Chaining those gives `I → A → F`, which the
+first two readings forbid. The dependency graph has exactly one valid topological order, and it is
+the one being executed:
+
+| Wave | Lanes | Why |
+| --- | --- | --- |
+| 1 | **I**, **B**, **G** | I is the long pole and blocks A and J; B and G touch nothing else |
+| 2 | **A**, **J** | both need I merged (A imports `resolveHit`; J draws hardpoints from `WEAPON_PATTERNS`) |
+| 3 | **C**, **F** | C needs A+B; F appends rows to A's tables and prices against I/J |
+| 4 | **H** | references F, G, I and J keys |
+| — | *platform handoff, then wait* | P3 + C3 run in the Base44 session |
+| 5 | **D**, **E** | after Phase 3 is live; D also needs F, I, J |
+
+No lane may start before its wave. The original prose follows and is superseded where it conflicts.
 
 Merge order is strict: A/B → C → platform → D/E. D and E may open PRs early but rebase on P3. Content runs on its own track: F/G/I → J → H → platform (C3). J starts once I merges (J's hardpoints reference I's `WEAPON_PATTERNS`, its facings use I's `ARMOUR_CLASSES`); H after F/G/I/J. F, I and J **must** land before D (the squad builder renders F's rows, I's loadouts and J's vehicles — D adds a "Small Arms Issue" step for infantry and a "Motor Pool Refit" step for mechanized stands, each fitting mods from the reserve). Lane A imports `resolveHit` from `arms.ts` rather than authoring its own armour math, so I's damage-model tables merge **before** A finalises combat resolution.
 

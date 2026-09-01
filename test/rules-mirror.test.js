@@ -1,9 +1,14 @@
 // Rules-mirror invariant — the mechanical enforcement of CLAUDE.md's
 // "One Critical Invariant": the authoritative rules in the backend functions
 // (base44/functions/gameEngine + concurrentPlay) must stay in sync with the
-// frontend mirrors in src/lib. These tests lift the backend's pure-data rule
-// tables out of their Deno source (which can't be imported here) and compare
-// them field-by-field against the mirrors. If either side drifts, CI fails.
+// frontend mirrors in src/lib. Some rule tables have since been de-duplicated
+// into shared Deno modules under base44/shared/*.ts that those functions import
+// (e.g. PERK_MODS in base44/shared/perkMods.ts) — the server-side source of
+// truth is then the shared module, and this file lifts each table from
+// whichever file actually declares it. These tests lift the backend's pure-data
+// rule tables out of their Deno source (which can't be imported here) and
+// compare them field-by-field against the mirrors. If either side drifts, CI
+// fails.
 import { describe, it, expect } from "vitest";
 import { readRepoFile, extractConst } from "./helpers/extract-const.js";
 
@@ -19,6 +24,7 @@ import { COMMAND_VEHICLES as MIRROR_VEHICLES, SUPREME_VEHICLE as MIRROR_SUPREME,
 // ── Backend sources (read as text, tables extracted) ──
 const gameEngineSrc = readRepoFile("base44/functions/gameEngine/entry.ts");
 const concurrentSrc = readRepoFile("base44/functions/concurrentPlay/entry.ts");
+const perkModsSrc = readRepoFile("base44/shared/perkMods.ts");
 
 const GE = (name) => extractConst(gameEngineSrc, name);
 const CP = (name) => extractConst(concurrentSrc, name);
@@ -63,17 +69,27 @@ describe("research tree — TECHS across gameEngine, concurrentPlay, and doctrin
   }
 });
 
-describe("point-buy perks — PERK_MODS (both backends) ↔ pointBuy.js PERKS", () => {
-  const GE_PERKS = GE("PERK_MODS");
-  const CP_PERKS = CP("PERK_MODS");
+// PERK_MODS was de-duplicated into base44/shared/perkMods.ts (commit b27babb):
+// both backends now IMPORT it rather than inlining a copy each, so the shared
+// module is the single server-side source of truth. The "are the two backends
+// identical" question therefore becomes "do both backends actually consume the
+// shared table, and has neither re-inlined a local copy".
+describe("point-buy perks — shared/perkMods.ts PERK_MODS ↔ pointBuy.js PERKS", () => {
+  const SHARED_PERKS = extractConst(perkModsSrc, "PERK_MODS");
   const mirrorIds = PERKS.map((p) => p.id).sort();
 
-  it("gameEngine and concurrentPlay PERK_MODS are byte-identical tables", () => {
-    expect(CP_PERKS).toEqual(GE_PERKS);
-  });
+  const SHARED_IMPORT = /import\s*\{[^}]*\bcompileMods\b[^}]*\}\s*from\s*['"][^'"]*shared\/perkMods\.ts['"]/;
+  const LOCAL_DECL = /\bconst\s+PERK_MODS\s*=/;
+
+  for (const [label, src] of [["gameEngine", gameEngineSrc], ["concurrentPlay", concurrentSrc]]) {
+    it(`${label} consumes the shared perk table and declares no local copy`, () => {
+      expect(src).toMatch(SHARED_IMPORT);
+      expect(src).not.toMatch(LOCAL_DECL);
+    });
+  }
 
   it("the perk id set matches the frontend catalog", () => {
-    expect(Object.keys(GE_PERKS).sort()).toEqual(mirrorIds);
+    expect(Object.keys(SHARED_PERKS).sort()).toEqual(mirrorIds);
   });
 });
 

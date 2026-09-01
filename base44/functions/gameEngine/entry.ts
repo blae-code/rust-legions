@@ -85,6 +85,7 @@ import {
   STABILITY_START, STABILITY_REVOLT_BELOW, CRISIS_FESTER_STABILITY, CRISIS_CHANCE,
 } from '../../shared/settlementCrisis.ts';
 
+// ---------- Begin settlement charter (harness marker) ----------
 // The first faction into an unclaimed settlement surveys it: the history is
 // recorded on the chart, and whatever stores remain are carted off.
 function surveySettlement(game, slotIdx, nodeId) {
@@ -136,6 +137,7 @@ function applyCharter(game, entry, choiceId) {
   });
   return null;
 }
+// ---------- End settlement charter (harness marker) ----------
 
 // ---------- The Bazaar: barter with a settlement's populace ----------
 // (mirrors src/lib/barter.js) Locals will swap stores with an occupying force,
