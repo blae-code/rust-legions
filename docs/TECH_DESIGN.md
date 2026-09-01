@@ -157,22 +157,41 @@ five branches** — a tier-3 node in Signals costs exactly what a tier-3 node in
 `base44/shared/catalog.ts` carries a per-tech price, and `test/catalog-mirror.test.js` fails any row that
 tries to.
 
-| Tier | RP | Cumulative down one line | Unlocked ~turn (1 RP/round) |
+The **spine** is one node per tier — the cheapest four-node line from a tier-1 root to a tier-4 capstone,
+ignoring every side node and every cross-branch prerequisite. It is the floor, not the branch:
+
+| Tier | RP | Cumulative down the spine | Spine reached ~turn (1 RP/round) |
 | --- | --- | --- | --- |
 | 1 | **3** | 3 | ~**3** |
 | 2 | **4** | 7 | ~**7** |
 | 3 | **6** | 13 | ~**13** |
 | 4 (capstone) | **9** | 22 | ~**22** |
 
-| Scope | RP |
-| --- | --- |
-| One branch, every node (4 tiers, one line) | **22** |
-| The whole tree (5 branches × 22) | **110** |
+**⚠ 22 RP is the spine, not a branch, and it is not what a capstone actually costs.** A branch holds
+more than four nodes, and every capstone names ≥1 prerequisite in a *different* branch — so the real
+bill for a first capstone is its whole transitive prerequisite closure. Cheapest is **Saturation
+Barrage at 25 RP** (it borrows Rationalized Foundries from Industry); the dearest is the Pattern Book
+at **36 RP**. Clearing a branch outright costs more again:
 
-**No single game finishes the tree, and that is the intent.** At 1 RP/round a house reaches roughly one
-capstone by turn 22 and a second by turn 44; 110 rounds is longer than any campaign this ruleset expects
-to run. Research is therefore a *commitment*, not a checklist — the interesting question is never "what
-have I unlocked" but "which two branches did I give up".
+| Branch | Nodes | RP to clear the branch |
+| --- | --- | --- |
+| Armament | 5 | **28** |
+| Industry | 5 | **28** |
+| Logistics | 4 | **22** |
+| Signals | 5 | **28** |
+| Reclamation | 6 | **32** |
+| **The whole tree** | **25** | **138** |
+
+These figures are not typed here by hand twice: `test/catalog-mirror.test.js` parses this table and
+fails if it disagrees with the sum of `TECHS` costs per branch, and it asserts the whole-tree total
+appears verbatim in `docs/GAME_RULES.md` and in the `base44/shared/catalog.ts` header (drift guard 7 —
+the number lives in one place and the other two are checked against it).
+
+**No single game finishes the tree, and that is the intent.** At 1 RP/round a house reaches its first
+capstone around turn 25 and a second — in a branch it has already part-paid for — some fifteen rounds
+later; **138** rounds is longer than any campaign this ruleset expects to run. Research is therefore a
+*commitment*, not a checklist — the interesting question is never "what have I unlocked" but "which two
+branches did I give up".
 
 Two structural brakes sit on top of the curve and are what stop a rush:
 
@@ -272,14 +291,17 @@ corpus stays 100% link-clean.
 
 ## 12. Consumer follow-ups (for the UI / platform lane)
 
-Two shipped call sites are wrong against this catalog. **Neither is Lane G's file and neither was
-touched.** Both are latent today only because the shipped tables had no array prereqs and no fragment
-costs; the moment `catalog.ts` is wired in they are visible bugs.
+**Three** shipped call sites are wrong against this catalog. **None is Lane G's file and none was
+touched.** All three are latent today only because the shipped tables had no array prereqs and no
+fragment costs; the moment `catalog.ts` is wired in they are visible bugs. Two of them are the same
+defect in two places: `affords` and `costString` both filter `RESOURCE_KEYS`, so a Tier-II item's
+fragments are missing from the affordability check **and** from the price the player is shown.
 
 | Site | What it does | Why it breaks | Fix |
 | --- | --- | --- | --- |
 | `src/components/game/research/TechCard.jsx:8` | `const locked = tech.prereq && !(research.completed \|\| []).includes(tech.prereq)` | With an **array** `prereq`, `includes` compares an array against strings and is always false, so all 9 array-prereq techs — **including every capstone** — render permanently locked. | `prereqList(tech).every((p) => completed.includes(p))`, importing `prereqList` from `@/lib/doctrine.js`. |
 | `src/components/game/research/ArmoryPanel.jsx:9` | computes `affords` over `RESOURCE_KEYS` only | `cost.fragments` is invisible, so every `II:*` and `III` row reads as affordable and the purchase fails server-side instead. | Consume `fragmentCost(item)` from `@/lib/armory.js` alongside the three conventional resources. |
+| `src/lib/units.js:42` (called from `src/components/game/research/ArmoryPanel.jsx:38`) | `costString` maps over `RESOURCE_KEYS` only | The same filter one layer down, on the **price tag** rather than the check: `pattern_shop` renders as "8 STL + 4 FUE" and `the_new_ignition` as "16 MAN + 40 STL + 24 FUE", with the classed fragments invisible in the displayed cost. | Append the `fragmentCost(item)` entries to the rendered string, or render fragments as a second line beside it. `units.js` is not Lane G's file and was not touched. |
 
 Two display notes for the same lane, neither a bug: `DoctrinePanel`'s branch grid is `sm:grid-cols-3` and
 now holds **5** branches, and `ArmoryPanel`'s kind grid is `sm:grid-cols-2` and now holds **3** kinds.

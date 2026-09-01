@@ -195,8 +195,9 @@ orchestrator should diff the two rows at merge.
 
 #### G6 — consumer follow-ups (UI lane, not platform, but they break on the same commit)
 
-Both are latent only because the shipped tables had no array prereqs and no fragment costs. Detail and
-the exact fixes are in `docs/TECH_DESIGN.md` §12; neither file is Lane G's and neither was touched.
+All **three** are latent only because the shipped tables had no array prereqs and no fragment costs.
+Detail and the exact fixes are in `docs/TECH_DESIGN.md` §12; none of these files is Lane G's and none
+was touched.
 
 - `src/components/game/research/TechCard.jsx:8` — `includes(tech.prereq)` against an array prereq
   renders all **9** array-prereq techs, every capstone included, permanently locked. Fix:
@@ -204,10 +205,26 @@ the exact fixes are in `docs/TECH_DESIGN.md` §12; neither file is Lane G's and 
 - `src/components/game/research/ArmoryPanel.jsx:9` — `affords` iterates `RESOURCE_KEYS` only, so
   `cost.fragments` is invisible and every `II:*`/`III` row reads as affordable. Fix: consume
   `fragmentCost(item)`, exported from `@/lib/armory.js` for this purpose.
+- `src/lib/units.js:42` — `costString` filters the **same** `RESOURCE_KEYS`, and `ArmoryPanel.jsx:38`
+  renders the price with it. So the fragments are missing from the price tag as well as from the
+  affordability check: `pattern_shop` shows "8 STL + 4 FUE", `the_new_ignition` "16 MAN + 40 STL + 24
+  FUE". Fix: append the `fragmentCost(item)` entries to the rendered string. **`units.js` is a shared
+  frontend file, not Lane G's — this is a report, not a change.**
 
 Two display notes for the same lane, neither a bug: `DoctrinePanel`'s branch grid is `sm:grid-cols-3`
 and now holds **5** branches; `ArmoryPanel`'s kind grid is `sm:grid-cols-2` and now holds **3** kinds.
 Both wrap and render correctly.
+
+#### G6b — one effect the §4 vocabulary cannot express
+
+`docs/GEAR_LIBRARY.md` defines the **Pattern Shop** as reducing Armory certification **cost** by a
+quarter. §4's effect-key vocabulary has no cost-modifier key and no percentage semantics — every key in
+it is a flat signed integer added to a stat, an income or a turn count. Rather than invent a percentage
+that the engine would have to special-case, the row ships encoded as `buildTurns -2`, which is a true
+statement about it, and the shortfall is recorded here instead of hidden in prose. **No vocabulary key
+was added.** If the platform lane wants the certification discount, it needs a new §4 key (a flat
+`certificationCost` modifier is the shape that matches the rest of the vocabulary; a percentage is not)
+and `pattern_shop` is its first consumer.
 
 #### G7 — promote the rules section
 

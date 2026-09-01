@@ -353,8 +353,10 @@ are untouched and remain authoritative for hex games.
 **Branches and tiers.** Five branches — Armament, Industry, Logistics, **Signals**, **Reclamation** —
 each with four tiers and exactly one tier-4 capstone. Research points accrue at **1 per completed full
 round** as today. Cost is fixed by tier and identical in every branch: **tier 1 = 3 RP · tier 2 = 4 RP ·
-tier 3 = 6 RP · tier 4 = 9 RP**. One branch end to end is **22 RP**; the whole tree is **110 RP**, which
-is longer than a campaign — the tree is a commitment, not a checklist.
+tier 3 = 6 RP · tier 4 = 9 RP**. The cheapest line from a root to a capstone — one node per tier — is
+**22 RP**, but no capstone is actually reachable for that: each names a prerequisite in another branch,
+so the cheapest first capstone bills **25 RP**. Clearing every branch is **138 RP**, which is longer
+than a campaign — the tree is a commitment, not a checklist.
 
 - **Signals** buys line of sight, initiative and steadier morale tests. Capstone: **the Intercept
   Bureau**.
