@@ -131,6 +131,21 @@ Delivers:
 - **Codex**: ≥40 new entries across houses, units, techs, objects, places, cross-linked by key.
 Acceptance: every preset passes `pointBuy.js` validation in a unit test; no PII anywhere; every house has `house_<key>_crest` + `keel_<key>` plates; `HERALD_VOICES.md` covers all 13 factions.
 
+#### Lane I — The Arms Catalogue (granular weapons, calibres, makers, quality & mods)
+"Rifles" is a *class*, not a weapon. Squads carry **named weapon patterns** from fictional manufacturers, in specific calibres, at a rolled **quality grade**, with slot-based **modifications** and named **quirks** — Enlisted-style specificity with Borderlands-style variety, but every roll is server-seeded and every effect numeric.
+Owns: `base44/shared/arms.ts` (NEW — canonical), `src/lib/arms.js` (mirror), `docs/ARMS_CATALOGUE.md` (NEW), `test/arms-mirror.test.js`, `test/arms-roll.test.js`, `imageLibrary.js` § `arms` placeholders (add category `arms`: "The Arms Catalogue — weapon patterns, maker's marks and mod kits").
+Delivers:
+- **Manufacturers (≥8)**: fictional works/guilds/armouries, each tied to a Great House or settlement culture from `LORE`/`FACTION_ROSTER` (a Hundredweight combine works, an Emberwright Union guild shop, a Salvage Court prize-refit yard, a Ferrymen shrine-armoury, a Crossloom trade pattern-house…). Each `Manufacturer` has a **house signature** — a consistent stat lean applied to everything it makes — name-stems for pattern names, a maker's-mark plate, and 60–100 words of lore. Faction access per maker: `native` / `licensed` / `captured` (cost ×1.0 / ×1.25 / ×1.5).
+- **Calibres (≥10)**: pistol, carbine, rifle, heavy-rifle, machine-gun, shotgun bore, mortar bores, crawler gun bores, artillery shell weights, flame fuel grades — each with numeric `damage/armorPen/range/weight`, a `logisticsClass` (which regiment stock feeds it), and lore on who standardised it (the existing `standardized_calibers` tech should reference these).
+- **Weapon patterns (≥40 hand-authored)**: rifles, carbines, sidearms, SMGs, LMGs/HMGs, trench guns, marksman rifles, anti-armor rifles, flame projectors, mortars, crawler main guns, artillery pieces, aircraft guns. In-world nomenclature: pattern year + maker + mark ("Hundredweight 141 Levy Rifle, Mk II"). Each has `base` stats, mod `slots`, innate `quirks`, `pts`, `appliesTo` squad types, `tier`.
+- **Quality grades (5)**: `scrap, issue, proofed, master, relic` — multipliers, `ptsMult`, roll weights. Lanes reference `qualityKey` only; the grade's colour/visual is the Base44 session's.
+- **Modifications (≥25)** by slot (`barrel, optic, magazine, stock, muzzle, bayonet, ammunition, mount`) — every mod has a numeric **tradeoff** (bipod: accuracy up, speed down; drum magazine: rate of fire up, reliability down; hollow-base rounds: damage up, armorPen down).
+- **Quirks (≥20)**: named characteristics with numeric hooks and a machine-evaluable `condition` — e.g. *Cold-Forged* (reliability +0.1 in snow), *Ferryman's Blessing* (morale +1 adjacent to a relic_bearer), *Runs Hot* (rateOfFire +0.15, reliability −0.1 after 2 consecutive fire orders), *Prize-Taken* (+1 morale when fielded against the maker's native house).
+- **`rollWeapon({ seed, class, maker?, calibre?, tierCap, luck })`** → deterministic `WeaponInstance` (pattern, quality, mods, quirks, serial) via the shared `mulberry32`. Odds tables live in `ARMS_CATALOGUE.md`. Battle loot, dig finds and armory certifications call this — Lane I supplies the function; the platform lane decides when it fires.
+- **`deriveLoadout(squad)`** — the squad's `Loadout` (primary / support / sidearm instances) reduces to `SquadType`-shaped mods that Lane A's `deriveSquad` consumes, so the tactical engine never inspects individual weapons. Reduction formula documented (e.g. `ranged = Σ damage×rateOfFire×accuracy ÷ figures`; `reliability` → misfire chance per fire order; `weight` → speed drag).
+- **Points Audit**: every pattern at `issue` grade priced against the reference `141 Levy Rifle = 1 pt/figure`; no pattern > 1.6× baseline efficiency at `issue`.
+Acceptance: mirror + roll tests green (same seed → identical instance; 10 000 rolls match the quality distribution within 2%); every pattern has an `arms_<key>` plate, every maker a `maker_<key>` plate, every mod a `mod_kit_<key>` plate; `deriveLoadout` output keys ⊆ §4 `SquadType` value keys; Codex entries for every maker and calibre; no `Math.random` anywhere in the lane.
+
 ### Platform lane (Base44 chat session — not a worktree)
 Owns: `base44/functions/gameEngine/entry.ts`, `base44/entities/ArmyDesign.jsonc` → `SquadTemplate` shape, `Patch` dispatch record, live `test_backend_function` runs, `docs/GAME_RULES.md`, `docs/ARCHITECTURE.md` catalog rows.
 Delivers: `createTactical` call site passes `{ seed, nodeKind, weather, fortBonus }`; `tacticalDeploy` accepts squads; new `tacticalAuto` action (auto-resolve remaining turns for the caller's side); `tacticalView` fields persisted via `persistWar()`; Field Amendment patch note. **For content lanes:** import `base44/shared/catalog.ts` into `gameEngine` + `concurrentPlay` (retiring the inlined duplicates), apply `effects[]` in the engine, enforce `creedLock`/`factionLock`, point `npcHerald` at the `HERALD_VOICES.md` voices, **generate every placeholder plate** registered in `imageLibrary.js` and deliver its URL into `imagePlates.js`, and promote each `[PROPOSED]` `GAME_RULES.md` section to live once wired.
@@ -178,7 +193,22 @@ Specialist = { key, label, pts, mods: { morale?, initiative?, recoverPerTurn?, m
 Upgrade    = { key, label, appliesTo: SquadTypeKey[], pts, tier, mods: Partial<SquadType values>, blurb }
 Tech       = { key, branch, tier: 1|2|3|4, label, cost, prereq: string|string[]|null, creedLock?, effect: string, effects: [{ scope: 'macro'|'tactical'|'economy', key: string, value: number }], desc }
 ArmoryItem = { key, kind: 'module'|'decree'|'relic_project', label, cost: { steel?, manpower?, fuel?, fragments?: { cache?, engine?, cipher?, wake? } }, tier, axis?: 'authority'|'economy'|'creed'|'mobilization', direction?: -1|1, creedLock?, effects: Tech['effects'], desc }
-Preset     = existing PRESET_FACTIONS row + { house: string, uniqueRoster: { squads: SquadTypeKey[], upgrades: UpgradeKey[], decree: ArmoryKey }, heraldVoice: string }
+Preset     = existing PRESET_FACTIONS row + { house: string, uniqueRoster: { squads: SquadTypeKey[], upgrades: UpgradeKey[], decree: ArmoryKey, patterns: WeaponPatternKey[] }, heraldVoice: string }
+
+// ---- Arms Catalogue (Lane I) ----
+WeaponBase     = { accuracy, rateOfFire, damage, armorPen, range, reliability, weight }
+WeaponClass    = 'sidearm'|'carbine'|'rifle'|'smg'|'lmg'|'hmg'|'shotgun'|'marksman'|'anti_armor'|'flame'|'mortar'|'crawler_gun'|'artillery'|'aircraft_gun'
+ModSlot        = 'barrel'|'optic'|'magazine'|'stock'|'muzzle'|'bayonet'|'ammunition'|'mount'
+Manufacturer   = { key, label, houseKey?: string, culture?: string, signature: Partial<WeaponBase>, nameStems: string[], access: { [houseKey]: 'native'|'licensed'|'captured' }, lore }
+Calibre        = { key, label, class: WeaponClass, damage, armorPen, range, weight, logisticsClass: RegimentKey, lore }
+WeaponPattern  = { key, label, maker: ManufacturerKey, calibre: CalibreKey, class: WeaponClass, tier, base: WeaponBase, slots: ModSlot[], quirks: QuirkKey[], pts, appliesTo: SquadTypeKey[], blurb }
+Modification   = { key, label, slot: ModSlot, appliesTo: WeaponClass[], pts, mods: Partial<WeaponBase>, tradeoff: Partial<WeaponBase>, blurb }
+Quirk          = { key, label, mods: Partial<WeaponBase> | { morale?, initiative? }, condition?: { key: string, value?: any }, blurb }
+QualityGrade   = { key: 'scrap'|'issue'|'proofed'|'master'|'relic', mult: Partial<WeaponBase>, ptsMult, rollWeight }
+WeaponInstance = { patternKey, quality: QualityKey, mods: ModKey[], quirks: QuirkKey[], serial: string }
+Loadout        = { primary: WeaponInstance, support?: WeaponInstance, sidearm?: WeaponInstance }
+// Squad rows gain `loadout?: Loadout`; deriveLoadout(squad) → Partial<SquadType values>, consumed by deriveSquad
+// tacticalDeploy squads may carry `loadout`; platform validates instances against the caller's arsenal
 Plate      = P(key, category, title, desc, prompt /* no house style — prepended at generation */, aspect?)  // url always null from a lane
 ```
 
@@ -197,11 +227,11 @@ Regiments ↔ figures: `1 company = FIGURES_PER_COMPANY` (Lane A sets; default 1
 | **P3 — Platform wiring** | Platform | `createTactical` field opts, squads deploy, `tacticalAuto`, live test of a full NPC-defended battle via `test_backend_function` |
 | **P4 — UI** | D, E in parallel (against P1 shapes; E stubs `fx`) | Deployment + arena render against a recorded `getState` fixture in `test/fixtures/tactical-state.json` |
 | **P5 — Ship** | Platform | Patch dispatch filed; `docs/GAME_RULES.md` § Set-Piece Engagements; `docs/ARCHITECTURE.md` action rows |
-| **C1 — Catalog contracts** | F, G (parallel with P1) | Squad/specialist/upgrade rows and `catalog.ts` merged; mirror tests green; placeholder plates registered; `[PROPOSED]` rules drafted |
+| **C1 — Catalog contracts** | F, G, I (parallel with P1) | Squad/specialist/upgrade rows, `catalog.ts` and `arms.ts` merged; mirror + roll tests green; placeholder plates registered; `[PROPOSED]` rules drafted |
 | **C2 — Factions & lore** | H (after C1) | 13 presets pass validation; herald voices, codex, settlements, lifepath chapter merged |
 | **C3 — Platform content wiring** | Platform | Catalogs imported into the engine, `effects[]` applied, locks enforced, plates generated & delivered, `[PROPOSED]` promoted, patch dispatch |
 
-Merge order is strict: A/B → C → platform → D/E. D and E may open PRs early but rebase on P3. Content runs on its own track: F/G → H → platform (C3); F **must** land before D (the squad builder renders F's rows).
+Merge order is strict: A/B → C → platform → D/E. D and E may open PRs early but rebase on P3. Content runs on its own track: F/G/I → H → platform (C3); F and I **must** land before D (the squad builder renders F's rows and I's loadouts — D adds a "Small Arms Issue" step where each squad's weapons are inspected and mods fitted from the reserve).
 
 ---
 
@@ -217,6 +247,7 @@ Merge order is strict: A/B → C → platform → D/E. D and E may open PRs earl
 8. **Run before PR:** `npm test`, `npm run lint`, `.claude/hooks/rules-guard.sh` (pre-push does this).
 9. **Doc drift** — a PR that changes any rule number also edits `docs/COMBAT_DESIGN.md` (lanes) and flags `docs/GAME_RULES.md` for the platform lane.
 10. **Content lanes never ship visuals** — no image files, no SVG art, no `PLATE_URLS` entries, no `UnitSprite.jsx` edits. Art is requested only as `imageLibrary.js` placeholders with `url: null`. Existing catalog keys are never renamed or removed (live saves reference them). Every new mechanical effect uses the §4 effect-key vocabulary or extends it in the same PR.
+11. **Arms granularity stays numeric and server-rolled** — no weapon stat exists only in prose; every quirk carries a machine-evaluable `condition`; `rollWeapon` is pure and seeded (no `Math.random`); the tactical engine consumes only `deriveLoadout` output, never raw weapon instances.
 
 ## 7. Worktree & git protocol
 
