@@ -80,3 +80,36 @@ Nothing in this lane needs a deploy: `base44/shared/tacticalField.ts` is a pure 
 
 The vocabularies themselves are now published in §4 (`TerrainKey`, `NodeKind`, `WeatherKey`, `Tile`,
 `FieldMeta`, `Field`) and are what Lane E's terrain tokens and Lane J's `Suspension.terrain` are keyed to.
+
+#### The `createTactical` call site — the exact argument, and what must be true of it
+
+`createTactical(attackerUnits, defenderUnits, fieldOpts)` builds the field. `fieldOpts` is passed
+**straight through** to `generateField` and is exactly:
+
+```ts
+{ seed: number, nodeKind: 'city'|'town'|'depot'|'ruin'|'crossroads',
+  weather: 'clear'|'rain'|'fog'|'storm'|'snow', fortBonus: number,
+  w?: number /* = 15 */, h?: number /* = 11 */ }
+```
+
+- [ ] **`seed`** — an integer. It is coerced `>>> 0`, so a float, a negative or a `NaN` still produces a
+      board, just not the one anyone intended. Derive it from something already persisted on the battle
+      (the battle id, the turn number) so a re-entry into the same battle cannot re-roll the ground.
+      **The RNG is derived from every input, not just this field**, so the same numeric seed at a
+      different node kind, weather, fortification level or board size is a completely different board.
+- [ ] **`nodeKind`** — the macro node's own kind, from `src/lib/macro/graph.js`. **Not** a display label.
+- [ ] **`weather`** — the live weather key, from `WEATHER_META` in `src/lib/weather.js`.
+- [ ] **`fortBonus`** — the DEFENDER's fortification level. Clamped to `0..3` and floored, so `2.7` is two
+      levels of digging, not three, and anything above three buys nothing.
+- [ ] **`w` / `h`** — omit them. They exist for tests and are clamped to a `9x7` floor. The engine's
+      `GRID = { w: 9, h: 7 }` is Lane C's to move to `FIELD` (15x11); this lane does not pre-empt it.
+
+**Validate `nodeKind` and `weather` at this call site.** The generator never throws — an unrecognised
+`nodeKind` silently falls back to `'crossroads'` and an unrecognised `weather` to `'clear'`. That is the
+right behaviour for a server that must not 500 mid-battle, but it means a typo or a renamed macro node
+surfaces as *a bland board*, never as an error. One assertion here converts a silent content bug into a
+loud one.
+
+**The two vocabularies are published in §4** (`NodeKind`, `WeatherKey`) and are checked against the
+generator's own tables by `test/tactical-field.test.js`, so the platform side can validate against the
+contract document rather than against a hand-copied list.

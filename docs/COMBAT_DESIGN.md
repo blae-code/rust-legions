@@ -213,3 +213,89 @@ bombardment morale and Fighting Withdrawal; the mass battle is the showpiece, th
    good to leave out?).
 6. Guard flagging: free at muster, or a design-slot cost?
 7. Barrage vs. the existing bombardment action — keep both (operational vs. tactical guns) or fold?
+
+---
+
+## 13. The Field Generator *(Lane B — the ground the squads fight over)*
+
+Layer Two gave the battle a *line*; the tactical layer gives it a *place*. `generateField` is one pure,
+seeded call that paints a whole set-piece battlefield and hands it back as data:
+
+```js
+generateField({ seed, nodeKind, weather, fortBonus, w = 15, h = 11 })
+```
+
+Canonical implementation `base44/shared/tacticalField.ts`, frontend mirror `src/lib/tactical/field.js`,
+proven in `test/tactical-field.test.js`. **Every number this section refers to lives in one of the five
+exported tables — `FIELD`, `TERRAIN`, `PALETTES`, `WEATHER_FIELD`, `WORKS_SEED` — and is deliberately not
+restated here.** Read the table; a figure copied into prose is a figure that goes stale.
+
+### 13.1 What a field is
+
+A 15×11 axial hex grid: 165 tiles keyed `"q,r"`, each carrying terrain, cover, elevation, an LOS-blocking
+flag and a move cost (`null` = impassable), plus an optional `work` where the defender has dug in. With it
+come the two deployment strips — the attacker owns the westernmost three columns, the defender the eastern
+three — and a `meta` block recording the inputs, the weather's sight cap and whether fighters are grounded.
+
+Elevation is **three steps, not five**: ground, rise, crest. It is a separate layer from terrain and never
+changes cover or movement — its only job is deciding who is shooting *over* whom.
+
+### 13.2 The five palettes — five places, not five reskins
+
+One palette per macro node kind. Each is a weighted terrain distribution plus an `artery` (the metalled
+lane carved west to east, which is also the connectivity backbone) and a signature blocking `feature`
+painted as ragged radius-1 clusters.
+
+| Node | The board it makes | Signature | Artery |
+| --- | --- | --- | --- |
+| `city` | Dense and vertical, three quarters wreckage. The fight is for window-lines; `wall` is the only hard stop. | `building` clusters | `road` |
+| `town` | Open farmland cut by hedge banks. Buildings come in a knot around the crossroads, never spread thin. | `hedgerow` banks | `road` |
+| `depot` | The most exposed board in the set — rail and hardstanding, very little natural cover, fuel drums that are cover until they are lit. | `fuel_tank` farms | `rail` |
+| `ruin` | Precursor ground: cratered, waterlogged, slow underfoot, with uncuttable masonry standing where nothing else does. | `precursor_wall` | `road` |
+| `crossroads` | Rolling country, the armour board. Woods are the only screen there is. | `woods` | `road` |
+
+The design gate is that **a board must stay a battlefield rather than become a maze**: at least 55 % of
+every generated field is passable, non-LOS-blocking ground. That is not an aspiration in a document — it is
+asserted per board across the whole test corpus, and the palettes were tuned against the measurement rather
+than guessed. The arterial alone contributes roughly a tenth of every board, which is why `road` is
+weighted *down* in the palettes that already run one.
+
+### 13.3 Weather bends sight and ground, never terrain
+
+Weather never repaints a hex. It does three things: caps sight range (`meta.losCap`), taxes soft going, and
+grounds aircraft (`meta.groundsFighters` — reported here, enforced by the resolution layer). Metalled lanes
+are explicitly exempt from the mud tax; that exemption is the whole reason the arterial is worth having.
+Fog is the extreme case — the shortest cap in the table and no movement penalty at all, which turns a
+`crossroads` board from an armour duel into a knife fight.
+
+### 13.4 Fortification is dug ground, not a structure
+
+The defender's `fortBonus` (0–3) seeds trenches and bunkers across its last four columns — the deploy strip
+plus the column in front of it, so the line has depth instead of sitting flat on the board edge. Counts come
+from `WORKS_SEED` and rise strictly with the bonus.
+
+A work is a **stamp on the ground and nothing else**. It never makes a hex impassable, never blocks sight,
+and never folds its value into the tile's `cover` — the tile stays purely terrain-derived. The mechanical
+effect of a trench or a bunker lives in the deployables catalogue and is applied at resolution time. Keeping
+those two apart is what stops the same defensive bonus being counted twice.
+
+### 13.5 The order is the ruleset
+
+The pipeline runs in a fixed order and the acceptance properties are properties *of that order*: paint →
+artery → features → elevation → weather → deploy zones → **normalise the zones** → works → **connectivity
+repair**. Normalising the zones before stamping works is what makes "no side ever deploys into a wall" true
+by construction rather than by luck, and the repair runs last so nothing can re-block what it opened.
+
+Four properties are proven over a 200-field corpus (every node kind × every weather × eight seeds, with the
+fortification level cycled across it), not spot-checked: the same seed returns an identical field; deploy
+zones are free of blockers; every deploy hex is reachable from the opposite side; and line of sight is
+symmetric. The last is guaranteed structurally — the hex line canonicalises the unordered pair *before*
+applying its rounding epsilon, and the elevation rule reads the lower of the two endpoints — rather than
+being hoped for and sampled.
+
+### 13.6 What is deliberately not in here
+
+No damage, armour or penetration arithmetic; no squad state; no resolution. Cover is terrain metadata that
+the combat math reads, not a combat calculation. The generator is a pure data structure and a set of pure
+queries over it — `neighbors`, `hexRange`, `hexLine`, `lineOfSight`, `pathCost` — and every rule that spends
+a die roll lives elsewhere.

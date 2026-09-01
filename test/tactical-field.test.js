@@ -18,19 +18,26 @@ import { mulberry32 as refMulberry32 } from "@/lib/macro/worlds.js";
 
 // Canonical (server authority) — a plain ES module despite the .ts extension.
 import {
-  FIELD, TERRAIN, PALETTES, WEATHER_FIELD, WORKS_SEED,
+  FIELD, TERRAIN, PALETTES, WEATHER_FIELD, WORKS_SEED, TERRAIN_KEYS,
   generateField, neighbors, hexLine, hexRange, lineOfSight, pathCost,
 } from "../base44/shared/tacticalField.ts";
 
 // Frontend mirror.
 import {
   FIELD as M_FIELD, TERRAIN as M_TERRAIN, PALETTES as M_PALETTES,
-  WEATHER_FIELD as M_WEATHER, WORKS_SEED as M_WORKS,
-  generateField as mirrorGenerateField,
+  WEATHER_FIELD as M_WEATHER, WORKS_SEED as M_WORKS, TERRAIN_KEYS as M_TERRAIN_KEYS,
+  generateField as mirrorGenerateField, neighbors as mNeighbors, hexLine as mHexLine,
+  hexRange as mHexRange, lineOfSight as mLineOfSight, pathCost as mPathCost,
   hexPixel, hexCorners,
 } from "@/lib/tactical/field.js";
 
 import { hexDistance } from "@/lib/tactical/data.js";
+
+// Namespace views of both modules, so the exported SURFACE can be frozen by
+// test rather than by good intentions: Lanes C, E and J all import against
+// these names and a rename after merge is a contract change.
+import * as CANON_MOD from "../base44/shared/tacticalField.ts";
+import * as MIRROR_MOD from "@/lib/tactical/field.js";
 
 const CANON_SRC = readRepoFile("base44/shared/tacticalField.ts");
 const MIRROR_SRC = readRepoFile("src/lib/tactical/field.js");
@@ -827,5 +834,762 @@ describe("lane hygiene — no drift into another layer", () => {
       expect(body, `${name} uses a spread`).not.toMatch(/\.\.\./);
       expect(body, `${name} uses a computed key`).not.toMatch(/^\s*\[/m);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// SECOND PASS — the parts most likely to rot.
+//
+// Everything above proves the four acceptance properties over the 200-field
+// corpus. What follows attacks the same generator from the outside: an
+// INDEPENDENT Dijkstra that does not share a line of code with pathCost, an
+// adversarial board whose blockers and elevations are sown by hand so LOS
+// symmetry is tested where the generator is not the one choosing the board,
+// aggregate weather measurements that would go quiet if a weather row were
+// zeroed, and a read of the contract document itself so the vocabulary this
+// lane publishes cannot drift away from the two lanes keyed to it.
+// ---------------------------------------------------------------------------
+
+const DIRS = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]];
+
+// A plain uniform-cost search, written against the tile table only. It shares
+// nothing with pathCost — no heuristic, no tie-break, no shared helper — so
+// when the two agree on a cost, A*'s heuristic is admissible and its
+// tie-breaking is not quietly cutting a corner.
+function dijkstraCost(f, from, to, blocked = new Set(), allowTarget = false) {
+  const fromK = K(from.q, from.r), toK = K(to.q, to.r);
+  if (!f.tiles[fromK] || !f.tiles[toK]) return null;
+  if (fromK === toK) return 0;
+  const usable = (k) => {
+    const t = f.tiles[k];
+    if (!t || t.moveCost === null) return false;
+    if (blocked.has(k)) return k === toK && allowTarget;
+    return true;
+  };
+  if (!usable(toK)) return null;
+  const dist = new Map([[fromK, 0]]);
+  const done = new Set();
+  for (;;) {
+    let bestK = null, bestD = Infinity;
+    for (const [k, d] of dist) if (!done.has(k) && d < bestD) { bestD = d; bestK = k; }
+    if (bestK === null) return null;
+    if (bestK === toK) return bestD;
+    done.add(bestK);
+    const q = Number(bestK.split(",")[0]), r = Number(bestK.split(",")[1]);
+    for (const [dq, dr] of DIRS) {
+      const nq = q + dq, nr = r + dr;
+      if (nq < 0 || nq >= f.w || nr < 0 || nr >= f.h) continue;
+      const nk = K(nq, nr);
+      if (done.has(nk) || !usable(nk)) continue;
+      const nd = bestD + f.tiles[nk].moveCost;
+      if (!dist.has(nk) || nd < dist.get(nk)) dist.set(nk, nd);
+    }
+  }
+}
+
+// BFS reachability that also honours an occupied set — the flood equivalent of
+// pathCost's `opts.blocked`, so "returned null" can be checked against
+// "genuinely unreachable" rather than taken on trust.
+function reachableWith(f, start, blocked) {
+  const seen = new Set([K(start.q, start.r)]);
+  const stack = [start];
+  while (stack.length) {
+    const cur = stack.pop();
+    for (const [dq, dr] of DIRS) {
+      const q = cur.q + dq, r = cur.r + dr;
+      if (q < 0 || q >= f.w || r < 0 || r >= f.h) continue;
+      const k = K(q, r);
+      if (seen.has(k) || blocked.has(k)) continue;
+      const tile = f.tiles[k];
+      if (!tile || tile.moveCost === null) continue;
+      seen.add(k);
+      stack.push({ q, r });
+    }
+  }
+  return seen;
+}
+
+// A deterministic occupied set — Lane C will pass the hexes squads stand on.
+function blockedFor(index, f, share) {
+  const rnd = refMulberry32((index + 1) * 0x27d4eb2f);
+  const out = new Set();
+  for (let q = 0; q < f.w; q++) for (let r = 0; r < f.h; r++) if (rnd() < share) out.add(K(q, r));
+  return out;
+}
+
+// A board the GENERATOR would never produce: a third of it blocks sight and
+// elevation is scattered 0/1/2 at random. LOS symmetry must be a property of
+// lineOfSight, not a property of boards that happen to be sparsely blocked.
+function sownBoard(seedN) {
+  const f = generateField({ seed: seedN, nodeKind: "ruin", weather: "clear", fortBonus: 2, w: 9, h: 7 });
+  const rnd = refMulberry32(seedN * 0x9e3779b1 + 17);
+  for (const tile of Object.values(f.tiles)) {
+    tile.blocksLOS = rnd() < 0.35;
+    tile.elev = (rnd() * 3) | 0;
+  }
+  return f;
+}
+
+// Every ordered pair of a 9x7 board: 63 x 63 = 3,969 pairs, exhaustive rather
+// than sampled.
+function allHexes(f) {
+  const out = [];
+  for (let q = 0; q < f.w; q++) for (let r = 0; r < f.h; r++) out.push({ q, r });
+  return out;
+}
+
+// The visibility yardstick used by the weather tests: one fixed lattice of
+// corner-to-corner pairs per board, identical across weathers, so the only
+// thing that can move the number is the sight rule.
+function visibleShare(fields) {
+  let vis = 0, pairs = 0;
+  for (const f of fields) {
+    for (let q = 0; q < f.w; q += 2) {
+      for (let r = 0; r < f.h; r += 2) {
+        if (lineOfSight(f, { q, r }, { q: f.w - 1 - q, r: f.h - 1 - r })) vis++;
+        pairs++;
+      }
+    }
+  }
+  return vis / pairs;
+}
+
+// Mean entry cost of soft ground — the only ground weather taxes.
+const SOFT = ["open", "field", "crater", "marsh", "woods"];
+function softGroundMeanCost(fields) {
+  let sum = 0, n = 0;
+  for (const f of fields) {
+    for (const tile of Object.values(f.tiles)) {
+      if (tile.moveCost === null || !SOFT.includes(tile.terrain)) continue;
+      sum += tile.moveCost; n++;
+    }
+  }
+  return sum / n;
+}
+
+const worksOf = (f) => Object.entries(f.tiles).filter(([, t]) => "work" in t);
+const PLAN_SRC = readRepoFile("docs/TACTICAL_SQUAD_PLAN.md");
+
+// The 25 (kind x weather) combinations, each at 8 seeds — the grid the
+// fortification and weather properties sweep.
+const GRID = [];
+for (const nodeKind of KINDS) for (const weather of WEATHERS) GRID.push({ nodeKind, weather });
+
+describe("acceptance 3+ — no board is unwinnable by geometry", () => {
+  it("the flood runs both ways: the defender's ground reaches the attacker's", () => {
+    // Property 3 is worded "reachable from the OPPOSITE side". Flooding only
+    // from the attacker's corner would pass on a board where the defender is
+    // walled into a pocket that happens to touch that one flood.
+    for (let i = 0; i < FIELDS.length; i++) {
+      const f = FIELDS[i];
+      const label = `corpus[${i}] ${f.meta.nodeKind}/${f.meta.weather}/seed ${f.meta.seed}/fb ${f.meta.fortBonus}`;
+      const fromDefender = reachableFrom(f, f.deploy.defender[f.deploy.defender.length - 1]);
+      for (const hx of zoneOf(f)) {
+        expect(fromDefender.has(K(hx.q, hx.r)), `${label}: defender cannot reach ${K(hx.q, hx.r)}`).toBe(true);
+      }
+    }
+  });
+
+  it("every sampled attacker hex can walk to every sampled defender hex", () => {
+    // 16 crossings a board, 3,200 in all. A single unwinnable board fails here
+    // by name, with the exact arguments that produced it.
+    for (let i = 0; i < FIELDS.length; i++) {
+      const f = FIELDS[i];
+      const label = `corpus[${i}] ${f.meta.nodeKind}/${f.meta.weather}/seed ${f.meta.seed}`;
+      const pick = (list) => [0, 7, 19, list.length - 1].map((n) => list[n]);
+      for (const a of pick(f.deploy.attacker)) {
+        for (const b of pick(f.deploy.defender)) {
+          const res = pathCost(f, a, b);
+          expect(res, `${label}: no crossing ${K(a.q, a.r)} -> ${K(b.q, b.r)}`).not.toBeNull();
+          expect(res.cost).toBeGreaterThan(0);
+          expect(res.path[0]).toEqual({ q: a.q, r: a.r });
+          expect(res.path[res.path.length - 1]).toEqual({ q: b.q, r: b.r });
+        }
+      }
+    }
+  });
+
+  it("A* returns a genuinely optimal cost — checked against an independent Dijkstra", () => {
+    // If the heuristic were ever made inadmissible (a cheapest-cost constant
+    // above 1, say), A* would still return A path and every other test here
+    // would stay green. This is the one that notices.
+    let compared = 0;
+    for (let i = 0; i < FIELDS.length; i += 2) {
+      const f = FIELDS[i];
+      const pairs = [
+        [f.deploy.attacker[0], f.deploy.defender[f.deploy.defender.length - 1]],
+        [f.deploy.attacker[f.deploy.attacker.length - 1], f.deploy.defender[0]],
+        [f.deploy.attacker[5], { q: (f.w / 2) | 0, r: (f.h / 2) | 0 }],
+      ];
+      for (const [a, b] of pairs) {
+        const astar = pathCost(f, a, b);
+        const truth = dijkstraCost(f, a, b);
+        if (truth === null) { expect(astar).toBeNull(); continue; }
+        expect(astar, `corpus[${i}] ${K(a.q, a.r)} -> ${K(b.q, b.r)}`).not.toBeNull();
+        expect(astar.cost, `corpus[${i}] suboptimal path`).toBe(truth);
+        compared++;
+      }
+    }
+    expect(compared).toBeGreaterThanOrEqual(280);
+  });
+
+  it("the fighting ground is one region, not an archipelago", () => {
+    // The repair guarantees the deploy zones connect. It does not forbid a
+    // four-hex pocket behind a wall, and that is fine — a board that is MOSTLY
+    // pockets is not. Worst measured across the corpus: 97.1% of passable
+    // ground in the main region (ruin/storm/seed 137), so the 90% floor is a
+    // real gate rather than a rubber stamp.
+    for (let i = 0; i < FIELDS.length; i++) {
+      const f = FIELDS[i];
+      const passable = Object.values(f.tiles).filter((t) => t.moveCost !== null).length;
+      const main = reachableFrom(f, f.deploy.attacker[0]).size;
+      expect(main / passable, `corpus[${i}] ${f.meta.nodeKind}/${f.meta.weather} stranded`).toBeGreaterThanOrEqual(0.90);
+    }
+  });
+
+  it("connectivity comes from the arterial spine — the repair pass is a net, not a floor", () => {
+    // Worth being exact about, because it is the difference between a property
+    // that HOLDS and a property that is TESTED. Step 3 metals one lane from the
+    // west edge to the east; nothing downstream can make that lane impassable
+    // (features skip artery hexes, and steps 8/10 only ever repaint to `open`),
+    // and both deploy strips are normalised passable end to end. So the deploy
+    // zones are joined to the spine, and through it to each other, before the
+    // repair in step 10 is ever consulted.
+    //
+    // Measured, by mutation: stubbing the repair out entirely — no flood, no
+    // carve — leaves every field in this corpus BYTE-IDENTICAL. The repair is a
+    // safety net for a future pipeline change, not the reason property 3 holds
+    // today, and it therefore has no live coverage. These three assertions are
+    // the invariants it would fall back on, so if one of them breaks, the net
+    // is suddenly load-bearing and someone has to go and test it.
+    for (const pal of Object.values(PALETTES)) {
+      expect(TERRAIN[pal.artery].moveCost, `${pal.key}'s artery is impassable`).not.toBeNull();
+    }
+    for (let i = 0; i < FIELDS.length; i++) {
+      const f = FIELDS[i];
+      const reached = reachableFrom(f, f.deploy.attacker[0]);
+      const columns = new Set([...reached].map((k) => Number(k.split(",")[0])));
+      expect(columns.size, `corpus[${i}] the walkable region does not span the board`).toBe(f.w);
+      for (const hx of zoneOf(f)) {
+        expect(f.tiles[K(hx.q, hx.r)].moveCost, `corpus[${i}] deploy strip has a hole at ${K(hx.q, hx.r)}`).not.toBeNull();
+      }
+    }
+  });
+
+  it("no fortification is stranded behind ground the attacker cannot cross", () => {
+    // A bunker nobody can assault is a bunker that never entered the battle.
+    // 4,200 works across the corpus, all of them in the main region.
+    let checked = 0;
+    for (let i = 0; i < FIELDS.length; i++) {
+      const f = FIELDS[i];
+      const main = reachableFrom(f, f.deploy.attacker[0]);
+      for (const [k] of worksOf(f)) {
+        expect(main.has(k), `corpus[${i}] work at ${k} is unreachable`).toBe(true);
+        checked++;
+      }
+    }
+    expect(checked).toBeGreaterThan(1000);
+  });
+});
+
+describe("pathCost — occupied and impassable ground is never crossed", () => {
+  it("never returns a path that steps on an impassable hex", () => {
+    for (let i = 0; i < FIELDS.length; i++) {
+      const f = FIELDS[i];
+      const res = pathCost(f, f.deploy.attacker[0], f.deploy.defender[f.deploy.defender.length - 1]);
+      for (const hx of res.path) {
+        const tile = f.tiles[K(hx.q, hx.r)];
+        expect(tile, `corpus[${i}] path leaves the board at ${K(hx.q, hx.r)}`).toBeTruthy();
+        expect(tile.moveCost, `corpus[${i}] path crosses impassable ${K(hx.q, hx.r)}`).not.toBeNull();
+      }
+    }
+  });
+
+  it("never returns a path that steps on an occupied hex, and its null is honest", () => {
+    // A sixth of the board occupied, deterministically. Three claims at once:
+    // the path avoids every occupied hex, its cost is the true optimum under
+    // those blocks, and a null answer is corroborated by an independent flood
+    // rather than being an A* that gave up early.
+    let routed = 0, refused = 0;
+    for (let i = 0; i < FIELDS.length; i += 2) {
+      const f = FIELDS[i];
+      const from = f.deploy.attacker[0];
+      const to = f.deploy.defender[f.deploy.defender.length - 1];
+      const blocked = blockedFor(i, f, 1 / 6);
+      blocked.delete(K(from.q, from.r));
+      blocked.delete(K(to.q, to.r));
+      const res = pathCost(f, from, to, { blocked });
+      const reach = reachableWith(f, from, blocked);
+      if (res === null) {
+        expect(reach.has(K(to.q, to.r)), `corpus[${i}] refused a route that exists`).toBe(false);
+        refused++;
+        continue;
+      }
+      for (const hx of res.path) {
+        expect(blocked.has(K(hx.q, hx.r)), `corpus[${i}] path crosses occupied ${K(hx.q, hx.r)}`).toBe(false);
+        expect(f.tiles[K(hx.q, hx.r)].moveCost).not.toBeNull();
+      }
+      expect(res.cost, `corpus[${i}] suboptimal under blocks`).toBe(dijkstraCost(f, from, to, blocked));
+      routed++;
+    }
+    // The sample has to contain both outcomes or it is only testing one of them.
+    expect(routed, "no board routed under blocks").toBeGreaterThan(0);
+    expect(routed + refused).toBe(100);
+  });
+
+  it("allowBlockedTarget frees the destination and nothing else", () => {
+    // A hand-built one-hex corridor, so "the only route" is a fact rather than
+    // a hope: everything off row 3 is walled, leaving a single lane east.
+    const f = generateField({ seed: 21, nodeKind: "crossroads", weather: "clear", fortBonus: 0 });
+    for (const [k, tile] of Object.entries(f.tiles)) {
+      const r = Number(k.split(",")[1]);
+      if (r === 3) { tile.terrain = "open"; tile.moveCost = 1; tile.blocksLOS = false; tile.cover = 0; }
+      else { tile.terrain = "wall"; tile.moveCost = null; tile.blocksLOS = true; tile.cover = 2; }
+    }
+    const from = { q: 0, r: 3 }, mid = { q: 7, r: 3 }, to = { q: 14, r: 3 };
+    expect(pathCost(f, from, to).cost).toBe(14);
+    // The target alone, blocked: refused by default, allowed on request.
+    expect(pathCost(f, from, to, { blocked: [K(to.q, to.r)] })).toBeNull();
+    const onto = pathCost(f, from, to, { blocked: [K(to.q, to.r)], allowBlockedTarget: true });
+    expect(onto.cost).toBe(14);
+    expect(onto.path[onto.path.length - 1]).toEqual(to);
+    // An INTERMEDIATE hex blocked: the flag must not open it. Both answers null.
+    expect(pathCost(f, from, to, { blocked: [K(mid.q, mid.r)] })).toBeNull();
+    expect(pathCost(f, from, to, { blocked: [K(mid.q, mid.r)], allowBlockedTarget: true })).toBeNull();
+  });
+
+  it("reads opts.blocked as an array or a Set alike, and an absent one as a no-op", () => {
+    const f = FIELDS[3];
+    const from = f.deploy.attacker[4], to = f.deploy.defender[9];
+    const keys = [K(7, 0), K(7, 1), K(7, 2)];
+    const asArray = JSON.stringify(pathCost(f, from, to, { blocked: keys }));
+    const asSet = JSON.stringify(pathCost(f, from, to, { blocked: new Set(keys) }));
+    expect(asArray).toBe(asSet);
+    const bare = JSON.stringify(pathCost(f, from, to));
+    expect(JSON.stringify(pathCost(f, from, to, {}))).toBe(bare);
+    expect(JSON.stringify(pathCost(f, from, to, { blocked: [] }))).toBe(bare);
+    expect(JSON.stringify(pathCost(f, from, to, { blocked: new Set() }))).toBe(bare);
+    // Blocking the START is not the same as blocking the target: the mover is
+    // standing there, so the route out of it still exists.
+    expect(pathCost(f, from, to, { blocked: [K(from.q, from.r)] })).not.toBeNull();
+  });
+});
+
+describe("fortBonus — the fortification line scales with the bonus", () => {
+  it("the works count rises strictly with the bonus, on every palette and weather", () => {
+    // 25 combinations x 8 seeds x 4 levels = 800 boards. Monotone is the weak
+    // claim; the exact ladder 0 < 3 < 7 < 11 is the strong one, and both are
+    // asserted so a generator that merely trends upward cannot pass.
+    for (const { nodeKind, weather } of GRID) {
+      for (const seed of SEEDS) {
+        const counts = [0, 1, 2, 3].map((fortBonus) =>
+          worksOf(generateField({ seed, nodeKind, weather, fortBonus })).length);
+        const label = `${nodeKind}/${weather}/seed ${seed}`;
+        expect(counts, label).toEqual([0, 3, 7, 11]);
+        for (let i = 1; i < counts.length; i++) {
+          expect(counts[i], `${label}: level ${i} did not add ground`).toBeGreaterThan(counts[i - 1]);
+        }
+      }
+    }
+  });
+
+  it("trenches come from level 1, bunkers only from level 2", () => {
+    for (const { nodeKind, weather } of GRID) {
+      const seed = 4491;
+      for (const fortBonus of [0, 1, 2, 3]) {
+        const f = generateField({ seed, nodeKind, weather, fortBonus });
+        const works = worksOf(f).map(([, t]) => t.work);
+        const trench = works.filter((wk) => wk === "trench").length;
+        const bunker = works.filter((wk) => wk === "bunker").length;
+        const label = `${nodeKind}/${weather}/fb ${fortBonus}`;
+        expect(trench, label).toBe(fortBonus * WORKS_SEED.trenchPerLevel);
+        expect(bunker, label).toBe(Math.max(0, fortBonus - (WORKS_SEED.bunkerFromLevel - 1)));
+        if (fortBonus < WORKS_SEED.bunkerFromLevel) expect(bunker, `${label}: early bunker`).toBe(0);
+      }
+    }
+  });
+
+  it("fortifying never takes ground out of play", () => {
+    // Works are stamps, not structures: whatever the bonus, the worked hexes
+    // stay walkable and see-through, and the board stays crossable.
+    for (const nodeKind of KINDS) {
+      for (const fortBonus of [1, 2, 3]) {
+        const f = generateField({ seed: 808, nodeKind, weather: "snow", fortBonus });
+        for (const [k, tile] of worksOf(f)) {
+          expect(tile.moveCost, `${nodeKind}/fb ${fortBonus} ${k}`).not.toBeNull();
+          expect(tile.blocksLOS).toBe(false);
+          expect(tile.cover).toBe(TERRAIN[tile.terrain].cover);
+        }
+        const reached = reachableFrom(f, f.deploy.attacker[0]);
+        for (const hx of zoneOf(f)) expect(reached.has(K(hx.q, hx.r))).toBe(true);
+      }
+    }
+  });
+
+  it("clamps the bonus rather than extrapolating it", () => {
+    const at = (fortBonus) => {
+      const f = generateField({ seed: 55, nodeKind: "depot", weather: "clear", fortBonus });
+      return [f.meta.fortBonus, worksOf(f).length];
+    };
+    expect(at(3.9)).toEqual([3, 11]);      // floored, not rounded
+    expect(at(4)).toEqual([3, 11]);
+    expect(at(1000)).toEqual([3, 11]);
+    expect(at(-2)).toEqual([0, 0]);
+    expect(at(undefined)).toEqual([0, 0]);
+    expect(at(NaN)).toEqual([0, 0]);
+    expect(at(0.9)).toEqual([0, 0]);       // half a level of digging is no level
+  });
+});
+
+describe("weather — it really does bend sight and ground", () => {
+  it("sight shrinks monotonically with losCap, and the visible set only ever nests", () => {
+    // Pure test of the rule, on ONE board: the pairs visible at a shorter cap
+    // must be a SUBSET of those visible at a longer one. A losCap that were
+    // ignored, or applied with the comparison the wrong way round, breaks this
+    // without breaking symmetry.
+    const base = generateField({ seed: 66, nodeKind: "town", weather: "clear", fortBonus: 0 });
+    const pairs = pairsFor(9, base);
+    let previous = null;
+    const sizes = [];
+    for (const losCap of [0, 1, 2, 4, 6, 7, 8, 12, 20, 99]) {
+      const f = { w: base.w, h: base.h, tiles: base.tiles, deploy: base.deploy, meta: { ...base.meta, losCap } };
+      const seen = new Set();
+      pairs.forEach(([a, b], idx) => { if (lineOfSight(f, a, b)) seen.add(idx); });
+      if (previous) for (const idx of previous) expect(seen.has(idx), `losCap ${losCap} lost pair ${idx}`).toBe(true);
+      sizes.push(seen.size);
+      previous = seen;
+    }
+    for (let i = 1; i < sizes.length; i++) expect(sizes[i]).toBeGreaterThanOrEqual(sizes[i - 1]);
+    expect(sizes[sizes.length - 1]).toBeGreaterThan(sizes[0]);
+    // At a cap of zero the only thing a stand can see is the hex it stands on,
+    // so whatever survives must be a self-pair.
+    const blind = { w: base.w, h: base.h, tiles: base.tiles, deploy: base.deploy, meta: { ...base.meta, losCap: 0 } };
+    for (const [a, b] of pairs) {
+      if (!lineOfSight(blind, a, b)) continue;
+      expect(`${a.q},${a.r}`, "a cap of zero saw past its own hex").toBe(`${b.q},${b.r}`);
+    }
+  });
+
+  it("across the corpus, visibility ranks exactly as losCap does", () => {
+    // 40 boards per weather, one fixed lattice of corner-to-corner pairs.
+    // Measured: fog .046 < snow .095 ~ rain .093 < storm .105 < clear .170.
+    //
+    // The ranking asserted here is deliberately COARSE. Each weather generates
+    // its own boards (the weather string is in the seed hash), so the aggregate
+    // carries board noise, and rain (cap 7) against snow (cap 6) is a one-hex
+    // difference that the noise swamps — asserting that pair would be pinning
+    // an accident. The separations that are real: fog sees far less than
+    // anything else, clear sees far more, and every capped weather sits
+    // strictly between. The exact monotonicity in losCap is proven on a FIXED
+    // board by the nesting test above, which is where it can be proven.
+    const share = {};
+    for (const weather of WEATHERS) share[weather] = visibleShare(FIELDS.filter((f) => f.meta.weather === weather));
+    for (const weather of ["rain", "fog", "snow", "storm"]) {
+      expect(share[weather], `${weather} sees as far as clear`).toBeLessThan(share.clear * 0.8);
+    }
+    for (const weather of ["rain", "snow", "storm"]) {
+      expect(share[weather], `${weather} sees no further than fog`).toBeGreaterThan(share.fog * 1.3);
+    }
+    expect(share.clear).toBeGreaterThan(share.fog * 2);
+    expect(share.storm, "storm has the longest cap of the four and should show it")
+      .toBeGreaterThan(share.snow);
+  });
+
+  it("across the corpus, soft ground is slower in rain, storm and snow and untouched in fog", () => {
+    // Boards differ between weathers (the weather is in the seed hash), so this
+    // is an AGGREGATE over 40 boards each — deterministic, but a measurement
+    // rather than an identity. Measured: clear 1.292, fog 1.288, rain 2.220,
+    // storm 2.220, snow 2.300.
+    const mean = {};
+    for (const weather of WEATHERS) mean[weather] = softGroundMeanCost(FIELDS.filter((f) => f.meta.weather === weather));
+    expect(Math.abs(mean.fog - mean.clear), "fog taxes no ground, so it must read like clear").toBeLessThan(0.05);
+    expect(Math.abs(mean.storm - mean.rain), "storm and rain tax the same ground").toBeLessThan(0.05);
+    expect(mean.rain - mean.clear, "rain must cost a full step on soft ground").toBeGreaterThan(0.7);
+    expect(mean.snow, "snow taxes timber as well as mud").toBeGreaterThan(mean.rain);
+  });
+
+  it("no weather ever makes ground cheaper, and none opens impassable ground", () => {
+    for (let i = 0; i < FIELDS.length; i++) {
+      const f = FIELDS[i];
+      for (const [k, tile] of Object.entries(f.tiles)) {
+        const base = TERRAIN[tile.terrain].moveCost;
+        if (base === null) {
+          expect(tile.moveCost, `corpus[${i}] ${k} opened impassable ground`).toBeNull();
+        } else {
+          expect(tile.moveCost, `corpus[${i}] ${k} got cheaper`).toBeGreaterThanOrEqual(base);
+          expect(tile.moveCost - base).toBeLessThanOrEqual(1);
+        }
+      }
+    }
+  });
+});
+
+describe("every tile on every board is a legal tile", () => {
+  it("all 33,000 corpus tiles match the §4 shape and derive from TERRAIN", () => {
+    let tiles = 0;
+    for (let i = 0; i < FIELDS.length; i++) {
+      const f = FIELDS[i];
+      const wf = WEATHER_FIELD[f.meta.weather];
+      for (const [k, tile] of Object.entries(f.tiles)) {
+        const label = `corpus[${i}] ${k}`;
+        expect(k, label).toMatch(/^\d+,\d+$/);
+        const meta = TERRAIN[tile.terrain];
+        expect(meta, `${label}: terrain '${tile.terrain}' is not in TERRAIN`).toBeTruthy();
+        expect(tile.cover, label).toBe(meta.cover);
+        expect(tile.blocksLOS, label).toBe(meta.blocksLOS);
+        expect([0, 1, 2], label).toContain(tile.elev);
+        // The exact entry cost the weather rules say this terrain should carry.
+        let want = meta.moveCost;
+        if (want !== null) {
+          if (["open", "field", "crater", "marsh"].includes(tile.terrain)) want += wf.openMoveAdd;
+          if (tile.terrain === "woods") want += wf.woodsMoveAdd;
+        }
+        expect(tile.moveCost, label).toBe(want);
+        const keys = Object.keys(tile);
+        expect(keys.slice(0, 5), label).toEqual(["terrain", "cover", "elev", "blocksLOS", "moveCost"]);
+        expect(keys.length === 5 || (keys.length === 6 && keys[5] === "work"), label).toBe(true);
+        if ("work" in tile) expect(["trench", "bunker"], label).toContain(tile.work);
+        tiles++;
+      }
+    }
+    expect(tiles).toBe(200 * 165);
+  });
+
+  it("the key space is exactly the board rectangle — nothing missing, nothing extra", () => {
+    for (let i = 0; i < FIELDS.length; i += 7) {
+      const f = FIELDS[i];
+      const keys = new Set(Object.keys(f.tiles));
+      expect(keys.size).toBe(f.w * f.h);
+      for (let q = 0; q < f.w; q++) {
+        for (let r = 0; r < f.h; r++) {
+          expect(keys.has(K(q, r)), `corpus[${i}] missing ${K(q, r)}`).toBe(true);
+          keys.delete(K(q, r));
+        }
+      }
+      expect([...keys], `corpus[${i}] stray keys`).toEqual([]);
+    }
+  });
+
+  it("no board ever paints a terrain its palette does not declare", () => {
+    // The only terrain a board may carry that the palette never weights is
+    // `open`, and only because steps 8 and 10 repaint with it. Measured across
+    // the corpus: zero other escapes.
+    for (let i = 0; i < FIELDS.length; i++) {
+      const f = FIELDS[i];
+      const pal = PALETTES[f.meta.nodeKind];
+      const allowed = new Set(Object.keys(pal.weights));
+      allowed.add(pal.artery);
+      allowed.add(pal.features.terrain);
+      allowed.add("open");
+      for (const [k, tile] of Object.entries(f.tiles)) {
+        expect(allowed.has(tile.terrain), `corpus[${i}] ${k}: '${tile.terrain}' is off-palette for ${pal.key}`).toBe(true);
+      }
+    }
+  });
+
+  it("every weight a palette declares actually reaches the ground", () => {
+    // A weight row that never paints anything is dead numbers in a catalogue —
+    // it reads as content and is not. Checked over the 40 corpus boards of
+    // each palette.
+    for (const nodeKind of KINDS) {
+      const painted = new Set();
+      for (const f of FIELDS.filter((x) => x.meta.nodeKind === nodeKind)) {
+        for (const tile of Object.values(f.tiles)) painted.add(tile.terrain);
+      }
+      for (const key of Object.keys(PALETTES[nodeKind].weights)) {
+        expect(painted.has(key), `${nodeKind} declares '${key}' and never paints it`).toBe(true);
+      }
+      expect(painted.has(PALETTES[nodeKind].features.terrain)).toBe(true);
+      expect(painted.has(PALETTES[nodeKind].artery)).toBe(true);
+    }
+  });
+});
+
+describe("the mirror is a mirror at runtime, not only on the tables", () => {
+  const FROZEN = ["FIELD", "TERRAIN", "PALETTES", "WEATHER_FIELD", "WORKS_SEED",
+    "generateField", "neighbors", "hexLine", "hexRange", "lineOfSight", "pathCost"];
+
+  it("both modules export the frozen eleven, and only the agreed extras", () => {
+    for (const name of FROZEN) {
+      expect(CANON_MOD[name], `canonical is missing ${name}`).toBeDefined();
+      expect(MIRROR_MOD[name], `mirror is missing ${name}`).toBeDefined();
+      expect(typeof MIRROR_MOD[name], `${name} changed kind across the mirror`).toBe(typeof CANON_MOD[name]);
+    }
+    // Extras are a contract statement too: the canonical file adds the derived
+    // TERRAIN_KEYS, the mirror adds that plus the two geometry helpers moved
+    // out of Lane A's data.js. Anything else is an unannounced export.
+    const extras = (mod) => Object.keys(mod).filter((k) => !FROZEN.includes(k)).sort();
+    expect(extras(CANON_MOD)).toEqual(["TERRAIN_KEYS"]);
+    expect(extras(MIRROR_MOD)).toEqual(["TERRAIN_KEYS", "hexCorners", "hexPixel"]);
+  });
+
+  it("TERRAIN_KEYS is derived, identical on both sides, and in table order", () => {
+    expect(TERRAIN_KEYS).toEqual(Object.keys(TERRAIN));
+    expect(M_TERRAIN_KEYS).toEqual(TERRAIN_KEYS);
+    expect(M_TERRAIN_KEYS).toEqual(Object.keys(M_TERRAIN));
+    expect(TERRAIN_KEYS).toHaveLength(16);
+  });
+
+  it("generates byte-identical fields for every nodeKind x weather combination", () => {
+    // The step-1 pass compared ten. All twenty-five is the real claim, and it
+    // is what catches a mirror whose divergence only shows on one palette.
+    let compared = 0;
+    for (const { nodeKind, weather } of GRID) {
+      const opts = { seed: 1234 + compared, nodeKind, weather, fortBonus: compared % 4 };
+      expect(JSON.stringify(mirrorGenerateField(opts)), `${nodeKind}/${weather}`)
+        .toBe(JSON.stringify(generateField(opts)));
+      compared++;
+    }
+    expect(compared).toBe(25);
+    // ...and at both ends of the clamp, where the two copies of the coercion
+    // logic are most likely to have drifted apart.
+    for (const size of [{ w: 9, h: 7 }, { w: 2, h: 2 }, { w: 31, h: 21 }]) {
+      const opts = { seed: 9, nodeKind: "ruin", weather: "storm", fortBonus: 3, ...size };
+      expect(JSON.stringify(mirrorGenerateField(opts))).toBe(JSON.stringify(generateField(opts)));
+    }
+  });
+
+  it("the hex toolkit answers identically on both sides", () => {
+    // The tables are compared textually elsewhere; the FUNCTIONS are only ever
+    // compared here, and they are the half Lane C actually calls.
+    for (let i = 0; i < FIELDS.length; i += 10) {
+      const f = FIELDS[i];
+      for (const [a, b] of pairsFor(i, f).slice(0, 12)) {
+        expect(JSON.stringify(mHexLine(a, b))).toBe(JSON.stringify(hexLine(a, b)));
+        expect(mLineOfSight(f, a, b)).toBe(lineOfSight(f, a, b));
+        expect(JSON.stringify(mPathCost(f, a, b))).toBe(JSON.stringify(pathCost(f, a, b)));
+      }
+      const centre = { q: (f.w / 2) | 0, r: (f.h / 2) | 0 };
+      expect(JSON.stringify(mHexRange(f, centre, 3))).toBe(JSON.stringify(hexRange(f, centre, 3)));
+      expect(JSON.stringify(mNeighbors(centre.q, centre.r))).toBe(JSON.stringify(neighbors(centre.q, centre.r)));
+    }
+  });
+
+  it("the mirror's own tables are pure literals the extractor can lift", () => {
+    // The purity rule binds BOTH files. If the mirror ever computed its rows
+    // from the canonical shape, the table comparison above would still pass
+    // and the mirror would no longer be independently readable.
+    for (const name of ["FIELD", "TERRAIN", "PALETTES", "WEATHER_FIELD", "WORKS_SEED"]) {
+      expect(() => extractConst(MIRROR_SRC, name), `${name} is not liftable`).not.toThrow();
+      expect(extractConst(MIRROR_SRC, name), `${name} does not round-trip`).toEqual(MIRROR_MOD[name]);
+    }
+  });
+});
+
+describe("hexLine and LOS survive a board the generator would never build", () => {
+  it("is symmetric over all 3,969 ordered pairs of a board sown with blockers", () => {
+    // A third of the hexes block sight and elevation is scattered 0/1/2. This
+    // is exhaustive, not sampled: every ordered pair of a 9x7 board.
+    const f = sownBoard(4004);
+    const hexes = allHexes(f);
+    const blockers = Object.values(f.tiles).filter((t) => t.blocksLOS).length;
+    expect(blockers).toBeGreaterThan(10);
+    let pairs = 0, blocked = 0;
+    for (const a of hexes) {
+      for (const b of hexes) {
+        const there = lineOfSight(f, a, b);
+        expect(there, `${K(a.q, a.r)} <-> ${K(b.q, b.r)}`).toBe(lineOfSight(f, b, a));
+        if (!there) blocked++;
+        pairs++;
+      }
+    }
+    expect(pairs).toBe(63 * 63);
+    // The board has to actually block things, or symmetry is trivially true.
+    expect(blocked).toBeGreaterThan(pairs * 0.15);
+  });
+
+  it("draws the same line in both directions over all 3,969 pairs", () => {
+    const f = sownBoard(4004);
+    const hexes = allHexes(f);
+    let pairs = 0;
+    for (const a of hexes) {
+      for (const b of hexes) {
+        const forward = hexLine(a, b);
+        expect(JSON.stringify(forward), `${K(a.q, a.r)} -> ${K(b.q, b.r)}`)
+          .toBe(JSON.stringify(hexLine(b, a).slice().reverse()));
+        expect(forward.length).toBe(hexDistance(a, b) + 1);
+        for (let i = 1; i < forward.length; i++) expect(hexDistance(forward[i - 1], forward[i])).toBe(1);
+        pairs++;
+      }
+    }
+    expect(pairs).toBe(63 * 63);
+  });
+
+  it("holds symmetry when the elevation is lopsided and the blocker sits between", () => {
+    // The elevation rule reads min(elevA, elevB), which is symmetric — but a
+    // rule written as "the blocker must clear the SHOOTER" would not be, and
+    // would pass every sampled test on a board with few blockers.
+    const f = sownBoard(77);
+    for (const tile of Object.values(f.tiles)) { tile.blocksLOS = false; tile.elev = 0; }
+    const a = { q: 1, r: 3 }, b = { q: 7, r: 3 };
+    const line = hexLine(a, b);
+    const mid = line[3];
+    f.tiles[K(mid.q, mid.r)].blocksLOS = true;
+    for (const [ea, eb, expected] of [
+      [0, 0, false], [1, 0, false], [0, 1, false],
+      [1, 1, true], [2, 1, true], [1, 2, true], [2, 2, true],
+    ]) {
+      f.tiles[K(a.q, a.r)].elev = ea;
+      f.tiles[K(b.q, b.r)].elev = eb;
+      f.tiles[K(mid.q, mid.r)].elev = 0;
+      const label = `elev ${ea}/${eb} over a ground blocker`;
+      expect(lineOfSight(f, a, b), label).toBe(expected);
+      expect(lineOfSight(f, b, a), `${label} (reversed)`).toBe(expected);
+    }
+  });
+
+  it("never lets an endpoint block itself, however solid it is", () => {
+    const f = sownBoard(1291);
+    for (const tile of Object.values(f.tiles)) { tile.blocksLOS = true; tile.elev = 0; }
+    // Every hex on the board blocks. Adjacent pairs still see each other,
+    // because a line of length two has no intermediate hex at all.
+    for (let q = 0; q < f.w; q++) {
+      for (let r = 0; r < f.h; r++) {
+        for (const n of neighbors(q, r)) {
+          if (n.q < 0 || n.q >= f.w || n.r < 0 || n.r >= f.h) continue;
+          expect(lineOfSight(f, { q, r }, n), `${K(q, r)} cannot see its neighbour ${K(n.q, n.r)}`).toBe(true);
+        }
+        expect(lineOfSight(f, { q, r }, { q, r })).toBe(true);
+      }
+    }
+  });
+});
+
+describe("the contract records the vocabulary this lane publishes", () => {
+  // A union type is a SET, not a sequence — §4 spells WeatherKey in a different
+  // order from the table and neither is wrong. Compare sorted, or this guard
+  // fires on a cosmetic reordering and gets switched off.
+  const unionOf = (prefix) => {
+    const line = PLAN_SRC.split("\n").find((l) => l.startsWith(prefix));
+    expect(line, `§4 has no '${prefix}' declaration`).toBeTruthy();
+    return [...line.matchAll(/'([a-z_]+)'/g)].map((m) => m[1]).sort();
+  };
+  const sorted = (o) => Object.keys(o).sort();
+
+  it("§4's TerrainKey union is exactly the TERRAIN table", () => {
+    // Lane E's terrain tokens and Lane J's Suspension.terrain are keyed to this
+    // union. If the table and the contract ever disagree, one of those two
+    // lanes ships a hole, and it will not be visible in this lane's own tests.
+    expect(unionOf("TerrainKey")).toEqual(sorted(TERRAIN));
+    expect(unionOf("TerrainKey")).toHaveLength(16);
+  });
+
+  it("§4's NodeKind and WeatherKey unions are exactly the palettes and weather rows", () => {
+    expect(unionOf("NodeKind")).toEqual(sorted(PALETTES));
+    expect(unionOf("WeatherKey")).toEqual(sorted(WEATHER_FIELD));
+  });
+
+  it("§4 declares the Tile, FieldMeta and Field shapes this generator returns", () => {
+    const sample = FIELDS[0];
+    const tile = Object.values(sample.tiles)[0];
+    for (const key of Object.keys(tile)) expect(PLAN_SRC).toMatch(new RegExp(`Tile\\s+=.*\\b${key}\\b`));
+    const metaLine = PLAN_SRC.split("\n").find((l) => l.startsWith("FieldMeta"));
+    for (const key of Object.keys(sample.meta)) expect(metaLine, `FieldMeta omits ${key}`).toContain(key);
+    expect(PLAN_SRC).toMatch(/WorkKey\s+=.*'trench'/);
+    expect(PLAN_SRC).toMatch(/WorkKey\s+=.*'bunker'/);
+    // The only two work keys this lane may ever emit.
+    const emitted = new Set();
+    for (const f of FIELDS) for (const [, t] of worksOf(f)) emitted.add(t.work);
+    expect([...emitted].sort()).toEqual(["bunker", "trench"]);
   });
 });
