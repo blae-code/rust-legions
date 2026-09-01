@@ -143,8 +143,25 @@ Delivers:
 - **Quirks (≥20)**: named characteristics with numeric hooks and a machine-evaluable `condition` — e.g. *Cold-Forged* (reliability +0.1 in snow), *Ferryman's Blessing* (morale +1 adjacent to a relic_bearer), *Runs Hot* (rateOfFire +0.15, reliability −0.1 after 2 consecutive fire orders), *Prize-Taken* (+1 morale when fielded against the maker's native house).
 - **`rollWeapon({ seed, class, maker?, calibre?, tierCap, luck })`** → deterministic `WeaponInstance` (pattern, quality, mods, quirks, serial) via the shared `mulberry32`. Odds tables live in `ARMS_CATALOGUE.md`. Battle loot, dig finds and armory certifications call this — Lane I supplies the function; the platform lane decides when it fires.
 - **`deriveLoadout(squad)`** — the squad's `Loadout` (primary / support / sidearm instances) reduces to `SquadType`-shaped mods that Lane A's `deriveSquad` consumes, so the tactical engine never inspects individual weapons. Reduction formula documented (e.g. `ranged = Σ damage×rateOfFire×accuracy ÷ figures`; `reliability` → misfire chance per fire order; `weight` → speed drag).
-- **Points Audit**: every pattern at `issue` grade priced against the reference `141 Levy Rifle = 1 pt/figure`; no pattern > 1.6× baseline efficiency at `issue`.
+- **Universal Damage Model** (owned by Lane I, consumed by A/C/J): every weapon — small arm, crawler gun, artillery piece, aircraft gun — carries `armorPen`, a `damageType` (`kinetic | explosive | shaped | incendiary | fragmentation | concussive | chemical`) and an `aoe` (`{ radius (hexes), falloff }`, `null` for point fire). Every target — figure, squad stand, vehicle facing, fortification — carries an `ArmourClass` (`none | soft | light | medium | heavy | superheavy | fortified`) with a numeric `armourValue`. Damage resolves through a **penetration table**: `armorPen − armourValue` maps to an effectiveness multiplier that reaches **0 for light weapons against heavy/superheavy armour** (a rifle squad cannot scratch a heavy crawler; it may still suppress or pin its crew). A **type-vs-armour matrix** scales further (shaped charges excel against heavy plate but waste against soft targets; incendiary ignores plate but is stopped by sealed hulls; fragmentation shreds `soft` and is spent on `light`+; concussive stuns crews). AoE fires against every stand within `radius`, falling off by `falloff` per hex, and rolls against each victim's own armour class. Tables live in `ARMS_CATALOGUE.md` and `arms.ts` (`ARMOUR_CLASSES`, `PEN_TABLE`, `TYPE_MATRIX`, `resolveHit`) and are the only place armour math is defined — Lane A imports them.
+- **Points Audit**: every pattern at `issue` grade priced against the reference `141 Levy Rifle = 1 pt/figure`; no pattern > 1.6× baseline efficiency at `issue`; anti-armour value is priced separately from anti-personnel value so a heavy AT rifle is not "free" against infantry.
 Acceptance: mirror + roll tests green (same seed → identical instance; 10 000 rolls match the quality distribution within 2%); every pattern has an `arms_<key>` plate, every maker a `maker_<key>` plate, every mod a `mod_kit_<key>` plate; `deriveLoadout` output keys ⊆ §4 `SquadType` value keys; Codex entries for every maker and calibre; no `Math.random` anywhere in the lane.
+
+#### Lane J — The Motor Pool (granular mechanized kit & customisation)
+A "crawler" is a *chassis class*, not a vehicle. Mechanized stands are **named chassis patterns** from the same fictional manufacturers (Lane J appends motor-works to Lane I's `MANUFACTURERS`, keys `mw_*`, rather than duplicating the table), fitted with a powerplant, an armour package, a suspension, a turret or fixed mount, hardpoint weapons drawn from Lane I's `WEAPON_PATTERNS` (`crawler_gun`, `hmg`, `flame`, `mortar`, `artillery`, `aircraft_gun` classes), and rolled quirks — Enlisted-style vehicle kit with the same quality grades and seeded rolls as small arms.
+Owns: `base44/shared/motorPool.ts` (NEW — canonical), `src/lib/motorPool.js` (mirror), `docs/MOTOR_POOL.md` (NEW), `test/motor-mirror.test.js`, `test/motor-roll.test.js`, `imageLibrary.js` § `motor` placeholders (category `motor`: "The Motor Pool — chassis patterns, powerplants and refit kits").
+Delivers:
+- **Chassis patterns (≥18)**: light scout crawlers, medium line crawlers, heavy breakthrough crawlers, superheavy land-forts, half-tracks, armoured cars, self-propelled guns, tractor-drawn artillery, gunboats, fighters, bombers — each with tonnage, crew, hardpoints, per-facing base `ArmourClass` (front/side/rear/top), slots, innate quirks, `pts`. Nomenclature as Lane I ("Grimwold 138 Breaker, Mk III").
+- **Powerplants (≥8)**: diesel, gas-turbine, steam-flash boiler, relic-cell, alcohol burner… — `hp, weight, reliability, fuelClass, heat`. Speed = f(hp ÷ tonnage) via a documented curve.
+- **Armour packages (≥10)**: rolled plate, cast, face-hardened, spaced, bolted salvage, sandbag stowage, relic-alloy — each upgrades per-facing `ArmourClass` with a `weight/cost/reliability` tradeoff; a heavy package can push a medium chassis into `heavy` at the price of speed and powerplant strain.
+- **Suspension / drive (≥6)**: tracks, half-track, wheels, walker-legs, screw-drive, hover-skirt (relic) — terrain modifiers per `TERRAIN` key, weight, reliability.
+- **Turrets & mounts (≥8)**: fixed casemate, open ring, enclosed turret, twin mount, sponson pair, howitzer cradle — govern how many hardpoint weapons fit, arc of fire, and crew exposure (the gun crew's own `ArmourClass`).
+- **Vehicle modifications (≥25)** by `VehicleSlot` (`engine, armour, suspension, turret, hardpoint, optics, radio, stowage, crew_kit`) — every mod has a numeric `tradeoff` (extra plate slows; long-barrel gun cuts turret traverse; smoke dischargers cost a hardpoint).
+- **Vehicle quirks (≥15)** with machine-evaluable `condition`s (*Hand-Fitted Gearbox*: reliability +0.1 while not at full pace; *Prize Hull*: morale +1 for the captor's house; *Boiler-Shy*: reliability −0.15 in rain).
+- **`rollVehicle({ seed, class, maker?, tierCap, luck })`** → deterministic `VehicleInstance` (chassis, quality, powerplant, armour package, suspension, mount, hardpoints as `WeaponInstance[]`, mods, quirks, serial). Same odds discipline as Lane I.
+- **`deriveMechanized(stand)`** → `SquadType`-shaped values (speed, ranged/melee/pen from hardpoints, crew morale, reliability → breakdown chance) **plus `facings`**, so the engine treats a crawler as a stand with facings, never as a bag of parts. The engine applies the attacker's `armorPen` against the **struck facing** (Lane A/C rule: rear = attacker behind the stand's facing hex).
+- **Points Audit**: every chassis at `issue` grade with issue powerplant and no package priced against `Hundredweight 141 Line Crawler = 12 pts`.
+Acceptance: mirror + roll tests green (same seed → identical vehicle; 10 000 rolls within 2% of the grade table); every chassis has a `chassis_<key>` plate, every powerplant a `plant_<key>` plate, every armour package / mod a `refit_<key>` plate; `deriveMechanized` output keys ⊆ §4 `SquadType` value keys ∪ `{facings}`; every hardpoint weapon key exists in Lane I's `WEAPON_PATTERNS`; Codex entries for every motor-works and chassis class; no `Math.random`; no armour arithmetic outside `arms.ts`.
 
 ### Platform lane (Base44 chat session — not a worktree)
 Owns: `base44/functions/gameEngine/entry.ts`, `base44/entities/ArmyDesign.jsonc` → `SquadTemplate` shape, `Patch` dispatch record, live `test_backend_function` runs, `docs/GAME_RULES.md`, `docs/ARCHITECTURE.md` catalog rows.
@@ -196,7 +213,13 @@ ArmoryItem = { key, kind: 'module'|'decree'|'relic_project', label, cost: { stee
 Preset     = existing PRESET_FACTIONS row + { house: string, uniqueRoster: { squads: SquadTypeKey[], upgrades: UpgradeKey[], decree: ArmoryKey, patterns: WeaponPatternKey[] }, heraldVoice: string }
 
 // ---- Arms Catalogue (Lane I) ----
-WeaponBase     = { accuracy, rateOfFire, damage, armorPen, range, reliability, weight }
+WeaponBase     = { accuracy, rateOfFire, damage, armorPen, range, reliability, weight, damageType: DamageType, aoe: { radius, falloff } | null }
+DamageType     = 'kinetic'|'explosive'|'shaped'|'incendiary'|'fragmentation'|'concussive'|'chemical'
+ArmourClassKey = 'none'|'soft'|'light'|'medium'|'heavy'|'superheavy'|'fortified'
+ArmourClass    = { key: ArmourClassKey, armourValue: number, sealed: boolean, blurb }
+PEN_TABLE      = Array<{ minDelta: number, mult: number }>      // armorPen − armourValue → effectiveness; a mult 0 row is mandatory
+TYPE_MATRIX    = { [DamageType]: { [ArmourClassKey]: number } } // damage-type vs armour-class multiplier
+// resolveHit({ weapon: WeaponBase, target: ArmourClass }) → { effective: number, suppressOnly: boolean } — the only armour math; Lane A imports it
 WeaponClass    = 'sidearm'|'carbine'|'rifle'|'smg'|'lmg'|'hmg'|'shotgun'|'marksman'|'anti_armor'|'flame'|'mortar'|'crawler_gun'|'artillery'|'aircraft_gun'
 ModSlot        = 'barrel'|'optic'|'magazine'|'stock'|'muzzle'|'bayonet'|'ammunition'|'mount'
 Manufacturer   = { key, label, houseKey?: string, culture?: string, signature: Partial<WeaponBase>, nameStems: string[], access: { [houseKey]: 'native'|'licensed'|'captured' }, lore }
@@ -208,6 +231,22 @@ QualityGrade   = { key: 'scrap'|'issue'|'proofed'|'master'|'relic', mult: Partia
 WeaponInstance = { patternKey, quality: QualityKey, mods: ModKey[], quirks: QuirkKey[], serial: string }
 Loadout        = { primary: WeaponInstance, support?: WeaponInstance, sidearm?: WeaponInstance }
 // Squad rows gain `loadout?: Loadout`; deriveLoadout(squad) → Partial<SquadType values>, consumed by deriveSquad
+// Every stand row gains `armour: ArmourClassKey` (infantry: none/soft/light via upgrade kits; vehicles: per facing, see below)
+
+// ---- Motor Pool (Lane J) ----
+VehicleClass    = 'scout_crawler'|'line_crawler'|'heavy_crawler'|'land_fort'|'half_track'|'armoured_car'|'sp_gun'|'tractor_gun'|'gunboat'|'fighter'|'bomber'
+VehicleSlot     = 'engine'|'armour'|'suspension'|'turret'|'hardpoint'|'optics'|'radio'|'stowage'|'crew_kit'
+Facings         = { front: ArmourClassKey, side: ArmourClassKey, rear: ArmourClassKey, top: ArmourClassKey }
+Hardpoint       = { key, allowed: WeaponClass[] }
+ChassisPattern  = { key, label, maker: ManufacturerKey, class: VehicleClass, tier, hull: { tonnage, crew, hardpoints: Hardpoint[], baseArmour: Facings }, slots: VehicleSlot[], quirks: QuirkKey[], pts, blurb }
+Powerplant      = { key, label, maker?, hp, weight, reliability, fuelClass: RegimentKey, heat, blurb }
+ArmourPackage   = { key, label, facings: Partial<Facings>, weight, cost, reliability, blurb }
+Suspension      = { key, label, terrain: { [TerrainKey]: number }, weight, reliability, blurb }
+Mount           = { key, label, hardpoints: number, arc: number, crewArmour: ArmourClassKey, blurb }
+VehicleMod      = { key, label, slot: VehicleSlot, appliesTo: VehicleClass[], pts, mods: Record<string, number>, tradeoff: Record<string, number>, blurb }
+VehicleInstance = { chassisKey, quality: QualityKey, powerplant: PowerplantKey, armourPackage?: ArmourPackageKey, suspension: SuspensionKey, mount: MountKey, hardpoints: WeaponInstance[], mods: VehicleModKey[], quirks: QuirkKey[], serial }
+// Mechanized stand rows carry `vehicle: VehicleInstance`; deriveMechanized(stand) → Partial<SquadType values> & { facings: Facings }
+// Engine rule (Lane A/C): a hit resolves via resolveHit against the struck facing — rear if the attacker occupies a hex behind the stand's facing
 // tacticalDeploy squads may carry `loadout`; platform validates instances against the caller's arsenal
 Plate      = P(key, category, title, desc, prompt /* no house style — prepended at generation */, aspect?)  // url always null from a lane
 ```
@@ -227,11 +266,11 @@ Regiments ↔ figures: `1 company = FIGURES_PER_COMPANY` (Lane A sets; default 1
 | **P3 — Platform wiring** | Platform | `createTactical` field opts, squads deploy, `tacticalAuto`, live test of a full NPC-defended battle via `test_backend_function` |
 | **P4 — UI** | D, E in parallel (against P1 shapes; E stubs `fx`) | Deployment + arena render against a recorded `getState` fixture in `test/fixtures/tactical-state.json` |
 | **P5 — Ship** | Platform | Patch dispatch filed; `docs/GAME_RULES.md` § Set-Piece Engagements; `docs/ARCHITECTURE.md` action rows |
-| **C1 — Catalog contracts** | F, G, I (parallel with P1) | Squad/specialist/upgrade rows, `catalog.ts` and `arms.ts` merged; mirror + roll tests green; placeholder plates registered; `[PROPOSED]` rules drafted |
+| **C1 — Catalog contracts** | F, G, I, then J (parallel with P1) | Squad/specialist/upgrade rows, `catalog.ts`, `arms.ts` and `motorPool.ts` merged; mirror + roll tests green; damage-model tables in place; placeholder plates registered; `[PROPOSED]` rules drafted |
 | **C2 — Factions & lore** | H (after C1) | 13 presets pass validation; herald voices, codex, settlements, lifepath chapter merged |
 | **C3 — Platform content wiring** | Platform | Catalogs imported into the engine, `effects[]` applied, locks enforced, plates generated & delivered, `[PROPOSED]` promoted, patch dispatch |
 
-Merge order is strict: A/B → C → platform → D/E. D and E may open PRs early but rebase on P3. Content runs on its own track: F/G/I → H → platform (C3); F and I **must** land before D (the squad builder renders F's rows and I's loadouts — D adds a "Small Arms Issue" step where each squad's weapons are inspected and mods fitted from the reserve).
+Merge order is strict: A/B → C → platform → D/E. D and E may open PRs early but rebase on P3. Content runs on its own track: F/G/I → J → H → platform (C3). J starts once I merges (J's hardpoints reference I's `WEAPON_PATTERNS`, its facings use I's `ARMOUR_CLASSES`); H after F/G/I/J. F, I and J **must** land before D (the squad builder renders F's rows, I's loadouts and J's vehicles — D adds a "Small Arms Issue" step for infantry and a "Motor Pool Refit" step for mechanized stands, each fitting mods from the reserve). Lane A imports `resolveHit` from `arms.ts` rather than authoring its own armour math, so I's damage-model tables merge **before** A finalises combat resolution.
 
 ---
 
@@ -248,6 +287,8 @@ Merge order is strict: A/B → C → platform → D/E. D and E may open PRs earl
 9. **Doc drift** — a PR that changes any rule number also edits `docs/COMBAT_DESIGN.md` (lanes) and flags `docs/GAME_RULES.md` for the platform lane.
 10. **Content lanes never ship visuals** — no image files, no SVG art, no `PLATE_URLS` entries, no `UnitSprite.jsx` edits. Art is requested only as `imageLibrary.js` placeholders with `url: null`. Existing catalog keys are never renamed or removed (live saves reference them). Every new mechanical effect uses the §4 effect-key vocabulary or extends it in the same PR.
 11. **Arms granularity stays numeric and server-rolled** — no weapon stat exists only in prose; every quirk carries a machine-evaluable `condition`; `rollWeapon` is pure and seeded (no `Math.random`); the tactical engine consumes only `deriveLoadout` output, never raw weapon instances.
+12. **One damage model** — armour math exists only in `arms.ts` (`ARMOUR_CLASSES`, `PEN_TABLE`, `TYPE_MATRIX`, `resolveHit`). Every weapon declares `armorPen`, `damageType` and `aoe`; every stand declares an `ArmourClass` (vehicles per facing). `PEN_TABLE` must contain a `mult: 0` row so light weapons are genuinely ineffective against heavy/superheavy armour; a zero-effect hit may still suppress. No lane re-implements penetration in its own file.
+13. **Mechanized granularity mirrors arms** — vehicles are chassis + powerplant + armour package + suspension + mount + hardpoints (Lane I weapon instances) + mods + quirks; `rollVehicle` is pure and seeded; the engine consumes only `deriveMechanized` output plus `facings`.
 
 ## 7. Worktree & git protocol
 
