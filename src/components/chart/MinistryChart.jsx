@@ -85,6 +85,7 @@ export default function MinistryChart({
   mySlot = null,
   hovered = null,
   onHoverNode,
+  nodeTip = null,              // (node) => status line for the hover survey slip
   onNodeClick,
   onColumnClick,
   selectedColumnId = null,
@@ -335,6 +336,22 @@ export default function MinistryChart({
           return n ? <FogRevealBurst key={rv.key} x={n.x} y={n.y} /> : null;
         })}
       </svg>
+
+      {/* Hover tooltip — a small survey slip pinned under the site */}
+      {hovered && byId[hovered.id] && menuNodeId !== hovered.id && (() => {
+        const pos = toScreen(hovered.x, hovered.y);
+        return (
+          <div className="absolute z-10 pointer-events-none -translate-x-1/2" style={{ left: pos.left, top: pos.top + 16 }}>
+            <div className="bg-card/95 border border-brass/40 rounded-sm px-2.5 py-1.5 shadow-[0_4px_12px_rgba(0,0,0,0.6)]">
+              <p className="font-heading uppercase tracking-[0.2em] text-[10px] text-brass-bright whitespace-nowrap">{hovered.name}</p>
+              <p className="font-mono text-[9px] text-muted-foreground whitespace-nowrap">
+                {(NODE_KINDS[hovered.kind]?.label || hovered.kind).toUpperCase()}
+                {nodeTip ? ` — ${nodeTip(hovered).toUpperCase()}` : ""}
+              </p>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Radial orders menu — HTML overlay pinned over the node */}
       {menuNode && menuOptions && menuPos && (

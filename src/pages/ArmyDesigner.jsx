@@ -7,6 +7,8 @@ import SlotPicker from "@/components/army/SlotPicker";
 import DesignStats from "@/components/army/DesignStats";
 import DesignCard from "@/components/army/DesignCard";
 import { SLOT_KEYS, DEFAULT_DESIGN, compileDesign } from "@/lib/armyDesign";
+import CommandTip from "@/components/ui/CommandTip";
+import LabelTip from "@/components/ui/LabelTip";
 
 export default function ArmyDesigner() {
   const [designs, setDesigns] = useState(null);
@@ -71,9 +73,11 @@ export default function ArmyDesigner() {
           ))}
           <DesignStats compiled={compileDesign(draft)} />
           <div className="flex gap-2">
-            <Button disabled={busy || !draft.name.trim()} onClick={save} className="flex-1">
-              {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : editingId ? "Update Design" : "Commit Design"}
-            </Button>
+            <CommandTip title={editingId ? "Update Design" : "Commit Design"} body="File this pattern with the Bureau — recall it when mustering field armies in a war.">
+              <Button disabled={busy || !draft.name.trim()} onClick={save} className="flex-1">
+                {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : editingId ? "Update Design" : "Commit Design"}
+              </Button>
+            </CommandTip>
             {editingId && (
               <Button variant="secondary" onClick={() => { setEditingId(null); setDraft({ name: "", ...DEFAULT_DESIGN }); }}>Cancel</Button>
             )}
@@ -81,7 +85,7 @@ export default function ArmyDesigner() {
         </div>
 
         <div className="space-y-3">
-          <p className="cq-label">Registered Designs</p>
+          <p className="cq-label">Registered Designs<LabelTip title="Registered Designs" body="Your filed patterns. Click one to recall it onto the drafting table for edits." /></p>
           {designs === null ? (
             <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
           ) : designs.length === 0 ? (

@@ -2,20 +2,21 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { playSfx } from "@/lib/sfx";
+import CommandTip from "@/components/ui/CommandTip";
 
 // Main-menu navigation — stamped metal order plates with 2.5D depth
 export default function GameMenu({ continueGame }) {
   const items = [
-    continueGame && { to: `/game/${continueGame.id}`, label: "Continue War", sub: continueGame.name, hot: true },
-    { to: "/new-game", label: "New Operation", sub: "Open a fresh front on the continent" },
-    { to: "/walkthrough", label: "Field Induction", sub: "Recruit drill — fortress-bases & ideology" },
-    { to: "/faction-builder", label: "Faction Foundry", sub: "Forge a banner through the lifepath" },
-    { to: "/army-designer", label: "Army Design Bureau", sub: "Draft doctrine patterns for your armies" },
-    { to: "/map-editor", label: "Cartography Bureau", sub: "Draft new battlegrounds tile by tile" },
-    { to: "/maps", label: "Map Archive", sub: "Survey every registered theater" },
-    { to: "/patch-notes", label: "Field Amendments", sub: "Patch dispatches from the War Ministry" },
-    { to: "/asset-registry", label: "Illustration Directorate", sub: "The master registry of commissioned art plates" },
-    { to: "/star-map", label: "The War Table", sub: "Orbit the theater world and plot day-rate marches" },
+    continueGame && { to: `/game/${continueGame.id}`, label: "Continue War", sub: continueGame.name, hot: true, tip: "Return to your most recent front and resume command." },
+    { to: "/new-game", label: "New Operation", sub: "Open a fresh front on the continent", tip: "Muster a new multiplayer war, or a solo campaign against NPC factions." },
+    { to: "/walkthrough", label: "Field Induction", sub: "Recruit drill — fortress-bases & ideology", tip: "A guided recruit drill through fortress-bases, treads and ideology." },
+    { to: "/faction-builder", label: "Faction Foundry", sub: "Forge a banner through the lifepath", tip: "Forge a custom nation through the lifepath — its history shapes its traits." },
+    { to: "/army-designer", label: "Army Design Bureau", sub: "Draft doctrine patterns for your armies", tip: "File doctrine patterns — formation, weapons, armor, support — to recall when mustering." },
+    { to: "/map-editor", label: "Cartography Bureau", sub: "Draft new battlegrounds tile by tile", tip: "Draft and publish custom theater charts for new wars." },
+    { to: "/maps", label: "Map Archive", sub: "Survey every registered theater", tip: "Browse every published chart and open a war on one." },
+    { to: "/patch-notes", label: "Field Amendments", sub: "Patch dispatches from the War Ministry", tip: "Read the Ministry's patch dispatches — what changed and why." },
+    { to: "/asset-registry", label: "Illustration Directorate", sub: "The master registry of commissioned art plates", tip: "The master registry of commissioned art plates used across the app." },
+    { to: "/star-map", label: "The War Table", sub: "Orbit the theater world and plot day-rate marches", tip: "Orbit the theater worlds in 3D and plot day-rate marches." },
   ].filter(Boolean);
 
   return (
@@ -27,6 +28,7 @@ export default function GameMenu({ continueGame }) {
           animate={{ opacity: 1, x: 0, rotateY: 0 }}
           transition={{ delay: 0.15 + i * 0.08, duration: 0.45 }}
         >
+          <CommandTip title={item.label} body={item.tip} side="right">
           <Link
             to={item.to}
             onMouseEnter={() => playSfx("hover")}
@@ -55,6 +57,7 @@ export default function GameMenu({ continueGame }) {
             </span>
             <span className="ml-auto font-display text-brass/0 group-hover:text-brass/80 transition-colors text-lg shrink-0">▸</span>
           </Link>
+          </CommandTip>
         </motion.div>
       ))}
     </nav>

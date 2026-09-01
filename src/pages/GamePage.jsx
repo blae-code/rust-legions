@@ -3,7 +3,10 @@ import { Link, useParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
-import { Loader2, Volume2, VolumeX, Handshake, FlaskConical, ClipboardList } from "lucide-react";
+import { Loader2, Volume2, VolumeX, Handshake, FlaskConical, ClipboardList, HelpCircle } from "lucide-react";
+import CommandTip from "@/components/ui/CommandTip";
+import TourGuide from "@/components/tour/TourGuide";
+import { GAME_TOUR_STEPS, TOUR_DONE_KEY } from "@/lib/tourSteps";
 import QuartermasterLedger from "@/components/game/ledger/QuartermasterLedger";
 import FactionOverview from "@/components/game/overview/FactionOverview";
 import { LayoutDashboard } from "lucide-react";
@@ -62,6 +65,7 @@ export default function GamePage() {
   const [showCodex, setShowCodex] = useState(false);
   const [showAccords, setShowAccords] = useState(false);
   const [showProtectorate, setShowProtectorate] = useState(false);
+  const [tourOpen, setTourOpen] = useState(false);
   const pollRef = useRef(null);
   const prevBattleRef = useRef(false);
   const [turnStinger, setTurnStinger] = useState(0);
@@ -88,6 +92,14 @@ export default function GamePage() {
     setScoreSuppressed(!!game && game.status !== "lobby");
   }, [game?.status]);
   useEffect(() => () => setScoreSuppressed(false), []);
+
+  // First war: open the guided tour once the front is live and we hold a slot
+  useEffect(() => {
+    if (game?.status !== "active" || game.mySlot === null || game.mySlot === undefined) return;
+    if (localStorage.getItem(TOUR_DONE_KEY)) return;
+    const t = setTimeout(() => setTourOpen(true), 1200);
+    return () => clearTimeout(t);
+  }, [game?.status, game?.mySlot]);
 
   // The field bed follows the theater: planet sets the air, weather reshapes it
   useEffect(() => {
@@ -227,7 +239,7 @@ export default function GamePage() {
         />
       )}
       {/* Command bar */}
-      <div className="cq-panel relative overflow-hidden px-4 pt-4 pb-3 flex flex-wrap items-center gap-3">
+      <div data-tour="command-bar" className="cq-panel relative overflow-hidden px-4 pt-4 pb-3 flex flex-wrap items-center gap-3">
         <div className="cq-hazard absolute top-0 left-0 right-0" />
         <div>
           <h1 className="cq-display text-2xl leading-none">{game.name}</h1>
@@ -260,78 +272,97 @@ export default function GamePage() {
         )}
         {game.status === "active" && <WeatherBadge weather={game.weather} />}
         {game.status === "active" && game.myResearch && (
-          <button
-            onClick={() => setShowDoctrine(true)}
-            title="Doctrine Research — may be set off-turn"
-            className={`relative p-1.5 rounded-sm border transition-colors ${game.myResearch.focus ? "border-brass/50 text-brass-bright" : "border-border text-muted-foreground hover:text-brass-bright hover:border-brass/50"}`}
-          >
-            <FlaskConical className="w-3.5 h-3.5" />
-            {!game.myResearch.focus && <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-rust cq-lamp text-rust" />}
-          </button>
+          <CommandTip title="Doctrine Research" body="Set your research focus and unlock prototypes — this may be done off-turn, while you wait.">
+            <button
+              onClick={() => setShowDoctrine(true)}
+              className={`relative p-1.5 rounded-sm border transition-colors ${game.myResearch.focus ? "border-brass/50 text-brass-bright" : "border-border text-muted-foreground hover:text-brass-bright hover:border-brass/50"}`}
+            >
+              <FlaskConical className="w-3.5 h-3.5" />
+              {!game.myResearch.focus && <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-rust cq-lamp text-rust" />}
+            </button>
+          </CommandTip>
         )}
         {game.status === "active" && game.mySlot !== null && game.mySlot !== undefined && (
-          <button
-            onClick={() => { playSfx("select"); setShowOverview(true); }}
-            title="Faction Overview — holdings, supply network & standing bonuses"
-            className="p-1.5 rounded-sm border border-border text-muted-foreground hover:text-brass-bright hover:border-brass/50 transition-colors"
-          >
-            <LayoutDashboard className="w-3.5 h-3.5" />
-          </button>
+          <CommandTip title="Faction Overview" body="Holdings, supply network and standing bonuses, gathered on one dashboard.">
+            <button
+              data-tour="desks"
+              onClick={() => { playSfx("select"); setShowOverview(true); }}
+              className="p-1.5 rounded-sm border border-border text-muted-foreground hover:text-brass-bright hover:border-brass/50 transition-colors"
+            >
+              <LayoutDashboard className="w-3.5 h-3.5" />
+            </button>
+          </CommandTip>
         )}
         {game.status === "active" && game.mySlot !== null && game.mySlot !== undefined && (
-          <button
-            onClick={() => { playSfx("select"); setShowLedger(true); }}
-            title="Quartermaster's Ledger — holdings, income & supply"
-            className="p-1.5 rounded-sm border border-border text-muted-foreground hover:text-brass-bright hover:border-brass/50 transition-colors"
-          >
-            <ClipboardList className="w-3.5 h-3.5" />
-          </button>
+          <CommandTip title="Quartermaster's Ledger" body="Every holding, its daily income, and whether it sits inside your supply network.">
+            <button
+              onClick={() => { playSfx("select"); setShowLedger(true); }}
+              className="p-1.5 rounded-sm border border-border text-muted-foreground hover:text-brass-bright hover:border-brass/50 transition-colors"
+            >
+              <ClipboardList className="w-3.5 h-3.5" />
+            </button>
+          </CommandTip>
         )}
         {game.status === "active" && game.mySlot !== null && game.mySlot !== undefined && (
-          <button
-            onClick={() => { playSfx("select"); setShowProtectorate(true); }}
-            title="Protectorate Register — settlement histories, accords & tribute"
-            className="p-1.5 rounded-sm border border-border text-muted-foreground hover:text-brass-bright hover:border-brass/50 transition-colors"
-          >
-            <Building2 className="w-3.5 h-3.5" />
-          </button>
+          <CommandTip title="Protectorate Register" body="Settlement histories, accords, and standing tribute across your protectorates.">
+            <button
+              onClick={() => { playSfx("select"); setShowProtectorate(true); }}
+              className="p-1.5 rounded-sm border border-border text-muted-foreground hover:text-brass-bright hover:border-brass/50 transition-colors"
+            >
+              <Building2 className="w-3.5 h-3.5" />
+            </button>
+          </CommandTip>
         )}
         {game.status === "active" && game.mySlot !== null && game.mySlot !== undefined && (
+          <CommandTip title="Governor's Desk" body="Set policy for your settlements — integrate, trade, or tax — and open the bazaar.">
+            <button
+              onClick={() => { playSfx("select"); setShowAccords(true); }}
+              className="p-1.5 rounded-sm border border-border text-muted-foreground hover:text-brass-bright hover:border-brass/50 transition-colors"
+            >
+              <Landmark className="w-3.5 h-3.5" />
+            </button>
+          </CommandTip>
+        )}
+        <CommandTip title="The Archive" body="Factions, worlds, and the annals of past campaigns.">
           <button
-            onClick={() => { playSfx("select"); setShowAccords(true); }}
-            title="Governor's Desk — integrate, trade with, or tax your settlements"
+            onClick={() => { playSfx("select"); setShowCodex(true); }}
             className="p-1.5 rounded-sm border border-border text-muted-foreground hover:text-brass-bright hover:border-brass/50 transition-colors"
           >
-            <Landmark className="w-3.5 h-3.5" />
+            <BookOpen className="w-3.5 h-3.5" />
           </button>
-        )}
-        <button
-          onClick={() => { playSfx("select"); setShowCodex(true); }}
-          title="The Archive — factions, worlds & campaign annals"
-          className="p-1.5 rounded-sm border border-border text-muted-foreground hover:text-brass-bright hover:border-brass/50 transition-colors"
-        >
-          <BookOpen className="w-3.5 h-3.5" />
-        </button>
+        </CommandTip>
         {game.status === "active" && game.diplomacy && (
-          <button
-            onClick={() => setShowDiplomacy(true)}
-            title="Envoy Desk — diplomacy"
-            className="relative p-1.5 rounded-sm border border-border text-muted-foreground hover:text-brass-bright hover:border-brass/50 transition-colors"
-          >
-            <Handshake className="w-3.5 h-3.5" />
-            {game.diplomacy.incoming.length > 0 && <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-rust cq-lamp text-rust" />}
-          </button>
+          <CommandTip title="Envoy Desk" body="Diplomacy — propose pacts and trades. A red lamp means an offer awaits your answer.">
+            <button
+              onClick={() => setShowDiplomacy(true)}
+              className="relative p-1.5 rounded-sm border border-border text-muted-foreground hover:text-brass-bright hover:border-brass/50 transition-colors"
+            >
+              <Handshake className="w-3.5 h-3.5" />
+              {game.diplomacy.incoming.length > 0 && <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-rust cq-lamp text-rust" />}
+            </button>
+          </CommandTip>
         )}
-        <button
-          onClick={() => { setSfxEnabled(!sound); setSound(!sound); }}
-          title={sound ? "Mute battlefield audio" : "Enable battlefield audio"}
-          className={`p-1.5 rounded-sm border transition-colors ${sound ? "border-brass/50 text-brass-bright" : "border-border text-muted-foreground"}`}
-        >
-          {sound ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
-        </button>
+        <CommandTip title="Battlefield Audio" body={sound ? "Mute clicks, marches and battle effects." : "Enable clicks, marches and battle effects."}>
+          <button
+            onClick={() => { setSfxEnabled(!sound); setSound(!sound); }}
+            className={`p-1.5 rounded-sm border transition-colors ${sound ? "border-brass/50 text-brass-bright" : "border-border text-muted-foreground"}`}
+          >
+            {sound ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
+          </button>
+        </CommandTip>
+        {game.status === "active" && (
+          <CommandTip title="Guided Tour" body="Replay the walkthrough of the war room.">
+            <button
+              onClick={() => { playSfx("select"); setTourOpen(true); }}
+              className="p-1.5 rounded-sm border border-border text-muted-foreground hover:text-brass-bright hover:border-brass/50 transition-colors"
+            >
+              <HelpCircle className="w-3.5 h-3.5" />
+            </button>
+          </CommandTip>
+        )}
         {game.status === "active" && (
           game.isMyTurn ? (
-            <Button size="sm" disabled={busy} onClick={() => act({ action: "endTurn" })} className="bg-brass hover:bg-brass-bright text-primary-foreground font-heading uppercase text-xs tracking-[0.2em]">
+            <Button data-tour="end-turn" size="sm" disabled={busy} onClick={() => act({ action: "endTurn" })} className="bg-brass hover:bg-brass-bright text-primary-foreground font-heading uppercase text-xs tracking-[0.2em]">
               End Turn
             </Button>
           ) : (
@@ -388,7 +419,7 @@ export default function GamePage() {
         </div>
         <div className="space-y-4">
           {game.status === "active" && game.myResources && (
-            <div className={`relative overflow-hidden rounded border px-4 py-2.5 space-y-1.5 ${game.isMyTurn ? "border-brass/50 bg-brass/10" : "border-border bg-card"}`}>
+            <div data-tour="resources" className={`relative overflow-hidden rounded border px-4 py-2.5 space-y-1.5 ${game.isMyTurn ? "border-brass/50 bg-brass/10" : "border-border bg-card"}`}>
               {game.isMyTurn && (
                 <>
                   <div className="cq-hazard absolute top-0 left-0 right-0" />
@@ -420,7 +451,9 @@ export default function GamePage() {
           <DispatchArchive archives={game.battleArchives} />
           <CombatLog entries={game.combatLog} />
           {game.mySlot !== null && game.mySlot !== undefined && (
-            <GameChat gameId={game.id} myName={game.factions.find((f) => f.isMe)?.factionName || "Commander"} />
+            <div data-tour="field-wire">
+              <GameChat gameId={game.id} myName={game.factions.find((f) => f.isMe)?.factionName || "Commander"} />
+            </div>
           )}
         </div>
       </div>
@@ -459,6 +492,12 @@ export default function GamePage() {
       <DoctrinePanel open={showDoctrine} onClose={() => setShowDoctrine(false)} research={game.myResearch} busy={busy} onSetFocus={setResearchFocus} game={game} onUnlock={unlockItem} />
       <BattleView battle={game.battle} busy={busy} onChoose={(maneuver) => act({ action: "battleChoice", maneuver })} />
       {!game.battle && <BattleReport report={report} onClose={() => setReport(null)} />}
+
+      <TourGuide
+        open={tourOpen}
+        steps={GAME_TOUR_STEPS}
+        onClose={() => { setTourOpen(false); localStorage.setItem(TOUR_DONE_KEY, "1"); }}
+      />
 
       {/* Baton receipt — the War Ministry stamps the orders through */}
       <AnimatePresence>

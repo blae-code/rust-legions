@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Loader2 } from "lucide-react";
 import PlanetPicker from "@/components/setup/PlanetPicker";
+import LabelTip from "@/components/ui/LabelTip";
 import { PRESET_FACTIONS, presetToFactionRecord } from "@/lib/presetFactions";
 
 const DOCTRINE_OPTS = ["aggressive", "economic", "defensive"];
@@ -105,7 +106,7 @@ export default function NewGame() {
         </div>
 
         <div>
-          <label className="cq-label">Your Faction</label>
+          <label className="cq-label">Your Faction<LabelTip title="Your Faction" body="The banner you take the field under. Presets are ready-made; the Faction Foundry forges custom nations." /></label>
           {factions.length === 0 ? (
             <div className="mt-1 space-y-2">
               <p className="text-xs text-muted-foreground">No factions on file — requisition a standing faction to take the field now, or forge a custom nation in the Faction Builder.</p>
@@ -136,13 +137,13 @@ export default function NewGame() {
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="cq-label">Human Commanders</label>
+            <label className="cq-label">Human Commanders<LabelTip title="Human Commanders" body="How many human players take a slot. One commander alone opens a solo campaign against NPC factions." /></label>
             <select value={humanCount} onChange={(e) => { setHumanCount(Number(e.target.value)); setNpcs(npcs.slice(0, 4 - Number(e.target.value))); }} className="w-full bg-input border border-border rounded-sm p-2 text-sm mt-1 text-secondary-foreground font-heading tracking-wide">
               {[1, 2, 3, 4].map((n) => <option key={n} value={n}>{n}{n === 1 ? " (solo campaign)" : ""}</option>)}
             </select>
           </div>
           <div>
-            <label className="cq-label">NPC Factions ({npcs.length})</label>
+            <label className="cq-label">NPC Factions ({npcs.length})<LabelTip title="NPC Factions" body="Machine-run rivals. Their doctrine — aggressive, economic, or defensive — sets their personality on the front." /></label>
             <div className="flex gap-1 mt-1 flex-wrap">
               {npcs.map((d, i) => (
                 <select key={i} value={d} onChange={(e) => setNpcs(npcs.map((x, j) => (j === i ? e.target.value : x)))} className="bg-input border border-border rounded-sm p-1.5 text-xs text-secondary-foreground font-heading tracking-wide">
@@ -162,7 +163,7 @@ export default function NewGame() {
         {isCampaign && (
           <div className="grid grid-cols-2 gap-4 border-t border-border pt-3">
             <div>
-              <label className="cq-label text-brass">Campaign Victory Condition</label>
+              <label className="cq-label text-brass">Campaign Victory Condition<LabelTip title="Victory Condition" body="What wins the campaign: controlling a share of the world's settlements, or simply surviving a number of days." /></label>
               <select value={winType} onChange={(e) => setWinType(e.target.value)} className="w-full bg-input border border-border rounded-sm p-2 text-sm mt-1 text-secondary-foreground font-heading tracking-wide">
                 <option value="territory">Control % of settlements</option>
                 <option value="survive">Survive N days</option>
@@ -179,7 +180,7 @@ export default function NewGame() {
       <div className="cq-panel p-5 space-y-3">
         <PlanetPicker value={planetId} onChange={setPlanetId} />
         <div className="border-t border-border pt-3">
-          <label className="cq-label">Charted Map (optional)</label>
+          <label className="cq-label">Charted Map (optional)<LabelTip title="Charted Map" body="Fight on a chart drafted in the Cartography Bureau. Leave blank and the theater world above is generated for you." /></label>
           <p className="font-mono text-[10px] text-muted-foreground tracking-wide mt-0.5 mb-1">
             USE A CHART DRAFTED IN THE CARTOGRAPHY BUREAU — THE WORLD IS GROWN AROUND ITS SETTLEMENTS. LEAVE BLANK FOR THE THEATER WORLD ABOVE.
           </p>

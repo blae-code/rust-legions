@@ -145,7 +145,7 @@ export default function MacroWarRoom({ game, busy, onAction }) {
 
   return (
     <div className="space-y-4">
-      <div ref={chartRef} className="cq-panel cq-brackets relative overflow-hidden p-1">
+      <div ref={chartRef} data-tour="chart" className="cq-panel cq-brackets relative overflow-hidden p-1">
         <div className="cq-hazard absolute top-0 left-0 right-0 z-10" />
         <MinistryChart
           world={world}
@@ -159,6 +159,13 @@ export default function MacroWarRoom({ game, busy, onAction }) {
           mySlot={game.mySlot}
           hovered={hovered}
           onHoverNode={setHovered}
+          nodeTip={(n) => {
+            const held = macro.control[n.id];
+            const status = held !== undefined && held !== null
+              ? `held by ${game.factions[held]?.factionName || "?"}`
+              : macro.observed.includes(n.id) ? "unclaimed" : "no recent intelligence";
+            return suppliedSet.has(n.id) ? `${status} · in supply` : status;
+          }}
           onNodeClick={onNodeClick}
           onColumnClick={(col) => setSelectedColumn(col.id === selectedColumn ? null : col.id)}
           selectedColumnId={selectedColumn}
@@ -221,7 +228,7 @@ export default function MacroWarRoom({ game, busy, onAction }) {
       </div>
 
       {/* Order of march */}
-      <div className="cq-panel p-4">
+      <div data-tour="order-of-march" className="cq-panel p-4">
         <p className="cq-label mb-2">Order of March</p>
         {plotting && (
           <div className="mb-2">
