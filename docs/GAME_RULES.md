@@ -369,7 +369,9 @@ two**, of which **at least one belongs to a different branch** — no branch can
 **Creed locks.** Four doctrines are held by a single Departure and are not offered to any other house:
 the Vigil Watch (Recall) · Bonded Manifests (Finished Ledger) · Sealing Protocols (Flight) · the
 Stripping Yards (Discarding). No branch-and-tier cell contains *only* locked doctrines, so no house is
-ever offered an empty shelf, and no capstone's direct prerequisites are locked.
+ever offered an empty shelf. No capstone is reachable only through locked ground either: the check runs
+over a capstone's whole transitive prerequisite closure, not its direct prerequisites, because a lock two
+steps down closes the capstone just as completely.
 
 **The State Armory: three kinds.** `module` certifies a fortress-bay prototype (its bonus applies once the
 module is fitted). `decree` is an act of the Assembly and applies the moment it is enacted.

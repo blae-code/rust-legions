@@ -22,12 +22,32 @@
 //   effect key losRange → sightRange                     effects[] vocabulary
 //   plate key tech_pattern_book renamed                  plate coverage (+ category registry)
 //   one Codex `see` target made dangling                 corpus link-cleanliness
+//   `.sort()` deleted from techsByBranch                 techsByBranch tier order (industry/signals/reclamation)
+//   sloped_casemates riflemen.defense macro → tactical   one scope per effect key
+//   saturation_barrage effects 2 → 5, prose left at +2   `effect` prose ↔ effects[] numbers
+//   pattern_shop given cipher_hall's effect vector       no two same-kind rows do the same thing
+//   wakewatch_act's morale −1 removed                    every non-legacy decree pays a price
+//   flight.axisLean 0 → 1 on BOTH sides                  axisLean pins all four Departures
+//   listening_posts given creedLock "recall"             transitive creed-lock closure (capstones + relics)
+//   TECH_DESIGN §8 armament RP 28 → 22                   the published cost curve
+//   GAME_RULES §12 deleted and 13..23 renumbered         baseline sections pinned BY TITLE
+//   this lane's GAME_RULES heading reworded              the lane's own [PROPOSED] section
+//   a mirror row given a stray `axis: undefined`         mirror deep-equal (this is why toStrictEqual)
 //
 // The first case is the one that matters most: mutating BOTH sides keeps every
 // deep-equal assertion green, so only the hard-coded legacy literal can catch it.
 // That literal was copied from `git show HEAD:src/lib/doctrine.js` and must never
 // be regenerated from the working tree — a freeze that reads its own subject is
 // exactly the proxy this comment exists to rule out.
+//
+// The last eleven were added after an audit found the gates they defeat reading a
+// PROXY rather than the rule they were named for: a sort asserted against its own
+// output, a scope asserted to be one-of-three rather than consistent, a `[PROPOSED]`
+// marker any lane's section satisfies, a gapless 1..N sequence a delete-and-renumber
+// also satisfies, a creed-lock walk one step deep, two of four Creeds pinned, and a
+// cost curve published in three files that nothing read back. Each entry above was
+// re-run against this file and confirmed to go red on the named assertion and on
+// nothing else.
 import { describe, it, expect } from "vitest";
 import { readRepoFile, extractConst } from "./helpers/extract-const.js";
 
@@ -135,13 +155,38 @@ const plateFor = (key, prefix) => LEGACY_PLATE_ALIASES[key] || `${prefix}${key}`
 
 const pick = (obj, fields) => Object.fromEntries(fields.map((f) => [f, obj[f]]));
 
+// The TRANSITIVE prerequisite closure of a set of tech keys — every doctrine a
+// house must complete to reach them. The tier rule guarantees this terminates.
+const prereqClosure = (keys) => {
+  const out = new Set();
+  const walk = (k) => {
+    if (out.has(k) || !TECHS[k]) return;
+    out.add(k);
+    for (const p of prereqList(TECHS[k])) walk(p);
+  };
+  for (const k of keys) walk(k);
+  return out;
+};
+
+// Every signed integer written into a human `effect` string. `−` (U+2212) is
+// accepted alongside the ASCII hyphen because prose uses both.
+const proseNumbers = (text) =>
+  (text.match(/[+\u2212-]\s?\d+/g) || []).map((m) => Number(m.replace("\u2212", "-").replace(/\s/g, "")));
+
+// A row's effect vector, order-independent — the identity of what it DOES.
+const effectSignature = (row) => row.effects.map((e) => `${e.scope}:${e.key}=${e.value}`).sort().join(" · ");
+
+// The four decrees that predate this catalog. Their `effects[]` is a faithful
+// encoding of a frozen `desc`, not a fresh design, so the trade rule exempts them.
+const LEGACY_DECREES = Object.keys(LEGACY_ARMORY).filter((k) => LEGACY_ARMORY[k].kind === "decree");
+
 describe("catalog mirror — base44/shared/catalog.ts ↔ src/lib", () => {
   it("TECHS: the mirror deep-equals the canonical table", () => {
-    expect(MIRROR_TECHS).toEqual(TECHS);
+    expect(MIRROR_TECHS).toStrictEqual(TECHS);
   });
 
   it("CREEDS: the mirror deep-equals the canonical table", () => {
-    expect(MIRROR_CREEDS).toEqual(CREEDS);
+    expect(MIRROR_CREEDS).toStrictEqual(CREEDS);
   });
 
   it("CREEDS declares exactly the four Departures", () => {
@@ -149,11 +194,11 @@ describe("catalog mirror — base44/shared/catalog.ts ↔ src/lib", () => {
   });
 
   it("ARMORY_ITEMS: the mirror deep-equals the canonical table", () => {
-    expect(MIRROR_ARMORY).toEqual(ARMORY_ITEMS);
+    expect(MIRROR_ARMORY).toStrictEqual(ARMORY_ITEMS);
   });
 
   it("RELIC_PROJECTS: the mirror deep-equals the canonical table", () => {
-    expect(MIRROR_RELICS).toEqual(RELIC_PROJECTS);
+    expect(MIRROR_RELICS).toStrictEqual(RELIC_PROJECTS);
   });
 
   it("every map key equals its row's own `key` field", () => {
@@ -281,12 +326,16 @@ describe("the doctrine tree — the prereq DAG", () => {
   }
 
   it("no capstone is reachable only through creed-locked ground", () => {
-    // A capstone whose every path runs through a creedLock would be unavailable
-    // to three quarters of the houses by construction. Direct prereqs suffice as
-    // the guard: the tier rule means anything deeper is already reachable.
-    for (const [key, t] of entries.filter(([, x]) => x.tier === 4)) {
-      const gated = prereqList(t).filter((p) => TECHS[p].creedLock);
-      expect(gated, `capstone ${key} is gated behind ${gated.join(", ")}`).toEqual([]);
+    // A capstone whose every path runs through a creedLock would be unavailable to
+    // three quarters of the houses by construction. THE WALK IS TRANSITIVE. Checking
+    // direct prereqs only was justified here by the claim that "the tier rule means
+    // anything deeper is already reachable" — that is false: the tier rule says a
+    // prereq sits LOWER, not that it is UNLOCKED. Depth and availability are
+    // unrelated, so a lock two steps down closes the capstone just as completely
+    // and a direct-only check never sees it.
+    for (const [key] of entries.filter(([, x]) => x.tier === 4)) {
+      const gated = [...prereqClosure(prereqList(TECHS[key]))].filter((p) => TECHS[p].creedLock);
+      expect(gated.sort(), `capstone ${key} is gated behind creed-locked ${gated.join(", ")}`).toEqual([]);
     }
   });
 });
@@ -327,8 +376,12 @@ describe("the doctrine tree — creed locks", () => {
     for (const [key, c] of Object.entries(CREEDS)) {
       expect([-1, 0, 1], `${key} axisLean`).toContain(c.axisLean);
     }
-    expect(CREEDS.recall.axisLean).toBe(1);
-    expect(CREEDS.discarding.axisLean).toBe(-1);
+    // All FOUR are pinned. Pinning only the two poles left the two zeros free: the
+    // Flight, whose whole doctrine is that the Key must never be turned, could have
+    // been moved to +1 with every other assertion still green.
+    expect(Object.fromEntries(Object.entries(CREEDS).map(([k, c]) => [k, c.axisLean]))).toEqual({
+      recall: 1, finished_ledger: 0, flight: 0, discarding: -1,
+    });
   });
 
   it("every creed blurb is 12–30 words", () => {
@@ -363,17 +416,39 @@ describe("effects[] — prose describes, numbers decide", () => {
 });
 
 describe("exported API freeze", () => {
-  it("techsByBranch returns [key, tech] pairs sorted ascending by tier", () => {
-    const rows = techsByBranch("armament");
-    expect(rows.length).toBeGreaterThan(0);
-    for (const row of rows) {
-      expect(Array.isArray(row)).toBe(true);
-      expect(row.length).toBe(2);
-      expect(row[1].branch).toBe("armament");
-    }
-    const tiers = rows.map((r) => r[1].tier);
-    expect(tiers).toEqual([...tiers].sort((a, b) => a - b));
+  // Asserting only that the RETURNED tiers come back ascending is a proxy: it is
+  // satisfied by `identity` on any branch whose rows happen to be DECLARED in tier
+  // order, and three of the five are (creed-locked rows are declared last, so the
+  // open spine reads top to bottom). The gate below compares the returned KEY ORDER
+  // against an expectation built a different way — bucket by tier 1..4, preserving
+  // declaration order inside a bucket, which is what a stable sort by tier means —
+  // and runs it over all five branches. Deleting `.sort()` from doctrine.js turns
+  // industry, signals and reclamation red.
+  const expectedBranchOrder = (branch) => {
+    const rows = Object.entries(MIRROR_TECHS).filter(([, t]) => t.branch === branch);
+    return [1, 2, 3, 4].flatMap((tier) => rows.filter(([, t]) => t.tier === tier).map(([k]) => k));
+  };
+
+  it("at least one branch is declared out of tier order, so the sort is load-bearing", () => {
+    const unsorted = BRANCHES.filter((b) => {
+      const declared = Object.entries(MIRROR_TECHS).filter(([, t]) => t.branch === b).map(([, t]) => t.tier);
+      return declared.some((t, i) => i > 0 && declared[i - 1] > t);
+    });
+    expect(unsorted.length, "every branch is declared tier-ascending — the sort assertion below cannot fail").toBeGreaterThanOrEqual(1);
   });
+
+  for (const branch of BRANCHES) {
+    it(`techsByBranch("${branch}") returns [key, tech] pairs in tier order`, () => {
+      const rows = techsByBranch(branch);
+      expect(rows.length).toBeGreaterThan(0);
+      for (const row of rows) {
+        expect(Array.isArray(row)).toBe(true);
+        expect(row.length).toBe(2);
+        expect(row[1].branch).toBe(branch);
+      }
+      expect(rows.map((r) => r[0])).toEqual(expectedBranchOrder(branch));
+    });
+  }
 
   it("prereqList normalizes null, a string and an array", () => {
     expect(prereqList({ prereq: null })).toEqual([]);
@@ -546,9 +621,10 @@ describe("the four Tier-III relic projects", () => {
       const reclamation = rp.prereq.filter((p) => TECHS[p].branch === "reclamation");
       expect(reclamation.length, `${key} has no Reclamation prereq`).toBeGreaterThanOrEqual(1);
       // A project reachable only through creed-locked doctrine is unbuildable for
-      // three houses in four before its own creedLock is even considered.
-      const gated = rp.prereq.filter((p) => TECHS[p].creedLock);
-      expect(gated, `${key} is gated behind creed-locked doctrine ${gated.join(", ")}`).toEqual([]);
+      // three houses in four before its own creedLock is even considered. Walked
+      // TRANSITIVELY, for the reason spelled out at the capstone gate above.
+      const gated = [...prereqClosure(rp.prereq)].filter((p) => TECHS[p].creedLock);
+      expect(gated.sort(), `${key} is gated behind creed-locked doctrine ${gated.join(", ")}`).toEqual([]);
 
       expect(Object.keys(fragmentCost(rp)).length, `${key} fragment classes`).toBeGreaterThanOrEqual(2);
     });
@@ -684,14 +760,57 @@ describe("the Codex — this lane's entries, and the corpus they joined", () => 
 describe("the [PROPOSED] rules draft", () => {
   const rules = readRepoFile("docs/GAME_RULES.md");
 
-  it("docs/GAME_RULES.md carries the lane's [PROPOSED — awaiting platform wiring] section", () => {
-    expect(rules).toContain("[PROPOSED — awaiting platform wiring]");
+  // The 22 numbered sections `docs/GAME_RULES.md` carried before this lane appended
+  // to it, pinned BY TITLE. Every content lane appends a `[PROPOSED — awaiting
+  // platform wiring]` section, so the bare marker stops naming anything the moment
+  // a sibling lane merges; and a gapless 1..N sequence survives a delete-and-
+  // renumber, which is exactly what "no existing section was dropped" forbids. The
+  // section NUMBER this lane took is deliberately not pinned — the brief says to
+  // renumber mechanically if a sibling lane takes it first.
+  const BASELINE_SECTIONS = [
+    "Victory Conditions",
+    "Resources & Economy",
+    "Buildings",
+    "Units",
+    "Garrison Combat (tile-vs-tile Attack action)",
+    "Terrain & Elevation",
+    "Supply & Logistics",
+    "Weather",
+    "Field Armies & Generals (Mass Combat)",
+    "Artillery Bombardment",
+    "Army Designs (Design Bureau)",
+    "Reconnaissance Probe",
+    "Faction Point-Buy Perks",
+    "NPC AI (per turn)",
+    "Game Setup",
+    "Fog of War & Intel",
+    'Diplomacy — The Envoy Desk (v1.1.0 "The Envoy Accords")',
+    "Mobile Fortress-Bases (vanilla-era slice)",
+    "Doctrine Research (Directorate of War Sciences)",
+    "The State Armory (off-turn unlocks)",
+    "Command Vehicles & Refit Logistics",
+    "Macro Operations (experimental world model — slices M1–M3a)",
+  ];
+
+  const headings = [...rules.matchAll(/^## (\d+)\. (.+)$/gm)].map((m) => ({ n: Number(m[1]), title: m[2] }));
+
+  it("docs/GAME_RULES.md carries THIS lane's [PROPOSED] section, not merely the marker", () => {
+    const mine = headings.filter((h) =>
+      h.title === "Doctrine, Armory & Relic Projects [PROPOSED — awaiting platform wiring]");
+    expect(mine.length, "Lane G's `## <N>. Doctrine, Armory & Relic Projects [PROPOSED — awaiting platform wiring]` section is missing or was reworded").toBe(1);
   });
 
-  it("no existing numbered section was renumbered, reworded away or dropped", () => {
-    const numbers = [...rules.matchAll(/^## (\d+)\./gm)].map((m) => Number(m[1]));
+  it("every section that predates this lane is still present, verbatim and in order", () => {
+    const titles = headings.map((h) => h.title);
+    for (const [i, title] of BASELINE_SECTIONS.entries()) {
+      expect(titles[i], `section ${i + 1} should be "${title}"`).toBe(title);
+    }
+    expect(headings.length, "sections were dropped").toBeGreaterThanOrEqual(BASELINE_SECTIONS.length + 1);
+  });
+
+  it("the section numbering is still ascending and gapless from 1", () => {
+    const numbers = headings.map((h) => h.n);
     expect(numbers.length, "GAME_RULES.md has no numbered sections").toBeGreaterThan(0);
-    // Ascending and gapless from 1 — a renumber or a deletion breaks both.
     expect(numbers).toEqual(numbers.map((_, i) => i + 1));
   });
 });
@@ -715,5 +834,143 @@ describe("exported API freeze — the armory half", () => {
     expect(fragmentCost(MIRROR_ARMORY.launch_rails)).toEqual({ engine: 3 });
     expect(fragmentCost({ cost: {} })).toEqual({});
     expect(fragmentCost(undefined)).toEqual({});
+  });
+});
+
+describe("effects[] — the invariants the catalog header claims", () => {
+  const ALL_ROWS = [
+    ...Object.entries(TECHS).map(([k, r]) => [`TECHS.${k}`, r]),
+    ...Object.entries(ARMORY_ITEMS).map(([k, r]) => [`ARMORY_ITEMS.${k}`, r]),
+    ...Object.entries(RELIC_PROJECTS).map(([k, r]) => [`RELIC_PROJECTS.${k}`, r]),
+  ];
+
+  // catalog.ts: "SCOPE IS A PROPERTY OF THE EFFECT KEY, NOT OF THE ROW." Asserting
+  // that `scope` is one of three strings passes any key under any scope, so it can
+  // never see the defect it is named for: one stat routed into two subsystems.
+  it("every effect key is emitted under exactly one scope, catalog-wide", () => {
+    const scopes = new Map();
+    for (const [where, row] of ALL_ROWS) {
+      for (const e of row.effects) {
+        if (!scopes.has(e.key)) scopes.set(e.key, new Map());
+        const byScope = scopes.get(e.key);
+        if (!byScope.has(e.scope)) byScope.set(e.scope, []);
+        byScope.get(e.scope).push(where);
+      }
+    }
+    const conflicts = [...scopes.entries()]
+      .filter(([, byScope]) => byScope.size > 1)
+      .map(([key, byScope]) =>
+        `${key} is ${[...byScope.entries()].map(([sc, rows]) => `${sc} in ${rows.join(", ")}`).join(" but ")}`);
+    expect(conflicts, conflicts.join(" | ")).toEqual([]);
+  });
+
+  // catalog.ts: "the set of signed integers in `effect` must equal the set of
+  // `effects[].value`". The `effect` gate before this one checked only length and
+  // a trailing period, so a rebalanced number could be left out of the copy and the
+  // UI would display a figure the engine does not apply. Compared as SETS, because
+  // one clause legitimately fans out to several effects ("Crawler & fighter attack
+  // +1" is two rows of +1) — that is a frozen legacy string and not rewritable.
+  it("every tech's `effect` prose carries exactly the numbers its effects[] applies", () => {
+    for (const [key, t] of Object.entries(TECHS)) {
+      const prose = [...new Set(proseNumbers(t.effect))].sort((a, b) => a - b);
+      const machine = [...new Set(t.effects.map((e) => e.value))].sort((a, b) => a - b);
+      expect(prose, `${key}: "${t.effect}" vs effects[] ${JSON.stringify(t.effects.map((e) => e.value))}`)
+        .toEqual(machine);
+    }
+  });
+
+  // catalog.ts: "No two rows of the same `kind` share an effect signature." A
+  // fragment-gated row whose vector already exists on a cheaper ungated row is a
+  // purchase nobody has a reason to make; the tier and fragment gates pass it
+  // happily because no assertion compared two rows to each other.
+  it("no two armory rows of the same kind do exactly the same thing", () => {
+    const seen = new Map();
+    const dupes = [];
+    for (const [key, i] of Object.entries(ARMORY_ITEMS)) {
+      const sig = `${i.kind} → ${effectSignature(i)}`;
+      if (seen.has(sig)) dupes.push(`${seen.get(sig)} and ${key} both do ${effectSignature(i)}`);
+      else seen.set(sig, key);
+    }
+    expect(dupes, dupes.join(" | ")).toEqual([]);
+  });
+
+  // catalog.ts and GAME_RULES §23: "A decree is a trade, not a pure gain." The four
+  // shipped decrees are exempt by Work item 7 (their effects encode a frozen desc);
+  // every decree this lane authors must price its pole. `buildTurns` inverts —
+  // more turns is the penalty.
+  it("every non-legacy decree pays for its pole with at least one penalty effect", () => {
+    const free = [];
+    for (const [key, i] of Object.entries(ARMORY_ITEMS)) {
+      if (i.kind !== "decree" || LEGACY_DECREES.includes(key)) continue;
+      const penalty = i.effects.some((e) => (e.key === "buildTurns" ? e.value > 0 : e.value < 0));
+      if (!penalty) free.push(key);
+    }
+    expect(free, `pure-gain decrees: ${free.join(", ")}`).toEqual([]);
+  });
+});
+
+describe("the published cost curve — docs/TECH_DESIGN.md §8 against the tree that shipped", () => {
+  const design = readRepoFile("docs/TECH_DESIGN.md");
+  const rules = readRepoFile("docs/GAME_RULES.md");
+  const catalog = catalogSrc;
+
+  const branchRP = Object.fromEntries(BRANCHES.map((b) => [
+    b, Object.values(TECHS).filter((t) => t.branch === b).reduce((a, t) => a + t.cost, 0),
+  ]));
+  const treeRP = Object.values(TECHS).reduce((a, t) => a + t.cost, 0);
+  const closureRP = (key) => [...prereqClosure([key])].reduce((a, k) => a + TECHS[k].cost, 0);
+  const capstoneBills = Object.keys(TECHS).filter((k) => TECHS[k].tier === 4).map(closureRP);
+
+  // The published table, lifted from the doc rather than retyped here. The pair
+  // that used to stand in this doc — "one branch = 22 RP, whole tree = 110 RP" —
+  // was arithmetically false against the shipped tree and was restated in three
+  // files, because nothing read the number back. This is what reads it back.
+  const publishedTable = () => {
+    const rows = {};
+    const body = design.split(/^\| Branch \| Nodes \| RP to clear the branch \|$/m)[1];
+    expect(body, "docs/TECH_DESIGN.md §8 has no per-branch RP table").toBeDefined();
+    for (const line of body.split("\n")) {
+      if (!line.trim()) continue;
+      if (!line.startsWith("|")) break;
+      const cells = line.split("|").slice(1, -1).map((c) => c.replace(/\*/g, "").trim());
+      if (cells.length !== 3 || cells[0].startsWith("---")) continue;
+      rows[cells[0].toLowerCase()] = { nodes: Number(cells[1]), rp: Number(cells[2]) };
+    }
+    return rows;
+  };
+
+  it("the per-branch table matches the sum of TECHS costs, branch by branch", () => {
+    const rows = publishedTable();
+    for (const b of BRANCHES) {
+      const published = rows[b];
+      expect(published, `docs/TECH_DESIGN.md §8 publishes no row for ${b}`).toBeDefined();
+      expect(published.rp, `${b}: doc says ${published.rp} RP, the tree costs ${branchRP[b]}`).toBe(branchRP[b]);
+      expect(published.nodes, `${b} node count`).toBe(Object.values(TECHS).filter((t) => t.branch === b).length);
+    }
+  });
+
+  it("the whole-tree total matches, and is the same number in all three places", () => {
+    const whole = publishedTable()["the whole tree"];
+    expect(whole, "§8 publishes no whole-tree row").toBeDefined();
+    expect(whole.rp, `doc says ${whole.rp} RP, the tree costs ${treeRP}`).toBe(treeRP);
+    expect(whole.nodes).toBe(Object.keys(TECHS).length);
+    // Drift guard 7 — the figure lives in three files and none may drift.
+    expect(rules, `docs/GAME_RULES.md does not carry the whole-tree total ${treeRP}`).toContain(`**${treeRP} RP**`);
+    expect(catalog, `the catalog.ts header does not carry the whole-tree total ${treeRP}`).toContain(`${treeRP} RP`);
+  });
+
+  it("the cheapest and dearest first capstone are published correctly", () => {
+    const cheapest = Math.min(...capstoneBills);
+    const dearest = Math.max(...capstoneBills);
+    // Every capstone names a cross-branch prereq, so the 22 RP one-node-per-tier
+    // spine is NOT what a capstone costs — which is the sentence these two figures
+    // exist to keep honest.
+    expect(design, `§8 must publish the cheapest first capstone as ${cheapest} RP`).toContain(`at ${cheapest} RP`);
+    expect(design, `§8 must publish the dearest first capstone as ${dearest} RP`).toContain(`**${dearest} RP**`);
+    expect(rules, `GAME_RULES §23 must publish the cheapest first capstone as ${cheapest} RP`).toContain(`**${cheapest} RP**`);
+    expect(catalog, "the catalog.ts header must carry the cheapest first-capstone bill").toContain(`${cheapest} RP`);
+    const spine = [1, 2, 3, 4].reduce((a, t) => a + TIER_COST[t], 0);
+    expect(cheapest, "the cheapest capstone is no dearer than the spine — the cross-branch rule is not biting")
+      .toBeGreaterThan(spine);
   });
 });
