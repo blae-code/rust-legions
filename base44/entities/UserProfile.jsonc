@@ -8,6 +8,20 @@
     "avatarUrl": {
       "type": "string"
     },
+    "presence": {
+      "type": "string",
+      "enum": [
+        "on_duty",
+        "reserve",
+        "dark"
+      ],
+      "default": "on_duty",
+      "description": "How this commander chooses to appear on the roll"
+    },
+    "lastSeenAt": {
+      "type": "string",
+      "format": "date-time"
+    },
     "gamesPlayed": {
       "type": "integer",
       "default": 0
@@ -31,5 +45,13 @@
   },
   "required": [
     "displayName"
-  ]
+  ],
+  "rls": {
+    "update": {
+      "created_by_id": "{{user.id}}"
+    },
+    "delete": {
+      "created_by_id": "{{user.id}}"
+    }
+  }
 }

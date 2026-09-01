@@ -4,6 +4,7 @@ import useUser from "@/hooks/useUser";
 import { Shield } from "lucide-react";
 import MusicController from "@/components/audio/MusicController";
 import LogoutButton from "@/components/auth/LogoutButton";
+import CommsCenter from "@/components/comms/CommsCenter";
 
 const NAV = [
   { to: "/", label: "Command HQ" },
@@ -70,6 +71,7 @@ export default function Layout() {
           <div className="ml-auto items-center gap-2 hidden sm:flex">
             <span className="w-1.5 h-1.5 rounded-full bg-olive cq-lamp text-olive" />
             <span className="text-xs font-mono text-muted-foreground truncate">CMDR {commander.toUpperCase()}</span>
+            <CommsCenter />
             <LogoutButton />
           </div>
         </div>

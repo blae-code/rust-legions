@@ -7,6 +7,7 @@ import GameChat from "@/components/game/chat/GameChat";
 import HostLobbyPanel from "@/components/game/lobby/HostLobbyPanel";
 import LobbySlotRow from "@/components/game/lobby/LobbySlotRow";
 import BriefingDossier from "@/components/game/lobby/BriefingDossier";
+import InviteCommandersPanel from "@/components/game/lobby/InviteCommandersPanel";
 import { getImage } from "@/lib/imageLibrary";
 import { WORLDS } from "@/lib/macro/worlds";
 
@@ -109,6 +110,8 @@ export default function LobbyView({ game, onJoin, onStart, onAction, busy, error
           )}
         </div>
       </div>
+
+      {openSlots > 0 && <InviteCommandersPanel game={game} />}
 
       <BriefingDossier game={game} />
 

@@ -4,6 +4,7 @@ import useUser from "@/hooks/useUser";
 import { Shield, Loader2 } from "lucide-react";
 import AudioHud from "@/components/home/AudioHud";
 import LogoutButton from "@/components/auth/LogoutButton";
+import CommsCenter from "@/components/comms/CommsCenter";
 import StormFront25D from "@/components/home/StormFront25D";
 import BootSequence from "@/components/home/BootSequence";
 import GameMenu from "@/components/home/GameMenu";
@@ -68,6 +69,7 @@ export default function Home() {
             <p className="font-mono text-[10px] text-muted-foreground tracking-widest hidden sm:block cq-flicker">
               ⁜ SECURE CHANNEL · CMDR {((user?.full_name || user?.email || "").split(" ")[0] || "UNSIGNED").toUpperCase()} ⁜
             </p>
+            <CommsCenter />
             <AudioHud />
             <LogoutButton />
           </div>

@@ -1,0 +1,62 @@
+{
+  "name": "Dispatch",
+  "type": "object",
+  "description": "A direct wire message between two commanders",
+  "properties": {
+    "toUserId": {
+      "type": "string"
+    },
+    "toCallsign": {
+      "type": "string"
+    },
+    "fromCallsign": {
+      "type": "string"
+    },
+    "text": {
+      "type": "string"
+    },
+    "readAt": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "toUserId",
+    "text"
+  ],
+  "rls": {
+    "read": {
+      "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "data.toUserId": "{{user.id}}"
+        }
+      ]
+    },
+    "create": {
+      "created_by_id": "{{user.id}}"
+    },
+    "update": {
+      "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "data.toUserId": "{{user.id}}"
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "data.toUserId": "{{user.id}}"
+        }
+      ]
+    }
+  }
+}

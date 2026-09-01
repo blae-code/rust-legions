@@ -1,0 +1,73 @@
+{
+  "name": "LobbyInvite",
+  "type": "object",
+  "description": "A summons from a mustering lobby to a specific commander",
+  "properties": {
+    "gameId": {
+      "type": "string"
+    },
+    "gameName": {
+      "type": "string"
+    },
+    "toUserId": {
+      "type": "string"
+    },
+    "toCallsign": {
+      "type": "string"
+    },
+    "fromCallsign": {
+      "type": "string"
+    },
+    "note": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "accepted",
+        "declined"
+      ],
+      "default": "pending"
+    }
+  },
+  "required": [
+    "gameId",
+    "toUserId"
+  ],
+  "rls": {
+    "read": {
+      "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "data.toUserId": "{{user.id}}"
+        }
+      ]
+    },
+    "create": {
+      "created_by_id": "{{user.id}}"
+    },
+    "update": {
+      "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "data.toUserId": "{{user.id}}"
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "data.toUserId": "{{user.id}}"
+        }
+      ]
+    }
+  }
+}
