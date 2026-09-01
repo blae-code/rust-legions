@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import useUser from "@/hooks/useUser";
-import { Shield, Loader2 } from "lucide-react";
+import { Shield } from "lucide-react";
 import AudioHud from "@/components/home/AudioHud";
 import LogoutButton from "@/components/auth/LogoutButton";
 import CommsCenter from "@/components/comms/CommsCenter";
@@ -11,7 +11,6 @@ import GameMenu from "@/components/home/GameMenu";
 import AuxDirectory from "@/components/home/AuxDirectory";
 import FrontTempo from "@/components/home/FrontTempo";
 import DossierPanel from "@/components/home/DossierPanel";
-import FrontCard from "@/components/home/FrontCard";
 import OpenFrontsPanel from "@/components/home/OpenFrontsPanel";
 import DispatchTicker from "@/components/home/DispatchTicker";
 import HudTelemetry from "@/components/home/HudTelemetry";
@@ -104,30 +103,13 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Middle: operations log — full-height, scrolls internally */}
-          <div className="cq-panel cq-brackets p-3 flex flex-col min-h-0 lg:max-h-full">
-            <div className="flex items-center justify-between mb-2 shrink-0">
-              <p className="cq-label">Operations Log</p>
-              <span className="font-mono text-[9px] text-muted-foreground">{games?.length ?? 0} ON RECORD</span>
-            </div>
-            {games === null ? (
-              <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-            ) : games.length === 0 ? (
-              <p className="font-mono text-[10px] text-muted-foreground tracking-widest py-4 text-center">
-                NO ENGAGEMENTS ON RECORD — OPEN A NEW OPERATION
-              </p>
-            ) : (
-              <div className="space-y-2 flex-1 min-h-0 overflow-y-auto pr-1 max-h-[38vh] lg:max-h-none">
-                {games.map((g, i) => (
-                  <FrontCard key={g.id} game={g} index={i} />
-                ))}
-              </div>
-            )}
-            <div className="pt-2 shrink-0">
+          {/* Middle: the muster board — open fronts, full-height, scrolls internally */}
+          <div className="flex flex-col min-h-0 lg:max-h-full gap-3">
+            <div className="flex-1 min-h-0">
               <OpenFrontsPanel />
             </div>
             {/* Dossier joins this column when the right rail is hidden */}
-            <div className="xl:hidden pt-3 shrink-0">
+            <div className="xl:hidden shrink-0">
               <DossierPanel profile={profile} factionCount={factions?.length} />
             </div>
           </div>
