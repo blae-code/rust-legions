@@ -14,25 +14,28 @@ import Typewriter from "@/components/home/Typewriter";
 function BrandLockup() {
   return (
     <div className="hidden lg:flex flex-col justify-center min-w-0">
-      <p className="cq-label text-rust mb-2">The continent burns · A commander is wanted</p>
-      <div className="relative inline-block self-start">
-        <h1 className="cq-display text-7xl xl:text-8xl leading-[0.85]">
-          Rust<br />
-          <span className="text-brass-bright">Legions</span>
-        </h1>
-        <span className="cq-stamp absolute -right-6 top-1 text-xs whitespace-nowrap">Field Terminal</span>
-      </div>
-      <div className="cq-hazard w-48 mt-5" />
-      <p className="font-mono text-[11px] text-foreground/70 tracking-wide mt-5 max-w-sm leading-relaxed">
-        <Typewriter
-          text="A dieselpunk war for a buried world. Raise your legions, hold the line, and dig for what was left beneath the ash."
-          speed={16}
-          delay={400}
-        />
-      </p>
-      <div className="flex items-center gap-2 mt-6">
-        <span className="w-2 h-2 rounded-full bg-emerald-400 cq-lamp text-emerald-400" />
-        <span className="font-mono text-[10px] text-muted-foreground tracking-[0.3em]">SECURE CHANNEL · LINK LIVE</span>
+      {/* Smoked-glass command plate — lifts the lockup off the animated backdrop */}
+      <div className="self-start bg-background/70 backdrop-blur-md border-l-2 border-brass/50 rounded-sm p-6 pr-10 shadow-[0_10px_40px_hsl(0_0%_0%/0.6)]">
+        <p className="cq-label text-rust mb-2">The continent burns · A commander is wanted</p>
+        <div className="relative inline-block self-start">
+          <h1 className="cq-display text-7xl xl:text-8xl leading-[0.85] [text-shadow:0_2px_12px_hsl(0_0%_0%/0.9)]">
+            Rust<br />
+            <span className="text-brass-bright">Legions</span>
+          </h1>
+          <span className="cq-stamp absolute -right-6 top-1 text-xs whitespace-nowrap">Field Terminal</span>
+        </div>
+        <div className="cq-hazard w-48 mt-5" />
+        <p className="font-mono text-[11px] text-foreground/90 tracking-wide mt-5 max-w-sm leading-relaxed">
+          <Typewriter
+            text="A dieselpunk war for a buried world. Raise your legions, hold the line, and dig for what was left beneath the ash."
+            speed={16}
+            delay={400}
+          />
+        </p>
+        <div className="flex items-center gap-2 mt-6">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 cq-lamp text-emerald-400" />
+          <span className="font-mono text-[10px] text-muted-foreground tracking-[0.3em]">SECURE CHANNEL · LINK LIVE</span>
+        </div>
       </div>
     </div>
   );
@@ -67,9 +70,11 @@ export default function AuthScene({ eyebrow, title, subtitle, children, footer, 
           <div className="w-full max-w-md justify-self-center lg:justify-self-end">
             {/* Compact title for small screens where the lockup is hidden */}
             <div className="lg:hidden text-center mb-5">
-              <h1 className="cq-display text-5xl leading-none">
-                Rust <span className="text-brass-bright">Legions</span>
-              </h1>
+              <div className="inline-block bg-background/70 backdrop-blur-md border-y border-brass/40 rounded-sm px-6 py-3 shadow-[0_8px_30px_hsl(0_0%_0%/0.6)]">
+                <h1 className="cq-display text-5xl leading-none [text-shadow:0_2px_10px_hsl(0_0%_0%/0.9)]">
+                  Rust <span className="text-brass-bright">Legions</span>
+                </h1>
+              </div>
             </div>
 
             <motion.div
