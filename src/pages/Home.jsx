@@ -17,6 +17,7 @@ import DispatchTicker from "@/components/home/DispatchTicker";
 import HudTelemetry from "@/components/home/HudTelemetry";
 import IntelBrief from "@/components/home/IntelBrief";
 import StandingOrders from "@/components/home/StandingOrders";
+import PatchWatch from "@/components/home/PatchWatch";
 import InductionExperience from "@/components/induction/InductionExperience";
 
 export default function Home() {
@@ -134,6 +135,7 @@ export default function Home() {
           {/* Right rail: dossier + standing orders */}
           <div className="hidden xl:flex flex-col gap-3 min-h-0 overflow-y-auto">
             <DossierPanel profile={profile} factionCount={factions?.length} />
+            <PatchWatch />
             <StandingOrders />
             <div className="flex-1" />
             <p className="font-mono text-[8px] text-muted-foreground/60 tracking-[0.25em] leading-relaxed">
