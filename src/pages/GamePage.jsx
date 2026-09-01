@@ -565,7 +565,7 @@ export default function GamePage() {
       <CodexPanel open={showCodex} onClose={() => setShowCodex(false)} activePlanetId={game.planetId} />
       <DiplomacyPanel open={showDiplomacy} onClose={() => setShowDiplomacy(false)} game={game} busy={busy} onAction={act} />
       <DoctrinePanel open={showDoctrine} onClose={() => setShowDoctrine(false)} research={game.myResearch} busy={busy} onSetFocus={setResearchFocus} game={game} onUnlock={unlockItem} />
-      <BattleView battle={game.battle} busy={busy} onChoose={(maneuver) => act({ action: "battleChoice", maneuver })} />
+      <BattleView battle={game.battle} busy={busy} onChoose={(maneuver) => act({ action: "battleChoice", maneuver })} onAction={act} />
       {!game.battle && <BattleReport report={report} onClose={() => setReport(null)} />}
 
       <TourGuide

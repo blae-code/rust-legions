@@ -9,8 +9,9 @@ import BattleSparks from "@/components/game/BattleSparks";
 import { ALL_MANEUVERS, MANEUVER_KEYS, SIGNATURE_MANEUVERS, SIGNATURE_COOLDOWNS } from "@/lib/massCombat";
 import { WEATHER_META } from "@/lib/weather";
 import { getImage } from "@/lib/imageLibrary";
+import EngagementStage from "@/components/game/tactical/EngagementStage";
 
-export default function BattleView({ battle, busy, onChoose }) {
+export default function BattleView({ battle, busy, onChoose, onAction }) {
   const [fx, setFx] = useState(0);
   const [shaking, setShaking] = useState(false);
   const prevRound = useRef(0);
@@ -37,6 +38,8 @@ export default function BattleView({ battle, busy, onChoose }) {
   }, [battle]);
 
   if (!battle) return null;
+  // Unelected or set-piece engagements run through the tactical stages
+  if (battle.mode === null || battle.mode === "tactical") return <EngagementStage battle={battle} busy={busy} onAction={onAction} />;
   const iAmAttacker = battle.myRole === "attacker";
   const mySide = iAmAttacker ? battle.attacker : battle.defender;
   const maneuverKeys = [...MANEUVER_KEYS];
