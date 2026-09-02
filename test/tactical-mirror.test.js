@@ -72,10 +72,10 @@
 //     caps they replace — a cap never noticed a re-tuned stat or a dropped
 //     field, and the pin does;
 //   * every rule that is true of EVERY row stays total over the whole table
-//     (all 21 fields present, `from` a real regiment column, `tier` in the §4
-//     vocabulary, no decorative `specials` tag, no orphaned gate, efficiency
-//     under POINTS_MODEL.efficiencyCap) — appended rows are held to those, not
-//     excused from them;
+//     (every REQUIRED field present, `from` a real regiment column, `tier` in
+//     the §4 vocabulary, no decorative `specials` tag, no orphaned gate,
+//     efficiency under POINTS_MODEL.efficiencyCap) — appended rows are held to
+//     those, not excused from them;
 //   * a claim that is only ever true of the base nine ("six are drawn from the
 //     rifle regiment", "tier I", "the widest of these nine sits inside 3%",
 //     13.11's two counts) is asserted about the base nine BY NAME, never by a
@@ -92,6 +92,20 @@
 // shipped whole-table MANUFACTURERS assertions and its audit rescoped them the
 // same way). Before adding an assertion here, ask which lane is contracted to
 // extend the thing being asserted, and whether the assertion would survive it.
+//
+// AND THE CLASS HAS A LEVEL BELOW THE ONE YOU JUST FIXED. The repair above
+// opened the ROW set and left the FIELD set closed: `Object.keys(row).sort()
+// .toEqual([...21 fields])` took Lane F from ten failures to one, because §4
+// declares `factionLock?` and `creedLock?` as OPTIONAL and §3 has Lane F carry
+// them. An exact key-set equality forbids an optional field from ever being
+// used — the same closed-set mistake, applied to fields instead of rows, and it
+// fails on a LEGAL row rather than on a wrong one. So the rule is written in
+// three parts wherever a content lane authors the row: REQUIRED (total),
+// OPTIONAL (may be absent; typed, and value-checked against a real vocabulary
+// where one exists), ALLOWED (nothing outside the union — which is the whole of
+// what the exact set was really buying). The generalisation, and the thing to
+// carry to the next gate: ASK WHAT §4 MARKS WITH A `?`, AT EVERY LEVEL —
+// tables, rows, fields, and the values inside a field.
 import { describe, it, expect } from "vitest";
 import { readRepoFile, extractConst } from "./helpers/extract-const.js";
 import * as MIRROR from "@/lib/tactical/data.js";
@@ -100,6 +114,11 @@ import * as MIRROR from "@/lib/tactical/data.js";
 import * as CANON_MOD from "../base44/shared/tactical.ts";
 import { ARMOUR_CLASSES, PEN_TABLE, TYPE_MATRIX, LOADOUT_KEYS, deriveLoadout, WEAPON_PATTERNS, resolveWeapon } from "@/lib/arms.js";
 import * as FIELD_MOD from "@/lib/tactical/field.js";
+// Lane G's creed vocabulary. Section 4 declares SquadType.creedLock as an
+// OPTIONAL field that "takes a Creed key", so the only way to check the value
+// rather than merely its type is to read the keys off the table that defines
+// them. Derived, so it cannot go stale the way a copied literal would.
+import { CREEDS } from "@/lib/doctrine.js";
 import { neighbors, TERRAIN, FIELD, PALETTES, WEATHER_FIELD, WORKS_SEED, generateField } from "@/lib/tactical/field.js";
 
 const CANON_SRC = readRepoFile("base44/shared/tactical.ts");
@@ -1078,11 +1097,39 @@ describe("tactical mirror — one damage model (check 4, drift guard 12)", () =>
 });
 
 describe("tactical mirror — row completeness (check 5)", () => {
-  const SQUAD_FIELDS = [
+  // THE SAME DEFECT CLASS, ONE LEVEL DOWN. The gates above stopped closing the
+  // ROW set; this list was still closing the FIELD set. Section 4 declares
+  //
+  //   SquadType = { …, factionLock?: string, creedLock?: string, … }
+  //
+  // with BOTH optionals marked `?`, and section 3 says each Lane F row carries
+  // "optional factionLock/creedLock" — so a row with `creedLock` is legal and a
+  // row without it is equally legal. An exact key-set equality forbids an
+  // optional field from ever being used, which is `toEqual([...the nine])`
+  // wearing a different hat: it fails on a legal row rather than on a wrong one.
+  //
+  // Split into three lists, so the rule can be stated as what it actually is.
+  // The protection an exact set was giving — no junk field smuggled onto a row —
+  // is kept in full by ALLOWED, without banning the optionals.
+  const SQUAD_FIELDS_REQUIRED = [
     "key", "label", "short", "from", "tier", "figures", "minFigures", "maxFigures",
     "melee", "ranged", "range", "armor", "speed", "morale", "pts", "specials",
     "armour", "damageType", "armorPen", "blurb", "doctrineNote",
   ];
+  const SQUAD_FIELDS_OPTIONAL = ["factionLock", "creedLock"];
+  const SQUAD_FIELDS_ALLOWED = [...SQUAD_FIELDS_REQUIRED, ...SQUAD_FIELDS_OPTIONAL];
+
+  // Specialist rows get the same idiom, and the empty optional list is the
+  // POINT of writing it this way rather than as one flat equality. Section 4
+  // declares `Specialist = { key, label, pts, mods, blurb }` with no `?` on any
+  // of them, so closed is correct TODAY — but Lane F appends specialist rows,
+  // and this is precisely the assertion that would have to be found and
+  // rewritten the day section 4 gains an optional. Stated as required + a
+  // deliberately empty optional list, the fix is a one-line edit at an obvious
+  // site instead of a re-diagnosis of the same defect a third time.
+  const SPECIALIST_FIELDS_REQUIRED = ["key", "label", "pts", "mods", "blurb"];
+  const SPECIALIST_FIELDS_OPTIONAL = [];
+  const SPECIALIST_FIELDS_ALLOWED = [...SPECIALIST_FIELDS_REQUIRED, ...SPECIALIST_FIELDS_OPTIONAL];
 
   it("the base nine lead the table, in plan order, and nothing appended displaces them", () => {
     // WAS: expect(SQUAD_TYPE_KEYS).toEqual([...the nine...]) — a cap, which is
@@ -1108,12 +1155,47 @@ describe("tactical mirror — row completeness (check 5)", () => {
     }
   });
 
-  it("every squad row defines all 21 fields", () => {
-    expect(SQUAD_FIELDS).toHaveLength(21);
+  it("every squad row defines every required field, and carries nothing outside the section 4 shape", () => {
+    // The test NAME used to carry the count ("all 21 fields") and the body used
+    // to assert it as a literal. Both were the stale-number shape this project
+    // has already paid for: the figure is printed nowhere and derived from
+    // nothing, so it rots silently the day section 4 is amended. The list below
+    // is the single source; nothing counts it.
+    const CREED_KEYS = Object.keys(CREEDS);
+    expect(CREED_KEYS.length, "no creeds are declared, so the creedLock check would be vacuous")
+      .toBeGreaterThan(0);
+
     for (const k of SQUAD_TYPE_KEYS) {
       const row = SQUAD_TYPES[k];
-      expect(Object.keys(row).sort()).toEqual([...SQUAD_FIELDS].sort());
-      for (const f of SQUAD_FIELDS) expect(row[f], `${k}.${f}`).toBeDefined();
+      const has = (f) => Object.prototype.hasOwnProperty.call(row, f);
+      // (1) EVERY required field is present. Total over the table, base and
+      //     appended alike — this is the half worth protecting.
+      expect(SQUAD_FIELDS_REQUIRED.filter((f) => !has(f)), `${k} is missing required field(s)`).toEqual([]);
+      // (2) NO field outside required ∪ optional. This is the whole of what the
+      //     exact key-set equality was really buying, kept without the ban: a
+      //     junk field, a typo'd field name and a field from some other lane's
+      //     shape all still go red here.
+      expect(Object.keys(row).filter((f) => !SQUAD_FIELDS_ALLOWED.includes(f)),
+        `${k} carries field(s) outside the section 4 SquadType shape`).toEqual([]);
+      // (3) The optionals may be absent. When present they are typed, and
+      //     `creedLock` is checked against Lane G's actual creed table rather
+      //     than merely against `typeof === "string"`, so the affordance cannot
+      //     be used as a junk drawer.
+      //     `factionLock` gets a SHAPE check and deliberately no vocabulary
+      //     check: section 4 types it as a bare `string`, the house keys live in
+      //     Lane H's presets, and Lane H has not finished appending them —
+      //     section 3 even provides for Lane F naming keys Lane H has yet to
+      //     merge. Gating on the live preset list would recreate, against Lane
+      //     H, exactly the cross-lane block this file was repaired to remove.
+      if (has("creedLock")) {
+        expect(typeof row.creedLock, `${k}.creedLock`).toBe("string");
+        expect(CREED_KEYS, `${k}.creedLock names no creed Lane G declares`).toContain(row.creedLock);
+      }
+      if (has("factionLock")) {
+        expect(typeof row.factionLock, `${k}.factionLock`).toBe("string");
+        expect(row.factionLock, `${k}.factionLock must be a key, not prose`).toMatch(/^[a-z][a-z0-9_]*$/);
+      }
+      for (const f of SQUAD_FIELDS_REQUIRED) expect(row[f], `${k}.${f}`).toBeDefined();
       expect(row.key).toBe(k);
       // WAS: expect(row.tier).toBe("I") — a structural ban on the tiers section
       // 4 defines and section 3 REQUIRES Lane F to use (flame_team is 'II:Eng',
@@ -1136,6 +1218,15 @@ describe("tactical mirror — row completeness (check 5)", () => {
     // The base nine specifically are all tier I — the claim the old assertion
     // was reaching for, said about the rows it is actually true of.
     for (const k of BASE_NINE) expect(SQUAD_TYPES[k].tier, `${k}.tier`).toBe("I");
+    // ...and they use NEITHER optional. That is the exact key-set equality the
+    // old gate wanted, kept where it is true: the optionals are a growth
+    // affordance for the content lanes, and a base row quietly acquiring one
+    // still goes red (here and against the frozen pin above). Derived from the
+    // required list, so no count is typed anywhere.
+    for (const k of BASE_NINE) {
+      expect(Object.keys(SQUAD_TYPES[k]).sort(), `${k} is a base row and should carry no optional field`)
+        .toEqual([...SQUAD_FIELDS_REQUIRED].sort());
+    }
   });
 
   it("the founding five lead the table UNCHANGED, and every specialist carries a numeric mod", () => {
@@ -1152,7 +1243,10 @@ describe("tactical mirror — row completeness (check 5)", () => {
     const VOCAB = ["morale", "initiative", "recoverPerTurn", "moraleFloor", "aoeSuppress", "buildSpeed", "executionToll"];
     for (const k of Object.keys(SPECIALISTS)) {
       const s = SPECIALISTS[k];
-      expect(Object.keys(s).sort(), `${k} field set`).toEqual(["blurb", "key", "label", "mods", "pts"]);
+      const hasField = (f) => Object.prototype.hasOwnProperty.call(s, f);
+      expect(SPECIALIST_FIELDS_REQUIRED.filter((f) => !hasField(f)), `${k} is missing required field(s)`).toEqual([]);
+      expect(Object.keys(s).filter((f) => !SPECIALIST_FIELDS_ALLOWED.includes(f)),
+        `${k} carries field(s) outside the section 4 Specialist shape`).toEqual([]);
       expect(s.key, `${k}.key`).toBe(k);
       expect(String(s.blurb).length, `${k}.blurb`).toBeGreaterThan(30);
       const mods = Object.keys(s.mods);
@@ -1168,6 +1262,13 @@ describe("tactical mirror — row completeness (check 5)", () => {
 
   it("at least thirteen actions, every one a full row", () => {
     expect(SQUAD_ACTION_KEYS.length).toBeGreaterThanOrEqual(13);
+    // CLOSED ON PURPOSE, and checked as part of the optional-field sweep rather
+    // than left to look like an oversight. Section 4 declares no optional on an
+    // order row, and no content lane appends orders: section 3 gives Lane F the
+    // rows of SQUAD_TYPES / SPECIALISTS / UPGRADES only, and this table's own
+    // header explains that a Lane F type is gated by declaring `specials`
+    // precisely so that F never has to edit it. An exact set is the right gate
+    // here for the same reason it was the wrong one on a squad row.
     const FIELDS = ["key", "label", "requires", "uses", "dmg", "guard", "range", "aoe", "moraleHit", "suppress", "screenTurns", "noMove", "turns", "builds", "damageType", "indirect", "blurb"];
     for (const k of SQUAD_ACTION_KEYS) {
       const a = SQUAD_ACTIONS[k];
