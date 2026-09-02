@@ -37,7 +37,19 @@ export const LORE_SPOILS = { city: { steel: 4 }, town: { manpower: 3 }, depot: {
 //   name     equals the node name on the chart, exactly
 //   kind     a key of LORE_HOOKS — nothing else, because the hashed path
 //            falls back through those same four
-//   culture  the roster §2 culture, lowercase
+//   culture  the roster §2 culture, lowercase. FREE PROSE, NEVER A LOOKUP KEY:
+//            it is the parenthetical `docs/FACTION_ROSTER.md` §2 prints for
+//            that ground, normalised to lowercase and trimmed of the
+//            qualifiers that are commentary rather than type — so it ships
+//            `farm commune` for "(farm commune federation)" but keeps
+//            `waystation-provisioner` and `still-city rim`, which name what
+//            the ground IS. Nine distinct strings across ten rows; three of
+//            them sit outside the six settlement types LORE §6 locks, and
+//            `digger camp` (Redwater Digs) sits outside them entirely because
+//            the roster itself calls it "independent". test/presets.test.js
+//            asserts each value against the roster's own parenthetical and
+//            requires any type outside LORE §6 to be declared. Anything that
+//            needs to BRANCH on settlement type must branch on `kind`.
 //   era      one of LORE_ERAS, byte-identical
 //   hook     LORE_HOOKS grammar — a lowercase verb phrase completing
 //            `${name} ${hook}.`
@@ -161,8 +173,18 @@ export const NAMED_POLITIES = {
 
 // Derived lookup, BESIDE the literal and never instead of it: the chart carries
 // node names, not slugs, so the dossier path resolves by name.
-export const POLITY_BY_NAME = Object.fromEntries(
-  Object.values(NAMED_POLITIES).map((row) => [row.name, row]),
+//
+// NULL PROTOTYPE, DELIBERATELY. The keys of this map are node names off the
+// chart, and a chart may legally carry a node called `toString`, `constructor`
+// or `valueOf`. A plain object literal inherits those from Object.prototype, so
+// `POLITY_BY_NAME[node.name]` would return a FUNCTION for such a node, the
+// truthy branch below would be taken, and `settlementDossier` would answer with
+// `era: undefined` and empty spoils — a silent break of the return shape drift
+// guard 2 freezes. `Object.create(null)` has no prototype to inherit from, so
+// the lookup answers only for the ten rows actually declared here.
+export const POLITY_BY_NAME = Object.assign(
+  Object.create(null),
+  Object.fromEntries(Object.values(NAMED_POLITIES).map((row) => [row.name, row])),
 );
 
 // Deterministic per-node: the same site always tells the same story

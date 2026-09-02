@@ -211,9 +211,19 @@ it when it says the Departure "can be derived from its axis position" by that fi
 `finished_ledger` both lean `0`, so the lean is 2-to-1 ambiguous and only the seed distinguishes them.
 The −1 band is the Flight because LORE §2 calls the Flight "the axis's dark orthogonal" — its holders
 read Reclaimer-side because they reject the inheritance, but they reject it in order to **seal** it,
-not to smelt it. That is exactly what house 4's own asterisk (`Creed −1*`) was flagging. Every one of
-the ten houses resolves to the Departure LORE §7 already gives it; the table was read off §7 and the
-seeds, not fitted to them afterwards.
+not to smelt it. That is exactly what house 4's own asterisk (`Creed −1*`) was flagging.
+
+**Where the ten Departures come from — corrected.** An earlier draft of this note, and of the comment
+above `DEPARTURE_BY_CREED_SEED` in `src/lib/presetFactions.js`, said *"every one of the ten houses
+resolves to the Departure LORE §7 already gives it."* That is true of **four** of them and no more.
+LORE §7 names a Departure for the Iron Reclamation (*"the Discarding, armed"*), the Charter Combine
+(*"the Ledger, incorporated"*), the Bastion Synod (*"worthy of the Recall"*) and the Covenant of Locks
+(*"the Flight, militant"*), and names none for the Ascendancy, the Commonweal, the Salvage Court, the
+Emberwright Union, the Long Procession or the Outrider Compact. Those six are read off **§1's own
+`Theory` column** and **LORE §2's "who holds it" table** — which is where the mapping in the header
+table above comes from, and which this lane extended by one row (`Experiment → the Recall`). Four
+confirmations, six derivations, one open conflict (the Emberwrights, below). Stated that way it is
+checkable; stated the other way it was not, and nothing gated it.
 
 **One seed was corrected to make that true, and it is the only number in §1 this lane changed.** The
 Commonweal March's Creed seed read **−1**, which the table above would make the Flight. LORE §2 names

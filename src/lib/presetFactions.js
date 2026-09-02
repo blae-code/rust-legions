@@ -86,9 +86,20 @@
 // roster's own asterisk on the Covenant's `Creed -1*` is a note about exactly
 // this position. `CREEDS[k].axisLean` cannot carry the distinction on its own:
 // `flight` and `finished_ledger` both lean 0, so the lean is 2-to-1 ambiguous
-// and this table, not the lean, is the mapping. Every one of the ten houses
-// resolves to the Departure `docs/LORE.md` §7 already gives it — the table was
-// read off §7 and the roster's seeds, not invented to fit them.
+// and this table, not the lean, is the mapping.
+//
+// WHERE THE TEN DEPARTURES COME FROM, stated exactly. `docs/LORE.md` §7 names a
+// Departure for FOUR houses — Reclamation ("the Discarding, armed"), Combine
+// ("the Ledger, incorporated"), Bastion Synod ("worthy of the Recall") and
+// Covenant ("the Flight, militant") — and those four are what this table was
+// read against. The other six are read off `docs/FACTION_ROSTER.md` §1's own
+// `Theory` column and LORE §2's "who holds it" table, which is where the
+// remaining houses are placed. An earlier draft of this comment claimed §7
+// gave all ten; it does not, and the claim is exactly the false-justification
+// defect the wave-4 addendum names. One conflict is open and is NOT resolved
+// here: LORE §2 files the Emberwrights under the Finished Ledger while their
+// seed, their §7 line and Lane G's `the_new_ignition` creedLock all read the
+// Discarding. FACTION_ROSTER §6.2 flags it for the LORE owner.
 export const DEPARTURE_BY_CREED_SEED = {
   "-3": "discarding",
   "-2": "discarding",

@@ -42,6 +42,7 @@ import {
 import { PERKS, PERK_BY_ID, MAX_LIABILITIES, netPoints, pickError } from "@/lib/pointBuy.js";
 import { LIFEPATH_CHAPTERS, PHILOSOPHIES, VALUES, DOCTRINES, availableOptions } from "@/lib/lifepath.js";
 import { IMAGE_LIBRARY } from "@/lib/imageLibrary.js";
+import { UNIT_TYPES, RESOURCE_KEYS } from "@/lib/units.js";
 
 // ── the live catalogs, lifted from the canonical .ts sources ───────────────
 const tacticalSrc = readRepoFile("base44/shared/tactical.ts");
@@ -97,6 +98,36 @@ function tableRows(text, headerCell) {
 }
 const unbacktick = (s) => s.replace(/`/g, "").trim();
 const cells = (s) => (s === "" ? [] : s.split(",").map((c) => unbacktick(c)).filter(Boolean));
+
+// ── numbers out of prose, so prose can be checked against a table ──────────
+// Signed integers out of a markdown cell or a sentence, tolerating bold markers
+// and the U+2212 minus the documents use. Returned sorted, because a sentence
+// states its effects in reading order and a table states them in key order.
+const signedInts = (cell) =>
+  (cell.replace(/\*/g, "").match(/[+−-]\d+/g) || [])
+    .map((t) => Number(t.replace(/−/g, "-")))
+    .sort((a, b) => a - b);
+
+// The same, for the shipped catalog's OTHER way of writing a signed number:
+// `cost 1 less Manpower` / `cost 1 more Manpower`, which five rows on `main`
+// use and this lane's rows match. Normalised to `-1` / `+1` before the scan,
+// so one comparison covers both spellings rather than two half-gates.
+const descInts = (text) =>
+  signedInts(text.replace(/(\d+)\s+less\b/gi, "-$1").replace(/(\d+)\s+more\b/gi, "+$1"));
+
+const num = (cell) => Number(unbacktick(cell).replace(/\*/g, "").replace(/−/g, "-"));
+
+// The signed values a PERK_MODS row actually carries, sorted the same way.
+function modValues(mods) {
+  const out = [];
+  for (const stats of Object.values(mods.unitStat || {})) out.push(...Object.values(stats));
+  for (const res of Object.values(mods.unitCost || {})) out.push(...Object.values(res));
+  out.push(...Object.values(mods.income || {}));
+  for (const lever of ["armyCap", "startBonus", "capitalDefense", "disposition"]) {
+    if (mods[lever]) out.push(mods[lever]);
+  }
+  return out.sort((a, b) => a - b);
+}
 
 // ── the roster's ten house blocks, parsed ──────────────────────────────────
 // A "### <n>. <Name> — ..." block down to the next "### " or the end of §1.
@@ -167,7 +198,13 @@ describe("PRESET_FACTIONS — shape and identity", () => {
       expect(typeof p.house, p.id).toBe("string");
       expect(p.heraldVoice, p.id).toBe(p.house);
       expect(typeof keelOf(p), p.id).toBe("string");
-      expect(Object.keys(p.uniqueRoster).sort()).toEqual(["decree", "patterns", "squads", "upgrades"]);
+      // MEMBERSHIP, not equality. §4 fixes the four fields a `uniqueRoster`
+      // MUST carry; it does not close the row against a fifth that a later
+      // amendment adds (`specialists`, `chassis`), and an exact key set would
+      // forbid one — the closed-set defect at the FIELD level, which is the
+      // exact form the wave-4 repair had to make a second pass for. What is
+      // load-bearing is that all four are present and none is empty.
+      expect(Object.keys(p.uniqueRoster), p.id).toEqual(expect.arrayContaining(["decree", "patterns", "squads", "upgrades"]));
     }
   });
 
@@ -399,9 +436,16 @@ describe("the Departure is derived from the Creed axis, never stored", () => {
     }
   });
 
-  it("uses all four Departures across the thirteen houses", () => {
+  it("puts every Departure the mapping can produce into play, and invents none", () => {
+    // Was `held == Object.keys(CREEDS)`, which would go red the day Lane G
+    // adds a fifth creed — a change that would break nothing. The claim worth
+    // keeping is about THIS lane's mapping: every value
+    // `DEPARTURE_BY_CREED_SEED` can yield is actually held by a house (no dead
+    // branch), and every Departure held is a real creed (no invention).
     const held = new Set(PRESET_FACTIONS.map((p) => departureOf(p)));
-    expect([...held].sort()).toEqual(Object.keys(CREEDS).sort());
+    const reachable = new Set(Object.values(DEPARTURE_BY_CREED_SEED));
+    expect([...held].sort(), "the mapping has a branch no house reaches").toEqual([...reachable].sort());
+    for (const d of held) expect(CREEDS, `departure ${d} is not a CREEDS key`).toHaveProperty(d);
   });
 
   it("cannot be satisfied by `CREEDS[k].axisLean` alone — and says so", () => {
@@ -548,9 +592,29 @@ describe("FACTION_ROSTER.md governs, and the document is recomputed not trusted"
   });
 
   it("matches each roster house's Seeds line, minus signs and asterisks and all", () => {
+    // ⚠ ONE SIDE OF THIS EQUALITY IS ALSO THIS LANE'S. `docs/FACTION_ROSTER.md`
+    // is a Lane H file, so for any house whose roster line this lane edited the
+    // check compares the lane's data against the lane's own document and cannot
+    // detect the edit. Exactly one seed was changed: **the Commonweal March's
+    // Creed seed, −1 → −2.** The reason is in FACTION_ROSTER §6.2 — at −1 the
+    // Departure table gives the Flight, while LORE §2 names "much of the
+    // Commonweal" among the holders of the Discarding and §1's own
+    // `No-Patron (communal)` theory reads the same way — but the reason lives
+    // in a document, not in an assertion, and it is named here so the next
+    // reader does not mistake this row for an externally-verified one. The
+    // other nine seed lines are untouched from `main`.
+    const SEEDS_EDITED_BY_THIS_LANE = { "The Commonweal March": { creed: [-1, -2] } };
     for (const h of ROSTER_HOUSES) {
       const p = PRESET_FACTIONS.find((x) => x.factionName === h.name);
       expect(p.lifepathChoices.seeds, `${h.name} seeds`).toEqual(h.seeds);
+    }
+    for (const [name, axes] of Object.entries(SEEDS_EDITED_BY_THIS_LANE)) {
+      const p = PRESET_FACTIONS.find((x) => x.factionName === name);
+      for (const [axis, [, to]] of Object.entries(axes)) {
+        expect(p.lifepathChoices.seeds[axis], `${name} ${axis} no longer holds the corrected value`).toBe(to);
+      }
+      expect(rosterSrc, `${name}'s seed correction is no longer recorded in §6.2`)
+        .toContain("The seed is now **−2**");
     }
   });
 
@@ -754,9 +818,22 @@ const LANE_H_PERK_IDS = [
   "swath_bound", "stripped_escorts", "tribute_graze", "exposed_batteries",
 ];
 
+// DERIVED, NOT PINNED. `src/lib/units.js` already stages seven more unit types
+// in `PROPOSED_UNIT_TYPES` (`draught_column`, `siege_train`, `bridging_train`,
+// `signals_wagon`, `salvage_detachment`, `hospital_train`, `provost_column`)
+// for platform promotion into `UNIT_TYPES`. A hard-coded list of the five that
+// exist today would go red on the first promotion, on a `PERK_MODS` row that
+// had become perfectly legal — the wave-4 addendum's defect class 4, and the
+// same shape as Lane A's pinned `SQUAD_TYPE_KEYS`. Both vocabularies are read
+// off the modules that own them instead, so the sets grow when they grow.
+const UNIT_KEYS = Object.keys(UNIT_TYPES);
+const INCOME_KEYS = [...RESOURCE_KEYS];
+// `compileMods` is the ONE vocabulary with no exported form: perkMods.ts
+// declares its levers inline in the reducer body, not as a table. This list is
+// therefore hand-kept, and it must move the day `compileMods` gains a lever —
+// the test two blocks down pins it against `supplyRange`, the real key that
+// `mergeMods` handles and `compileMods` silently drops.
 const MOD_KEYS = ["unitStat", "unitCost", "income", "armyCap", "startBonus", "capitalDefense", "disposition"];
-const INCOME_KEYS = ["manpower", "steel", "fuel"];
-const UNIT_KEYS = ["riflemen", "crawler", "gunboat", "fighter", "artillery"];
 
 // THE PRICING SCHEDULE, WITH ONE SHIPPED ANCHOR PER STEP.
 //
@@ -837,11 +914,43 @@ describe("the point-buy catalog — eight nomad-keel requisitions", () => {
     }
   });
 
-  it("gives every perk a label and a desc that states its own number", () => {
+  it("gives every perk a label, and a desc REBUILT from its PERK_MODS row", () => {
+    // Drift guard 7, mechanised. A requisition's number is written FOUR times:
+    // once in `PERK_MODS` (the source), once in the perk's own `desc`, once in
+    // the `perk_<id>` plate's `desc`, and once in the GAME_RULES §28 table. The
+    // table was already rebuilt from `PERK_MODS`; the two descs were checked
+    // only by `toMatch(/\d/)`, so `+1 Steel income` could have read `+3` in
+    // either of them with the whole suite green — while `imageLibrary.js`
+    // published the claim that they "cannot drift". Both are compared against
+    // the row here, with the same `signedInts`/`modValues` pair §28 uses, so
+    // the claim is now enforced rather than asserted.
     for (const p of newPerks) {
       expect(p.label, `${p.id} label`).toBeTruthy();
       expect(p.desc, `${p.id} desc`).toMatch(/\d/);
+      expect(descInts(p.desc), `${p.id} desc numbers`).toEqual(modValues(PERK_MODS[p.id]));
     }
+  });
+
+  it("gives every perk a plate whose desc is rebuilt from the same row", () => {
+    for (const p of newPerks) {
+      const plate = IMAGE_LIBRARY.find((x) => x.key === `perk_${p.id}`);
+      expect(plate, `no plate perk_${p.id}`).toBeTruthy();
+      expect(descInts(plate.desc), `perk_${p.id} plate desc numbers`).toEqual(modValues(PERK_MODS[p.id]));
+    }
+  });
+
+  it("goes red when a desc and its row disagree", () => {
+    // The gate above is only worth having if it can fail. Both spellings the
+    // shipped catalog uses are exercised: an explicit `+1` and a bare
+    // `1 less`, because a scan that only understood the first would pass a
+    // `field_refit_train` desc that had drifted to `2 less Steel`.
+    const row = { income: { steel: 1, fuel: -1 } };
+    expect(descInts("+1 Steel income every turn, −1 Fuel income every turn")).toEqual(modValues(row));
+    expect(descInts("+3 Steel income every turn, −1 Fuel income every turn")).not.toEqual(modValues(row));
+    const cost = { unitCost: { crawler: { steel: -1 } } };
+    expect(descInts("Crawlers cost 1 less Steel.")).toEqual(modValues(cost));
+    expect(descInts("Crawlers cost 2 less Steel.")).not.toEqual(modValues(cost));
+    expect(descInts("Riflemen cost 1 more Manpower.")).toEqual([1]);
   });
 });
 
@@ -862,6 +971,19 @@ describe("PERK_MODS — the mirror, the vocabulary, and the price", () => {
         for (const r of Object.keys(res)) expect(INCOME_KEYS, `${id} unitCost resource ${r}`).toContain(r);
       }
     }
+  });
+
+  it("keeps teeth on the unit and income vocabularies while letting them grow", () => {
+    // Derived, but not toothless: a key that is in NO live table is still
+    // rejected. And the growth is real, not theoretical — `units.js` stages
+    // seven more unit types for promotion, so this set is one platform commit
+    // away from being larger than the five that exist today.
+    expect(UNIT_KEYS).toContain("artillery");
+    expect(UNIT_KEYS).not.toContain("cavalry");
+    expect(UNIT_KEYS.length, "UNIT_KEYS is no longer read off UNIT_TYPES").toBe(Object.keys(UNIT_TYPES).length);
+    expect(INCOME_KEYS.sort()).toEqual(["fuel", "manpower", "steel"]);
+    const staged = extractConst(readRepoFile("src/lib/units.js"), "PROPOSED_UNIT_TYPES");
+    expect(Object.keys(staged).length, "the staged unit types this gate must not forbid are gone").toBeGreaterThan(0);
   });
 
   it("goes red on a mod key compileMods would silently drop", () => {
@@ -1177,26 +1299,84 @@ describe("HERALD_VOICES.md — thirteen packs", () => {
     });
   }
 
-  it("holds at least 117 samples — thirteen packs, three moods, three each", () => {
+  it("holds at least 117 samples, and strands none outside a mood", () => {
+    // The floor alone could not fail: the per-pack loop above already asserts
+    // three samples in each of three moods for each of thirteen packs, so 117
+    // is implied by assertions that ran first. What it CAN check independently
+    // is the parser's blind spot — a `> ` line that sits under a pack heading
+    // but before any `### ` mood heading is silently dropped by `heraldPacks`,
+    // so a sample could be added to the file and counted by nobody. Every
+    // quoted line in the document is therefore accounted for: it is either a
+    // mood sample or one of the Garble Template's degraded forms.
     let n = 0;
     for (const pack of packs.values()) for (const mood of MOODS) n += pack.moods[mood].length;
     expect(n).toBeGreaterThanOrEqual(117);
+    const lines = heraldSrc.split("\n");
+    const quoted = lines.filter((l) => l.startsWith("> ")).length;
+    // Two places in the document quote legitimately without being samples: the
+    // Garble Template's degraded forms, and the file's own preamble blockquote
+    // above the first `## ` heading. Both are bounded, and both are asserted
+    // non-empty so that a quoted line cannot go missing into either of them.
+    const garble = section(heraldSrc, /^## Garble Template/).split("\n").filter((l) => l.startsWith("> ")).length;
+    const preambleEnd = lines.findIndex((l) => l.startsWith("## "));
+    expect(preambleEnd, "the file has no ## headings at all").toBeGreaterThan(0);
+    const preamble = lines.slice(0, preambleEnd).filter((l) => l.startsWith("> ")).length;
+    expect(garble, "the Garble Template lost its examples").toBeGreaterThan(0);
+    expect(preamble, "the file preamble lost its blockquote").toBeGreaterThan(0);
+    expect(n + garble + preamble, "a quoted line sits outside every mood, the preamble and the template").toBe(quoted);
   });
 
-  it("reports the loss of a running works in every single register", () => {
-    // Operator ruling: on capture the captor loots unspent MATERIALS only; the
-    // project, its progress and its housed Object are lost. Thirteen registers,
-    // thirteen ways of saying the same unwelcome thing — and none of them may
-    // say the winner inherited it.
+  // Operator ruling 1: on capture the captor loots unspent MATERIALS only; the
+  // project, its progress and its housed Object are LOST. Thirteen registers,
+  // thirteen ways of saying the same unwelcome thing.
+  //
+  // WHAT THIS GATE CHECKS, STATED HONESTLY. A ruling is a claim about meaning
+  // and no word list can decide one. The first cut here was a denylist of five
+  // inheritance spellings, and it passed a line reading "{projectName} came
+  // with it, whole, and it will finish in their bay by spring" — the most
+  // natural way to write exactly the forbidden thing. So the gate is inverted:
+  // every sample that names a works must AFFIRM the loss in one of the forms
+  // the packs actually use, which a sentence claiming inheritance cannot do by
+  // accident. The denial is kept as a second, narrower pass. Neither half
+  // decides the ruling; together they catch the sentence that reverses it, and
+  // the packs' prose stays a manual review item under H6.
+  const LOSS_VERBS = [
+    /\bnothing else\b/i, /\b(?:went|passed) out of the world\b/i, /\bdid not come out\b/i,
+    /\bis concluded\b/i, /\btotal loss\b/i, /\bcannot be\b/i, /\bdo(?:es)? not have\b/i,
+    /\bnot recoverable\b/i, /\blost outright\b/i, /\bnot carried off\b/i, /\bis finished\b/i,
+    /\bis ended\b/i, /\bdies with the bay\b/i,
+  ];
+  // The exemptions are STRIPPED before the denial scan, never tested against
+  // the whole sample: the old form let a line say "inherited" anywhere so long
+  // as it also said "not recoverable" anywhere.
+  const stripDenials = (t) => t.replace(/\bnot (?:a )?transferable\b|\bdoes not inherit\b|\bnot recoverable\b/gi, "");
+
+  it("affirms the loss of a running works in every register, and claims it nowhere", () => {
     for (const [key, pack] of packs) {
       const samples = MOODS.flatMap((m) => pack.moods[m]);
       const loss = samples.filter((s) => s.includes("{projectName}"));
       expect(loss.length, `${key} never reports a lost works`).toBeGreaterThanOrEqual(1);
       for (const s of loss) {
-        expect(/\b(inherit|inherited|inherits|transferred|transferable)\b/i.test(s) && !/not a transferable|does not inherit|not recoverable/i.test(s),
+        expect(LOSS_VERBS.some((re) => re.test(s)),
+          `${key} names a works without affirming its loss: ${s.slice(0, 90)}`).toBe(true);
+        expect(/\b(inherit|inherited|inherits|transferred|transferable)\b/i.test(stripDenials(s)),
           `${key} reports a captured works as an inheritance`).toBe(false);
       }
     }
+  });
+
+  it("goes red on a sample that hands the works to the captor", () => {
+    // The exact sentence the word-list form passed, and the exact escape the
+    // old exemption clause opened. Both are red under the two passes above.
+    const inherits = "They got the metal out of the cradle and {projectName} came with it, whole, and it will finish in their bay by spring.";
+    expect(LOSS_VERBS.some((re) => re.test(inherits))).toBe(false);
+    const smuggled = "{projectName} was inherited by the captor; the stock is not recoverable.";
+    expect(/\b(inherit|inherited|inherits|transferred|transferable)\b/i.test(stripDenials(smuggled))).toBe(true);
+    // …and the thirteen real lines pass both, which is what makes the pair a
+    // gate rather than a filter that happens to be satisfied.
+    const real = "{projectName} is a total loss and not a transferable one — the works do not survive the hull.";
+    expect(LOSS_VERBS.some((re) => re.test(real))).toBe(true);
+    expect(/\b(inherit|inherited|inherits|transferred|transferable)\b/i.test(stripDenials(real))).toBe(false);
   });
 
   it("keeps out-of-world mechanics vocabulary out of every sample", () => {
@@ -1351,6 +1531,59 @@ describe("NAMED_POLITIES — the ten grounds the Chart names", () => {
     for (const [slug, row] of POLITY_ROWS) expect(grounds, `${slug} missing from roster §2`).toContain(row.name);
   });
 
+  it("takes every `culture` from the roster's own §2 parenthetical", () => {
+    // `culture` shipped nine distinct strings gated against nothing, normalised
+    // unevenly against §2 — `(farm commune federation)` lost its qualifier
+    // while `(waystation-provisioner)` and `(still-city rim)` kept theirs — so
+    // nothing could tell a considered normalisation from a typo. The register
+    // is external here: each row's culture must be a substring of the
+    // parenthetical the roster prints for THAT ground, which is what makes the
+    // normalisation auditable rather than merely disclosed.
+    const grounds = section(rosterSrc, /^## \d+\. The Ten Grounds/);
+    for (const [slug, row] of POLITY_ROWS) {
+      const line = grounds.split("\n").find((l) => l.includes(`**${row.name}**`));
+      expect(line, `${slug} has no numbered entry in roster §2`).toBeTruthy();
+      const paren = /\*\((.+?)\)\*/.exec(line);
+      expect(paren, `${slug}'s roster entry states no culture`).toBeTruthy();
+      expect(paren[1].toLowerCase(), `${slug} culture "${row.culture}" is not in the roster's "${paren[1]}"`)
+        .toContain(row.culture);
+    }
+  });
+
+  it("declares every culture that sits outside LORE §6's locked types", () => {
+    // LORE §6 locks six settlement types. Three cultures qualify one of them
+    // (`waystation-provisioner`, `still-city rim`) or fall outside entirely
+    // (`digger camp`, which the roster itself calls "independent"). SUBSET,
+    // not equality: if the LORE owner ever adds `digger camp` to §6 the
+    // divergence set shrinks to nothing and this still passes, whereas an
+    // equality would go red on a fix. What it catches is a NEW, undeclared
+    // divergence.
+    const loreSrc = readRepoFile("docs/LORE.md");
+    // Lifted from the sentence LORE §6 states them in, so a change there is
+    // seen here rather than read off a copy: "Types per the roster: burn-towns,
+    // mining combines, farm communes, waystations, scrap-parishes,
+    // still-cities."
+    const declared = /Types per the roster:\s*([^.]+)\./.exec(loreSrc.replace(/\s+/g, " "));
+    expect(declared, "LORE §6 no longer declares the locked settlement types").toBeTruthy();
+    const singular = (t) => {
+      if (t.endsWith("ies")) return `${t.slice(0, -3)}y`;
+      if (t.endsWith("es") && /(sh|ch|s|x)$/.test(t.slice(0, -2))) return t.slice(0, -2);
+      return t.endsWith("s") ? t.slice(0, -1) : t;
+    };
+    const types = declared[1].split(",").map((t) => singular(t.trim()));
+    expect(types.length, "LORE §6 declares a different number of types").toBe(6);
+    expect(types, "the depluraliser stopped depluralising").toEqual(
+      ["burn-town", "mining combine", "farm commune", "waystation", "scrap-parish", "still-city"],
+    );
+    const DECLARED_DIVERGENCES = ["digger camp"];
+    const outside = POLITY_ROWS
+      .map(([, r]) => r.culture)
+      .filter((c) => !types.some((t) => c.includes(t)));
+    for (const c of outside) {
+      expect(DECLARED_DIVERGENCES, `culture "${c}" is outside LORE §6's six locked types and is undeclared`).toContain(c);
+    }
+  });
+
   it("keeps §6.6's register equal to the data", () => {
     const recon = section(rosterSrc, /^## \d+\. Reconciliation/);
     const rows = tableRows(recon, "| spoils |");
@@ -1397,14 +1630,24 @@ describe("settlementDossier — the named path, and the hashed path it did not d
   });
 
   it("leaves the hashed path intact for everything else", () => {
-    const node = { id: "x7", name: "Ashfoot Siding", kind: "depot" };
-    const a = settlementDossier(node);
-    const b = settlementDossier(node);
-    expect(Object.keys(a).sort()).toEqual([...FOUR].sort());
-    expect(a).toEqual(b);
-    expect(LORE_ERAS).toContain(a.era);
-    // The legacy text carries its own tail; the named path deliberately does not.
-    expect(a.text.endsWith(`Standing since ${a.era}.`)).toBe(true);
+    // The probe list carries FOUR names off `Object.prototype` on purpose. The
+    // name lookup is keyed by a chart node's name, and a chart may legally
+    // carry a node called `toString`: through an inherited prototype the
+    // lookup answers with a FUNCTION, the named branch is taken, and the
+    // dossier comes back with `era: undefined` and empty spoils — three keys
+    // instead of four, which is a silent break of the shape drift guard 2
+    // freezes. One well-behaved name would never have shown it.
+    for (const name of ["Ashfoot Siding", "toString", "constructor", "valueOf", "hasOwnProperty"]) {
+      const node = { id: "x7", name, kind: "depot" };
+      const a = settlementDossier(node);
+      const b = settlementDossier(node);
+      expect(Object.keys(a).sort(), name).toEqual([...FOUR].sort());
+      expect(a, name).toEqual(b);
+      expect(LORE_ERAS, name).toContain(a.era);
+      expect(Object.keys(a.spoils).length, `${name} spoils`).toBe(1);
+      // The legacy text carries its own tail; the named path deliberately does not.
+      expect(a.text.endsWith(`Standing since ${a.era}.`), name).toBe(true);
+    }
     expect(settlementDossier({ id: "n1", name: "Tarpool", kind: "town" }).text).not.toContain("Standing since");
   });
 
@@ -1484,8 +1727,26 @@ describe("the Ministry Archive — forty-four entries in this lane's own diff", 
     expect(last - first + 1, "the Lane H block is not contiguous").toBe(LANE_H_ENTRY_IDS.length);
     const inside = ids.slice(first, last + 1);
     expect([...inside].sort()).toEqual([...LANE_H_ENTRY_IDS].sort());
-    // …and it is a TAIL block: nothing from another lane sits after it today.
-    expect(first).toBeGreaterThan(0);
+    // …and it sits AFTER every lane block already in the file. The claim this
+    // line used to carry — "nothing from another lane sits after it" — was not
+    // the claim `expect(first).toBeGreaterThan(0)` makes: that is satisfied
+    // identically by a block wedged in the middle with sixty other-lane
+    // entries behind it. What is both true and checkable is the ORDER of the
+    // banner comments in the source, which is the protocol the shared-file
+    // rule actually states ("place it after the Lane F / G / I / J blocks, in
+    // merge order"). Asserting nothing follows would be the end-of-file bound
+    // this file rejects everywhere else — a Field Amendment appends after
+    // Lane H by design.
+    expect(first, "another lane's entries do not precede this block").toBeGreaterThan(0);
+    const entriesSrc = readRepoFile("src/lib/wiki/entries.js");
+    const mine = entriesSrc.indexOf("// ——— LANE H:");
+    expect(mine, "Lane H entry banner not found").toBeGreaterThan(-1);
+    const banners = [...entriesSrc.matchAll(/^\s*\/\/ ——— LANE ([A-Z]):/gm)];
+    expect(banners.length, "no lane banners found").toBeGreaterThan(1);
+    for (const b of banners) {
+      if (b[1] === "H") continue;
+      expect(b.index, `the Lane ${b[1]} block sits after Lane H's`).toBeLessThan(mine);
+    }
   });
 
   it("keeps every id unique and every entry well formed, corpus-wide", () => {
@@ -1626,28 +1887,6 @@ const imageSrc = readRepoFile("src/lib/imageLibrary.js");
 const RULES_TITLE = /^## \d+\. Houses, Standards & Nomad-Keel Perks \[PROPOSED/;
 const RULES_SECTION = section(rulesSrc, RULES_TITLE);
 
-// Signed integers out of a markdown cell, tolerating bold markers and the
-// U+2212 minus the documents use. Returned sorted, because a cell states its
-// effects in reading order and a table states them in key order.
-const signedInts = (cell) =>
-  (cell.replace(/\*/g, "").match(/[+−-]\d+/g) || [])
-    .map((t) => Number(t.replace(/−/g, "-")))
-    .sort((a, b) => a - b);
-
-const num = (cell) => Number(unbacktick(cell).replace(/\*/g, "").replace(/−/g, "-"));
-
-// The signed values a PERK_MODS row actually carries, sorted the same way.
-function modValues(mods) {
-  const out = [];
-  for (const stats of Object.values(mods.unitStat || {})) out.push(...Object.values(stats));
-  for (const res of Object.values(mods.unitCost || {})) out.push(...Object.values(res));
-  out.push(...Object.values(mods.income || {}));
-  for (const lever of ["armyCap", "startBonus", "capitalDefense", "disposition"]) {
-    if (mods[lever]) out.push(mods[lever]);
-  }
-  return out.sort((a, b) => a - b);
-}
-
 // Markdown hard-wraps at ~100 columns, so a phrase the prose states may
 // straddle a newline. Prose assertions run against a flattened copy; table
 // assertions never need this, because a row is one line by construction.
@@ -1683,7 +1922,12 @@ describe("docs/GAME_RULES.md — the [PROPOSED] section, found by title and rebu
   it("leaves the live §13 perk catalog untouched", () => {
     // The brief forbids renumbering, rewording or deleting an existing
     // section. §13 is the one this section extends, so it is the one named.
-    const live = section(rulesSrc, /^## 13\. Faction Point-Buy Perks/);
+    // Located BY TITLE, like every other slice in this file. The first draft
+    // hard-coded `## 13.` seven lines below a locator that did not, so a pure
+    // renumber — exactly what a platform promote does when it inserts a
+    // section — turned this red while nothing had changed. §28's own preamble
+    // publishes the claim that these locators are title-based; it is true now.
+    const live = section(rulesSrc, /^## \d+\. Faction Point-Buy Perks/);
     expect(live).toContain("Applied at game start via `compileMods`");
     for (const id of SHIPPED_PERK_IDS) expect(live, `§13 lost ${id}`).toContain(id);
     for (const id of LANE_H_PERK_IDS) {
@@ -1968,8 +2212,95 @@ describe("the one new plate, and the absences that were verified rather than ass
     const setPlates = IMAGE_LIBRARY.filter((p) => p.key.startsWith("set_"));
     expect(setPlates.length).toBe(10);
     expect(LANE_H_BLOCK.includes('P("set_'), "a settlement plate was re-registered").toBe(false);
-    expect(IMAGE_LIBRARY.filter((p) => p.category === "ideology").length).toBeGreaterThanOrEqual(17);
+    // MEMBERSHIP, not a floor. The old `>= 17` measured a superset of the
+    // seventeen H7 enumerates and so could neither confirm nor refute the
+    // published figure; H7's count is now an equality in the hand-over suite,
+    // and what belongs HERE is the claim this lane actually relies on — that
+    // the four ideology families it cites in lore and codex are all present.
+    const ideology = IMAGE_LIBRARY.filter((p) => p.category === "ideology").map((p) => p.key);
+    for (const family of ["axis_", "bloc_", "creed_", "decree_"]) {
+      expect(ideology.some((k) => k.startsWith(family)), `no ${family}* ideology plate`).toBe(true);
+    }
+    for (const axis of AXES) expect(ideology, `missing axis_${axis}`).toContain(`axis_${axis}`);
+    // The Departures THIS lane's houses actually hold, not every key of
+    // `CREEDS`: a fifth creed added upstream would need a plate from whoever
+    // added it, and turning this lane's suite red on that would be the
+    // closed-set defect wearing a coverage check's clothes.
+    for (const d of new Set(PRESET_FACTIONS.map((f) => departureOf(f)))) {
+      expect(ideology, `missing creed_${d}`).toContain(`creed_${d}`);
+    }
     expect(LANE_H_BLOCK.includes('"ideology"'), "an ideology plate was registered").toBe(false);
+  });
+
+  // ── finding: the requisition strings were in no safety gate ──────────────
+  // The step-1 collector gathers preset strings plus plates filtered to
+  // `category === "houses"`; the step-3 collector gathers polities and codex
+  // entries. Between them they missed `PERKS[].desc` — which the brief names
+  // by name — and every plate outside `houses`, including the eight `perks`
+  // tokens this lane registered. Both are shipped, user-visible copy.
+  describe("voice and safety — the requisitions and their tokens", () => {
+    const strings = [];
+    for (const id of LANE_H_PERK_IDS) {
+      const perk = PERK_BY_ID[id];
+      strings.push(perk.label, perk.desc);
+    }
+    for (const key of blockKeys) {
+      const plate = IMAGE_LIBRARY.find((x) => x.key === key);
+      strings.push(plate.title, plate.desc, plate.prompt);
+    }
+
+    it("collects every string this lane added to the two files", () => {
+      // A collector that gathered nothing would pass every gate below it.
+      expect(strings.length).toBe(LANE_H_PERK_IDS.length * 2 + blockKeys.length * 3);
+      for (const s of strings) expect(typeof s === "string" && s.length > 0).toBe(true);
+    });
+
+    it("carries no PII of any shape", () => {
+      const PII = [
+        [/[\w.+-]+@[\w-]+\.[\w.]+/, "email address"],
+        [/https?:\/\//, "url"],
+        [/\+?\d[\d\s().-]{7,}\d/, "phone-shaped digit run"],
+        [/(^|\s)@\w+/, "@handle"],
+      ];
+      for (const s of strings) {
+        for (const [re, what] of PII) expect(re.test(s), `${what} in: ${s.slice(0, 80)}`).toBe(false);
+      }
+    });
+
+    it("names no real-world nation, regime or alliance", () => {
+      const deny = /\b(America|American|Europe|European|Russia|Russian|German|Germany|Britain|British|France|French|China|Chinese|Japan|Japanese|Soviet|Nazi|Reich|USSR|NATO)\b/;
+      for (const s of strings) expect(deny.test(s), `real-world proper noun in: ${s.slice(0, 80)}`).toBe(false);
+    });
+
+    it("keeps out-of-world mechanics vocabulary out of every one of them", () => {
+      // `turn` is absent from this list for the reason given at the step-1
+      // collector: five SHIPPED perk descs end "income every turn", and these
+      // rows match them deliberately. Banning it here would make the gate red
+      // in the healthy state or force this lane's rows to depart from their
+      // own siblings.
+      const banned = /\b(tile|player|stat|modifier|hex|XP|buff|debuff)s?\b/i;
+      for (const s of strings) expect(banned.test(s), `mechanics word in: ${s.slice(0, 80)}`).toBe(false);
+    });
+
+    it("uses no hex colour in the two src/lib files no other gate reads", () => {
+      // Check 43 says "over the changed `src/lib` files", and this lane changed
+      // FIVE of them. Two gates covered `presetFactions.js`, `wiki/entries.js`,
+      // `settlementLore.ts` and this file; `pointBuy.js` and `lifepath.js` were
+      // in neither, and neither was `imageLibrary.js` — the one changed file
+      // that actually contains hex strings. `imageLibrary.js` is covered by the
+      // BLOCK scan in "uses no hex colour and no house style in the block it
+      // appended" rather than whole-file, because four pre-existing sigil rows
+      // describe slot colours in hex and a whole-file scan would be a gate that
+      // is red in the healthy state.
+      for (const f of ["src/lib/pointBuy.js", "src/lib/lifepath.js"]) {
+        expect(/#[0-9a-fA-F]{3,8}\b/.test(readRepoFile(f)), `hex colour in ${f}`).toBe(false);
+      }
+      // …and the block gate really is bounded at both ends, so it cannot have
+      // silently widened to the whole file and started passing for free.
+      expect(LANE_H_BLOCK.startsWith("// ——— LANE H:")).toBe(true);
+      expect(LANE_H_BLOCK.length, "the Lane H block scan collapsed to nothing").toBeGreaterThan(500);
+      expect(LANE_H_BLOCK.includes("sigil_red"), "the block scan ran past its own banner").toBe(false);
+    });
   });
 
   it("uses no hex colour and no house style in the block it appended", () => {
@@ -2018,6 +2349,43 @@ describe("docs/prompts/PLATFORM_HANDOFF.md — the Lane H hand-over", () => {
     expect(total, "H7 does not state the library total").toBeTruthy();
     expect(Number(total[1])).toBe(IMAGE_LIBRARY.length);
     expect(new Set(IMAGE_LIBRARY.map((p) => p.key)).size).toBe(IMAGE_LIBRARY.length);
+    // The four "already registered, deliberately not duplicated" families, each
+    // rebuilt from the array rather than restated. The `ideology` figure is the
+    // reason this block exists: it read 17 — the seventeen plates enumerable by
+    // family — while the category holds 18, because `constitutional_moment` is
+    // filed there too. A floor of `>= 17` could neither confirm nor refute the
+    // published number, since it measured a superset of the thing being
+    // counted. These are equalities against the live categories instead.
+    const published = {
+      roster: /the (\d+) roster `house_\*_crest`/.exec(LANE_H),
+      grounds: /the (\d+) `set_\*` grounds/.exec(LANE_H),
+      standards: /the (\d+) `std_\*` standards/.exec(LANE_H),
+      ideology: /the (\d+) `ideology`/.exec(LANE_H),
+    };
+    for (const [what, m] of Object.entries(published)) expect(m, `H7 does not state the ${what} count`).toBeTruthy();
+    const rosterPlates = new Set(AUTHORED.flatMap((f) => [`house_${f.house}_crest`, `keel_${keelOf(f)}`]));
+    expect(Number(published.roster[1]), "H7's roster-plate count").toBe(rosterPlates.size);
+    expect(Number(published.grounds[1]), "H7's set_* count").toBe(IMAGE_LIBRARY.filter((x) => x.key.startsWith("set_")).length);
+    expect(Number(published.standards[1]), "H7's std_* count").toBe(IMAGE_LIBRARY.filter((x) => x.key.startsWith("std_")).length);
+    expect(Number(published.ideology[1]), "H7's ideology count").toBe(IMAGE_LIBRARY.filter((x) => x.category === "ideology").length);
+  });
+
+  it("enumerates H2's brace vocabulary against the file it describes, both ways", () => {
+    // H2 named `{nodeName}` and `{houseName}`, neither of which has ever
+    // appeared in `docs/HERALD_VOICES.md` — an engineer wiring substitution off
+    // that sentence would have built two dead cases and missed seven live ones.
+    // Nothing gated the brace vocabulary, so the table is now enumerated in H2
+    // and asserted in both directions here.
+    const declared = new Set(
+      [...LANE_H.matchAll(/^\| `(\{[A-Za-z][A-Za-z0-9]*\})`(?: \/ `(\{[A-Za-z][A-Za-z0-9]*\})`)? \|/gm)]
+        .flatMap((m) => [m[1], m[2]]).filter(Boolean),
+    );
+    expect(declared.size, "H2 declares no brace variables").toBeGreaterThan(10);
+    const found = new Set(heraldSrc.match(/\{[A-Za-z][A-Za-z0-9]*\}/g) || []);
+    // ONE documented exception, and it is not a variable: `## Implementation
+    // Notes` writes "shown as `{braces}`" as prose ABOUT brace variables.
+    found.delete("{braces}");
+    expect([...found].sort(), "a brace variable in the file is undeclared in H2").toEqual([...declared].sort());
   });
 
   it("states H1's live claim truthfully — the eight really do reduce through compileMods", () => {
@@ -2045,6 +2413,35 @@ describe("docs/prompts/PLATFORM_HANDOFF.md — the Lane H hand-over", () => {
         expect(Object.prototype.hasOwnProperty.call(rec, k)).toBe(false);
       }
     }
+  });
+
+  it("states H6's row-by-row claim truthfully — no preset claims a bonus on certification", () => {
+    // Operator ruling 2: a `kind: 'module'` row's effects apply on FIT, never
+    // on unlock. H6 said this "was checked row by row" beside gated claims,
+    // which reads as a gated one. It was a manual scan; it is a gate now. The
+    // GAME_RULES assertion two suites up only proves the SENTENCE exists —
+    // nothing stopped a trait description from contradicting it.
+    const CERTIFICATION = /certif|module|unlock|licen[cs]|patent|ratif|approv/i;
+    const GRANT = /\b(grants?|granted|gives?|confers?|bestows?|earns?)\b/i;
+    for (const p of PRESET_FACTIONS) {
+      const claims = [p.lore, p.insigniaDescription, ...p.traits.flatMap((t) => [t.name, t.description])];
+      for (const c of claims) {
+        const hit = CERTIFICATION.test(c) && GRANT.test(c);
+        expect(hit, `${p.id} may claim an effect from certification alone: ${c.slice(0, 90)}`).toBe(false);
+      }
+    }
+    expect(LANE_H, "H6 no longer states the ruling").toMatch(/on fit, never on unlock/);
+  });
+
+  it("goes red on a preset that claims a fleet-wide bonus from certification", () => {
+    const CERTIFICATION = /certif|module|unlock|licen[cs]|patent|ratif|approv/i;
+    const GRANT = /\b(grants?|granted|gives?|confers?|bestows?|earns?)\b/i;
+    const bad = "Certifying a bay module in the Armory grants the whole Union its bonus fleet-wide the moment it is unlocked.";
+    expect(CERTIFICATION.test(bad) && GRANT.test(bad)).toBe(true);
+    // …and the one live sentence that trips the CERTIFICATION half alone is
+    // not a certification claim, which is why the gate needs both halves.
+    const ok = "at the range its underwriters approve";
+    expect(CERTIFICATION.test(ok) && GRANT.test(ok)).toBe(false);
   });
 
   it("states H2's pack arithmetic truthfully", () => {

@@ -1665,9 +1665,14 @@ export const IMAGE_LIBRARY = [
   // The EIGHT nomad-keel point-buy requisitions (src/lib/pointBuy.js tail block).
   // Category `perks` files them beside the twenty shipped requisition tokens in
   // the POINT-BUY REQUISITIONS block above; position in this array does not.
-  // Each `desc` restates the row's own numbers so the plate and the table cannot
-  // drift, and each prompt carries NO house style — HOUSE_STYLE is prepended at
-  // generation, so restating it here would double it.
+  // Each `desc` restates the row's own numbers, and `test/presets.test.js`
+  // parses the signed integers back out of every one of them and compares them
+  // against `PERK_MODS[<id>]` — the same comparison GAME_RULES §28's table
+  // already gets. Until that gate existed this comment claimed a guarantee
+  // nothing enforced: a plate desc could read `+3 artillery atk` over a row
+  // carrying `+1` with the whole suite green. Each prompt carries NO house
+  // style — HOUSE_STYLE is prepended at generation, so restating it would
+  // double it.
   P("perk_draught_columns", "perks", "Perk — Draught Column Circuit", "Point-buy asset (+1 Steel income, −1 Fuel income)",
     "Requisition token: a train of heavy hold-wagons on a standing circuit, tarpaulined ore in the beds, fuel drums lashed to the running boards, worn stamped-token styling"),
   P("perk_boarding_parties", "perks", "Perk — Boarding Parties", "Point-buy asset (+1 rifle atk, +1 MP rifle cost)",

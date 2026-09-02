@@ -1159,9 +1159,36 @@ is a suggestion, not a contract.
 
 Every sample obeys the shared rules already in the file: diegetic, 1–4 sentences, `{braces}` for event
 variables, **no mechanics vocabulary at all** (`turn`, `tile`, `player`, `stat`, `modifier`, `hex`,
-`XP`, `buff`, `debuff` — gated case-insensitively over the whole file). Brace variables are the seam:
-`{baseName}`, `{nodeName}`, `{houseName}` and the rest appear as written and must be substituted, not
-rendered literally. The `## Garble Template (confidence POOR)` block at the end of the file is the
+`XP`, `buff`, `debuff` — gated case-insensitively over the whole file).
+
+**Brace variables are the seam, and this is the whole vocabulary** — enumerated from the file rather
+than sketched, because an earlier draft of this item named `{nodeName}` and `{houseName}`, neither of
+which has ever appeared in the document it was describing, while leaving seven that do unnamed. The
+set below is asserted against `docs/HERALD_VOICES.md` in `test/presets.test.js`, in both directions:
+a token in the file and not in this table is red, and so is a token in this table and not in the file.
+
+| Variable | Uses | What it carries |
+| --- | --- | --- |
+| `{n}` | 38 | **Polysemous — read the sentence.** `Band {n}` (intercept band), `Day {n}` / `the {n}th month` (elapsed campaign day), `Object {n}` (a numbered precursor Object), `Charter {n}`. A single numeric substitution will be wrong in at least three of those four; this is a pre-existing convention the lane extended, not one it introduced, and it is the one item here that needs a decision rather than a wiring. |
+| `{faction}` | 33 | another house, by faction name |
+| `{location}` | 32 | a place on the chart, unspecified kind |
+| `{region}` | 24 | a named stretch of ground |
+| `{settlement}` | 21 | a named polity or minor settlement |
+| `{baseName}` | 15 | a fortress-keel |
+| `{projectName}` | 13 | a running relic project (see **H5**) |
+| `{digSite}` | 10 | a dig site |
+| `{folkName}` | 3 | a named person |
+| `{a}` / `{b}` | 2 each | the two parties to a Meet, truce or adjudication |
+| `{campaignDay}` | 1 | header line only |
+| `{year}` | 1 | header line only, F.I. reckoning |
+| `{house}` | 1 | header line only, the attributed house |
+| `{resource}` | 1 | a resource by name |
+
+The header format in `## Shared Rules` also carries `{HIGH|MODERATE|POOR}`, which is a **choice set,
+not a variable** — pick one of the three. The one further `{braces}` occurrence, in
+`## Implementation Notes`, is prose ABOUT brace variables and is not itself one.
+
+The `## Garble Template (confidence POOR)` block at the end of the file is the
 degraded form for low-confidence intercepts and is **not** a fourteenth pack — a parser that counts
 `## ` headings will find the packs plus three structural blocks.
 
@@ -1254,8 +1281,13 @@ Chapter VI did not exist until now, so this is the sixth member of an existing s
 
 **Everything else the lane's content needs was already registered and is deliberately NOT duplicated:**
 the 20 roster `house_*_crest` / `keel_*` plates, the 10 `set_*` grounds, the 4 `std_*` standards and
-the 17 `ideology` axis / bloc / creed / decree plates. That was verified against the live array, not
-assumed — 733 plate keys, zero duplicates.
+the 18 `ideology` axis / bloc / creed / decree plates. Each of those four counts is recomputed from
+`IMAGE_LIBRARY` in `test/presets.test.js`, so none of them is a second source. *(The `ideology` figure
+read **17** in the first draft of this item — the seventeen enumerated by family, missing
+`constitutional_moment`, which sits in the same category. The category holds 18. That is the published-
+number defect class in miniature, and the gate that now recomputes it is the fix.)* Verified against
+the live array, not assumed — 733 plate keys, zero duplicates; both figures are recomputed from
+`IMAGE_LIBRARY` on every run, so a later append updates this line or turns the suite red.
 
 #### H8 — three items that belong to other lanes and are reported rather than fixed
 
