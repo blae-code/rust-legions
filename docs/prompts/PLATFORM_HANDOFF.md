@@ -1129,3 +1129,181 @@ The lane uses exactly **one** lock, inside the budget of two: `pilgrim_levy.cree
 There is no `factionLock` anywhere in Lane F. `land_dreadnought` is deliberately **unlocked** — Lane
 G's relic project gates it on `prereq` with no creed, and a second gate on the stand would gate it
 twice.
+
+### Lane H — houses, standards, requisitions & lore
+
+Data and prose are complete, tested and (for `perkMods.ts` ↔ `pointBuy.js`) mirrored. **One item
+below is already live and needs nothing;** the rest are decisions this lane could not make.
+
+#### H1 — the eight requisitions are the ONE thing that already works
+
+`compileMods` reduces exactly `unitStat`, `unitCost`, `income`, `armyCap`, `startBonus`,
+`capitalDefense` and `disposition`. All eight new `PERK_MODS` rows use only the first three plus
+`disposition`, so **the moment a faction created from a preset reaches the engine, its requisitions
+apply** — no wiring, no new vocabulary, no follow-up. Recorded here so nobody schedules work for it.
+The trap this avoided is worth keeping: `supplyRange` is handled by `mergeMods` and **not** by
+`compileMods`, so a perk row using it would be silently inert; `test/presets.test.js` gates the whole
+vocabulary, in both directions, so a future row cannot reintroduce it.
+
+#### H2 — `npcHerald` and thirteen voice packs
+
+`docs/HERALD_VOICES.md` is the source: **13 packs × 3 moods × 3 samples**. The pack key equals the
+preset's `house` **and** its `heraldVoice` — they are the same string by contract, asserted in
+`test/presets.test.js`, so `npcHerald` can key off either without a lookup table.
+
+The three moods are a **fixed, closed vocabulary — `Ascendant`, `Pressed`, `Dealing`** — and they are
+*not* dispositions. Ascendant = the house is winning ground; Pressed = losing it; Dealing = trade,
+truce, envoy or salvage business. Mapping them onto game state is the platform's call; the obvious
+reading (territory delta over the last resolution, with any envoy/trade event overriding to Dealing)
+is a suggestion, not a contract.
+
+Every sample obeys the shared rules already in the file: diegetic, 1–4 sentences, `{braces}` for event
+variables, **no mechanics vocabulary at all** (`turn`, `tile`, `player`, `stat`, `modifier`, `hex`,
+`XP`, `buff`, `debuff` — gated case-insensitively over the whole file).
+
+**Brace variables are the seam, and this is the whole vocabulary** — enumerated from the file rather
+than sketched, because an earlier draft of this item named `{nodeName}` and `{houseName}`, neither of
+which has ever appeared in the document it was describing, while leaving seven that do unnamed. The
+set below is asserted against `docs/HERALD_VOICES.md` in `test/presets.test.js`, in both directions:
+a token in the file and not in this table is red, and so is a token in this table and not in the file.
+
+| Variable | Uses | What it carries |
+| --- | --- | --- |
+| `{n}` | 38 | **Polysemous — read the sentence.** `Band {n}` (intercept band), `Day {n}` / `the {n}th month` (elapsed campaign day), `Object {n}` (a numbered precursor Object), `Charter {n}`. A single numeric substitution will be wrong in at least three of those four; this is a pre-existing convention the lane extended, not one it introduced, and it is the one item here that needs a decision rather than a wiring. |
+| `{faction}` | 33 | another house, by faction name |
+| `{location}` | 32 | a place on the chart, unspecified kind |
+| `{region}` | 24 | a named stretch of ground |
+| `{settlement}` | 21 | a named polity or minor settlement |
+| `{baseName}` | 15 | a fortress-keel |
+| `{projectName}` | 13 | a running relic project (see **H5**) |
+| `{digSite}` | 10 | a dig site |
+| `{folkName}` | 3 | a named person |
+| `{a}` / `{b}` | 2 each | the two parties to a Meet, truce or adjudication |
+| `{campaignDay}` | 1 | header line only |
+| `{year}` | 1 | header line only, F.I. reckoning |
+| `{house}` | 1 | header line only, the attributed house |
+| `{resource}` | 1 | a resource by name |
+
+The header format in `## Shared Rules` also carries `{HIGH|MODERATE|POOR}`, which is a **choice set,
+not a variable** — pick one of the three. The one further `{braces}` occurrence, in
+`## Implementation Notes`, is prose ABOUT brace variables and is not itself one.
+
+The `## Garble Template (confidence POOR)` block at the end of the file is the
+degraded form for low-confidence intercepts and is **not** a fourteenth pack — a parser that counts
+`## ` headings will find the packs plus three structural blocks.
+
+**One decision left open on purpose.** Thirteen packs is thirteen registers, and the file says so, but
+nothing in it declares a *default* voice for a faction the player built in the wizard rather than
+requisitioned from a preset. A wizard faction has no `house`. The choices are: fall back to a neutral
+Ministry register (safe, flat), or derive a pack from the faction's Departure and doctrine (richer,
+and wrong sometimes). This lane declined to pick, because the wizard's output shape is platform-owned.
+
+#### H3 — preset import: five fields with no column, and one that must not be inferred
+
+`base44/entities/Faction.jsonc` has properties `factionName, lore, doctrine, traits,
+insigniaDescription, isNPC, npcDispositions, lifepathChoices, pointBuy, isPublished` — and **no
+`house`, `uniqueRoster` or `heraldVoice` column.** `presetToFactionRecord(preset)` therefore strips
+`id`, `house`, `keel`, `uniqueRoster` and `heraldVoice` before create, and a test asserts both that the
+five are gone and that every remaining key is a real column.
+
+The consequence is the item: **a faction created from a preset does not remember which house it is.**
+Its herald voice, its unique roster and its crest are all lost at the entity boundary. Adding the
+columns is platform-owned; until then any surface that wants a preset's house has to re-derive it from
+`factionName`, which is fragile because a player may rename.
+
+`keel` is a special case and is **deliberately not a field at all** (amendment Q3b). The `keel_<slug>`
+plate is reached through `KEEL_BY_HOUSE[preset.house]`, exported from `src/lib/presetFactions.js`
+beside `keelOf(preset)`. A test asserts no row carries a `keel` key, so re-adding one is caught.
+
+#### H4 — the creed axis decides the Departure, and it is derived, never stored
+
+Lane G's **G4** (`enforce creedLock`) needs a Departure for every faction. **A preset does not declare
+one.** It declares `lifepathChoices.seeds.creed`, an integer **−3…3**, and the Departure is
+`DEPARTURE_BY_CREED_SEED[seed]` — exported from `src/lib/presetFactions.js` with `departureOf(preset)`
+beside it. The mapping is total over the axis's whole domain, publishes as a table in
+`docs/FACTION_ROSTER.md` §6.2, and is asserted against that table in both directions:
+
+| Creed seed | −3 | −2 | −1 | 0 | +1 | +2 | +3 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Departure | Discarding | Discarding | Flight | Finished Ledger | Recall | Recall | Recall |
+
+**Do not replace this with a `sign()` of the axis, which is the obvious refactor and is wrong.** Two
+Departures sit on the non-positive side and one of them (`finished_ledger`) is at exactly **0**, so the
+sign is ambiguous at two of the seven positions. The test pins that ambiguity — it asserts the seven
+leans are *not* distinct — so if a later amendment makes the axis separable the assertion goes red and
+tells you the shortcut has become legal.
+
+All four Departures are held across the thirteen houses, and each preset's `uniqueRoster.decree` is
+asserted to be either creed-free or locked to that house's own derived Departure — so enforcing G4
+against these presets cannot make a shipped preset unable to enact its own decree.
+
+#### H5 — the relic-project capture rule, which is a DELETION and not a transfer
+
+Operator ruling, fourth wave. It closes `docs/TECH_DESIGN.md` §7 Q5 and is written up in
+`docs/GAME_RULES.md` under *Houses, Standards & Nomad-Keel Perks* → *Capture*.
+
+On a fortress-base capture, the captor loots **the running project's unspent materials only** — the
+conventional resources and fragments still loose in the cradle. The **project, all of its accumulated
+progress, and the housed Object its tier gate required are destroyed.** Capture and destruction are
+identical for the works. The loser keeps no Object; the winner receives none.
+
+Three things this implies for **G5** (the relic-project build clock, which does not exist yet):
+
+1. The capture branch is a **delete**, not a re-key of an owner id. Re-keying is the cheap
+   implementation and it is the wrong one — it would hand over progress.
+2. The **housed Object is consumed by the loss** and does not return to the map. A dig site that was
+   already spent stays spent; the Object is not re-findable.
+3. Whatever structure holds a running project must be reachable from the base record, because the
+   capture handler has to find and destroy it in the same transaction that transfers the base. If
+   projects are stored per-faction rather than per-base, this rule cannot be implemented correctly.
+
+The rule is also carried, meanwhile, in prose the players can see: `docs/HERALD_VOICES.md` **Shared
+Rule 7** binds all thirteen packs (a captor may report *metal*, a loser may report *a hole*, and **no
+pack may report a captured project as an inheritance**), each pack carries one intercept for the loss,
+and the Codex entry `works-lost-with-the-keel` states it in-world. All three are gated by
+`test/presets.test.js`, so the doc edit in `TECH_DESIGN.md` is the citation and not the only copy.
+
+#### H6 — module certifications must stay inert on unlock
+
+Second operator ruling. A `kind: 'module'` row's effects apply **on fit, never on unlock**;
+certifying one grants nothing. No preset's lore, trait or `uniqueRoster` claims a faction-wide bonus
+from certification alone — this was checked row by row — and the engine must not introduce one when
+**G2** (the `effects[]` application layer) is built. The natural bug is to apply a module's
+`effects[]` at the moment it enters the unlocked set, because that is where techs apply theirs; module
+rows need a different code path from tech rows, and they need it in the first version, not a later fix.
+
+#### H7 — one plate request, and a verified absence of others
+
+The lane's `imageLibrary.js` tail block registers **fifteen** plates: six legacy house crests/keels,
+the eight requisition tokens, and **`chapter_standard`** — the stage card for the lifepath chapter this
+lane appended. Chapters I–V already carry `chapter_<slug>` cards; the series stopped at V because
+Chapter VI did not exist until now, so this is the sixth member of an existing series.
+
+**Everything else the lane's content needs was already registered and is deliberately NOT duplicated:**
+the 20 roster `house_*_crest` / `keel_*` plates, the 10 `set_*` grounds, the 4 `std_*` standards and
+the 18 `ideology` axis / bloc / creed / decree plates. Each of those four counts is recomputed from
+`IMAGE_LIBRARY` in `test/presets.test.js`, so none of them is a second source. *(The `ideology` figure
+read **17** in the first draft of this item — the seventeen enumerated by family, missing
+`constitutional_moment`, which sits in the same category. The category holds 18. That is the published-
+number defect class in miniature, and the gate that now recomputes it is the fix.)* Verified against
+the live array, not assumed — 733 plate keys, zero duplicates; both figures are recomputed from
+`IMAGE_LIBRARY` on every run, so a later append updates this line or turns the suite red.
+
+#### H8 — three items that belong to other lanes and are reported rather than fixed
+
+1. **Lane I's `Manufacturer.access` has no rows for the three legacy houses.** `access` is keyed by
+   house stem, and Lane I wrote it against `FACTION_ROSTER.md` §1 — which names the ten roster houses
+   and not `kessel`, `ironsynod` or `grauwall`. Those three are presets, not roster houses, so no maker
+   declares access for them. Nothing is red today because nothing reads `access` yet; the moment
+   cost multipliers (×1.0 native / ×1.25 licensed / ×1.5 captured) are wired, three of the thirteen
+   playable factions have no entry and will take whatever the default is. **Lane H did not rename any
+   Lane I key**, per its brief; the fix is either three stems added to `access`, or an explicit
+   documented default.
+2. **`docs/GAME_RULES.md` §27's subsections are numbered `26.1`–`26.4` under a `## 27.` heading** — a
+   renumber artifact from an earlier draft. Harmless, but it is the exact failure the wave-4 addendum
+   warns about, so this lane's own section uses unnumbered `###` titles and its test finds the section
+   **by title**. Fixing §27 belongs to whoever owns it.
+3. **`docs/TECH_DESIGN.md` is Lane G's file** and Lane H edited exactly one question in it (§7 Q5) plus
+   the closing note beneath the §7 list, under `docs/TACTICAL_SQUAD_PLAN.md` §3, **Lane H Amendment
+   2**. §8's cost curve — the one part of that file a test parses — was not touched, and the question
+   was not renumbered, so every existing citation of *"§7 Q5"* still lands on it.

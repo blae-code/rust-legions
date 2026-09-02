@@ -1637,6 +1637,76 @@ export const IMAGE_LIBRARY = [
     "Design bureau pattern card: chaplaincy establishment diagram over an illustration of a chaplain reading to a kneeling section in a support trench, drafting-table style"),
   P("design_observers", "designs", "Support — Observation Section", "Army Design Bureau pattern card",
     "Design bureau pattern card: observation post and telephone-line diagram over an illustration of observers at a plotting board on a forward crest, drafting-table style"),
+
+  // ——— LANE H: houses, polities & perks ———
+  // ONE contiguous block, appended at the very end of the array, after the
+  // Lane I / G / J / F tail blocks. The `category` field is what files a plate
+  // under houses or perks; its position in this array does not. `url` is never
+  // set here — P() reads it from PLATE_URLS, so a delivered plate lights up
+  // without this file changing.
+  //
+  // Crests and keels for the THREE LEGACY PRESETS. The ten roster houses already
+  // have theirs in the THE GREAT HOUSES block above and are not duplicated here.
+  // Keel names follow the LORE §8 pattern — an abstract noun bound to a material,
+  // a vow, a debt or a verdict — and the slug is what `KEEL_BY_HOUSE` maps to.
+  P("house_kessel_crest", "houses", "The Kessel Pact — Crest", "Aggressive · the Discarding — house emblem",
+    "Frontier war-pact crest: a clenched iron gauntlet crushing a spent artillery shell over crossed sledge-hafts, flat heraldic insignia"),
+  P("keel_debt_of_ash", "houses", "Keel — 'the Debt of Ash'", "First Keel of the Pact",
+    "Lean scarred fortress-keel built around flame-crawler ramps and open muster decks, burnt ground and drifting ash trailing behind it", "4:3"),
+  P("house_ironsynod_crest", "houses", "The Iron Synod — Crest", "Economic · the Finished Ledger — house emblem",
+    "Foundry crest: three furnace stacks bound by a gear-ring venting stylised smoke above a ledger ribbon, flat heraldic insignia"),
+  P("keel_ledger_of_brass", "houses", "Keel — 'the Ledger of Brass'", "Second Keel of the Synod",
+    "Heavy foundry fortress-keel of clustered stacks and casting halls, ore trains queued along its flanks under banked smoke", "4:3"),
+  P("house_grauwall_crest", "houses", "The Grauwall Marches — Crest", "Defensive · the Finished Ledger — house emblem",
+    "March crest: a rampart of overlapping shields beneath a single watch-lantern, flat heraldic insignia"),
+  P("keel_verdict_of_stone", "houses", "Keel — 'the Verdict of Stone'", "Warden Keel of the Marches",
+    "Squat armoured fortress-keel like a rolling rampart, layered casemates and a lantern mast at its crown, dug-in siege lines worked around it", "4:3"),
+  //
+  // The EIGHT nomad-keel point-buy requisitions (src/lib/pointBuy.js tail block).
+  // Category `perks` files them beside the twenty shipped requisition tokens in
+  // the POINT-BUY REQUISITIONS block above; position in this array does not.
+  // Each `desc` restates the row's own numbers, and `test/presets.test.js`
+  // parses the signed integers back out of every one of them and compares them
+  // against `PERK_MODS[<id>]` — the same comparison GAME_RULES §28's table
+  // already gets. Until that gate existed this comment claimed a guarantee
+  // nothing enforced: a plate desc could read `+3 artillery atk` over a row
+  // carrying `+1` with the whole suite green. Each prompt carries NO house
+  // style — HOUSE_STYLE is prepended at generation, so restating it would
+  // double it.
+  P("perk_draught_columns", "perks", "Perk — Draught Column Circuit", "Point-buy asset (+1 Steel income, −1 Fuel income)",
+    "Requisition token: a train of heavy hold-wagons on a standing circuit, tarpaulined ore in the beds, fuel drums lashed to the running boards, worn stamped-token styling"),
+  P("perk_boarding_parties", "perks", "Perk — Boarding Parties", "Point-buy asset (+1 rifle atk, +1 MP rifle cost)",
+    "Requisition token: a storming section drilling on a mock deck with hooks, short guns and cut-down ladders, worn stamped-token styling"),
+  P("perk_field_refit_train", "perks", "Perk — Field Refit Train", "Point-buy asset (crawler −1 Steel cost)",
+    "Requisition token: a rolling workshop wagon opened out beside a halted crawler, gantry swung over, fitters at the running gear, worn stamped-token styling"),
+  P("perk_ranging_batteries", "perks", "Perk — Ranging Batteries", "Point-buy asset (+1 artillery atk)",
+    "Requisition token: a battery laid out on a plotting board with range stakes and a spotter mast, guns elevated behind, worn stamped-token styling"),
+  P("perk_swath_bound", "perks", "Perk — Swath-Bound", "Point-buy liability (−1 Manpower income)",
+    "Requisition token: a stripped depleted trail behind a keel, cropped ground and empty muster posts, one abandoned levy board, worn stamped-token styling"),
+  P("perk_stripped_escorts", "perks", "Perk — Stripped Escorts", "Point-buy liability (crawler −1 def, −1 Steel cost)",
+    "Requisition token: a crawler with its side plate unbolted and stacked on the ground, crew running it light, worn stamped-token styling"),
+  P("perk_tribute_graze", "perks", "Perk — Tribute Graze", "Point-buy liability (−1 Fuel income, −10 disposition)",
+    "Requisition token: harvest rights taken under guard — a signed writ held over a settlement seam while a fired derrick smokes behind, worn stamped-token styling"),
+  P("perk_exposed_batteries", "perks", "Perk — Exposed Batteries", "Point-buy liability (−1 artillery def)",
+    "Requisition token: guns mounted on an open outer deck with no casemate, crews shielded by nothing but a rail, worn stamped-token styling"),
+  //
+  // ONE stage card, for the chapter this lane appended to LIFEPATH_CHAPTERS.
+  // Chapters I-V each already carry a `chapter_<slug>` card in the LIFEPATH &
+  // CHRONICLE block above; the series stopped at V because Chapter VI did not
+  // exist until this lane wrote it, so this is the sixth member of an existing
+  // series and not a new request.
+  //
+  // The brief says "do not add lifepath plates", and gives its reason: the
+  // `std_*` standards already exist. They do — all four, used once each by
+  // Chapter VI's options, and NOT re-registered here. That reason does not
+  // reach the stage card, which is a different plate for a different surface,
+  // and reading the rule past its reason would be the closed-set defect the
+  // wave-4 addendum names: a gate forbidding a legal value. Every other plate
+  // this lane could have wanted was checked and found already present — 20
+  // roster crests and keels, 10 `set_*` grounds, 17 `ideology` axis/bloc/creed
+  // /decree plates, 4 `std_*` standards — and none is duplicated.
+  P("chapter_standard", "lifepath", "Chapter VI — The Standard", "Creation stage card",
+    "Creation stage card: four standards racked together in a muster tent before a keel's colour party — an honors staff, a shrine-banner with an Object sewn into its head, a black cloth with one red mark, and a faded first pennant — a clerk's hand choosing one, drafting-table styling"),
 ];
 
 export const getImage = (key) => IMAGE_LIBRARY.find((i) => i.key === key)?.url || null;

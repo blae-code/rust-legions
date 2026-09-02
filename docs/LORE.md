@@ -156,6 +156,21 @@ the vast cradle-ruins where the Empire's lifting structures stood, where the wor
 Recall, quarries to those balancing the Finished Ledger, and sealed perimeters wherever the Covenant
 can enforce one.
 
+**The ten named grounds.** Most settlements on the Chart are a kind and a dossier the survey party
+assembles on arrival. Ten are named outright, and `FACTION_ROSTER.md` §2 is their register: the mining
+combine of **Hundredweight Bottoms**, where the First Keel was cut loose under siege; **the Nine
+Cradles**, the largest Anchor Field anybody has counted and the seat of Ferrymen orthodoxy; the
+burn-town of **Tarpool**, which sells its fire to every side of the same war; **the Gray Commons**, the
+farm-commune federation that has never broken a levy pact; **Crossloom**, where the routes knot and the
+Meet is kept; **Vault-of-Winters**, a still-city that should have died of the Rent and conspicuously has
+not; **the Chandlery**, which provisions the keels and keeps the ledgers that record it; **Redwater
+Digs**, freelance excavators squatting a contested cut; **the Quiet Parish**, the Cradles' dark mirror,
+which pays to have workings filled; and **Kettleharrow**, living off the bones of a dead city. Each
+carries a crisis a garrison inherits with the ground and one charter term it will actually sign; both
+are held as data in `base44/shared/settlementLore.ts` (`NAMED_POLITIES`), not restated here. Two of the
+ten are congregations before they are settlements, and the argument between them — keep the works, or
+seal them — decides which digs the great houses can work without a war on their flank.
+
 ## 7. The Great Houses
 
 Ten houses (see `FACTION_ROSTER.md`), every one an answer to the Departure and a bid for the Key:

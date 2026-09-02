@@ -23,6 +23,22 @@ export const PERK_MODS = {
   heavy_plating: { unitStat: { crawler: { defense: 1 } } },
   naval_rams: { unitStat: { gunboat: { attack: 1 } } },
   drop_tanks: { unitStat: { fighter: { defense: 1 } } },
+  // ── LANE H: nomad-keel requisitions ──
+  // The same eight ids as the tail of src/lib/pointBuy.js PERKS, in the same
+  // order. test/rules-mirror.test.js asserts the two key sets are equal, and
+  // test/presets.test.js asserts that every row below reduces through
+  // compileMods() — only unitStat / unitCost / income / armyCap / startBonus /
+  // capitalDefense / disposition are reduced, so nothing else may appear here
+  // or it would be silently inert. `artillery` is a legal UNIT_TYPES key that
+  // no shipped perk had ever named; it is used deliberately.
+  draught_columns: { income: { steel: 1, fuel: -1 } },
+  boarding_parties: { unitStat: { riflemen: { attack: 1 } }, unitCost: { riflemen: { manpower: 1 } } },
+  field_refit_train: { unitCost: { crawler: { steel: -1 } } },
+  ranging_batteries: { unitStat: { artillery: { attack: 1 } } },
+  swath_bound: { income: { manpower: -1 } },
+  stripped_escorts: { unitStat: { crawler: { defense: -1 } }, unitCost: { crawler: { steel: -1 } } },
+  tribute_graze: { income: { fuel: -1 }, disposition: -10 },
+  exposed_batteries: { unitStat: { artillery: { defense: -1 } } },
 };
 
 export function compileMods(picks = []) {

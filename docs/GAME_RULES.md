@@ -867,3 +867,139 @@ gated behind a fragment class above tier I, and several are both. A kit's effect
   audit in `docs/GEAR_LIBRARY.md` §11.8 recomputes it and names the two worst stands.
 - Pricing is audited in `docs/GEAR_LIBRARY.md` §11, which recomputes every figure in this section from
   the tables rather than quoting it, and is itself recomputed by `test/gear-points-audit.test.js`.
+
+## 28. Houses, Standards & Nomad-Keel Perks [PROPOSED — awaiting platform wiring]
+
+Nothing in this section is live. Every figure below is **read out of a table, never typed twice**:
+`src/lib/pointBuy.js` (`PERKS`), `base44/shared/perkMods.ts` (`PERK_MODS`), `src/lib/lifepath.js`
+(`LIFEPATH_CHAPTERS`) and `src/lib/presetFactions.js` (`PRESET_FACTIONS`). `test/presets.test.js`
+locates this section **by its title, not by its number**, rebuilds all four tables from those sources
+and fails on any disagreement — so promoting, renumbering or re-ordering the section cannot silently
+falsify it, and a hand-edited cell goes red on the next run.
+
+`§13 Faction Point-Buy Perks` is unchanged and stays the live catalog. The eight rows below are
+**additions to it**, not a replacement, and they are already in `PERKS`; what is missing is the engine
+reading them.
+
+### The nomad-keel requisitions
+
+Eight rows for the March itself — the graze, the swath, the draught columns and the boarding deck.
+None is a `cat: "upgrade"`: upgrades are one-per-unit under `pickError`, so an eighth would have
+quietly shrunk the space of legal ledgers for every preset that already shipped.
+
+| `id` | Requisition | Class | Effect, as `PERK_MODS` states it | `pts` |
+| --- | --- | --- | --- | --- |
+| `draught_columns` | Draught Column Circuit | asset | Steel income **+1**, Fuel income **−1** | **1** |
+| `boarding_parties` | Boarding Parties | asset | Riflemen attack **+1**, riflemen cost **+1** Manpower | **1** |
+| `field_refit_train` | Field Refit Train | asset | Crawlers cost **−1** Steel | **2** |
+| `ranging_batteries` | Ranging Batteries | asset | Artillery attack **+1** | **3** |
+| `swath_bound` | Swath-Bound | liability | Manpower income **−1** | **−2** |
+| `stripped_escorts` | Stripped Escorts | liability | Crawler defense **−1**, crawlers cost **−1** Steel | **−1** |
+| `tribute_graze` | Tribute Graze | liability | Fuel income **−1**, NPC disposition **−10** | **−3** |
+| `exposed_batteries` | Exposed Batteries | liability | Artillery defense **−1** | **−3** |
+
+The eight are priced, not guessed. Each cost is the **sum of its own effect steps** under a schedule
+every step of which is anchored by a perk `§13` already shipped — so no new row sets a new price:
+
+| Step | Asset price | Anchor | Liability price | Anchor |
+| --- | --- | --- | --- | --- |
+| income ±1 | **+3** | `industrial_base` | **−2** | `fuel_shortage` |
+| unit stat ±1 | **+3** | `veteran_corps` | **−3** | `green_recruits` |
+| unit cost ∓1 | **+2** | `conscription` | **−2** | `rusting_arsenal` |
+| army cap ±15 | **+3** | `mobilization_doctrine` | **−2** | `war_weary` |
+| start bonus ±4 | **+2** | `war_chest` | **−2** | `depleted_stockpiles` |
+| capital defense +1 | **+2** | `home_guard` | — | — |
+| NPC disposition −10 | — | — | **−1** | `pariah_state` |
+
+Worked, so the arithmetic is on the page rather than in a claim: `draught_columns` is one income step up
+(**+3**) and one down (**−2**) and therefore costs **1**; `tribute_graze` is one income step down
+(**−2**) plus the disposition step (**−1**) and therefore grants **−3**. The eight together are
+**+7** of assets against **−9** of liabilities, a net of **−2** — which is why a preset can afford one
+without re-cutting its whole ledger.
+
+Two gaps in the schedule are **absences, not oversights**: no shipped row anchors a *positive*
+disposition step or a *negative* capital-defense step, so neither is priced and neither is used here.
+The five `cat: "upgrade"` rows are excluded from the schedule entirely, and the exclusion is measured
+rather than asserted — the kit rows depart from it in **both** directions (`naval_rams` and
+`drop_tanks` a point under, `flame_projectors` two points over), so the test pins those deltas one by
+one instead of calling them a discount.
+
+### Chapter VI — The Standard
+
+The faction wizard gains a sixth chapter. It asks one question — *what flies over your keel* — and the
+four answers map one-to-one onto the four `std_*` plates that already existed. Each effect is in the
+`synthesizeFaction` trait-effect schema, so the value is **1** in every case; the schema clamps
+anything outside `1…2` silently, which makes a larger number a bug rather than a balance lever.
+
+| Option | Standard | Effect |
+| --- | --- | --- |
+| The Column of Honors | `std_column` | `attack_bonus` · riflemen · **1** |
+| The Reliquary Standard | `std_reliquary` | `defense_bonus` · riflemen · **1** |
+| The Black Standard | `std_black` | `defense_bonus` · crawler · **1** |
+| The First Keel's Pennant | `std_first_keel` | `income_flat` · **1** |
+
+`unit_discount` is the one schema verb the chapter does not spend. That is deliberate: the chapter is
+data, not a closed set, and a later Field Amendment can add a fifth standard using it without first
+having to defeat a gate written here.
+
+### The thirteen presets
+
+`Seeds` are the four ideology axes of `VISION §6.1` at creation, each **−3…3**. `Departure` is **not
+stored on the row** — it is derived from the Creed seed through `DEPARTURE_BY_CREED_SEED`, which is
+what lets Lane G's creed locks resolve for a preset that never declares a creed. `Net` is
+`netPoints(picks)`, which must be **≤ 0**, and `Liab` the liability count, which must be **≤ 3**.
+
+| Faction | House | Doctrine | Seeds A / E / C / M | Departure | Standard | Decree | Net | Liab |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| The Kessel Pact | `kessel` | aggressive | +2 / −1 / −2 / −2 | Discarding | `std_black` | `universal_levy` | 0 | 3 |
+| The Iron Synod | `ironsynod` | economic | +1 / +2 / 0 / +1 | Finished Ledger | `std_column` | `war_bonds_decree` | 0 | 3 |
+| The Grauwall Marches | `grauwall` | defensive | 0 / −1 / 0 / −1 | Finished Ledger | `std_column` | `fuel_ration_act` | −1 | 3 |
+| The Iron Reclamation | `reclamation` | aggressive | +2 / 0 / −2 / −1 | Discarding | `std_column` | `emergency_powers_act` | 0 | 2 |
+| The Charter Combine | `combine` | economic | −1 / +2 / 0 / 0 | Finished Ledger | `std_black` | `charter_of_passage` | −1 | 3 |
+| The Bastion Synod | `synod` | defensive | −1 / 0 / +2 / +1 | Recall | `std_reliquary` | `reliquary_act` | 0 | 3 |
+| The Covenant of Locks | `covenant` | aggressive | +1 / −1 / −1 / +1 | Flight | `std_black` | `sealed_sites_order` | 0 | 3 |
+| The Signal Ascendancy | `ascendancy` | economic | +1 / +1 / +1 / 0 | Recall | `std_reliquary` | `wakewatch_act` | 0 | 3 |
+| The Commonweal March | `commonweal` | defensive | −3 / −2 / −2 / −2 | Discarding | `std_first_keel` | `hearth_and_bulwark` | −1 | 3 |
+| The Salvage Court | `salvage` | aggressive | +1 / +2 / 0 / +1 | Finished Ledger | `std_black` | `ordinance_common_metal` | 0 | 3 |
+| The Emberwright Union | `emberwright` | economic | 0 / −1 / −2 / +1 | Discarding | `std_column` | `breaking_yards_act` | 0 | 3 |
+| The Long Procession | `procession` | aggressive | +2 / −1 / +3 / −2 | Recall | `std_reliquary` | `writ_of_consecration` | 0 | 3 |
+| The Outrider Compact | `outrider` | economic | −2 / +1 / −1 / +2 | Flight | `std_column` | `standing_corps_act` | 0 | 3 |
+
+Doctrine across the thirteen is **aggressive 5 / economic 5 / defensive 3**; across the ten roster
+houses alone it is **aggressive 4 / economic 4 / defensive 2**, which is the count `FACTION_ROSTER.md`
+§1 now publishes and §6 explains. All four Departures are held, and no two houses share a keel.
+
+### Capture — a relic project dies with the keel
+
+Settled by operator ruling in the fourth wave; it closes `docs/TECH_DESIGN.md` §7 Q5.
+
+When a fortress-base is boarded and taken, the captor loots **the running project's unspent materials
+and nothing else** — the conventional resources and fragments still loose in the cradle. The project,
+**all of its accumulated progress, and the housed Object its tier gate required are lost.** Destruction
+and capture are identical for the works. The loser keeps no Object; the winner receives none; the works
+cannot be inherited, resumed, ransomed or re-founded, and a captor who wants that hull begins it again
+on his own keel, having first found his own Object of the right class.
+
+This is a **deletion the engine has to perform**, not merely a transfer it declines to make, and
+nothing performs it yet — `RELIC_PROJECTS` have no build clock at all (`PLATFORM_HANDOFF.md` G5). It is
+carried in prose meanwhile by `docs/HERALD_VOICES.md` Shared Rule 7 — a captor may report metal, a
+loser may report a hole, and **no herald may report a captured project as an inheritance** — and by
+the Codex entry `works-lost-with-the-keel`.
+
+### What the platform lane still owns
+
+- **`compileMods` already reduces all eight requisitions correctly** — they use only `unitStat`,
+  `unitCost`, `income` and `disposition`, all of which it handles — so the perks work the moment a
+  faction created from a preset reaches the engine. Nothing else here is wired.
+- **Chapter VI's effect is inert.** `synthesizeFaction` builds `traits[]` from the wizard; no call site
+  reads `lifepathChoices.standard`, so choosing a standard currently changes only the Chronicle.
+- **`uniqueRoster` is declared and unenforced.** Each preset names the squads, upgrade kits, decree and
+  weapon patterns its house fields; every key is checked to exist, and nothing restricts a player to
+  them.
+- **`house`, `uniqueRoster` and `heraldVoice` have no entity column.** `presetToFactionRecord` strips
+  them before `Faction.create`, so a preset's house identity does not survive into the save. Adding the
+  columns is platform-owned.
+- **Module certifications grant nothing.** A `kind: 'module'` row's effects apply **on fit, never on
+  unlock**; no preset's lore or trait claims a faction-wide bonus from certification alone, and the
+  engine must keep it that way.
+- Full hand-over in `docs/prompts/PLATFORM_HANDOFF.md` under *Lane H*.

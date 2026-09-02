@@ -1,0 +1,2475 @@
+// THE THIRTEEN HOUSES — every preset checked against the tables it names.
+//
+// WHY THIS FILE EXISTS. `src/lib/presetFactions.js` is the one place in the
+// codebase where content from four other lanes meets: a preset names squad
+// types (Lane F), upgrade kits (Lane F), a decree (Lane G) and weapon patterns
+// (Lane I), and a key that is merely PLAUSIBLE is indistinguishable from a key
+// that is real until something looks it up. So nothing here trusts a copy. The
+// catalogs are lifted TEXTUALLY out of `base44/shared/*.ts` with
+// `extractConst`, the same way the mirror suites do it, and every referenced
+// key is resolved against what that file actually holds today.
+//
+// FOUR HABITS THIS FILE KEEPS, EACH FOR A DEFECT AN EARLIER WAVE SHIPPED.
+//
+//   1. NO DEAD ASSERTION. Where a gate is only meaningful if it can fail, the
+//      gate is a named predicate and the suite asserts BOTH directions: the
+//      real data passes it, and a deliberately mutated copy fails it. A gate
+//      nothing has ever seen go red is a gate nobody has tested.
+//   2. NO PUBLISHED NUMBER TAKEN ON TRUST. `docs/FACTION_ROSTER.md` prints
+//      doctrine counts and a key register. Both are parsed back out of the
+//      markdown and recomputed from `PRESET_FACTIONS`. A stale cell is red.
+//   3. BOUNDED AT BOTH ENDS. Document slices run from a heading to the NEXT
+//      heading of the same level, never to end-of-file. Lane H is last today;
+//      Field Amendments come after it.
+//   4. NO CLOSED SET THAT FORBIDS A LEGAL VALUE. Nothing here pins a table to
+//      the rows that happen to exist. Squad, upgrade, decree and pattern keys
+//      are validated by MEMBERSHIP in the live catalogs, so those catalogs may
+//      grow freely. `lifepathChoices.philosophy` is checked against
+//      `PHILOSOPHIES` only for the ten houses this lane authors, because the
+//      three legacy rows carry pre-`PHILOSOPHIES` values that are frozen by
+//      contract. And `DEPARTURE_BY_CREED_SEED` is asserted to cover the axis's
+//      WHOLE legal domain rather than the seven values in use.
+import { describe, it, expect } from "vitest";
+import { readRepoFile, extractConst } from "./helpers/extract-const.js";
+import {
+  PRESET_FACTIONS,
+  KEEL_BY_HOUSE,
+  DEPARTURE_BY_CREED_SEED,
+  departureOf,
+  keelOf,
+  presetToFactionRecord,
+} from "@/lib/presetFactions.js";
+import { PERKS, PERK_BY_ID, MAX_LIABILITIES, netPoints, pickError } from "@/lib/pointBuy.js";
+import { LIFEPATH_CHAPTERS, PHILOSOPHIES, VALUES, DOCTRINES, availableOptions } from "@/lib/lifepath.js";
+import { IMAGE_LIBRARY } from "@/lib/imageLibrary.js";
+import { UNIT_TYPES, RESOURCE_KEYS } from "@/lib/units.js";
+
+// ── the live catalogs, lifted from the canonical .ts sources ───────────────
+const tacticalSrc = readRepoFile("base44/shared/tactical.ts");
+const catalogSrc = readRepoFile("base44/shared/catalog.ts");
+const armsSrc = readRepoFile("base44/shared/arms.ts");
+const SQUAD_TYPES = extractConst(tacticalSrc, "SQUAD_TYPES");
+const UPGRADES = extractConst(tacticalSrc, "UPGRADES");
+const ARMORY_ITEMS = extractConst(catalogSrc, "ARMORY_ITEMS");
+const CREEDS = extractConst(catalogSrc, "CREEDS");
+const WEAPON_PATTERNS = extractConst(armsSrc, "WEAPON_PATTERNS");
+const rosterSrc = readRepoFile("docs/FACTION_ROSTER.md");
+const factionEntity = JSON.parse(readRepoFile("base44/entities/Faction.jsonc").replace(/^\s*\/\/.*$/gm, ""));
+
+const DOCTRINE_KEYS = DOCTRINES.map((d) => d.id);
+const EFFECT_TYPES = ["income_flat", "unit_discount", "attack_bonus", "defense_bonus"];
+const EFFECT_UNITS = ["riflemen", "crawler", "gunboat", "fighter"];
+const STANDARDS = ["std_column", "std_reliquary", "std_black", "std_first_keel"];
+const AXES = ["authority", "economy", "creed", "mobilization"];
+
+// The three rows that shipped before this lane. Frozen BY ID, never by array
+// position: a later amendment may insert a house anywhere, and an index-based
+// freeze would then guard the wrong row while still reading green.
+const LEGACY_IDS = ["kessel_pact", "iron_synod", "grauwall_marches"];
+const byId = (id) => PRESET_FACTIONS.find((p) => p.id === id);
+const AUTHORED = PRESET_FACTIONS.filter((p) => !LEGACY_IDS.includes(p.id));
+
+// ── document slicing, bounded at both ends ─────────────────────────────────
+function section(src, headingRe, level = "## ") {
+  const lines = src.split("\n");
+  const start = lines.findIndex((l) => headingRe.test(l));
+  expect(start, `heading not found: ${headingRe}`).toBeGreaterThan(-1);
+  let end = lines.length;
+  for (let i = start + 1; i < lines.length; i++) {
+    if (lines[i].startsWith(level)) { end = i; break; }
+  }
+  return lines.slice(start, end).join("\n");
+}
+// Markdown pipe-table body rows, located by a header cell UNIQUE to that
+// table. Two tables in the same section share the cell `house`, so each
+// locator here names a cell only one of them has; a locator that matched
+// twice would read the wrong table and still report a diff.
+function tableRows(text, headerCell) {
+  const lines = text.split("\n");
+  const head = lines.findIndex((l) => l.startsWith("|") && l.includes(headerCell));
+  expect(head, `table not found for header cell: ${headerCell}`).toBeGreaterThan(-1);
+  const rows = [];
+  for (let i = head + 2; i < lines.length; i++) {
+    if (!lines[i].startsWith("|")) break;
+    rows.push(lines[i].split("|").slice(1, -1).map((c) => c.trim()));
+  }
+  expect(rows.length, `table has no body rows: ${headerCell}`).toBeGreaterThan(0);
+  return rows;
+}
+const unbacktick = (s) => s.replace(/`/g, "").trim();
+const cells = (s) => (s === "" ? [] : s.split(",").map((c) => unbacktick(c)).filter(Boolean));
+
+// ── numbers out of prose, so prose can be checked against a table ──────────
+// Signed integers out of a markdown cell or a sentence, tolerating bold markers
+// and the U+2212 minus the documents use. Returned sorted, because a sentence
+// states its effects in reading order and a table states them in key order.
+const signedInts = (cell) =>
+  (cell.replace(/\*/g, "").match(/[+−-]\d+/g) || [])
+    .map((t) => Number(t.replace(/−/g, "-")))
+    .sort((a, b) => a - b);
+
+// The same, for the shipped catalog's OTHER way of writing a signed number:
+// `cost 1 less Manpower` / `cost 1 more Manpower`, which five rows on `main`
+// use and this lane's rows match. Normalised to `-1` / `+1` before the scan,
+// so one comparison covers both spellings rather than two half-gates.
+const descInts = (text) =>
+  signedInts(text.replace(/(\d+)\s+less\b/gi, "-$1").replace(/(\d+)\s+more\b/gi, "+$1"));
+
+const num = (cell) => Number(unbacktick(cell).replace(/\*/g, "").replace(/−/g, "-"));
+
+// The signed values a PERK_MODS row actually carries, sorted the same way.
+function modValues(mods) {
+  const out = [];
+  for (const stats of Object.values(mods.unitStat || {})) out.push(...Object.values(stats));
+  for (const res of Object.values(mods.unitCost || {})) out.push(...Object.values(res));
+  out.push(...Object.values(mods.income || {}));
+  for (const lever of ["armyCap", "startBonus", "capitalDefense", "disposition"]) {
+    if (mods[lever]) out.push(mods[lever]);
+  }
+  return out.sort((a, b) => a - b);
+}
+
+// ── the roster's ten house blocks, parsed ──────────────────────────────────
+// A "### <n>. <Name> — ..." block down to the next "### " or the end of §1.
+// Minus signs: the roster writes U+2212, not ASCII hyphen, and one house
+// carries a trailing asterisk on a seed. Both are handled here rather than
+// being "corrected" in the document.
+const HOUSES_SECTION = section(rosterSrc, /^## \d+\. The Ten Houses/);
+function parseRosterHouses(sectionText) {
+  const out = [];
+  const lines = sectionText.split("\n");
+  let cur = null;
+  for (const line of lines) {
+    const h = /^### \d+\.\s+(.+?)\s+—/.exec(line);
+    if (h) { cur = { name: h[1].trim(), doctrine: null, seeds: null }; out.push(cur); continue; }
+    if (!cur) continue;
+    const d = /\*\*Doctrine\*\*\s+([a-z]+)/.exec(line);
+    if (d) cur.doctrine = d[1];
+    const s = /\*\*Seeds\*\*\s+Auth\s+(\S+?),\s*Econ\s+(\S+?),\s*Creed\s+(\S+?),\s*Mob\s+(\S+?)\s*(?:·|$)/.exec(line);
+    if (s) {
+      const num = (t) => Number(t.replace(/\*/g, "").replace(/−/g, "-").replace(/^\+/, ""));
+      cur.seeds = { authority: num(s[1]), economy: num(s[2]), creed: num(s[3]), mobilization: num(s[4]) };
+    }
+  }
+  return out;
+}
+const ROSTER_HOUSES = parseRosterHouses(HOUSES_SECTION);
+
+// ── predicates, so every gate can be shown to have teeth ───────────────────
+const ledgerIsLegal = (picks) =>
+  pickError(picks) === null &&
+  netPoints(picks) <= 0 &&
+  picks.filter((id) => PERK_BY_ID[id]?.cat === "liability").length <= MAX_LIABILITIES &&
+  picks.every((id) => Object.prototype.hasOwnProperty.call(PERK_BY_ID, id));
+
+const rosterKeysAreReal = (u) =>
+  u.squads.every((k) => Object.prototype.hasOwnProperty.call(SQUAD_TYPES, k)) &&
+  u.upgrades.every((k) => Object.prototype.hasOwnProperty.call(UPGRADES, k)) &&
+  ARMORY_ITEMS[u.decree]?.kind === "decree" &&
+  u.patterns.every((k) => Object.prototype.hasOwnProperty.call(WEAPON_PATTERNS, k));
+
+const effectIsValid = (e) => {
+  if (!e || !EFFECT_TYPES.includes(e.type)) return false;
+  if (!Number.isInteger(e.value) || e.value < 1 || e.value > 2) return false;
+  const needsUnit = e.type !== "income_flat";
+  if (needsUnit !== Object.prototype.hasOwnProperty.call(e, "unit")) return false;
+  return !needsUnit || EFFECT_UNITS.includes(e.unit);
+};
+
+const clone = (o) => JSON.parse(JSON.stringify(o));
+
+describe("PRESET_FACTIONS — shape and identity", () => {
+  it("ships thirteen presets", () => {
+    expect(PRESET_FACTIONS.length).toBe(13);
+  });
+
+  it("keeps every id and every faction name unique", () => {
+    expect(new Set(PRESET_FACTIONS.map((p) => p.id)).size).toBe(13);
+    expect(new Set(PRESET_FACTIONS.map((p) => p.factionName)).size).toBe(13);
+    expect(new Set(PRESET_FACTIONS.map((p) => p.house)).size).toBe(13);
+  });
+
+  it("still carries the three legacy ids, and carries them first", () => {
+    expect(PRESET_FACTIONS.slice(0, 3).map((p) => p.id)).toEqual(LEGACY_IDS);
+  });
+
+  it("gives every preset the additive Lane H fields", () => {
+    for (const p of PRESET_FACTIONS) {
+      expect(typeof p.house, p.id).toBe("string");
+      expect(p.heraldVoice, p.id).toBe(p.house);
+      expect(typeof keelOf(p), p.id).toBe("string");
+      // MEMBERSHIP, not equality. §4 fixes the four fields a `uniqueRoster`
+      // MUST carry; it does not close the row against a fifth that a later
+      // amendment adds (`specialists`, `chassis`), and an exact key set would
+      // forbid one — the closed-set defect at the FIELD level, which is the
+      // exact form the wave-4 repair had to make a second pass for. What is
+      // load-bearing is that all four are present and none is empty.
+      expect(Object.keys(p.uniqueRoster), p.id).toEqual(expect.arrayContaining(["decree", "patterns", "squads", "upgrades"]));
+    }
+  });
+
+  it("adds NO `keel` field to any row (§4 amendment Q3b)", () => {
+    // The keel is looked up from `house`; storing it would be the amendment's
+    // "stored twice" defect and is explicitly forbidden.
+    for (const p of PRESET_FACTIONS) {
+      expect(Object.prototype.hasOwnProperty.call(p, "keel"), p.id).toBe(false);
+    }
+  });
+});
+
+// The values the three shipped rows had before this lane, captured verbatim.
+// Anything not listed here is a field Lane H is permitted to add.
+const LEGACY_FIXTURE = Object.freeze({
+  kessel_pact: {
+    factionName: "The Kessel Pact",
+    doctrine: "aggressive",
+    insigniaDescription:
+      "A clenched iron gauntlet crushing a spent artillery shell, stamped over a field of rust-red.",
+    lore:
+      "Forged from frontier freeholds that survived the First Attrition by striking before they could be struck, the Kessel Pact keeps no reserves it will not spend. Its columns move at a punishing pace, its foundries turn out flame-crawlers faster than crews can be trained for them, and its diplomats are, by long habit, unwelcome. The Pact wins early or not at all.",
+    traits: [
+      { name: "Shock Vanguard", description: "Assault riflemen are drilled to close and kill first.", effect: { type: "attack_bonus", unit: "riflemen", value: 1 } },
+      { name: "Flamewrights", description: "Crawler crews favour overpressure and burn.", effect: { type: "attack_bonus", unit: "crawler", value: 1 } },
+      { name: "Requisition Raids", description: "The Pact takes its manpower where it marches.", effect: { type: "unit_discount", unit: "riflemen", value: 1 } },
+    ],
+    pointBuy: { picks: ["veteran_corps", "flame_projectors", "green_recruits", "fuel_shortage", "pariah_state"] },
+    npcDispositions: { aggressive: 5, economic: -15, defensive: -10 },
+    isNPC: false,
+    lifepath: { preset: true, doctrine: "aggressive", philosophy: "war_economy", value: "glory" },
+  },
+  iron_synod: {
+    factionName: "The Iron Synod",
+    doctrine: "economic",
+    insigniaDescription:
+      "Three foundry stacks bound by a brass gear-ring, venting stylised smoke against deep umber.",
+    lore:
+      "The Synod believes wars are won in the ledger long before the field. Its clustered foundry-cities out-produce every neighbour, funding a war machine that starts lean and ends overwhelming. Old requisition debts left its stockpiles thin and its army cap modest, and its crawler lines run dear — but give the Synod ten turns and it will bury you in steel.",
+    traits: [
+      { name: "Foundry Cities", description: "The great stacks never cool.", effect: { type: "income_flat", value: 2 } },
+      { name: "Assembly Lines", description: "Standardised hulls come off the line cheap.", effect: { type: "unit_discount", unit: "crawler", value: 1 } },
+      { name: "Deep Ledgers", description: "Every seam and siding is accounted for.", effect: { type: "income_flat", value: 1 } },
+    ],
+    pointBuy: { picks: ["industrial_base", "oil_concessions", "war_weary", "depleted_stockpiles", "rusting_arsenal"] },
+    npcDispositions: { aggressive: -10, economic: 10, defensive: 5 },
+    isNPC: false,
+    lifepath: { preset: true, doctrine: "economic", philosophy: "industry", value: "order" },
+  },
+  grauwall_marches: {
+    factionName: "The Grauwall Marches",
+    doctrine: "defensive",
+    insigniaDescription:
+      "A grey rampart of overlapping shields beneath a single watch-lantern, on weathered olive.",
+    lore:
+      "The Marches were raised on the losing side of three invasions and learned the only lesson that mattered: let the enemy break himself on your walls, then take what remains. Its riflemen dig in as reflex, its crawlers carry doubled plate, and its war-weary, fuel-starved economy is built to endure a long siege rather than win a short race. Patience is the Grauwall doctrine.",
+    traits: [
+      { name: "Entrenched", description: "Marchmen fight from prepared ground by instinct.", effect: { type: "defense_bonus", unit: "riflemen", value: 1 } },
+      { name: "Ironclad Hulls", description: "Every crawler carries a second skin of plate.", effect: { type: "defense_bonus", unit: "crawler", value: 1 } },
+      { name: "Stubborn Provisioning", description: "The Marches hoard against the long winter.", effect: { type: "income_flat", value: 1 } },
+    ],
+    pointBuy: { picks: ["trench_gear", "heavy_plating", "war_weary", "fuel_shortage", "depleted_stockpiles"] },
+    npcDispositions: { aggressive: -5, economic: 5, defensive: 10 },
+    isNPC: false,
+    lifepath: { preset: true, doctrine: "defensive", philosophy: "fortress", value: "endurance" },
+  },
+});
+
+describe("the three legacy presets are additive-only", () => {
+  for (const id of LEGACY_IDS) {
+    it(`${id} keeps every shipped value untouched`, () => {
+      const p = byId(id);
+      const f = LEGACY_FIXTURE[id];
+      expect(p, id).toBeDefined();
+      for (const k of ["factionName", "doctrine", "insigniaDescription", "lore", "traits", "pointBuy", "npcDispositions", "isNPC"]) {
+        expect(p[k], `${id}.${k}`).toEqual(f[k]);
+      }
+      const { preset, doctrine, philosophy, value } = p.lifepathChoices;
+      expect({ preset, doctrine, philosophy, value }, `${id}.lifepathChoices`).toEqual(f.lifepath);
+    });
+  }
+
+  it("keeps the legacy philosophy/value words that predate PHILOSOPHIES and VALUES", () => {
+    // These are NOT typos and must never be "fixed": live saves reference them.
+    // Asserting them here is what makes a well-meaning tidy-up a red test.
+    const philosophyIds = PHILOSOPHIES.map((x) => x.id);
+    const valueIds = VALUES.map((x) => x.id);
+    for (const id of LEGACY_IDS) {
+      const lp = byId(id).lifepathChoices;
+      expect(philosophyIds, `${id} philosophy is legacy`).not.toContain(lp.philosophy);
+      expect(valueIds, `${id} value is legacy`).not.toContain(lp.value);
+    }
+  });
+});
+
+describe("point-buy — every preset is a legal ledger", () => {
+  for (const p of PRESET_FACTIONS) {
+    it(`${p.id} passes pointBuy.js validation`, () => {
+      const picks = p.pointBuy.picks;
+      for (const pick of picks) expect(PERK_BY_ID, `${p.id} unknown perk ${pick}`).toHaveProperty(pick);
+      expect(pickError(picks), `${p.id} pickError`).toBeNull();
+      expect(netPoints(picks), `${p.id} netPoints`).toBeLessThanOrEqual(0);
+      expect(picks.filter((id) => PERK_BY_ID[id].cat === "liability").length, `${p.id} liabilities`)
+        .toBeLessThanOrEqual(MAX_LIABILITIES);
+      expect(new Set(picks).size, `${p.id} duplicate picks`).toBe(picks.length);
+      expect(ledgerIsLegal(picks)).toBe(true);
+    });
+  }
+
+  // The gate has teeth: each way a ledger can go wrong is shown to trip it.
+  it("goes red when a ledger's netPoints turns positive", () => {
+    const picks = [...byId("iron_reclamation").pointBuy.picks];
+    const overdrawn = picks.filter((id) => PERK_BY_ID[id].cat !== "liability");
+    expect(netPoints(overdrawn)).toBeGreaterThan(0);
+    expect(pickError(overdrawn)).toMatch(/overdrawn/);
+    expect(ledgerIsLegal(overdrawn)).toBe(false);
+  });
+
+  it("goes red when a ledger grows a fourth liability", () => {
+    // Deliberately read off a ledger that is AT the cap rather than naming one
+    // by memory: `iron_reclamation` used to be the probe here and stopped
+    // being at the cap the moment it traded fuel_shortage + pariah_state for
+    // the single act `tribute_graze`. A probe that silently stops probing is
+    // the whole reason this suite asserts both directions of every gate.
+    const atCap = PRESET_FACTIONS.find(
+      (p) => p.pointBuy.picks.filter((id) => PERK_BY_ID[id].cat === "liability").length === MAX_LIABILITIES,
+    );
+    expect(atCap, "no preset sits at the liability cap").toBeTruthy();
+    const base = atCap.pointBuy.picks;
+    expect(base.filter((id) => PERK_BY_ID[id].cat === "liability").length).toBe(3);
+    const fourth = [...base, base.includes("war_weary") ? "swath_bound" : "war_weary"];
+    expect(fourth.filter((id) => PERK_BY_ID[id].cat === "liability").length).toBe(4);
+    expect(pickError(fourth)).toMatch(/liabilities/);
+    expect(ledgerIsLegal(fourth)).toBe(false);
+  });
+
+  it("goes red on a perk id that is not in the catalog", () => {
+    expect(ledgerIsLegal(["conscription", "a_perk_that_does_not_exist"])).toBe(false);
+  });
+});
+
+describe("uniqueRoster — every key names something that really exists", () => {
+  for (const p of PRESET_FACTIONS) {
+    it(`${p.id} references only live Lane F / G / I keys`, () => {
+      const u = p.uniqueRoster;
+      for (const k of u.squads) expect(SQUAD_TYPES, `${p.id} squad ${k}`).toHaveProperty(k);
+      for (const k of u.upgrades) expect(UPGRADES, `${p.id} upgrade ${k}`).toHaveProperty(k);
+      for (const k of u.patterns) expect(WEAPON_PATTERNS, `${p.id} pattern ${k}`).toHaveProperty(k);
+      expect(ARMORY_ITEMS, `${p.id} decree ${u.decree}`).toHaveProperty(u.decree);
+      expect(ARMORY_ITEMS[u.decree].kind, `${p.id} decree kind`).toBe("decree");
+      expect(rosterKeysAreReal(u)).toBe(true);
+    });
+
+    it(`${p.id} meets the minimum roster sizes`, () => {
+      const u = p.uniqueRoster;
+      expect(u.squads.length, `${p.id} squads`).toBeGreaterThanOrEqual(2);
+      expect(u.upgrades.length, `${p.id} upgrades`).toBeGreaterThanOrEqual(2);
+      expect(u.patterns.length, `${p.id} patterns`).toBeGreaterThanOrEqual(2);
+      expect(typeof u.decree).toBe("string");
+    });
+
+    it(`${p.id}'s kits and patterns fit its own signature squads`, () => {
+      const u = p.uniqueRoster;
+      for (const k of u.upgrades) {
+        expect(UPGRADES[k].appliesTo.some((s) => u.squads.includes(s)), `${p.id}: kit ${k} fits no signature squad`).toBe(true);
+      }
+      for (const k of u.patterns) {
+        expect(WEAPON_PATTERNS[k].appliesTo.some((s) => u.squads.includes(s)), `${p.id}: pattern ${k} fits no signature squad`).toBe(true);
+      }
+    });
+  }
+
+  // THE ASSERTION THAT MATTERS MOST. It reads the live tables, so an upstream
+  // rename or removal surfaces here, in the lane that depends on it, rather
+  // than as a blank panel in play. Shown to have teeth in both directions.
+  it("goes red on a squad, upgrade, decree or pattern key that does not exist", () => {
+    const real = clone(byId("outrider_compact").uniqueRoster);
+    expect(rosterKeysAreReal(real)).toBe(true);
+    expect(rosterKeysAreReal({ ...real, squads: [...real.squads, "ghost_squad"] })).toBe(false);
+    expect(rosterKeysAreReal({ ...real, upgrades: [...real.upgrades, "ghost_kit"] })).toBe(false);
+    expect(rosterKeysAreReal({ ...real, patterns: [...real.patterns, "ghost_pattern"] })).toBe(false);
+    expect(rosterKeysAreReal({ ...real, decree: "ghost_decree" })).toBe(false);
+  });
+
+  it("goes red when `decree` names a real armory row of the wrong kind", () => {
+    // `kind: 'module'` certification is inert (orchestrator ruling 2) and a
+    // relic project is not an act of the Assembly. Only a decree is a decree.
+    const notDecree = Object.entries(ARMORY_ITEMS).find(([, r]) => r.kind !== "decree");
+    expect(notDecree, "catalog has no non-decree row to test with").toBeDefined();
+    const real = byId("outrider_compact").uniqueRoster;
+    expect(rosterKeysAreReal({ ...real, decree: notDecree[0] })).toBe(false);
+  });
+
+  it("gives each house its own decree — thirteen presets, thirteen distinct acts", () => {
+    const decrees = PRESET_FACTIONS.map((p) => p.uniqueRoster.decree);
+    expect(new Set(decrees).size).toBe(decrees.length);
+  });
+
+  it("never puts a creed-locked decree in a house that does not hold that creed", () => {
+    let locked = 0;
+    for (const p of PRESET_FACTIONS) {
+      const lock = ARMORY_ITEMS[p.uniqueRoster.decree].creedLock;
+      if (!lock) continue;
+      locked++;
+      expect(CREEDS, `unknown creedLock ${lock}`).toHaveProperty(lock);
+      expect(lock, `${p.id} holds ${departureOf(p)} but its decree locks to ${lock}`).toBe(departureOf(p));
+    }
+    // Not a required count — it is a floor, so adding creed-locked decrees
+    // upstream cannot make this test wrong. It exists so the loop above can
+    // never pass by iterating over nothing.
+    expect(locked, "no creed-locked decree is claimed by any house").toBeGreaterThan(0);
+  });
+});
+
+describe("the Departure is derived from the Creed axis, never stored", () => {
+  it("maps the WHOLE legal domain of the Creed axis", () => {
+    // -3..3 is the axis's full range (VISION §6.1). Covering all seven values
+    // is what makes this a derivation rather than a rule with a hidden default.
+    const domain = [-3, -2, -1, 0, 1, 2, 3].map(String);
+    expect(Object.keys(DEPARTURE_BY_CREED_SEED).sort()).toEqual([...domain].sort());
+    for (const v of Object.values(DEPARTURE_BY_CREED_SEED)) {
+      expect(CREEDS, `departure ${v} is not a CREEDS key`).toHaveProperty(v);
+    }
+  });
+
+  it("resolves a real Departure for every preset", () => {
+    for (const p of PRESET_FACTIONS) {
+      expect(CREEDS, `${p.id}`).toHaveProperty(departureOf(p));
+    }
+  });
+
+  it("puts every Departure the mapping can produce into play, and invents none", () => {
+    // Was `held == Object.keys(CREEDS)`, which would go red the day Lane G
+    // adds a fifth creed — a change that would break nothing. The claim worth
+    // keeping is about THIS lane's mapping: every value
+    // `DEPARTURE_BY_CREED_SEED` can yield is actually held by a house (no dead
+    // branch), and every Departure held is a real creed (no invention).
+    const held = new Set(PRESET_FACTIONS.map((p) => departureOf(p)));
+    const reachable = new Set(Object.values(DEPARTURE_BY_CREED_SEED));
+    expect([...held].sort(), "the mapping has a branch no house reaches").toEqual([...reachable].sort());
+    for (const d of held) expect(CREEDS, `departure ${d} is not a CREEDS key`).toHaveProperty(d);
+  });
+
+  it("cannot be satisfied by `CREEDS[k].axisLean` alone — and says so", () => {
+    // The reason `DEPARTURE_BY_CREED_SEED` exists rather than a sign() of the
+    // lean: two Departures share lean 0, so the lean is ambiguous. If a future
+    // amendment ever makes the leans distinct, this test fails and the mapping
+    // can be simplified — which is the outcome it exists to surface.
+    const leans = Object.values(CREEDS).map((c) => c.axisLean);
+    expect(new Set(leans).size, "leans became distinct; revisit DEPARTURE_BY_CREED_SEED").toBeLessThan(leans.length);
+  });
+
+  it("matches the table published in FACTION_ROSTER §6.2", () => {
+    const recon = section(rosterSrc, /^## \d+\. Reconciliation/);
+    const rows = tableRows(recon, "| Reading (LORE §2) |");
+    const fromDoc = {};
+    for (const [seedCell, depCell] of rows) {
+      const dep = unbacktick(depCell);
+      // A cell is either a single value or a range; the negative range is
+      // written high-to-low ("−2 … −3") the way the axis reads, so the bounds
+      // are sorted rather than assumed to be in order.
+      const nums = seedCell.replace(/−/g, "-").match(/-?\d+/g).map(Number).sort((a, b) => a - b);
+      const [lo, hi] = nums.length === 2 ? nums : [nums[0], nums[0]];
+      for (let v = lo; v <= hi; v++) fromDoc[String(v)] = dep;
+    }
+    expect(fromDoc).toEqual(DEPARTURE_BY_CREED_SEED);
+  });
+});
+
+describe("traits, lore and dispositions", () => {
+  for (const p of PRESET_FACTIONS) {
+    it(`${p.id} carries exactly three traits in the synthesizeFaction effect schema`, () => {
+      expect(p.traits.length, p.id).toBe(3);
+      for (const t of p.traits) {
+        expect(typeof t.name, `${p.id} trait name`).toBe("string");
+        expect(t.name.length, `${p.id} trait name`).toBeGreaterThan(0);
+        expect(typeof t.description, `${p.id} trait description`).toBe("string");
+        expect(effectIsValid(t.effect), `${p.id}: bad effect ${JSON.stringify(t.effect)}`).toBe(true);
+      }
+    });
+  }
+
+  it("goes red on an effect outside the validated schema", () => {
+    // Every one of these is silently clamped or dropped by
+    // base44/functions/synthesizeFaction, which is why it is caught here.
+    expect(effectIsValid({ type: "attack_bonus", unit: "riflemen", value: 1 })).toBe(true);
+    expect(effectIsValid({ type: "morale_bonus", unit: "riflemen", value: 1 })).toBe(false);
+    expect(effectIsValid({ type: "attack_bonus", unit: "riflemen", value: 3 })).toBe(false);
+    expect(effectIsValid({ type: "attack_bonus", value: 1 })).toBe(false);
+    expect(effectIsValid({ type: "income_flat", unit: "riflemen", value: 1 })).toBe(false);
+    expect(effectIsValid({ type: "attack_bonus", unit: "artillery", value: 1 })).toBe(false);
+  });
+
+  // SCOPED BY ID, DELIBERATELY. The 120-180 word floor is a Lane H requirement
+  // for the houses Lane H writes. The three legacy rows are 62, 61 and 64 words
+  // and are frozen byte-for-byte by contract, so the brief's two requirements
+  // cannot both hold for them; byte-identity governs (live saves). Recorded in
+  // FACTION_ROSTER §6.4. The exclusion is by NAME, so inserting a house does
+  // not quietly widen or narrow it.
+  for (const p of AUTHORED) {
+    it(`${p.id}'s lore runs 120-180 words`, () => {
+      const words = p.lore.trim().split(/\s+/).length;
+      expect(words, `${p.id} lore words = ${words}`).toBeGreaterThanOrEqual(120);
+      expect(words).toBeLessThanOrEqual(180);
+    });
+  }
+
+  it("authors exactly the ten roster houses beyond the legacy three", () => {
+    expect(AUTHORED.length).toBe(10);
+    expect(PRESET_FACTIONS.length - AUTHORED.length).toBe(LEGACY_IDS.length);
+  });
+
+  for (const p of PRESET_FACTIONS) {
+    it(`${p.id} has a doctrine and dispositions the AI can use`, () => {
+      expect(DOCTRINE_KEYS, p.id).toContain(p.doctrine);
+      expect(Object.keys(p.npcDispositions).sort()).toEqual(["aggressive", "defensive", "economic"]);
+      for (const [k, v] of Object.entries(p.npcDispositions)) {
+        expect(Number.isInteger(v), `${p.id}.${k}`).toBe(true);
+        expect(v, `${p.id}.${k}`).toBeGreaterThanOrEqual(-20);
+        expect(v).toBeLessThanOrEqual(20);
+      }
+      // A house leans hardest toward its own doctrine. True of all three
+      // legacy rows as shipped, and the reason a preset reads as itself in NPC
+      // play rather than as a bundle of numbers.
+      const own = p.npcDispositions[p.doctrine];
+      for (const v of Object.values(p.npcDispositions)) expect(v, `${p.id} own doctrine not the lean`).toBeLessThanOrEqual(own);
+      expect(typeof p.insigniaDescription).toBe("string");
+      expect(p.insigniaDescription.trim().length).toBeGreaterThan(0);
+      expect(p.isNPC).toBe(false);
+    });
+  }
+});
+
+describe("lifepathChoices", () => {
+  for (const p of PRESET_FACTIONS) {
+    it(`${p.id} seeds four axes and picks a shipped standard`, () => {
+      const lp = p.lifepathChoices;
+      expect(lp.preset).toBe(true);
+      expect(lp.doctrine, `${p.id} lifepath doctrine`).toBe(p.doctrine);
+      expect(Object.keys(lp.seeds).sort()).toEqual([...AXES].sort());
+      for (const a of AXES) {
+        expect(Number.isInteger(lp.seeds[a]), `${p.id}.seeds.${a}`).toBe(true);
+        expect(lp.seeds[a], `${p.id}.seeds.${a}`).toBeGreaterThanOrEqual(-3);
+        expect(lp.seeds[a]).toBeLessThanOrEqual(3);
+      }
+      expect(STANDARDS, `${p.id} standard`).toContain(lp.standard);
+    });
+  }
+
+  it("uses every one of the four shipped standards at least once", () => {
+    const used = new Set(PRESET_FACTIONS.map((p) => p.lifepathChoices.standard));
+    expect([...used].sort()).toEqual([...STANDARDS].sort());
+  });
+
+  it("gives the ten authored houses a real PHILOSOPHIES / VALUES pair", () => {
+    const philosophyIds = PHILOSOPHIES.map((x) => x.id);
+    const valueIds = VALUES.map((x) => x.id);
+    for (const p of AUTHORED) {
+      expect(philosophyIds, `${p.id}.philosophy`).toContain(p.lifepathChoices.philosophy);
+      expect(valueIds, `${p.id}.value`).toContain(p.lifepathChoices.value);
+    }
+  });
+});
+
+describe("FACTION_ROSTER.md governs, and the document is recomputed not trusted", () => {
+  it("parses ten house blocks out of §1", () => {
+    expect(ROSTER_HOUSES.length).toBe(10);
+    for (const h of ROSTER_HOUSES) {
+      expect(h.doctrine, `${h.name} doctrine`).toBeTruthy();
+      expect(h.seeds, `${h.name} seeds`).toBeTruthy();
+    }
+  });
+
+  it("gives every roster house exactly one preset, matched by faction name", () => {
+    for (const h of ROSTER_HOUSES) {
+      expect(PRESET_FACTIONS.filter((p) => p.factionName === h.name).length, h.name).toBe(1);
+    }
+  });
+
+  it("matches each roster house's Doctrine line", () => {
+    for (const h of ROSTER_HOUSES) {
+      const p = PRESET_FACTIONS.find((x) => x.factionName === h.name);
+      expect(p.doctrine, `${h.name} doctrine`).toBe(h.doctrine);
+    }
+  });
+
+  it("matches each roster house's Seeds line, minus signs and asterisks and all", () => {
+    // ⚠ ONE SIDE OF THIS EQUALITY IS ALSO THIS LANE'S. `docs/FACTION_ROSTER.md`
+    // is a Lane H file, so for any house whose roster line this lane edited the
+    // check compares the lane's data against the lane's own document and cannot
+    // detect the edit. Exactly one seed was changed: **the Commonweal March's
+    // Creed seed, −1 → −2.** The reason is in FACTION_ROSTER §6.2 — at −1 the
+    // Departure table gives the Flight, while LORE §2 names "much of the
+    // Commonweal" among the holders of the Discarding and §1's own
+    // `No-Patron (communal)` theory reads the same way — but the reason lives
+    // in a document, not in an assertion, and it is named here so the next
+    // reader does not mistake this row for an externally-verified one. The
+    // other nine seed lines are untouched from `main`.
+    const SEEDS_EDITED_BY_THIS_LANE = { "The Commonweal March": { creed: [-1, -2] } };
+    for (const h of ROSTER_HOUSES) {
+      const p = PRESET_FACTIONS.find((x) => x.factionName === h.name);
+      expect(p.lifepathChoices.seeds, `${h.name} seeds`).toEqual(h.seeds);
+    }
+    for (const [name, axes] of Object.entries(SEEDS_EDITED_BY_THIS_LANE)) {
+      const p = PRESET_FACTIONS.find((x) => x.factionName === name);
+      for (const [axis, [, to]] of Object.entries(axes)) {
+        expect(p.lifepathChoices.seeds[axis], `${name} ${axis} no longer holds the corrected value`).toBe(to);
+      }
+      expect(rosterSrc, `${name}'s seed correction is no longer recorded in §6.2`)
+        .toContain("The seed is now **−2**");
+    }
+  });
+
+  it("recomputes the doctrine counts §1 publishes, for the ten and for the thirteen", () => {
+    // A published number is not a number until something recomputes it: an
+    // earlier wave shipped a cost curve claiming 110 against a table that
+    // summed to 138. Both sentences in §1 are parsed and rebuilt here.
+    const count = (rows) => DOCTRINE_KEYS.map((d) => rows.filter((r) => r === d).length);
+    const rosterTen = count(ROSTER_HOUSES.map((h) => h.doctrine));
+    const allThirteen = count(PRESET_FACTIONS.map((p) => p.doctrine));
+
+    const summary = /aggressive\s*\n?×(\d+), economic ×(\d+), defensive ×(\d+)/.exec(HOUSES_SECTION);
+    expect(summary, "§1 summary sentence not found").toBeTruthy();
+    expect([Number(summary[1]), Number(summary[2]), Number(summary[3])]).toEqual(rosterTen);
+
+    const shipped = /shipped thirteen are aggressive ×(\d+), economic ×(\d+), defensive ×(\d+)/.exec(HOUSES_SECTION);
+    expect(shipped, "§1 thirteen-preset sentence not found").toBeTruthy();
+    expect([Number(shipped[1]), Number(shipped[2]), Number(shipped[3])]).toEqual(allThirteen);
+  });
+
+  it("keeps §6.1's key register equal to the data", () => {
+    const recon = section(rosterSrc, /^## \d+\. Reconciliation/);
+    const rows = tableRows(recon, "| keel slug |");
+    expect(rows.length).toBe(PRESET_FACTIONS.length);
+    const fromDoc = rows.map((r) => ({
+      factionName: r[0],
+      id: unbacktick(r[1]),
+      house: unbacktick(r[2]),
+      keel: unbacktick(r[3]),
+      heraldVoice: unbacktick(r[4]),
+      creed: Number(r[5].replace(/−/g, "-")),
+      departure: unbacktick(r[6]),
+    }));
+    const fromData = PRESET_FACTIONS.map((p) => ({
+      factionName: p.factionName,
+      id: p.id,
+      house: p.house,
+      keel: keelOf(p),
+      heraldVoice: p.heraldVoice,
+      creed: p.lifepathChoices.seeds.creed,
+      departure: departureOf(p),
+    }));
+    expect(fromDoc).toEqual(fromData);
+  });
+
+  it("keeps §6.3's roster register equal to the data", () => {
+    const recon = section(rosterSrc, /^## \d+\. Reconciliation/);
+    const rows = tableRows(recon, "| squads (Lane F) |");
+    const fromDoc = rows.map((r) => ({
+      house: unbacktick(r[0]),
+      squads: cells(r[1]),
+      upgrades: cells(r[2]),
+      decree: unbacktick(r[3]),
+      patterns: cells(r[4]),
+    }));
+    const fromData = PRESET_FACTIONS.map((p) => ({ house: p.house, ...p.uniqueRoster }));
+    expect(fromDoc).toEqual(fromData.map((d) => ({ house: d.house, squads: d.squads, upgrades: d.upgrades, decree: d.decree, patterns: d.patterns })));
+  });
+});
+
+describe("plates", () => {
+  it("has a crest and a keel plate for all thirteen houses", () => {
+    const keys = new Set(IMAGE_LIBRARY.map((p) => p.key));
+    for (const p of PRESET_FACTIONS) {
+      expect(keys.has(`house_${p.house}_crest`), `missing house_${p.house}_crest`).toBe(true);
+      expect(keys.has(`keel_${keelOf(p)}`), `missing keel_${keelOf(p)}`).toBe(true);
+    }
+  });
+
+  it("maps every house stem to a keel slug, and no two houses to the same keel", () => {
+    const stems = PRESET_FACTIONS.map((p) => p.house);
+    for (const s of stems) expect(KEEL_BY_HOUSE, `no keel for ${s}`).toHaveProperty(s);
+    const slugs = stems.map((s) => KEEL_BY_HOUSE[s]);
+    expect(new Set(slugs).size).toBe(slugs.length);
+    // No orphan entries either — a stem in the lookup that no preset uses is
+    // dead data with a plausible-looking justification.
+    expect(Object.keys(KEEL_BY_HOUSE).sort()).toEqual([...stems].sort());
+  });
+
+  it("keeps every IMAGE_LIBRARY key unique", () => {
+    const keys = IMAGE_LIBRARY.map((p) => p.key);
+    expect(new Set(keys).size).toBe(keys.length);
+  });
+
+  it("ships no lane-authored plate url — delivery comes from PLATE_URLS", () => {
+    // Bounded at BOTH ends: from this lane's banner to the closing `];` of the
+    // array, never to end-of-file. The file has exported helpers after it.
+    const src = readRepoFile("src/lib/imageLibrary.js");
+    const start = src.indexOf("// ——— LANE H:");
+    expect(start, "Lane H plate banner not found").toBeGreaterThan(-1);
+    const end = src.indexOf("\n];", start);
+    expect(end, "end of IMAGE_LIBRARY not found after the Lane H banner").toBeGreaterThan(start);
+    const block = src.slice(start, end);
+    expect(block).not.toMatch(/\burl\s*:/);
+    expect(block).not.toMatch(/https?:\/\//);
+    for (const p of IMAGE_LIBRARY) {
+      expect(p.url === null || typeof p.url === "string", `plate ${p.key} url`).toBe(true);
+    }
+  });
+});
+
+describe("presetToFactionRecord", () => {
+  const entityProps = Object.keys(factionEntity.properties);
+
+  it("strips every presentation-only field", () => {
+    for (const p of PRESET_FACTIONS) {
+      const rec = presetToFactionRecord(p);
+      for (const k of ["id", "house", "keel", "uniqueRoster", "heraldVoice"]) {
+        expect(Object.prototype.hasOwnProperty.call(rec, k), `${p.id} leaks ${k}`).toBe(false);
+      }
+    }
+  });
+
+  it("returns only keys the Faction entity actually has", () => {
+    for (const p of PRESET_FACTIONS) {
+      for (const k of Object.keys(presetToFactionRecord(p))) {
+        expect(entityProps, `${p.id}: Faction.jsonc has no '${k}' column`).toContain(k);
+      }
+    }
+  });
+
+  it("still carries the fields the entity requires", () => {
+    for (const p of PRESET_FACTIONS) {
+      const rec = presetToFactionRecord(p);
+      for (const k of factionEntity.required) expect(rec, `${p.id}`).toHaveProperty(k);
+      expect(rec.lore).toBe(p.lore);
+      expect(rec.pointBuy).toEqual(p.pointBuy);
+    }
+  });
+});
+
+describe("voice and safety", () => {
+  const strings = [];
+  for (const p of PRESET_FACTIONS) {
+    strings.push(p.factionName, p.lore, p.insigniaDescription);
+    for (const t of p.traits) strings.push(t.name, t.description);
+  }
+  for (const plate of IMAGE_LIBRARY) {
+    if (plate.category === "houses") strings.push(plate.title, plate.desc, plate.prompt);
+  }
+
+  const PII = [
+    [/[\w.+-]+@[\w-]+\.[\w.]+/, "email address"],
+    [/https?:\/\//, "url"],
+    [/\+?\d[\d\s().-]{7,}\d/, "phone-shaped digit run"],
+    [/(^|\s)@\w+/, "@handle"],
+  ];
+  it("contains no PII of any shape", () => {
+    for (const s of strings) {
+      for (const [re, what] of PII) expect(re.test(s), `${what} in: ${s.slice(0, 80)}`).toBe(false);
+    }
+  });
+
+  it("names no real-world nation, regime or alliance", () => {
+    const deny = /\b(America|American|Europe|European|Russia|Russian|German|Germany|Britain|British|France|French|China|Chinese|Japan|Japanese|Soviet|Nazi|Reich|USSR|NATO)\b/;
+    for (const s of strings) expect(deny.test(s), `real-world proper noun in: ${s.slice(0, 80)}`).toBe(false);
+  });
+
+  it("keeps out-of-world mechanics vocabulary out of user-visible copy", () => {
+    // `turn` is deliberately absent from this list: the three legacy rows say
+    // "give the Synod ten turns" and are frozen byte-for-byte. Banning a word
+    // this lane may not remove would be a gate that is red in the healthy
+    // state, which is a gate the next reader learns to scroll past.
+    const banned = /\b(tile|player|stat|modifier|hex|XP|buff|debuff)s?\b/i;
+    for (const s of strings) expect(banned.test(s), `mechanics word in: ${s.slice(0, 80)}`).toBe(false);
+  });
+
+  it("uses no hex colour anywhere in the files this lane authors", () => {
+    for (const f of ["src/lib/presetFactions.js", "test/presets.test.js"]) {
+      expect(/#[0-9a-fA-F]{3,8}\b/.test(readRepoFile(f)), `hex colour in ${f}`).toBe(false);
+    }
+  });
+});
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STEP 2 — the nomad-keel requisitions, Chapter VI, and the thirteen packs.
+// ═══════════════════════════════════════════════════════════════════════════
+
+const perkModsSrc = readRepoFile("base44/shared/perkMods.ts");
+const PERK_MODS = extractConst(perkModsSrc, "PERK_MODS");
+const heraldSrc = readRepoFile("docs/HERALD_VOICES.md");
+
+// The twenty rows `main` shipped, named so that this lane's additions can be
+// separated from them BY ID and not by position or by an absolute count. A
+// later Field Amendment may append a twenty-ninth perk without touching a
+// single assertion below.
+const SHIPPED_PERK_IDS = [
+  "veteran_corps", "industrial_base", "oil_concessions", "deep_reserves", "conscription",
+  "mobilization_doctrine", "war_chest", "home_guard",
+  "war_weary", "fuel_shortage", "rusting_arsenal", "green_recruits", "depleted_stockpiles",
+  "brittle_industry", "pariah_state",
+  "trench_gear", "flame_projectors", "heavy_plating", "naval_rams", "drop_tanks",
+];
+
+// This lane's eight, in the order they are declared. Hard-coded on purpose:
+// "every NEW perk is picked by a preset" cannot be satisfied for this lane by
+// a perk some other lane appends later.
+const LANE_H_PERK_IDS = [
+  "draught_columns", "boarding_parties", "field_refit_train", "ranging_batteries",
+  "swath_bound", "stripped_escorts", "tribute_graze", "exposed_batteries",
+];
+
+// DERIVED, NOT PINNED. `src/lib/units.js` already stages seven more unit types
+// in `PROPOSED_UNIT_TYPES` (`draught_column`, `siege_train`, `bridging_train`,
+// `signals_wagon`, `salvage_detachment`, `hospital_train`, `provost_column`)
+// for platform promotion into `UNIT_TYPES`. A hard-coded list of the five that
+// exist today would go red on the first promotion, on a `PERK_MODS` row that
+// had become perfectly legal — the wave-4 addendum's defect class 4, and the
+// same shape as Lane A's pinned `SQUAD_TYPE_KEYS`. Both vocabularies are read
+// off the modules that own them instead, so the sets grow when they grow.
+const UNIT_KEYS = Object.keys(UNIT_TYPES);
+const INCOME_KEYS = [...RESOURCE_KEYS];
+// `compileMods` is the ONE vocabulary with no exported form: perkMods.ts
+// declares its levers inline in the reducer body, not as a table. This list is
+// therefore hand-kept, and it must move the day `compileMods` gains a lever —
+// the test two blocks down pins it against `supplyRange`, the real key that
+// `mergeMods` handles and `compileMods` silently drops.
+const MOD_KEYS = ["unitStat", "unitCost", "income", "armyCap", "startBonus", "capitalDefense", "disposition"];
+
+// THE PRICING SCHEDULE, WITH ONE SHIPPED ANCHOR PER STEP.
+//
+// Nothing here is invented. Each entry is the cost of one step of one lever,
+// read off a shipped `cat: "asset"` / `cat: "liability"` row that carries that
+// lever and nothing else. A lever/sign combination with no shipped anchor
+// (positive `disposition`, negative `capitalDefense`) deliberately has NO
+// entry, and `priceOf` throws on it — so the schedule cannot be quietly
+// extended by a row that uses an unpriced step.
+const PRICE_ANCHORS = {
+  "unitStat+": { per: 1, pts: 3, anchor: "veteran_corps" },
+  "unitStat-": { per: 1, pts: -3, anchor: "green_recruits" },
+  "unitCost+": { per: 1, pts: -2, anchor: "rusting_arsenal" },
+  "unitCost-": { per: 1, pts: 2, anchor: "conscription" },
+  "income+": { per: 1, pts: 3, anchor: "industrial_base" },
+  "income-": { per: 1, pts: -2, anchor: "fuel_shortage" },
+  "armyCap+": { per: 15, pts: 3, anchor: "mobilization_doctrine" },
+  "armyCap-": { per: 15, pts: -2, anchor: "war_weary" },
+  "startBonus+": { per: 4, pts: 2, anchor: "war_chest" },
+  "startBonus-": { per: 4, pts: -2, anchor: "depleted_stockpiles" },
+  "capitalDefense+": { per: 1, pts: 2, anchor: "home_guard" },
+  "disposition-": { per: 10, pts: -1, anchor: "pariah_state" },
+};
+
+function stepPrice(lever, v) {
+  const key = `${lever}${v > 0 ? "+" : "-"}`;
+  const a = PRICE_ANCHORS[key];
+  if (!a) throw new Error(`no shipped anchor prices ${key} — do not invent one`);
+  return (Math.abs(v) / a.per) * a.pts;
+}
+
+function priceOf(mods) {
+  let pts = 0;
+  for (const stats of Object.values(mods.unitStat || {})) for (const v of Object.values(stats)) pts += stepPrice("unitStat", v);
+  for (const res of Object.values(mods.unitCost || {})) for (const v of Object.values(res)) pts += stepPrice("unitCost", v);
+  for (const v of Object.values(mods.income || {})) pts += stepPrice("income", v);
+  for (const lever of ["armyCap", "startBonus", "capitalDefense", "disposition"]) {
+    if (mods[lever]) pts += stepPrice(lever, mods[lever]);
+  }
+  return pts;
+}
+
+describe("the point-buy catalog — eight nomad-keel requisitions", () => {
+  const newPerks = PERKS.filter((p) => LANE_H_PERK_IDS.includes(p.id));
+
+  // The brief's check 14 reads `PERKS.length >= 29 (21 shipped + 8 new)`. The
+  // parenthetical is the derivation and the derivation is WRONG: `main` ships
+  // TWENTY perks, not 21, so with "exactly 4 new assets and exactly 4 new
+  // liabilities" also binding, 29 is unreachable by construction. Rather than
+  // pad the catalog with a ninth perk to satisfy a false figure, the count is
+  // asserted from the two id lists it is actually made of.
+  it("is exactly the twenty shipped rows plus this lane's eight", () => {
+    const ids = PERKS.map((p) => p.id);
+    expect(new Set(ids).size, "duplicate perk id").toBe(ids.length);
+    for (const id of SHIPPED_PERK_IDS) expect(ids, `shipped perk ${id} was removed`).toContain(id);
+    for (const id of LANE_H_PERK_IDS) expect(ids, `lane perk ${id} missing`).toContain(id);
+    expect(ids.length).toBe(SHIPPED_PERK_IDS.length + LANE_H_PERK_IDS.length);
+    expect(ids.slice(0, SHIPPED_PERK_IDS.length), "shipped rows moved or were reordered").toEqual(SHIPPED_PERK_IDS);
+  });
+
+  it("adds exactly four assets and exactly four liabilities, and no upgrade", () => {
+    expect(newPerks.filter((p) => p.cat === "asset").map((p) => p.id).length).toBe(4);
+    expect(newPerks.filter((p) => p.cat === "liability").map((p) => p.id).length).toBe(4);
+    expect(newPerks.filter((p) => p.cat === "upgrade")).toEqual([]);
+    // An eighth `upgrade` would be one-per-unit under pickError and would
+    // silently shrink the legal ledger space of every preset that already
+    // spends that unit's slot.
+    for (const p of newPerks) expect(p).not.toHaveProperty("unit");
+  });
+
+  it("keeps assets in 1..3 and liabilities in -3..-1", () => {
+    for (const p of newPerks) {
+      expect(Number.isInteger(p.pts), `${p.id} pts`).toBe(true);
+      if (p.cat === "asset") expect(p.pts, `${p.id} pts`).toBeGreaterThanOrEqual(1);
+      if (p.cat === "asset") expect(p.pts, `${p.id} pts`).toBeLessThanOrEqual(3);
+      if (p.cat === "liability") expect(p.pts, `${p.id} pts`).toBeGreaterThanOrEqual(-3);
+      if (p.cat === "liability") expect(p.pts, `${p.id} pts`).toBeLessThanOrEqual(-1);
+    }
+  });
+
+  it("gives every perk a label, and a desc REBUILT from its PERK_MODS row", () => {
+    // Drift guard 7, mechanised. A requisition's number is written FOUR times:
+    // once in `PERK_MODS` (the source), once in the perk's own `desc`, once in
+    // the `perk_<id>` plate's `desc`, and once in the GAME_RULES §28 table. The
+    // table was already rebuilt from `PERK_MODS`; the two descs were checked
+    // only by `toMatch(/\d/)`, so `+1 Steel income` could have read `+3` in
+    // either of them with the whole suite green — while `imageLibrary.js`
+    // published the claim that they "cannot drift". Both are compared against
+    // the row here, with the same `signedInts`/`modValues` pair §28 uses, so
+    // the claim is now enforced rather than asserted.
+    for (const p of newPerks) {
+      expect(p.label, `${p.id} label`).toBeTruthy();
+      expect(p.desc, `${p.id} desc`).toMatch(/\d/);
+      expect(descInts(p.desc), `${p.id} desc numbers`).toEqual(modValues(PERK_MODS[p.id]));
+    }
+  });
+
+  it("gives every perk a plate whose desc is rebuilt from the same row", () => {
+    for (const p of newPerks) {
+      const plate = IMAGE_LIBRARY.find((x) => x.key === `perk_${p.id}`);
+      expect(plate, `no plate perk_${p.id}`).toBeTruthy();
+      expect(descInts(plate.desc), `perk_${p.id} plate desc numbers`).toEqual(modValues(PERK_MODS[p.id]));
+    }
+  });
+
+  it("goes red when a desc and its row disagree", () => {
+    // The gate above is only worth having if it can fail. Both spellings the
+    // shipped catalog uses are exercised: an explicit `+1` and a bare
+    // `1 less`, because a scan that only understood the first would pass a
+    // `field_refit_train` desc that had drifted to `2 less Steel`.
+    const row = { income: { steel: 1, fuel: -1 } };
+    expect(descInts("+1 Steel income every turn, −1 Fuel income every turn")).toEqual(modValues(row));
+    expect(descInts("+3 Steel income every turn, −1 Fuel income every turn")).not.toEqual(modValues(row));
+    const cost = { unitCost: { crawler: { steel: -1 } } };
+    expect(descInts("Crawlers cost 1 less Steel.")).toEqual(modValues(cost));
+    expect(descInts("Crawlers cost 2 less Steel.")).not.toEqual(modValues(cost));
+    expect(descInts("Riflemen cost 1 more Manpower.")).toEqual([1]);
+  });
+});
+
+describe("PERK_MODS — the mirror, the vocabulary, and the price", () => {
+  it("declares exactly the same ids as PERKS, in the same set", () => {
+    // The same assertion test/rules-mirror.test.js makes, restated here so the
+    // lane fails on its own terms rather than in somebody else's file.
+    expect(Object.keys(PERK_MODS).sort()).toEqual(PERKS.map((p) => p.id).sort());
+  });
+
+  it("uses only keys compileMods actually reduces — no silently inert mod", () => {
+    for (const [id, mods] of Object.entries(PERK_MODS)) {
+      for (const k of Object.keys(mods)) expect(MOD_KEYS, `${id} uses ${k}`).toContain(k);
+      for (const u of Object.keys(mods.unitStat || {})) expect(UNIT_KEYS, `${id} unitStat ${u}`).toContain(u);
+      for (const u of Object.keys(mods.unitCost || {})) expect(UNIT_KEYS, `${id} unitCost ${u}`).toContain(u);
+      for (const r of Object.keys(mods.income || {})) expect(INCOME_KEYS, `${id} income ${r}`).toContain(r);
+      for (const res of Object.values(mods.unitCost || {})) {
+        for (const r of Object.keys(res)) expect(INCOME_KEYS, `${id} unitCost resource ${r}`).toContain(r);
+      }
+    }
+  });
+
+  it("keeps teeth on the unit and income vocabularies while letting them grow", () => {
+    // Derived, but not toothless: a key that is in NO live table is still
+    // rejected. And the growth is real, not theoretical — `units.js` stages
+    // seven more unit types for promotion, so this set is one platform commit
+    // away from being larger than the five that exist today.
+    expect(UNIT_KEYS).toContain("artillery");
+    expect(UNIT_KEYS).not.toContain("cavalry");
+    expect(UNIT_KEYS.length, "UNIT_KEYS is no longer read off UNIT_TYPES").toBe(Object.keys(UNIT_TYPES).length);
+    expect(INCOME_KEYS.sort()).toEqual(["fuel", "manpower", "steel"]);
+    const staged = extractConst(readRepoFile("src/lib/units.js"), "PROPOSED_UNIT_TYPES");
+    expect(Object.keys(staged).length, "the staged unit types this gate must not forbid are gone").toBeGreaterThan(0);
+  });
+
+  it("goes red on a mod key compileMods would silently drop", () => {
+    // `supplyRange` is real — mergeMods handles it — and is exactly the shape
+    // of mistake this gate exists for: plausible, spelled correctly, and never
+    // reduced by compileMods.
+    const rogue = { supplyRange: 1 };
+    expect(Object.keys(rogue).every((k) => MOD_KEYS.includes(k))).toBe(false);
+  });
+
+  // ── the published `pts` is recomputed, never trusted ──────────────────────
+  it("prices all fifteen shipped asset/liability rows off the schedule", () => {
+    for (const p of PERKS) {
+      if (p.cat === "upgrade") continue;
+      if (!SHIPPED_PERK_IDS.includes(p.id)) continue;
+      expect(priceOf(PERK_MODS[p.id]), `${p.id} rubric`).toBe(p.pts);
+    }
+  });
+
+  it("prices all eight of this lane's rows off the same schedule", () => {
+    for (const id of LANE_H_PERK_IDS) {
+      expect(priceOf(PERK_MODS[id]), `${id} rubric`).toBe(PERKS.find((p) => p.id === id).pts);
+    }
+  });
+
+  it("pins each upgrade row's departure from the schedule, in both directions", () => {
+    // The five `cat: "upgrade"` rows are the ONE exemption, and it is measured
+    // rather than explained: kits are priced on their own schedule that runs
+    // both under it and over it. Naming the deltas means the exemption cannot
+    // widen to cover a sixth row without this line going red.
+    const delta = {};
+    for (const p of PERKS) if (p.cat === "upgrade") delta[p.id] = p.pts - priceOf(PERK_MODS[p.id]);
+    expect(delta).toEqual({
+      trench_gear: -1,
+      flame_projectors: 2,
+      heavy_plating: 0,
+      naval_rams: -1,
+      drop_tanks: -1,
+    });
+  });
+
+  it("refuses to price a step no shipped row anchors", () => {
+    expect(() => priceOf({ disposition: 10 })).toThrow(/no shipped anchor/);
+    expect(() => priceOf({ capitalDefense: -1 })).toThrow(/no shipped anchor/);
+    // …and the whole live catalog is free of both, which is the point of the throw.
+    for (const [id, mods] of Object.entries(PERK_MODS)) {
+      expect(() => priceOf(mods), `${id} uses an unanchored step`).not.toThrow();
+    }
+  });
+
+  it("spends every one of the eight on at least one preset", () => {
+    const picked = new Set(PRESET_FACTIONS.flatMap((p) => p.pointBuy.picks));
+    for (const id of LANE_H_PERK_IDS) expect(picked, `${id} is shipped but nothing picks it`).toContain(id);
+  });
+
+  it("leaves the three legacy ledgers alone", () => {
+    for (const id of ["kessel_pact", "iron_synod", "grauwall_marches"]) {
+      const picks = byId(id).pointBuy.picks;
+      for (const pick of picks) expect(LANE_H_PERK_IDS, `${id} picked a new perk`).not.toContain(pick);
+    }
+  });
+
+  it("names artillery — a legal UNIT_TYPES key no shipped perk had ever used", () => {
+    // Defect class 4, inverted: the shipped catalog touched four of the five
+    // unit keys, and a lane that read the shipped rows as the permitted set
+    // would have concluded artillery was off-limits. It is not.
+    const shippedUnits = new Set();
+    for (const id of SHIPPED_PERK_IDS) {
+      for (const u of Object.keys(PERK_MODS[id].unitStat || {})) shippedUnits.add(u);
+      for (const u of Object.keys(PERK_MODS[id].unitCost || {})) shippedUnits.add(u);
+    }
+    expect(shippedUnits.has("artillery")).toBe(false);
+    expect(Object.keys(PERK_MODS.ranging_batteries.unitStat)).toEqual(["artillery"]);
+    expect(UNIT_KEYS).toContain("artillery");
+  });
+});
+
+describe("plates — one requisition token per new perk", () => {
+  const byKey = new Map(IMAGE_LIBRARY.map((p) => [p.key, p]));
+  for (const id of LANE_H_PERK_IDS) {
+    it(`registers perk_${id}`, () => {
+      const plate = byKey.get(`perk_${id}`);
+      expect(plate, `perk_${id} plate missing`).toBeTruthy();
+      expect(plate.category).toBe("perks");
+      expect(plate.prompt, "a lane prompt must not restate HOUSE_STYLE").not.toMatch(/dieselpunk/i);
+    });
+  }
+});
+
+// ── LIFEPATH CHAPTER VI ─────────────────────────────────────────────────────
+
+const CHAPTERS_I_TO_V = [
+    {
+      "id": "era",
+      "title": "Founding Era",
+      "prompt": "How was your nation born?",
+      "options": [
+        {
+          "id": "revolt",
+          "label": "Workers' Revolt",
+          "desc": "Foundry laborers rose against the old barons, seizing the machines that had chained them."
+        },
+        {
+          "id": "collapse",
+          "label": "Collapse of the Old Empire",
+          "desc": "When the empire's diesel arteries ran dry, your people carved a state from its rusting bones."
+        },
+        {
+          "id": "frontier",
+          "label": "Frontier Colonization",
+          "desc": "Pioneers hauled boilers and rail into the wastes, founding a nation where no map dared draw borders."
+        }
+      ]
+    },
+    {
+      "id": "land",
+      "title": "Homeland",
+      "prompt": "What ground did your people claim?",
+      "options": [
+        {
+          "id": "forges",
+          "label": "The Highland Forges",
+          "desc": "Mountain valleys black with foundry smoke, rich in iron and coal."
+        },
+        {
+          "id": "deltas",
+          "label": "The River Deltas",
+          "desc": "Fertile floodplains and crowded ports, where trade and grain flow together."
+        },
+        {
+          "id": "steppes",
+          "label": "The Ashen Steppes",
+          "desc": "Endless windburnt plains — hard land that breeds hard soldiers."
+        }
+      ]
+    },
+    {
+      "id": "crisis",
+      "title": "First Crisis",
+      "prompt": "Every young nation is tested. What was your trial?",
+      "options": [
+        {
+          "id": "famine",
+          "label": "The Hunger Winter",
+          "desc": "Crops failed and the silos emptied. Your people learned rationing, and remembrance."
+        },
+        {
+          "id": "borderwar",
+          "label": "The Border War",
+          "desc": "A neighbor tested your frontier with crawlers and shells. You answered."
+        },
+        {
+          "id": "purge",
+          "label": "The Counter-Revolution",
+          "desc": "The old barons struck back from exile. The revolt had to be defended in blood.",
+          "requires": {
+            "era": "revolt"
+          }
+        },
+        {
+          "id": "succession",
+          "label": "The Succession Feud",
+          "desc": "Imperial pretenders fought over your provinces until you crowned your own order.",
+          "requires": {
+            "era": "collapse"
+          }
+        },
+        {
+          "id": "isolation",
+          "label": "The Cut Rail",
+          "desc": "The homeland severed your supply line. You survived a year alone in the wastes.",
+          "requires": {
+            "era": "frontier"
+          }
+        }
+      ]
+    },
+    {
+      "id": "event",
+      "title": "The Long War",
+      "prompt": "In the great war that reshaped the continent, your nation…",
+      "options": [
+        {
+          "id": "profiteer",
+          "label": "Armed Both Sides",
+          "desc": "Your foundries ran day and night, selling crawlers to anyone with coin."
+        },
+        {
+          "id": "bled",
+          "label": "Bled on the Front",
+          "desc": "A generation vanished into the mud, but the line held and legends were made."
+        },
+        {
+          "id": "neutral",
+          "label": "Fortified and Watched",
+          "desc": "You sealed the passes, dug in deep, and let the world exhaust itself."
+        }
+      ]
+    }
+  ];
+
+describe("lifepath — Chapter VI is an addition, not an edit", () => {
+  it("leaves the four shipped chapters byte-equal to their fixture", () => {
+    expect(LIFEPATH_CHAPTERS.slice(0, 4)).toEqual(CHAPTERS_I_TO_V);
+  });
+
+  it("appends exactly one chapter, at the end", () => {
+    expect(LIFEPATH_CHAPTERS.length).toBe(CHAPTERS_I_TO_V.length + 1);
+    const last = LIFEPATH_CHAPTERS[LIFEPATH_CHAPTERS.length - 1];
+    expect(last.id).toBe("standard");
+    expect(last.title).toBe("VI — The Standard");
+    expect(last.prompt).toBeTruthy();
+    expect(last.options.length).toBe(4);
+  });
+
+  it("maps its four options one-to-one onto the four shipped std_* plates", () => {
+    const last = LIFEPATH_CHAPTERS[LIFEPATH_CHAPTERS.length - 1];
+    const plates = last.options.map((o) => o.plate);
+    expect(new Set(plates)).toEqual(new Set(["std_column", "std_reliquary", "std_black", "std_first_keel"]));
+    expect(plates.length).toBe(4);
+    const keys = new Set(IMAGE_LIBRARY.map((p) => p.key));
+    for (const k of plates) expect(keys, `${k} is not a real plate`).toContain(k);
+  });
+
+  it("gives every option an id, a label, a desc and a schema-legal effect", () => {
+    const last = LIFEPATH_CHAPTERS[LIFEPATH_CHAPTERS.length - 1];
+    const ids = last.options.map((o) => o.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const o of last.options) {
+      expect(o.label, `${o.id} label`).toBeTruthy();
+      expect(o.desc, `${o.id} desc`).toBeTruthy();
+      expect(EFFECT_TYPES, `${o.id} effect type`).toContain(o.effect.type);
+      expect(Number.isInteger(o.effect.value)).toBe(true);
+      expect(o.effect.value).toBeGreaterThanOrEqual(1);
+      expect(o.effect.value).toBeLessThanOrEqual(2);
+      if (o.effect.type === "income_flat") expect(o.effect, `${o.id} income_flat takes no unit`).not.toHaveProperty("unit");
+      else expect(EFFECT_UNITS, `${o.id} effect unit`).toContain(o.effect.unit);
+    }
+  });
+
+  it("gates none of the four — the standard is chosen on the march", () => {
+    const last = LIFEPATH_CHAPTERS[LIFEPATH_CHAPTERS.length - 1];
+    for (const o of last.options) expect(o).not.toHaveProperty("requires");
+    expect(availableOptions(last, {}).length).toBe(4);
+    expect(availableOptions(last, { era: "revolt", land: "forges" }).length).toBe(4);
+  });
+
+  it("uses each shipped standard on at least one preset", () => {
+    const chosen = new Set(PRESET_FACTIONS.map((p) => p.lifepathChoices.standard));
+    expect(chosen).toEqual(new Set(["std_column", "std_reliquary", "std_black", "std_first_keel"]));
+  });
+});
+
+// ── HERALD VOICES ───────────────────────────────────────────────────────────
+
+// Bounded at BOTH ends: a pack runs from its own `## ` heading to the NEXT
+// `## ` heading, never to end-of-file. Lane H is last today; Field Amendments
+// append after it, and a slice that ran to EOF would swallow them.
+function heraldPacks(src) {
+  const lines = src.split("\n");
+  const heads = [];
+  lines.forEach((l, i) => { if (l.startsWith("## ")) heads.push(i); });
+  const out = new Map();
+  heads.forEach((start, i) => {
+    const end = i + 1 < heads.length ? heads[i + 1] : lines.length;
+    const m = /`([a-z_]+)`\s*$/.exec(lines[start]);
+    if (!m) return;                       // Shared Rules / Garble / Implementation Notes
+    const body = lines.slice(start, end);
+    const moods = {};
+    let cur = null;
+    for (const b of body) {
+      if (b.startsWith("### ")) { cur = b.slice(4).trim(); moods[cur] = []; }
+      else if (b.startsWith("> ") && cur) moods[cur].push(b.slice(2).trim());
+    }
+    out.set(m[1], { heading: lines[start], body, moods });
+  });
+  return out;
+}
+
+describe("HERALD_VOICES.md — thirteen packs", () => {
+  const packs = heraldPacks(heraldSrc);
+  const MOODS = ["Ascendant", "Pressed", "Dealing"];
+
+  it("carries exactly one pack per heraldVoice, and no orphan pack", () => {
+    const wanted = PRESET_FACTIONS.map((p) => p.heraldVoice);
+    expect(new Set(wanted).size, "two presets share a heraldVoice").toBe(wanted.length);
+    for (const key of wanted) expect([...packs.keys()], `no pack for ${key}`).toContain(key);
+    expect([...packs.keys()].sort()).toEqual([...wanted].sort());
+  });
+
+  it("gives every preset's `house` the pack its `heraldVoice` names", () => {
+    for (const p of PRESET_FACTIONS) expect(p.heraldVoice, `${p.id}`).toBe(p.house);
+  });
+
+  it("names the faction in the pack heading it belongs to", () => {
+    for (const p of PRESET_FACTIONS) {
+      expect(packs.get(p.heraldVoice).heading, `${p.id} heading`).toContain(p.factionName);
+    }
+  });
+
+  for (const key of [...new Set(PRESET_FACTIONS.map((p) => p.heraldVoice))]) {
+    it(`${key} carries a Voice, an Always, a Never and three samples per mood`, () => {
+      const pack = packs.get(key);
+      const text = pack.body.join("\n");
+      expect(text, `${key} Voice`).toContain("**Voice.**");
+      expect(text, `${key} Always`).toContain("**Always:**");
+      expect(text, `${key} Never`).toContain("**Never:**");
+      expect(Object.keys(pack.moods)).toEqual(MOODS);
+      for (const mood of MOODS) {
+        expect(pack.moods[mood].length, `${key} / ${mood}`).toBeGreaterThanOrEqual(3);
+        for (const s of pack.moods[mood]) expect(s.length, `${key} / ${mood} empty sample`).toBeGreaterThan(20);
+      }
+    });
+  }
+
+  it("holds at least 117 samples, and strands none outside a mood", () => {
+    // The floor alone could not fail: the per-pack loop above already asserts
+    // three samples in each of three moods for each of thirteen packs, so 117
+    // is implied by assertions that ran first. What it CAN check independently
+    // is the parser's blind spot — a `> ` line that sits under a pack heading
+    // but before any `### ` mood heading is silently dropped by `heraldPacks`,
+    // so a sample could be added to the file and counted by nobody. Every
+    // quoted line in the document is therefore accounted for: it is either a
+    // mood sample or one of the Garble Template's degraded forms.
+    let n = 0;
+    for (const pack of packs.values()) for (const mood of MOODS) n += pack.moods[mood].length;
+    expect(n).toBeGreaterThanOrEqual(117);
+    const lines = heraldSrc.split("\n");
+    const quoted = lines.filter((l) => l.startsWith("> ")).length;
+    // Two places in the document quote legitimately without being samples: the
+    // Garble Template's degraded forms, and the file's own preamble blockquote
+    // above the first `## ` heading. Both are bounded, and both are asserted
+    // non-empty so that a quoted line cannot go missing into either of them.
+    const garble = section(heraldSrc, /^## Garble Template/).split("\n").filter((l) => l.startsWith("> ")).length;
+    const preambleEnd = lines.findIndex((l) => l.startsWith("## "));
+    expect(preambleEnd, "the file has no ## headings at all").toBeGreaterThan(0);
+    const preamble = lines.slice(0, preambleEnd).filter((l) => l.startsWith("> ")).length;
+    expect(garble, "the Garble Template lost its examples").toBeGreaterThan(0);
+    expect(preamble, "the file preamble lost its blockquote").toBeGreaterThan(0);
+    expect(n + garble + preamble, "a quoted line sits outside every mood, the preamble and the template").toBe(quoted);
+  });
+
+  // Operator ruling 1: on capture the captor loots unspent MATERIALS only; the
+  // project, its progress and its housed Object are LOST. Thirteen registers,
+  // thirteen ways of saying the same unwelcome thing.
+  //
+  // WHAT THIS GATE CHECKS, STATED HONESTLY. A ruling is a claim about meaning
+  // and no word list can decide one. The first cut here was a denylist of five
+  // inheritance spellings, and it passed a line reading "{projectName} came
+  // with it, whole, and it will finish in their bay by spring" — the most
+  // natural way to write exactly the forbidden thing. So the gate is inverted:
+  // every sample that names a works must AFFIRM the loss in one of the forms
+  // the packs actually use, which a sentence claiming inheritance cannot do by
+  // accident. The denial is kept as a second, narrower pass. Neither half
+  // decides the ruling; together they catch the sentence that reverses it, and
+  // the packs' prose stays a manual review item under H6.
+  const LOSS_VERBS = [
+    /\bnothing else\b/i, /\b(?:went|passed) out of the world\b/i, /\bdid not come out\b/i,
+    /\bis concluded\b/i, /\btotal loss\b/i, /\bcannot be\b/i, /\bdo(?:es)? not have\b/i,
+    /\bnot recoverable\b/i, /\blost outright\b/i, /\bnot carried off\b/i, /\bis finished\b/i,
+    /\bis ended\b/i, /\bdies with the bay\b/i,
+  ];
+  // The exemptions are STRIPPED before the denial scan, never tested against
+  // the whole sample: the old form let a line say "inherited" anywhere so long
+  // as it also said "not recoverable" anywhere.
+  const stripDenials = (t) => t.replace(/\bnot (?:a )?transferable\b|\bdoes not inherit\b|\bnot recoverable\b/gi, "");
+
+  it("affirms the loss of a running works in every register, and claims it nowhere", () => {
+    for (const [key, pack] of packs) {
+      const samples = MOODS.flatMap((m) => pack.moods[m]);
+      const loss = samples.filter((s) => s.includes("{projectName}"));
+      expect(loss.length, `${key} never reports a lost works`).toBeGreaterThanOrEqual(1);
+      for (const s of loss) {
+        expect(LOSS_VERBS.some((re) => re.test(s)),
+          `${key} names a works without affirming its loss: ${s.slice(0, 90)}`).toBe(true);
+        expect(/\b(inherit|inherited|inherits|transferred|transferable)\b/i.test(stripDenials(s)),
+          `${key} reports a captured works as an inheritance`).toBe(false);
+      }
+    }
+  });
+
+  it("goes red on a sample that hands the works to the captor", () => {
+    // The exact sentence the word-list form passed, and the exact escape the
+    // old exemption clause opened. Both are red under the two passes above.
+    const inherits = "They got the metal out of the cradle and {projectName} came with it, whole, and it will finish in their bay by spring.";
+    expect(LOSS_VERBS.some((re) => re.test(inherits))).toBe(false);
+    const smuggled = "{projectName} was inherited by the captor; the stock is not recoverable.";
+    expect(/\b(inherit|inherited|inherits|transferred|transferable)\b/i.test(stripDenials(smuggled))).toBe(true);
+    // …and the thirteen real lines pass both, which is what makes the pair a
+    // gate rather than a filter that happens to be satisfied.
+    const real = "{projectName} is a total loss and not a transferable one — the works do not survive the hull.";
+    expect(LOSS_VERBS.some((re) => re.test(real))).toBe(true);
+    expect(/\b(inherit|inherited|inherits|transferred|transferable)\b/i.test(stripDenials(real))).toBe(false);
+  });
+
+  it("keeps out-of-world mechanics vocabulary out of every sample", () => {
+    const banned = /\b(turn|tile|player|stat|modifier|hex|XP|buff|debuff)s?\b/i;
+    for (const [key, pack] of packs) {
+      for (const mood of MOODS) {
+        for (const s of pack.moods[mood]) expect(banned.test(s), `${key} / ${mood}: ${s.slice(0, 70)}`).toBe(false);
+      }
+    }
+  });
+
+  it("goes red on a sample that leaks a mechanics word", () => {
+    const banned = /\b(turn|tile|player|stat|modifier|hex|XP|buff|debuff)s?\b/i;
+    expect(banned.test("BULLETIN 12. The player holds the tile at first watch.")).toBe(true);
+    expect(banned.test("BULLETIN 12. The Reclamation holds the ground at first watch.")).toBe(false);
+  });
+
+  it("keeps the three structural blocks the herald function reads", () => {
+    for (const h of ["## Shared Rules (all houses)", "## Garble Template (confidence POOR)", "## Implementation Notes"]) {
+      expect(heraldSrc, `${h} was dropped`).toContain(h);
+    }
+  });
+
+  it("keeps the canon sample lines of the three packs that predate this lane", () => {
+    // Canon prose is redistributed across the three moods, never deleted.
+    const canon = [
+      ["reclamation", "BULLETIN 41."],
+      ["reclamation", "BULLETIN 44."],
+      ["reclamation", "BULLETIN 47."],
+      ["combine", "ADVISORY TO ALL FREIGHT."],
+      ["combine", "NOTICE OF ADJUSTMENT."],
+      ["combine", "The Combine confirms delivery of {resource}"],
+      ["synod", "Let it be entered in the Preservation Roll:"],
+      ["synod", "The Synod observes that {faction} has opened ground"],
+      ["synod", "Entered this day: the keel {baseName} was seen making south"],
+    ];
+    for (const [key, opening] of canon) {
+      const samples = MOODS.flatMap((m) => packs.get(key).moods[m]);
+      expect(samples.some((s) => s.includes(opening)), `${key} lost canon line: ${opening}`).toBe(true);
+    }
+  });
+
+  it("contains no PII and no real-world proper noun, anywhere in the file", () => {
+    for (const [re, what] of [
+      [/[\w.+-]+@[\w-]+\.[\w.]+/, "email address"],
+      [/https?:\/\//, "url"],
+      [/\+?\d[\d\s().-]{7,}\d/, "phone-shaped digit run"],
+      [/(^|\s)@\w+/, "@handle"],
+    ]) {
+      expect(re.test(heraldSrc), `${what} in HERALD_VOICES.md`).toBe(false);
+    }
+    const deny = /\b(America|American|Europe|European|Russia|Russian|German|Germany|Britain|British|France|French|China|Chinese|Japan|Japanese|Soviet|Nazi|Reich|USSR|NATO)\b/;
+    expect(deny.test(heraldSrc)).toBe(false);
+  });
+});
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STEP 3 — the ten named grounds, and forty-four entries of the Archive.
+//
+// TWO GATES HERE ARE DELIBERATELY NOT WRITTEN THE OBVIOUS WAY.
+//
+//   * The Codex tail block is located by its OWN ids, from the first to the
+//     last, and is asserted to be a contiguous run of exactly that length.
+//     It is NOT "everything from the banner to the end of the array": Lane H is
+//     the last content lane today and Field Amendments append after it, so a
+//     slice bounded by end-of-file would be true exactly until the next append.
+//   * The block-key set ADMITS `cite`. The Lane H brief lists the shipped block
+//     kinds as lead/p/h/note/quote/list/table, but `cite` is the optional
+//     companion of `quote` — documented in src/lib/fieldManual.js's schema
+//     comment, rendered by ManualBlock.jsx, and used by two entries that predate
+//     this wave. A gate built from the brief's list would have been red on a
+//     healthy corpus, which is the defect class this file exists to avoid.
+import { settlementDossier, charterOptions, LORE_ERAS, LORE_HOOKS } from "../base44/shared/settlementLore.ts";
+import { ENTRIES, CATEGORIES, STATUS, entryText, citedBy } from "@/lib/wiki/entries.js";
+
+const settlementSrc = readRepoFile("base44/shared/settlementLore.ts");
+// Lifted textually, not imported: extractConst throws on a spread, a computed
+// key or a call, so a green extraction is itself the proof that the table is
+// still the pure data literal the mirror protocol requires.
+const NAMED_POLITIES = extractConst(settlementSrc, "NAMED_POLITIES");
+const POLITY_ROWS = Object.entries(NAMED_POLITIES);
+const SPOIL_KEYS = ["steel", "manpower", "fuel"];
+
+// ── predicates, each one shown to have teeth ───────────────────────────────
+const polityGrammarIsValid = (row) =>
+  typeof row.name === "string" && row.name.length > 0 &&
+  Object.prototype.hasOwnProperty.call(LORE_HOOKS, row.kind) &&
+  LORE_ERAS.includes(row.era) &&
+  typeof row.culture === "string" && row.culture === row.culture.toLowerCase() &&
+  typeof row.hook === "string" && /^[a-z]/.test(row.hook) &&
+  Object.keys(row.spoils).length === 1 &&
+  SPOIL_KEYS.includes(Object.keys(row.spoils)[0]) &&
+  Number.isInteger(Object.values(row.spoils)[0]) &&
+  Object.values(row.spoils)[0] >= 2 && Object.values(row.spoils)[0] <= 5;
+
+// One sentence: opens on a capital, closes on a full stop, and carries no
+// second sentence inside it.
+const isOneSentence = (s) => typeof s === "string" && s.length > 20 && /^[A-Z“"]/.test(s) && s.endsWith(".") && !/\.\s/.test(s.slice(0, -1));
+// "states its own number" — a numeral or a written number, either is a number.
+const statesANumber = (s) => /\b(one|two|three|four|five|six|seven|eight|nine|ten|\d+)\b/i.test(s);
+
+describe("NAMED_POLITIES — the ten grounds the Chart names", () => {
+  it("is a pure data literal of exactly ten rows", () => {
+    expect(POLITY_ROWS.length).toBe(10);
+    expect(new Set(POLITY_ROWS.map(([, r]) => r.name)).size).toBe(10);
+    expect(new Set(Object.keys(NAMED_POLITIES)).size).toBe(10);
+  });
+
+  it("gives every row the shipped row grammar", () => {
+    for (const [slug, row] of POLITY_ROWS) {
+      expect(polityGrammarIsValid(row), `${slug} breaks the row grammar`).toBe(true);
+    }
+  });
+
+  it("goes red on a row that breaks the grammar", () => {
+    const good = clone(NAMED_POLITIES.tarpool);
+    expect(polityGrammarIsValid(good)).toBe(true);
+    expect(polityGrammarIsValid({ ...good, era: "the Third Collapse" }), "era off LORE_ERAS").toBe(false);
+    expect(polityGrammarIsValid({ ...good, kind: "fortress" }), "kind off LORE_HOOKS").toBe(false);
+    expect(polityGrammarIsValid({ ...good, spoils: { fuel: 9 } }), "spoils out of band").toBe(false);
+    expect(polityGrammarIsValid({ ...good, spoils: { fuel: 3, steel: 1 } }), "two spoil keys").toBe(false);
+    expect(polityGrammarIsValid({ ...good, hook: "Burns where it stands" }), "hook capitalised").toBe(false);
+  });
+
+  it("gives every ground one bespoke crisis and one bespoke charter, the charter stating its number", () => {
+    for (const [slug, row] of POLITY_ROWS) {
+      expect(isOneSentence(row.crisis), `${slug} crisis is not one sentence: ${row.crisis}`).toBe(true);
+      expect(isOneSentence(row.charter), `${slug} charter is not one sentence: ${row.charter}`).toBe(true);
+      expect(statesANumber(row.charter), `${slug} charter states no number`).toBe(true);
+    }
+    // No two grounds share a crisis or a charter — ten bespoke hooks, not one
+    // hook with the name swapped ten times.
+    expect(new Set(POLITY_ROWS.map(([, r]) => r.crisis)).size).toBe(10);
+    expect(new Set(POLITY_ROWS.map(([, r]) => r.charter)).size).toBe(10);
+    expect(new Set(POLITY_ROWS.map(([, r]) => r.hook)).size).toBe(10);
+  });
+
+  it("names a plate that already exists, and adds none", () => {
+    const keys = new Set(IMAGE_LIBRARY.map((p) => p.key));
+    for (const [slug, row] of POLITY_ROWS) expect(keys.has(row.plate), `${slug} → ${row.plate}`).toBe(true);
+    // Every settlement plate this lane names was shipped before it: the count of
+    // set_* plates is read off the library rather than typed here, and the ten
+    // named ones are a subset of it.
+    const setPlates = IMAGE_LIBRARY.filter((p) => p.key.startsWith("set_")).map((p) => p.key);
+    for (const [, row] of POLITY_ROWS) expect(setPlates).toContain(row.plate);
+  });
+
+  it("names ten grounds the roster's §2 actually lists", () => {
+    // Bounded at BOTH ends: §2 down to the next `## `, never to end-of-file.
+    const grounds = section(rosterSrc, /^## \d+\. The Ten Grounds/);
+    for (const [slug, row] of POLITY_ROWS) expect(grounds, `${slug} missing from roster §2`).toContain(row.name);
+  });
+
+  it("takes every `culture` from the roster's own §2 parenthetical", () => {
+    // `culture` shipped nine distinct strings gated against nothing, normalised
+    // unevenly against §2 — `(farm commune federation)` lost its qualifier
+    // while `(waystation-provisioner)` and `(still-city rim)` kept theirs — so
+    // nothing could tell a considered normalisation from a typo. The register
+    // is external here: each row's culture must be a substring of the
+    // parenthetical the roster prints for THAT ground, which is what makes the
+    // normalisation auditable rather than merely disclosed.
+    const grounds = section(rosterSrc, /^## \d+\. The Ten Grounds/);
+    for (const [slug, row] of POLITY_ROWS) {
+      const line = grounds.split("\n").find((l) => l.includes(`**${row.name}**`));
+      expect(line, `${slug} has no numbered entry in roster §2`).toBeTruthy();
+      const paren = /\*\((.+?)\)\*/.exec(line);
+      expect(paren, `${slug}'s roster entry states no culture`).toBeTruthy();
+      expect(paren[1].toLowerCase(), `${slug} culture "${row.culture}" is not in the roster's "${paren[1]}"`)
+        .toContain(row.culture);
+    }
+  });
+
+  it("declares every culture that sits outside LORE §6's locked types", () => {
+    // LORE §6 locks six settlement types. Three cultures qualify one of them
+    // (`waystation-provisioner`, `still-city rim`) or fall outside entirely
+    // (`digger camp`, which the roster itself calls "independent"). SUBSET,
+    // not equality: if the LORE owner ever adds `digger camp` to §6 the
+    // divergence set shrinks to nothing and this still passes, whereas an
+    // equality would go red on a fix. What it catches is a NEW, undeclared
+    // divergence.
+    const loreSrc = readRepoFile("docs/LORE.md");
+    // Lifted from the sentence LORE §6 states them in, so a change there is
+    // seen here rather than read off a copy: "Types per the roster: burn-towns,
+    // mining combines, farm communes, waystations, scrap-parishes,
+    // still-cities."
+    const declared = /Types per the roster:\s*([^.]+)\./.exec(loreSrc.replace(/\s+/g, " "));
+    expect(declared, "LORE §6 no longer declares the locked settlement types").toBeTruthy();
+    const singular = (t) => {
+      if (t.endsWith("ies")) return `${t.slice(0, -3)}y`;
+      if (t.endsWith("es") && /(sh|ch|s|x)$/.test(t.slice(0, -2))) return t.slice(0, -2);
+      return t.endsWith("s") ? t.slice(0, -1) : t;
+    };
+    const types = declared[1].split(",").map((t) => singular(t.trim()));
+    expect(types.length, "LORE §6 declares a different number of types").toBe(6);
+    expect(types, "the depluraliser stopped depluralising").toEqual(
+      ["burn-town", "mining combine", "farm commune", "waystation", "scrap-parish", "still-city"],
+    );
+    const DECLARED_DIVERGENCES = ["digger camp"];
+    const outside = POLITY_ROWS
+      .map(([, r]) => r.culture)
+      .filter((c) => !types.some((t) => c.includes(t)));
+    for (const c of outside) {
+      expect(DECLARED_DIVERGENCES, `culture "${c}" is outside LORE §6's six locked types and is undeclared`).toContain(c);
+    }
+  });
+
+  it("keeps §6.6's register equal to the data", () => {
+    const recon = section(rosterSrc, /^## \d+\. Reconciliation/);
+    const rows = tableRows(recon, "| spoils |");
+    const fromDoc = rows.map((r) => ({
+      slug: unbacktick(r[1]), name: r[2], kind: r[3], culture: r[4], era: r[5], spoils: r[6], plate: unbacktick(r[7]),
+    }));
+    const fromData = POLITY_ROWS.map(([slug, r]) => {
+      const [res, amt] = Object.entries(r.spoils)[0];
+      return { slug, name: r.name, kind: r.kind, culture: r.culture, era: r.era, spoils: `${res} ${amt}`, plate: r.plate };
+    });
+    expect(fromDoc).toEqual(fromData);
+    expect(rows.map((r) => Number(r[0]))).toEqual(fromData.map((_, i) => i + 1));
+  });
+});
+
+describe("settlementDossier — the named path, and the hashed path it did not disturb", () => {
+  const FOUR = ["title", "era", "text", "spoils"];
+
+  it("answers a named node from its own row", () => {
+    const row = NAMED_POLITIES.tarpool;
+    const d = settlementDossier({ id: "n1", name: "Tarpool", kind: "town" });
+    expect(Object.keys(d).sort()).toEqual([...FOUR].sort());
+    expect(d.title).toBe("Tarpool");
+    expect(d.era).toBe(row.era);
+    expect(d.spoils).toEqual(row.spoils);
+    expect(d.text).toBe(`Tarpool ${row.hook}.`);
+  });
+
+  it("answers every one of the ten, whatever kind the chart node claims", () => {
+    // The node's `kind` is the surveyor's guess; a named ground's own row wins.
+    for (const [slug, row] of POLITY_ROWS) {
+      const d = settlementDossier({ id: `n-${slug}`, name: row.name, kind: "ruin" });
+      expect(d.text, slug).toBe(`${row.name} ${row.hook}.`);
+      expect(d.era, slug).toBe(row.era);
+    }
+  });
+
+  it("hands out a COPY of the spoils, so a save cannot mutate the canon table", () => {
+    const d = settlementDossier({ id: "n1", name: "Tarpool", kind: "town" });
+    const before = Object.values(NAMED_POLITIES.tarpool.spoils)[0];
+    d.spoils[Object.keys(d.spoils)[0]] = 99;
+    const after = settlementDossier({ id: "n2", name: "Tarpool", kind: "town" });
+    expect(Object.values(after.spoils)[0]).toBe(before);
+  });
+
+  it("leaves the hashed path intact for everything else", () => {
+    // The probe list carries FOUR names off `Object.prototype` on purpose. The
+    // name lookup is keyed by a chart node's name, and a chart may legally
+    // carry a node called `toString`: through an inherited prototype the
+    // lookup answers with a FUNCTION, the named branch is taken, and the
+    // dossier comes back with `era: undefined` and empty spoils — three keys
+    // instead of four, which is a silent break of the shape drift guard 2
+    // freezes. One well-behaved name would never have shown it.
+    for (const name of ["Ashfoot Siding", "toString", "constructor", "valueOf", "hasOwnProperty"]) {
+      const node = { id: "x7", name, kind: "depot" };
+      const a = settlementDossier(node);
+      const b = settlementDossier(node);
+      expect(Object.keys(a).sort(), name).toEqual([...FOUR].sort());
+      expect(a, name).toEqual(b);
+      expect(LORE_ERAS, name).toContain(a.era);
+      expect(Object.keys(a.spoils).length, `${name} spoils`).toBe(1);
+      // The legacy text carries its own tail; the named path deliberately does not.
+      expect(a.text.endsWith(`Standing since ${a.era}.`), name).toBe(true);
+    }
+    expect(settlementDossier({ id: "n1", name: "Tarpool", kind: "town" }).text).not.toContain("Standing since");
+  });
+
+  it("keeps charterOptions on its three ids", () => {
+    const d = settlementDossier({ id: "n1", name: "Tarpool", kind: "town" });
+    expect(charterOptions(d).map((o) => o.id)).toEqual(["requisition", "levy", "autonomy"]);
+    for (const o of charterOptions(d)) expect(typeof o.label === "string" && typeof o.detail === "string").toBe(true);
+  });
+});
+
+// ── the Archive ────────────────────────────────────────────────────────────
+// This lane's own ids, named one by one. The minimum is 40 IN THIS LANE'S DIFF,
+// and four other content lanes have already appended to this file — so counting
+// ENTRIES.length would let somebody else's block satisfy this lane's floor.
+const LANE_H_ENTRY_IDS = [
+  "the-house-register",
+  "house-iron-reclamation", "house-charter-combine", "house-bastion-synod", "house-covenant-of-locks",
+  "house-signal-ascendancy", "house-commonweal-march", "house-salvage-court", "house-emberwright-union",
+  "house-long-procession", "house-outrider-compact", "house-kessel-pact", "house-iron-synod",
+  "house-grauwall-marches",
+  "the-ten-grounds",
+  "ground-hundredweight-bottoms", "ground-the-nine-cradles", "ground-tarpool", "ground-the-gray-commons",
+  "ground-crossloom", "ground-vault-of-winters", "ground-the-chandlery", "ground-redwater-digs",
+  "ground-the-quiet-parish", "ground-kettleharrow",
+  "departures-in-practice", "the-thirteen-keels", "herald-registers", "the-swath", "grazing-rights",
+  "salvage-adjudication", "charter-terms", "works-lost-with-the-keel", "certification-and-fit",
+  "the-red-flag", "the-parish-question", "the-meet", "lexicon-settlement-cultures", "boarding-assault",
+  "the-standard",
+  "requisitions-the-graze", "requisitions-the-refit", "requisitions-the-boarding-deck", "requisitions-the-batteries",
+];
+const HOUSE_ENTRY_IDS = LANE_H_ENTRY_IDS.filter((id) => id.startsWith("house-"));
+const GROUND_ENTRY_IDS = LANE_H_ENTRY_IDS.filter((id) => id.startsWith("ground-"));
+const BLOCK_KEYS = ["lead", "p", "h", "note", "quote", "cite", "list", "table"];
+const blockIsValid = (b) =>
+  Object.keys(b).length > 0 &&
+  Object.keys(b).every((k) => BLOCK_KEYS.includes(k)) &&
+  (!b.table || (Array.isArray(b.table.head) && Array.isArray(b.table.rows)));
+
+describe("the Ministry Archive — forty-four entries in this lane's own diff", () => {
+  const ids = ENTRIES.map((e) => e.id);
+  const byIdEntry = (id) => ENTRIES.find((e) => e.id === id);
+
+  it("adds at least forty entries of its own, and the corpus clears its floor", () => {
+    expect(LANE_H_ENTRY_IDS.length).toBeGreaterThanOrEqual(40);
+    expect(new Set(LANE_H_ENTRY_IDS).size, "a Lane H id is listed twice").toBe(LANE_H_ENTRY_IDS.length);
+    for (const id of LANE_H_ENTRY_IDS) expect(ids, `missing entry ${id}`).toContain(id);
+    expect(ENTRIES.length).toBeGreaterThanOrEqual(86);
+  });
+
+  it("covers what the lane owes: thirteen houses, ten grounds, all eight requisitions and the Standard", () => {
+    expect(HOUSE_ENTRY_IDS.length).toBe(PRESET_FACTIONS.length);
+    expect(GROUND_ENTRY_IDS.length).toBe(POLITY_ROWS.length);
+    // Every house entry is titled with its faction's name, exactly.
+    for (const p of PRESET_FACTIONS) {
+      const hit = HOUSE_ENTRY_IDS.map(byIdEntry).filter((e) => e.title === p.factionName);
+      expect(hit.length, `no house entry titled ${p.factionName}`).toBe(1);
+    }
+    for (const [, row] of POLITY_ROWS) {
+      const hit = GROUND_ENTRY_IDS.map(byIdEntry).filter((e) => e.title === row.name);
+      expect(hit.length, `no ground entry titled ${row.name}`).toBe(1);
+    }
+    // The eight nomad-keel requisitions are each named, by label, somewhere in
+    // the four requisition entries — grouped coverage, but coverage by name.
+    const reqText = LANE_H_ENTRY_IDS.filter((id) => id.startsWith("requisitions-")).map(byIdEntry).map(entryText).join(" ");
+    for (const id of LANE_H_PERK_IDS) {
+      expect(reqText, `requisition ${id} is never named`).toContain(PERK_BY_ID[id].label.toLowerCase());
+    }
+    expect(byIdEntry("the-standard").blocks.length).toBeGreaterThan(2);
+  });
+
+  it("sits as ONE contiguous tail block, bounded at both ends by its own ids", () => {
+    // Bounded by the FIRST and LAST Lane H id, never by end-of-array: a later
+    // Field Amendment appends after this block and must not turn this red.
+    const positions = LANE_H_ENTRY_IDS.map((id) => ids.indexOf(id));
+    const first = Math.min(...positions);
+    const last = Math.max(...positions);
+    expect(last - first + 1, "the Lane H block is not contiguous").toBe(LANE_H_ENTRY_IDS.length);
+    const inside = ids.slice(first, last + 1);
+    expect([...inside].sort()).toEqual([...LANE_H_ENTRY_IDS].sort());
+    // …and it sits AFTER every lane block already in the file. The claim this
+    // line used to carry — "nothing from another lane sits after it" — was not
+    // the claim `expect(first).toBeGreaterThan(0)` makes: that is satisfied
+    // identically by a block wedged in the middle with sixty other-lane
+    // entries behind it. What is both true and checkable is the ORDER of the
+    // banner comments in the source, which is the protocol the shared-file
+    // rule actually states ("place it after the Lane F / G / I / J blocks, in
+    // merge order"). Asserting nothing follows would be the end-of-file bound
+    // this file rejects everywhere else — a Field Amendment appends after
+    // Lane H by design.
+    expect(first, "another lane's entries do not precede this block").toBeGreaterThan(0);
+    const entriesSrc = readRepoFile("src/lib/wiki/entries.js");
+    const mine = entriesSrc.indexOf("// ——— LANE H:");
+    expect(mine, "Lane H entry banner not found").toBeGreaterThan(-1);
+    const banners = [...entriesSrc.matchAll(/^\s*\/\/ ——— LANE ([A-Z]):/gm)];
+    expect(banners.length, "no lane banners found").toBeGreaterThan(1);
+    for (const b of banners) {
+      if (b[1] === "H") continue;
+      expect(b.index, `the Lane ${b[1]} block sits after Lane H's`).toBeLessThan(mine);
+    }
+  });
+
+  it("keeps every id unique and every entry well formed, corpus-wide", () => {
+    expect(new Set(ids).size).toBe(ids.length);
+    const cats = new Set(CATEGORIES.map((c) => c.id));
+    const statuses = new Set(Object.keys(STATUS));
+    for (const e of ENTRIES) {
+      expect(cats.has(e.category), `${e.id} category ${e.category}`).toBe(true);
+      expect(statuses.has(e.status), `${e.id} status ${e.status}`).toBe(true);
+      expect(typeof e.summary === "string" && e.summary.length > 0, `${e.id} summary`).toBe(true);
+      expect(Array.isArray(e.blocks) && e.blocks.length > 0, `${e.id} blocks`).toBe(true);
+      for (const b of e.blocks) expect(blockIsValid(b), `${e.id} block ${JSON.stringify(b).slice(0, 60)}`).toBe(true);
+    }
+  });
+
+  it("admits `cite`, which the corpus already uses, and still rejects an unknown key", () => {
+    expect(blockIsValid({ quote: "…and on the last lift-day no manifest was posted.", cite: "fragment, provenance disputed" })).toBe(true);
+    expect(blockIsValid({ p: "text" })).toBe(true);
+    expect(blockIsValid({ table: { head: ["a"], rows: [["b"]] } })).toBe(true);
+    expect(blockIsValid({ table: { head: ["a"] } }), "a table with no rows").toBe(false);
+    expect(blockIsValid({ paragraph: "text" }), "an invented block kind").toBe(false);
+    expect(blockIsValid({}), "an empty block").toBe(false);
+  });
+
+  it("leaves no dangling `see` link anywhere in the corpus", () => {
+    const known = new Set(ids);
+    const dangling = ENTRIES.flatMap((e) => (e.see || []).filter((s) => !known.has(s)).map((s) => `${e.id} → ${s}`));
+    expect(dangling).toEqual([]);
+    // and this lane's own entries carry links rather than standing alone
+    for (const id of LANE_H_ENTRY_IDS) {
+      expect((byIdEntry(id).see || []).length, `${id} links to nothing`).toBeGreaterThan(0);
+    }
+  });
+
+  it("cross-links both ways — every new house and ground entry is cited by another entry", () => {
+    for (const id of [...HOUSE_ENTRY_IDS, ...GROUND_ENTRY_IDS]) {
+      expect(citedBy(id).length, `${id} is cited by nothing`).toBeGreaterThan(0);
+    }
+  });
+
+  it("mentions all thirteen faction names and all ten ground names somewhere in the corpus", () => {
+    const haystacks = ENTRIES.map(entryText);
+    for (const p of PRESET_FACTIONS) {
+      expect(haystacks.some((t) => t.includes(p.factionName.toLowerCase())), `${p.factionName} unmentioned`).toBe(true);
+    }
+    for (const [slug, row] of POLITY_ROWS) {
+      expect(haystacks.some((t) => t.includes(row.name.toLowerCase())), `${slug} unmentioned`).toBe(true);
+    }
+  });
+
+  it("marks the three legacy presets thin, because no governing document names them", () => {
+    for (const legacyId of LEGACY_IDS) {
+      const p = byId(legacyId);
+      const e = HOUSE_ENTRY_IDS.map(byIdEntry).find((x) => x.title === p.factionName);
+      expect(e.status, `${legacyId} entry status`).toBe("thin");
+    }
+    // …and the ten the Almanac does name are not hedged.
+    for (const p of AUTHORED) {
+      const e = HOUSE_ENTRY_IDS.map(byIdEntry).find((x) => x.title === p.factionName);
+      expect(e.status, `${p.id} entry status`).toBe("canon");
+    }
+  });
+
+  it("restates no requisition number — the tables are the only place those live", () => {
+    // Drift guard 7. A perk's number is written in PERK_MODS and described in
+    // its own `desc`; an Archive entry that repeated one would be a second
+    // source that goes stale in silence.
+    const reqEntries = LANE_H_ENTRY_IDS.filter((id) => id.startsWith("requisitions-")).map(byIdEntry);
+    for (const e of reqEntries) {
+      expect(/[+−-]\s?\d/.test(entryText(e)), `${e.id} restates a signed number`).toBe(false);
+    }
+  });
+});
+
+describe("voice and safety — the grounds and the Archive", () => {
+  const strings = [];
+  for (const [, row] of POLITY_ROWS) strings.push(row.name, row.culture, row.hook, row.crisis, row.charter);
+  for (const id of LANE_H_ENTRY_IDS) {
+    const e = ENTRIES.find((x) => x.id === id);
+    strings.push(e.title, e.summary, e.folk || "", e.tag || "");
+    for (const b of e.blocks) {
+      for (const v of Object.values(b)) {
+        if (typeof v === "string") strings.push(v);
+        else if (Array.isArray(v)) strings.push(...v);
+        else if (v && v.head) strings.push(...v.head, ...v.rows.flat());
+      }
+    }
+  }
+
+  it("carries no PII of any shape", () => {
+    const PII = [
+      [/[\w.+-]+@[\w-]+\.[\w.]+/, "email address"],
+      [/https?:\/\//, "url"],
+      [/\+?\d[\d\s().-]{7,}\d/, "phone-shaped digit run"],
+      [/(^|\s)@\w+/, "@handle"],
+    ];
+    for (const s of strings) {
+      for (const [re, what] of PII) expect(re.test(s), `${what} in: ${s.slice(0, 80)}`).toBe(false);
+    }
+  });
+
+  it("names no real-world nation, regime or alliance", () => {
+    const deny = /\b(America|American|Europe|European|Russia|Russian|German|Germany|Britain|British|France|French|China|Chinese|Japan|Japanese|Soviet|Nazi|Reich|USSR|NATO)\b/;
+    for (const s of strings) expect(deny.test(s), `real-world proper noun in: ${s.slice(0, 80)}`).toBe(false);
+  });
+
+  it("keeps out-of-world mechanics vocabulary out of every string it ships", () => {
+    const banned = /\b(tile|player|stat|modifier|hex|XP|buff|debuff)s?\b/i;
+    for (const s of strings) expect(banned.test(s), `mechanics word in: ${s.slice(0, 80)}`).toBe(false);
+  });
+
+  it("uses no hex colour in the files this step touched", () => {
+    for (const f of ["base44/shared/settlementLore.ts", "src/lib/wiki/entries.js"]) {
+      expect(/#[0-9a-fA-F]{3,8}\b/.test(readRepoFile(f)), `hex colour in ${f}`).toBe(false);
+    }
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STEP 4 — the closure of TECH_DESIGN §7 Q5, the one new plate, the
+// [PROPOSED] rules section and the platform hand-over.
+//
+// EVERY FIGURE PUBLISHED IN STEP 4's PROSE IS REBUILT HERE FROM THE TABLE IT
+// DESCRIBES. That is the wave-4 addendum's defect class 2 — a cost curve that
+// claimed 110 where its own table summed to 138, restated three times and
+// checked by nothing. The rule this file follows instead: a document may
+// SUMMARISE a table, never be a second source for it, and the summary is
+// parsed back out of the markdown and recomputed on every run.
+//
+// The rules section is located BY TITLE, never by its number. It is `## 28`
+// today; the platform lane promotes these sections and renumbers as it does,
+// and a test that hard-coded 28 would go red on a rename that changed nothing.
+const rulesSrc = readRepoFile("docs/GAME_RULES.md");
+const techDesignSrc = readRepoFile("docs/TECH_DESIGN.md");
+const handoffSrc = readRepoFile("docs/prompts/PLATFORM_HANDOFF.md");
+const imageSrc = readRepoFile("src/lib/imageLibrary.js");
+
+const RULES_TITLE = /^## \d+\. Houses, Standards & Nomad-Keel Perks \[PROPOSED/;
+const RULES_SECTION = section(rulesSrc, RULES_TITLE);
+
+// Markdown hard-wraps at ~100 columns, so a phrase the prose states may
+// straddle a newline. Prose assertions run against a flattened copy; table
+// assertions never need this, because a row is one line by construction.
+const flat = (s) => s.replace(/\s+/g, " ");
+
+const titleCase = (key) => key.split("_").map((w) => w[0].toUpperCase() + w.slice(1)).join(" ");
+
+const NUMBER_WORDS = {
+  three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
+  eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16,
+  seventeen: 17, eighteen: 18, nineteen: 19, twenty: 20,
+};
+
+describe("docs/GAME_RULES.md — the [PROPOSED] section, found by title and rebuilt from the tables", () => {
+  it("sits in a strictly increasing heading sequence, above the section it extends", () => {
+    // Renumber-safe AND append-safe, deliberately. The first draft of this
+    // gate asserted that this lane's section is the HIGHEST-numbered one,
+    // which is true today only because this lane is last — the "bounded by
+    // everything to end of file" defect in its ordinal form. A Field Amendment
+    // appending §29 would have had to fight it. What is actually load-bearing
+    // is that the sequence has no duplicate and no reorder, and that this
+    // section comes after the §13 catalog it extends rather than before it.
+    const numbers = [...rulesSrc.matchAll(/^## (\d+)\. /gm)].map((m) => Number(m[1]));
+    expect(numbers.length).toBeGreaterThan(1);
+    for (let i = 1; i < numbers.length; i++) {
+      expect(numbers[i], `## ${numbers[i]}. does not follow ## ${numbers[i - 1]}.`).toBeGreaterThan(numbers[i - 1]);
+    }
+    const mine = Number(/^## (\d+)\./.exec(RULES_SECTION)[1]);
+    const live = Number(/^## (\d+)\./.exec(section(rulesSrc, /^## \d+\. Faction Point-Buy Perks/))[1]);
+    expect(mine, "the draft section is numbered below the catalog it extends").toBeGreaterThan(live);
+  });
+
+  it("leaves the live §13 perk catalog untouched", () => {
+    // The brief forbids renumbering, rewording or deleting an existing
+    // section. §13 is the one this section extends, so it is the one named.
+    // Located BY TITLE, like every other slice in this file. The first draft
+    // hard-coded `## 13.` seven lines below a locator that did not, so a pure
+    // renumber — exactly what a platform promote does when it inserts a
+    // section — turned this red while nothing had changed. §28's own preamble
+    // publishes the claim that these locators are title-based; it is true now.
+    const live = section(rulesSrc, /^## \d+\. Faction Point-Buy Perks/);
+    expect(live).toContain("Applied at game start via `compileMods`");
+    for (const id of SHIPPED_PERK_IDS) expect(live, `§13 lost ${id}`).toContain(id);
+    for (const id of LANE_H_PERK_IDS) {
+      expect(live.includes(id), `§13 was edited to carry ${id}; the new rows belong in the draft section`).toBe(false);
+    }
+  });
+
+  it("rebuilds the requisition table from PERKS and PERK_MODS", () => {
+    const rows = tableRows(RULES_SECTION, "| Requisition |");
+    expect(rows.map((r) => unbacktick(r[0]))).toEqual(LANE_H_PERK_IDS);
+    for (const r of rows) {
+      const id = unbacktick(r[0]);
+      const perk = PERK_BY_ID[id];
+      expect(r[1], `${id} label`).toBe(perk.label);
+      expect(r[2], `${id} class`).toBe(perk.cat);
+      expect(num(r[4]), `${id} pts`).toBe(perk.pts);
+      // The effect cell is prose, so it is not string-compared — the signed
+      // numbers in it are compared against the ones the row actually carries.
+      expect(signedInts(r[3]), `${id} effect numbers`).toEqual(modValues(PERK_MODS[id]));
+    }
+  });
+
+  it("rebuilds the pricing schedule from PRICE_ANCHORS, in both directions", () => {
+    const rows = tableRows(RULES_SECTION, "| Asset price |");
+    const published = {};
+    for (const r of rows) {
+      for (let i = 0; i < r.length; i++) {
+        const anchor = unbacktick(r[i]);
+        if (PRICE_ANCHORS[Object.keys(PRICE_ANCHORS).find((k) => PRICE_ANCHORS[k].anchor === anchor)]) {
+          published[anchor] = num(r[i - 1]);
+        }
+      }
+    }
+    const expected = {};
+    for (const a of Object.values(PRICE_ANCHORS)) expected[a.anchor] = a.pts;
+    // Both directions: no anchor missing from the doc, and no anchor in the
+    // doc that the schedule does not define.
+    expect(Object.keys(published).sort()).toEqual(Object.keys(expected).sort());
+    expect(published).toEqual(expected);
+  });
+
+  it("recomputes the +7 / −9 / −2 totals it publishes", () => {
+    const assets = LANE_H_PERK_IDS.filter((id) => PERK_BY_ID[id].cat === "asset")
+      .reduce((s, id) => s + PERK_BY_ID[id].pts, 0);
+    const liabilities = LANE_H_PERK_IDS.filter((id) => PERK_BY_ID[id].cat === "liability")
+      .reduce((s, id) => s + PERK_BY_ID[id].pts, 0);
+    const stated = /\*\*\+(\d+)\*\* of assets against \*\*−(\d+)\*\* of liabilities, a net of \*\*−(\d+)\*\*/.exec(flat(RULES_SECTION));
+    expect(stated, "the assets/liabilities/net sentence was not found").toBeTruthy();
+    expect(Number(stated[1])).toBe(assets);
+    expect(-Number(stated[2])).toBe(liabilities);
+    expect(-Number(stated[3])).toBe(assets + liabilities);
+  });
+
+  it("recomputes the two worked examples rather than trusting them", () => {
+    // Named in prose because the arithmetic is the point of the schedule.
+    expect(priceOf(PERK_MODS.draught_columns)).toBe(PERK_BY_ID.draught_columns.pts);
+    expect(priceOf(PERK_MODS.tribute_graze)).toBe(PERK_BY_ID.tribute_graze.pts);
+    expect(flat(RULES_SECTION)).toContain("`draught_columns` is one income step up");
+    expect(flat(RULES_SECTION)).toContain("`tribute_graze` is one income step down");
+  });
+
+  it("rebuilds Chapter VI's table from LIFEPATH_CHAPTERS", () => {
+    const chapter = LIFEPATH_CHAPTERS.at(-1);
+    const rows = tableRows(RULES_SECTION, "| Standard | Effect |");
+    expect(rows.length).toBe(chapter.options.length);
+    rows.forEach((r, i) => {
+      const o = chapter.options[i];
+      expect(r[0], `option ${o.id} label`).toBe(o.label);
+      expect(unbacktick(r[1]), `option ${o.id} plate`).toBe(o.plate);
+      const eff = r[2].replace(/\*/g, "").split("·").map((c) => c.trim());
+      expect(unbacktick(eff[0]), `option ${o.id} effect type`).toBe(o.effect.type);
+      expect(Number(eff.at(-1)), `option ${o.id} effect value`).toBe(o.effect.value);
+      // `unit` is present iff the type is not income_flat — the same rule the
+      // synthesizeFaction schema enforces, asserted against the doc cell.
+      if (o.effect.type === "income_flat") expect(eff.length, `${o.id} names a unit`).toBe(2);
+      else expect(eff[1], `option ${o.id} effect unit`).toBe(o.effect.unit);
+    });
+  });
+
+  it("rebuilds the thirteen-preset table from PRESET_FACTIONS", () => {
+    const rows = tableRows(RULES_SECTION, "| Departure |");
+    expect(rows.length).toBe(PRESET_FACTIONS.length);
+    const fromDoc = rows.map((r) => ({
+      factionName: r[0],
+      house: unbacktick(r[1]),
+      doctrine: r[2],
+      seeds: r[3].split("/").map((c) => num(c)),
+      departure: r[4],
+      standard: unbacktick(r[5]),
+      decree: unbacktick(r[6]),
+      net: num(r[7]),
+      liabilities: num(r[8]),
+    }));
+    const fromData = PRESET_FACTIONS.map((p) => ({
+      factionName: p.factionName,
+      house: p.house,
+      doctrine: p.doctrine,
+      seeds: AXES.map((a) => p.lifepathChoices.seeds[a]),
+      departure: titleCase(departureOf(p)),
+      standard: p.lifepathChoices.standard,
+      decree: p.uniqueRoster.decree,
+      net: netPoints(p.pointBuy.picks),
+      liabilities: p.pointBuy.picks.filter((id) => PERK_BY_ID[id].cat === "liability").length,
+    }));
+    expect(fromDoc).toEqual(fromData);
+  });
+
+  it("writes every negative seed with U+2212, the way every other document here does", () => {
+    const rows = tableRows(RULES_SECTION, "| Departure |");
+    for (const r of rows) {
+      expect(/(?<![\w−])-\d/.test(r[3]), `ASCII hyphen in seeds cell: ${r[3]}`).toBe(false);
+    }
+  });
+
+  it("recomputes both doctrine counts it publishes", () => {
+    const count = (rows) => DOCTRINE_KEYS.map((d) => rows.filter((r) => r === d).length);
+    const thirteen = count(PRESET_FACTIONS.map((p) => p.doctrine));
+    const ten = count(AUTHORED.map((p) => p.doctrine));
+    const m = /thirteen is \*\*aggressive (\d+) \/ economic (\d+) \/ defensive (\d+)\*\*.*?houses alone it is \*\*aggressive (\d+) \/ economic (\d+) \/ defensive (\d+)\*\*/.exec(flat(RULES_SECTION));
+    expect(m, "the doctrine-count sentence was not found").toBeTruthy();
+    expect([Number(m[1]), Number(m[2]), Number(m[3])]).toEqual(thirteen);
+    expect([Number(m[4]), Number(m[5]), Number(m[6])]).toEqual(ten);
+    expect(thirteen.reduce((a, b) => a + b, 0)).toBe(PRESET_FACTIONS.length);
+  });
+
+  it("states the capture rule as a deletion and never as a transfer", () => {
+    // Markdown hard-wraps, so every prose assertion in this suite runs against
+    // a whitespace-flattened copy. A regex that only matches an unwrapped line
+    // is a gate that goes red when someone reflows a paragraph.
+    const capture = flat(section(RULES_SECTION, /^### Capture/, "### "));
+    expect(capture).toMatch(/unspent materials and nothing else/i);
+    expect(capture).toMatch(/progress, and the housed Object its tier gate required are lost/i);
+    for (const wrong of ["inherit", "transfers to", "changes hands with"]) {
+      expect(capture.toLowerCase().includes(`the project ${wrong}`), `capture reads as a transfer: ${wrong}`).toBe(false);
+    }
+  });
+
+  it("declares the module ruling that the presets are built on", () => {
+    expect(flat(RULES_SECTION)).toMatch(/on fit, never on unlock/);
+  });
+
+  it("has a parser that can actually fail — the table gate is not decorative", () => {
+    // Defect class 1: a gate nothing has ever seen go red. A one-cell mutation
+    // of the requisition table must be caught by the same comparison used above.
+    const rows = tableRows(RULES_SECTION, "| Requisition |").map((r) => [...r]);
+    rows[0][4] = "**99**";
+    expect(num(rows[0][4])).not.toBe(PERK_BY_ID[unbacktick(rows[0][0])].pts);
+    const effect = [...tableRows(RULES_SECTION, "| Requisition |")[0]];
+    effect[3] = "Steel income **+1**, Fuel income **+1**";
+    expect(signedInts(effect[3])).not.toEqual(modValues(PERK_MODS.draught_columns));
+  });
+});
+
+describe("docs/TECH_DESIGN.md §7 Q5 — closed on the operator ruling", () => {
+  // Lane H edits exactly this question and the note beneath the §7 list, under
+  // TACTICAL_SQUAD_PLAN.md §3 Lane H Amendment 2. The slice is bounded at both
+  // ends so it can never drift into §8, which is Lane G's and is parsed by
+  // test/catalog-mirror.test.js.
+  const OPEN_QUESTIONS = section(techDesignSrc, /^## 7\. Open Questions/);
+
+  it("does not reach into §8", () => {
+    expect(OPEN_QUESTIONS.includes("Cost Curve"), "the §7 slice ran past its own section").toBe(false);
+    expect(techDesignSrc, "§8 is missing from the file").toContain("## 8. Cost Curve (LOCKED)");
+  });
+
+  it("leaves Lane G's parsed cost-curve table byte-identical", () => {
+    // The one table in this file another suite parses. If this lane had
+    // touched it, catalog-mirror would fail somewhere else and the cause would
+    // be hard to find; asserting it here names the cause.
+    const curve = section(techDesignSrc, /^## 8\. Cost Curve/);
+    expect(curve).toContain("| **The whole tree** | **25** | **138** |");
+    for (const row of ["| Armament | 5 | **28** |", "| Reclamation | 6 | **32** |"]) {
+      expect(curve, `cost-curve row changed: ${row}`).toContain(row);
+    }
+  });
+
+  it("keeps the seven questions numbered as they were, with Q5 still at 5", () => {
+    // Renumbering would silently break every existing citation of "§7 Q5".
+    const items = [...OPEN_QUESTIONS.matchAll(/^(\d+)\. /gm)].map((m) => Number(m[1]));
+    expect(items).toEqual([1, 2, 3, 4, 5, 6, 7]);
+    const q5 = OPEN_QUESTIONS.split(/^5\. /m)[1].split(/^6\. /m)[0];
+    expect(q5).toMatch(/base capture transfer a \*running\* project/);
+    expect(q5).toMatch(/CLOSED 2026-09-02/);
+  });
+
+  it("states Q5 as a decision, not a leaning", () => {
+    const q5 = OPEN_QUESTIONS.split(/^5\. /m)[1].split(/^6\. /m)[0];
+    expect(q5.includes("(Leaning:"), "Q5 still reads as a leaning").toBe(false);
+    expect(q5).toMatch(/MATERIALS ONLY/);
+    expect(q5).toMatch(/unspent materials/);
+    expect(q5).toMatch(/progress/);
+    expect(q5).toMatch(/housed Object/);
+    expect(q5).toMatch(/LOST|lost/);
+    // The other six questions are untouched and still open.
+    expect(OPEN_QUESTIONS).toMatch(/\(Leaning: preferences/);
+    expect(OPEN_QUESTIONS.match(/CLOSED/g).length, "a second question was closed by this lane").toBe(1);
+  });
+
+  it("carries the same ruling on the three surfaces this lane owns", () => {
+    // The doc edit is the citation, not the only copy — so a revert of the
+    // TECH_DESIGN edit cannot silently un-decide the ruling.
+    expect(heraldSrc, "HERALD_VOICES Shared Rule 7 lost the ruling").toMatch(/unspent materials/);
+    expect(heraldSrc).toMatch(/No pack may report a captured project as an inheritance/);
+    const entriesSrc = readRepoFile("src/lib/wiki/entries.js");
+    expect(entriesSrc, "the Codex entry is gone").toContain("works-lost-with-the-keel");
+  });
+
+  it("is filed as an amendment in the plan, because §3 assigns this file to Lane G", () => {
+    const plan = readRepoFile("docs/TACTICAL_SQUAD_PLAN.md");
+    expect(plan).toMatch(/AMENDMENT 2026-09-02 \(Lane H, Amendment 2\)/);
+    expect(plan).toMatch(/docs\/TECH_DESIGN\.md` is assigned to \*\*Lane G\*\*/);
+  });
+});
+
+describe("the one new plate, and the absences that were verified rather than assumed", () => {
+  const LANE_H_BLOCK = (() => {
+    const start = imageSrc.indexOf("// ——— LANE H:");
+    const end = imageSrc.indexOf("\n];", start);
+    expect(start, "Lane H plate banner not found").toBeGreaterThan(-1);
+    expect(end, "end of IMAGE_LIBRARY not found after the banner").toBeGreaterThan(start);
+    return imageSrc.slice(start, end);
+  })();
+  const blockKeys = [...LANE_H_BLOCK.matchAll(/^\s*P\("([a-z0-9_]+)"/gm)].map((m) => m[1]);
+
+  it("registers the six legacy crests/keels, the eight requisitions and one stage card", () => {
+    // MEMBERSHIP, not equality. Pinning this block's key set to the fifteen
+    // rows that exist today would forbid a later append to it — the closed-set
+    // defect. What must not drift is that every plate this lane's data NEEDS
+    // is registered, that none is a duplicate, and that the count H7 publishes
+    // is the count the block actually holds (asserted in the hand-over suite).
+    const legacy = LEGACY_IDS.map(byId);
+    const needed = [
+      ...legacy.flatMap((p) => [`house_${p.house}_crest`, `keel_${keelOf(p)}`]),
+      ...LANE_H_PERK_IDS.map((id) => `perk_${id}`),
+      "chapter_standard",
+    ];
+    for (const k of needed) expect(blockKeys, `the Lane H block is missing ${k}`).toContain(k);
+    expect(new Set(blockKeys).size, "a key is registered twice in the block").toBe(blockKeys.length);
+    const all = IMAGE_LIBRARY.map((p) => p.key);
+    expect(new Set(all).size, "a Lane H key collides with an existing plate").toBe(all.length);
+  });
+
+  it("adds a stage card for the chapter this lane appended, matching the five that exist", () => {
+    const chapter = LIFEPATH_CHAPTERS.at(-1);
+    const plate = IMAGE_LIBRARY.find((p) => p.key === "chapter_standard");
+    expect(plate, "no stage card for Chapter VI").toBeTruthy();
+    expect(plate.category).toBe("lifepath");
+    expect(plate.title, "the card's title must match the chapter's").toBe(`Chapter ${chapter.title}`);
+    // The five cards that existed are the LIFEPATH_DESIGN series I-V, and they
+    // do NOT correspond one-to-one to the shipped LIFEPATH_CHAPTERS ids
+    // (`era`, `land`, `crisis`, `event`) — so the first draft of this gate,
+    // which asserted `cards.length === LIFEPATH_CHAPTERS.length + 1`, was a
+    // true number resting on a false relationship. It is replaced by the claim
+    // the plate block actually makes: the series ran I-V, all five are intact,
+    // and this lane added the sixth.
+    const cards = IMAGE_LIBRARY.filter((p) => p.key.startsWith("chapter_"));
+    for (const k of ["chapter_origins", "chapter_the_keel", "chapter_defining_march",
+      "chapter_creed_question", "chapter_charter"]) {
+      expect(cards.map((c) => c.key), `pre-existing stage card ${k} was removed`).toContain(k);
+    }
+    expect(cards.filter((c) => c.key === "chapter_standard").length).toBe(1);
+    expect(cards.every((p) => p.category === "lifepath")).toBe(true);
+    for (const roman of ["I", "II", "III", "IV", "V", "VI"]) {
+      expect(cards.some((c) => c.title.startsWith(`Chapter ${roman} `)), `no card for Chapter ${roman}`).toBe(true);
+    }
+  });
+
+  it("re-registers no plate that already existed — the verified absences", () => {
+    // The brief said not to add settlements / lifepath / ideology plates,
+    // BECAUSE the ones the lane needs already exist. They do, and they are
+    // checked here rather than taken on trust. The stage card above is the one
+    // plate that reason does not reach: Chapter VI did not exist until now.
+    const keys = new Set(IMAGE_LIBRARY.map((p) => p.key));
+    for (const k of STANDARDS) {
+      expect(keys.has(k), `missing ${k}`).toBe(true);
+      expect(LANE_H_BLOCK.includes(`P("${k}"`), `${k} was re-registered`).toBe(false);
+    }
+    for (const p of PRESET_FACTIONS) {
+      expect(keys.has(`house_${p.house}_crest`)).toBe(true);
+      expect(keys.has(`keel_${keelOf(p)}`)).toBe(true);
+    }
+    const setPlates = IMAGE_LIBRARY.filter((p) => p.key.startsWith("set_"));
+    expect(setPlates.length).toBe(10);
+    expect(LANE_H_BLOCK.includes('P("set_'), "a settlement plate was re-registered").toBe(false);
+    // MEMBERSHIP, not a floor. The old `>= 17` measured a superset of the
+    // seventeen H7 enumerates and so could neither confirm nor refute the
+    // published figure; H7's count is now an equality in the hand-over suite,
+    // and what belongs HERE is the claim this lane actually relies on — that
+    // the four ideology families it cites in lore and codex are all present.
+    const ideology = IMAGE_LIBRARY.filter((p) => p.category === "ideology").map((p) => p.key);
+    for (const family of ["axis_", "bloc_", "creed_", "decree_"]) {
+      expect(ideology.some((k) => k.startsWith(family)), `no ${family}* ideology plate`).toBe(true);
+    }
+    for (const axis of AXES) expect(ideology, `missing axis_${axis}`).toContain(`axis_${axis}`);
+    // The Departures THIS lane's houses actually hold, not every key of
+    // `CREEDS`: a fifth creed added upstream would need a plate from whoever
+    // added it, and turning this lane's suite red on that would be the
+    // closed-set defect wearing a coverage check's clothes.
+    for (const d of new Set(PRESET_FACTIONS.map((f) => departureOf(f)))) {
+      expect(ideology, `missing creed_${d}`).toContain(`creed_${d}`);
+    }
+    expect(LANE_H_BLOCK.includes('"ideology"'), "an ideology plate was registered").toBe(false);
+  });
+
+  // ── finding: the requisition strings were in no safety gate ──────────────
+  // The step-1 collector gathers preset strings plus plates filtered to
+  // `category === "houses"`; the step-3 collector gathers polities and codex
+  // entries. Between them they missed `PERKS[].desc` — which the brief names
+  // by name — and every plate outside `houses`, including the eight `perks`
+  // tokens this lane registered. Both are shipped, user-visible copy.
+  describe("voice and safety — the requisitions and their tokens", () => {
+    const strings = [];
+    for (const id of LANE_H_PERK_IDS) {
+      const perk = PERK_BY_ID[id];
+      strings.push(perk.label, perk.desc);
+    }
+    for (const key of blockKeys) {
+      const plate = IMAGE_LIBRARY.find((x) => x.key === key);
+      strings.push(plate.title, plate.desc, plate.prompt);
+    }
+
+    it("collects every string this lane added to the two files", () => {
+      // A collector that gathered nothing would pass every gate below it.
+      expect(strings.length).toBe(LANE_H_PERK_IDS.length * 2 + blockKeys.length * 3);
+      for (const s of strings) expect(typeof s === "string" && s.length > 0).toBe(true);
+    });
+
+    it("carries no PII of any shape", () => {
+      const PII = [
+        [/[\w.+-]+@[\w-]+\.[\w.]+/, "email address"],
+        [/https?:\/\//, "url"],
+        [/\+?\d[\d\s().-]{7,}\d/, "phone-shaped digit run"],
+        [/(^|\s)@\w+/, "@handle"],
+      ];
+      for (const s of strings) {
+        for (const [re, what] of PII) expect(re.test(s), `${what} in: ${s.slice(0, 80)}`).toBe(false);
+      }
+    });
+
+    it("names no real-world nation, regime or alliance", () => {
+      const deny = /\b(America|American|Europe|European|Russia|Russian|German|Germany|Britain|British|France|French|China|Chinese|Japan|Japanese|Soviet|Nazi|Reich|USSR|NATO)\b/;
+      for (const s of strings) expect(deny.test(s), `real-world proper noun in: ${s.slice(0, 80)}`).toBe(false);
+    });
+
+    it("keeps out-of-world mechanics vocabulary out of every one of them", () => {
+      // `turn` is absent from this list for the reason given at the step-1
+      // collector: five SHIPPED perk descs end "income every turn", and these
+      // rows match them deliberately. Banning it here would make the gate red
+      // in the healthy state or force this lane's rows to depart from their
+      // own siblings.
+      const banned = /\b(tile|player|stat|modifier|hex|XP|buff|debuff)s?\b/i;
+      for (const s of strings) expect(banned.test(s), `mechanics word in: ${s.slice(0, 80)}`).toBe(false);
+    });
+
+    it("uses no hex colour in the two src/lib files no other gate reads", () => {
+      // Check 43 says "over the changed `src/lib` files", and this lane changed
+      // FIVE of them. Two gates covered `presetFactions.js`, `wiki/entries.js`,
+      // `settlementLore.ts` and this file; `pointBuy.js` and `lifepath.js` were
+      // in neither, and neither was `imageLibrary.js` — the one changed file
+      // that actually contains hex strings. `imageLibrary.js` is covered by the
+      // BLOCK scan in "uses no hex colour and no house style in the block it
+      // appended" rather than whole-file, because four pre-existing sigil rows
+      // describe slot colours in hex and a whole-file scan would be a gate that
+      // is red in the healthy state.
+      for (const f of ["src/lib/pointBuy.js", "src/lib/lifepath.js"]) {
+        expect(/#[0-9a-fA-F]{3,8}\b/.test(readRepoFile(f)), `hex colour in ${f}`).toBe(false);
+      }
+      // …and the block gate really is bounded at both ends, so it cannot have
+      // silently widened to the whole file and started passing for free.
+      expect(LANE_H_BLOCK.startsWith("// ——— LANE H:")).toBe(true);
+      expect(LANE_H_BLOCK.length, "the Lane H block scan collapsed to nothing").toBeGreaterThan(500);
+      expect(LANE_H_BLOCK.includes("sigil_red"), "the block scan ran past its own banner").toBe(false);
+    });
+  });
+
+  it("uses no hex colour and no house style in the block it appended", () => {
+    expect(/#[0-9a-fA-F]{3,8}\b/.test(LANE_H_BLOCK), "hex colour in the Lane H plate block").toBe(false);
+    // HOUSE_STYLE is prepended at generation; restating it doubles the prompt.
+    for (const fragment of ["dieselpunk", "riveted steel and brass", "film grain", "painterly concept art"]) {
+      expect(LANE_H_BLOCK.toLowerCase().includes(fragment), `prompt restates HOUSE_STYLE: ${fragment}`).toBe(false);
+    }
+  });
+});
+
+describe("docs/prompts/PLATFORM_HANDOFF.md — the Lane H hand-over", () => {
+  const LANE_H = section(handoffSrc, /^### Lane H —/, "### ");
+
+  it("is bounded at both ends and keeps its subsections", () => {
+    expect(LANE_H.includes("### Lane F"), "the Lane H slice ran into another lane's block").toBe(false);
+    expect(LANE_H.includes("### Lane I"), "the Lane H slice ran into another lane's block").toBe(false);
+    for (const h of ["H1", "H2", "H3", "H4", "H5", "H6", "H7", "H8"]) {
+      expect(LANE_H, `hand-over item ${h} is missing`).toContain(`#### ${h} —`);
+    }
+  });
+
+  it("rebuilds H4's Departure table from DEPARTURE_BY_CREED_SEED, in both directions", () => {
+    const rows = tableRows(LANE_H, "| Creed seed |");
+    const head = LANE_H.split("\n").find((l) => l.includes("| Creed seed |"))
+      .split("|").slice(2, -1).map((c) => c.trim());
+    expect(rows.length).toBe(1);
+    const fromDoc = {};
+    head.forEach((seed, i) => { fromDoc[String(num(seed))] = rows[0][i + 1].toLowerCase().replace(/ /g, "_"); });
+    expect(fromDoc).toEqual(DEPARTURE_BY_CREED_SEED);
+    // Whole domain, not just the seeds in use — defect class 4.
+    const domain = [];
+    for (let v = -3; v <= 3; v++) domain.push(String(v));
+    expect(Object.keys(fromDoc).sort()).toEqual(Object.keys(DEPARTURE_BY_CREED_SEED).sort());
+    expect(domain.every((v) => v in fromDoc), "the published table does not cover the whole axis").toBe(true);
+  });
+
+  it("recomputes every count H7 publishes", () => {
+    const start = imageSrc.indexOf("// ——— LANE H:");
+    const block = imageSrc.slice(start, imageSrc.indexOf("\n];", start));
+    const registered = [...block.matchAll(/^\s*P\("([a-z0-9_]+)"/gm)].length;
+    const word = /registers \*\*(\w+)\*\* plates/.exec(LANE_H);
+    expect(word, "H7 does not state how many plates the block registers").toBeTruthy();
+    expect(NUMBER_WORDS[word[1]], `H7 says "${word[1]}"`).toBe(registered);
+    const total = /(\d+) plate keys, zero duplicates/.exec(LANE_H);
+    expect(total, "H7 does not state the library total").toBeTruthy();
+    expect(Number(total[1])).toBe(IMAGE_LIBRARY.length);
+    expect(new Set(IMAGE_LIBRARY.map((p) => p.key)).size).toBe(IMAGE_LIBRARY.length);
+    // The four "already registered, deliberately not duplicated" families, each
+    // rebuilt from the array rather than restated. The `ideology` figure is the
+    // reason this block exists: it read 17 — the seventeen plates enumerable by
+    // family — while the category holds 18, because `constitutional_moment` is
+    // filed there too. A floor of `>= 17` could neither confirm nor refute the
+    // published number, since it measured a superset of the thing being
+    // counted. These are equalities against the live categories instead.
+    const published = {
+      roster: /the (\d+) roster `house_\*_crest`/.exec(LANE_H),
+      grounds: /the (\d+) `set_\*` grounds/.exec(LANE_H),
+      standards: /the (\d+) `std_\*` standards/.exec(LANE_H),
+      ideology: /the (\d+) `ideology`/.exec(LANE_H),
+    };
+    for (const [what, m] of Object.entries(published)) expect(m, `H7 does not state the ${what} count`).toBeTruthy();
+    const rosterPlates = new Set(AUTHORED.flatMap((f) => [`house_${f.house}_crest`, `keel_${keelOf(f)}`]));
+    expect(Number(published.roster[1]), "H7's roster-plate count").toBe(rosterPlates.size);
+    expect(Number(published.grounds[1]), "H7's set_* count").toBe(IMAGE_LIBRARY.filter((x) => x.key.startsWith("set_")).length);
+    expect(Number(published.standards[1]), "H7's std_* count").toBe(IMAGE_LIBRARY.filter((x) => x.key.startsWith("std_")).length);
+    expect(Number(published.ideology[1]), "H7's ideology count").toBe(IMAGE_LIBRARY.filter((x) => x.category === "ideology").length);
+  });
+
+  it("enumerates H2's brace vocabulary against the file it describes, both ways", () => {
+    // H2 named `{nodeName}` and `{houseName}`, neither of which has ever
+    // appeared in `docs/HERALD_VOICES.md` — an engineer wiring substitution off
+    // that sentence would have built two dead cases and missed seven live ones.
+    // Nothing gated the brace vocabulary, so the table is now enumerated in H2
+    // and asserted in both directions here.
+    const declared = new Set(
+      [...LANE_H.matchAll(/^\| `(\{[A-Za-z][A-Za-z0-9]*\})`(?: \/ `(\{[A-Za-z][A-Za-z0-9]*\})`)? \|/gm)]
+        .flatMap((m) => [m[1], m[2]]).filter(Boolean),
+    );
+    expect(declared.size, "H2 declares no brace variables").toBeGreaterThan(10);
+    const found = new Set(heraldSrc.match(/\{[A-Za-z][A-Za-z0-9]*\}/g) || []);
+    // ONE documented exception, and it is not a variable: `## Implementation
+    // Notes` writes "shown as `{braces}`" as prose ABOUT brace variables.
+    found.delete("{braces}");
+    expect([...found].sort(), "a brace variable in the file is undeclared in H2").toEqual([...declared].sort());
+  });
+
+  it("states H1's live claim truthfully — the eight really do reduce through compileMods", () => {
+    // H1 tells the platform lane to schedule NO work. That is only safe if
+    // every new row uses a lever compileMods reduces, so it is asserted, not
+    // asserted-about.
+    const REDUCED = ["unitStat", "unitCost", "income", "armyCap", "startBonus", "capitalDefense", "disposition"];
+    for (const id of LANE_H_PERK_IDS) {
+      for (const k of Object.keys(PERK_MODS[id])) {
+        expect(REDUCED, `${id} uses ${k}, which compileMods ignores`).toContain(k);
+      }
+    }
+    expect(LANE_H).toMatch(/supplyRange/);
+    expect(perkModsSrc.includes("supplyRange: "), "a PERK_MODS row uses the inert supplyRange lever").toBe(false);
+  });
+
+  it("states H3's stripped-field claim truthfully", () => {
+    const entityProps = Object.keys(factionEntity.properties);
+    for (const k of ["house", "uniqueRoster", "heraldVoice", "keel"]) {
+      expect(entityProps, `Faction.jsonc now HAS a '${k}' column; H3 is stale`).not.toContain(k);
+    }
+    for (const p of PRESET_FACTIONS) {
+      const rec = presetToFactionRecord(p);
+      for (const k of ["id", "house", "keel", "uniqueRoster", "heraldVoice"]) {
+        expect(Object.prototype.hasOwnProperty.call(rec, k)).toBe(false);
+      }
+    }
+  });
+
+  it("states H6's row-by-row claim truthfully — no preset claims a bonus on certification", () => {
+    // Operator ruling 2: a `kind: 'module'` row's effects apply on FIT, never
+    // on unlock. H6 said this "was checked row by row" beside gated claims,
+    // which reads as a gated one. It was a manual scan; it is a gate now. The
+    // GAME_RULES assertion two suites up only proves the SENTENCE exists —
+    // nothing stopped a trait description from contradicting it.
+    const CERTIFICATION = /certif|module|unlock|licen[cs]|patent|ratif|approv/i;
+    const GRANT = /\b(grants?|granted|gives?|confers?|bestows?|earns?)\b/i;
+    for (const p of PRESET_FACTIONS) {
+      const claims = [p.lore, p.insigniaDescription, ...p.traits.flatMap((t) => [t.name, t.description])];
+      for (const c of claims) {
+        const hit = CERTIFICATION.test(c) && GRANT.test(c);
+        expect(hit, `${p.id} may claim an effect from certification alone: ${c.slice(0, 90)}`).toBe(false);
+      }
+    }
+    expect(LANE_H, "H6 no longer states the ruling").toMatch(/on fit, never on unlock/);
+  });
+
+  it("goes red on a preset that claims a fleet-wide bonus from certification", () => {
+    const CERTIFICATION = /certif|module|unlock|licen[cs]|patent|ratif|approv/i;
+    const GRANT = /\b(grants?|granted|gives?|confers?|bestows?|earns?)\b/i;
+    const bad = "Certifying a bay module in the Armory grants the whole Union its bonus fleet-wide the moment it is unlocked.";
+    expect(CERTIFICATION.test(bad) && GRANT.test(bad)).toBe(true);
+    // …and the one live sentence that trips the CERTIFICATION half alone is
+    // not a certification claim, which is why the gate needs both halves.
+    const ok = "at the range its underwriters approve";
+    expect(CERTIFICATION.test(ok) && GRANT.test(ok)).toBe(false);
+  });
+
+  it("states H2's pack arithmetic truthfully", () => {
+    const packs = [...heraldSrc.matchAll(/^## .*`([a-z_]+)`\s*$/gm)].map((m) => m[1]);
+    expect(packs.sort()).toEqual(PRESET_FACTIONS.map((p) => p.heraldVoice).sort());
+    const m = /\*\*(\d+) packs × (\d+) moods × (\d+) samples\*\*/.exec(LANE_H);
+    expect(m, "H2 does not state the pack arithmetic").toBeTruthy();
+    expect(Number(m[1])).toBe(packs.length);
+    const samples = (heraldSrc.match(/^> /gm) || []).length;
+    expect(samples).toBeGreaterThanOrEqual(Number(m[1]) * Number(m[2]) * Number(m[3]));
+    for (const p of PRESET_FACTIONS) expect(p.heraldVoice, `${p.id}`).toBe(p.house);
+  });
+
+  it("names H8's three cross-lane items against the state that makes them true", () => {
+    // Each is reported rather than fixed, so each is pinned to the condition
+    // that would make the report stale.
+    const manufacturers = extractConst(armsSrc, "MANUFACTURERS");
+    const legacyStems = LEGACY_IDS.map((id) => byId(id).house);
+    const withAccess = Object.values(manufacturers).filter((m) => m.access);
+    expect(withAccess.length, "no maker declares access at all").toBeGreaterThan(0);
+    for (const stem of legacyStems) {
+      const any = withAccess.some((m) => stem in m.access);
+      expect(any, `a maker now declares access for '${stem}' — H8 item 1 is stale`).toBe(false);
+    }
+    // Item 2: §27's subsections really are numbered 26.x under a ## 27 heading.
+    const f = section(rulesSrc, /^## \d+\. Squads, Specialists & Upgrade Kits/);
+    expect(/^### 26\.\d/m.test(f), "§27's subsection numbering was fixed — H8 item 2 is stale").toBe(true);
+    // Item 3: this lane's own section uses unnumbered ### titles.
+    expect(/^### \d/m.test(RULES_SECTION), "this lane numbered its own subsections").toBe(false);
+  });
+});
