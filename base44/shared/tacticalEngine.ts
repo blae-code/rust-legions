@@ -56,7 +56,7 @@ import {
   deriveSquad, hexDistance, poolCost, resolveSquadHit, squadStaffMods, struckFacing,
   toRegiments,
 } from './tactical.ts';
-import { FIELD, generateField, hexRange, lineOfSight, pathCost } from './tacticalField.ts';
+import { generateField, hexRange, lineOfSight, pathCost } from './tacticalField.ts';
 import { SUPPRESSION } from './arms.ts';
 import { deriveMechanized } from './motorPool.ts';
 
@@ -67,12 +67,19 @@ import { deriveMechanized } from './motorPool.ts';
 export const ROUND_LIMIT = 20;
 export const MAX_SQUADS = 24;
 
-// The default board. DERIVED from Lane B's FIELD rather than retyped, because
-// two files each holding the literal 15 and 11 is the drift-guard-7 defect in
-// miniature. The AUTHORITATIVE size of a battle in progress is always
-// t.field.w / t.field.h — a field is generated once and stored, and nothing
-// below reads GRID after creation.
-export const GRID = { w: FIELD.w, h: FIELD.h };
+// The default board. A PURE DATA LITERAL, because every table exported from a
+// base44/shared/*.ts file is lifted TEXTUALLY by test/helpers/extract-const.js
+// and a computed one cannot be lifted at all — `{ w: FIELD.w, h: FIELD.h }`
+// read as a drift guard and was in fact unliftable, so the guard it looked
+// like was the one thing it could not be. The two files are held together by
+// an ASSERTION instead (`GRID` deep-equals Lane B's `FIELD`), which is
+// stronger than the derivation was: it lifts, and it fails loudly the day the
+// board changes size in one file only.
+//
+// The AUTHORITATIVE size of a battle in progress is always t.field.w /
+// t.field.h — a field is generated once and stored, and nothing below reads
+// GRID after creation.
+export const GRID = { w: 15, h: 11 };
 
 // What createTactical generates a field from when the platform passes no
 // fieldOpts (the shipped two-argument seam). A pure literal on purpose: it is
@@ -113,11 +120,15 @@ export const DEFAULT_FIELD_OPTS = { seed: 1, nodeKind: 'crossroads', weather: 'c
 //     being unable to mark its hull.
 //   suppressedOutput
 //     A suppressed stand's damage multiplier.
-//   queueGuard
-//     Bound on the queue-advance loop. DERIVED from MAX_SQUADS rather than
-//     typed, because the loop's worst case is every stand on the board dead
-//     inside one round — twice MAX_SQUADS — and a hand-typed bound would go
-//     quietly short the day MAX_SQUADS is raised.
+//
+// EVERY ROW IS A LITERAL. COMBAT is module-local, so the pure-data-literal
+// rule that binds an EXPORTED table does not formally bind it — but §26 of
+// docs/GAME_RULES.md quotes these numbers and a test lifts them out of this
+// file's text to check that it still does, so a computed row here would be a
+// row the check could not read. The one row that WAS computed
+// (`queueGuard: MAX_SQUADS * 2 + 8`) bounded a loop that no longer needs a
+// bound: `removeFigures` now takes a wiped stand out of the queue, so the
+// queue holds only live stands and the advance is a single step.
 const COMBAT = {
   toughnessBase: 3,
   toughnessPerArmor: 2,
@@ -128,7 +139,6 @@ const COMBAT = {
   suppressedOutput: 0.65,
   logKeep: 60,
   logShown: 18,
-  queueGuard: MAX_SQUADS * 2 + 8,
 };
 
 // The doctrine order autoFormations carves a rifle regiment into. Read left to
@@ -209,7 +219,6 @@ const rollMorale = (t) => {
 
 const keyOf = (q, r) => `${q},${r}`;
 const clamp = (n, lo, hi) => (n < lo ? lo : n > hi ? hi : n);
-const round2 = (n) => Math.round(n * 100) / 100;
 const round4 = (n) => Math.round(n * 10000) / 10000;
 
 const tileAt = (t, q, r) => t.field.tiles[keyOf(q, r)] || null;
@@ -228,11 +237,27 @@ const isFoot = (typeKey) => {
 
 /**
  * The derived stat block for a stand. deriveSquad answers for every squad;
- * a MECHANIZED stand — one carrying a VehicleInstance — has its hull columns
- * overlaid from Lane J's deriveMechanized, which is SquadType-shaped by
- * contract and deliberately returns no `armor` (a numeric armour rating would
- * be drift guard 12's exact prohibition; the hull's resilience stays Lane A's
- * `armor` column and its PROOF is `facings`).
+ * a MECHANIZED stand — one carrying a VehicleInstance — has its MOVEMENT and
+ * BEARING columns overlaid from Lane J's deriveMechanized, which is
+ * SquadType-shaped by contract and deliberately returns no `armor` (a numeric
+ * armour rating would be drift guard 12's exact prohibition; the hull's
+ * resilience stays Lane A's `armor` column and its PROOF is `facings`).
+ *
+ * ⚠ THE OVERLAY IS `speed`, `range`, `morale`, `initiative` and `pts` — NOT
+ * `melee` and `ranged`, AND THIS IS A REPORTED GAP, NOT A PREFERENCE.
+ * Every damaging hit goes to Lane A's `resolveSquadHit`, which computes its
+ * damage source from `deriveSquad(attacker)` and never inspects `vehicle`.
+ * So a hull's MOUNTS do not reach the damage model, and they cannot be made
+ * to from here: building a second damage source in this file is precisely the
+ * duplicate chain drift guard 12 forbids, and `tactical.ts` is Lane A's.
+ * Overlaying the two columns anyway would have published — in the view row,
+ * in the fixture Lanes D and E render, in the clock-decided `holdingPower`
+ * and in the staff's own valuation — a melee and a ranged figure that is NOT
+ * the figure the stand fires at. Measured on a heavy crawler: the overlay
+ * says 10.9 and the shot resolves at 12. One number, everywhere, that is the
+ * number the engine actually uses, is the only honest shape available to this
+ * lane; the fix that makes the mounts bite is a Lane A/J item and is filed as
+ * such (`docs/prompts/PLATFORM_HANDOFF.md` C10).
  *
  * `initiative` is the one derived value the overlay has to recompute, because
  * deriveSquad cannot see the hull's pace. It is recomputed from Lane A's
@@ -257,8 +282,9 @@ function derivedOf(sq) {
   const morale = clamp(mech.morale + staff.morale, SCALING.moraleMin, SCALING.moraleMax);
   return {
     figures: base.figures,
-    melee: round2(mech.melee),
-    ranged: round2(mech.ranged),
+    // Lane A's, not the hull's — see the gap named in this function's header.
+    melee: base.melee,
+    ranged: base.ranged,
     range: mech.range,
     armor: base.armor,
     speed: Math.max(SCALING.speedFloor, mech.speed),
@@ -285,17 +311,16 @@ function derivedOf(sq) {
  * resolveSquadHit's business and arms.ts's alone.
  */
 function armourKeyOf(t, sq, from, overhead) {
-  if (sq.facings) {
-    const face = struckFacing({ from, at: { q: sq.q, r: sq.r }, facing: sq.facing, overhead: !!overhead });
-    // `|| front` is not tidiness. `facings` is PERSISTED on the Game record at
-    // deployment, so a battle saved before Lane J last touched the plate set
-    // can come back missing a face — and handing `undefined` to
-    // resolveSquadHit would resolve the hit against no armour class at all,
-    // which is the softest possible answer to the hardest possible question.
-    // The front plate is the conservative one. A test drives this.
-    return sq.facings[face] || sq.facings.front;
-  }
-  const own = (SQUAD_TYPES[sq.type] && SQUAD_TYPES[sq.type].armour) || 'none';
+  if (sq.facings) return plateOf(sq, from, overhead).key;
+  // `none` for a type this catalogue no longer knows — a battle persisted
+  // against an older SQUAD_TYPES can hand the engine one, and deriveSquad
+  // already answers a zeroed block for it. It is a real branch and a test
+  // drives it. There is deliberately NO second fallback for a KNOWN row with
+  // no `armour`: every row declares one, arms.ts knows every class it
+  // declares, and a test asserts that over the whole table rather than
+  // leaving a guard here that nothing could ever reach.
+  const type = SQUAD_TYPES[sq.type];
+  const own = type ? type.armour : 'none';
   const tile = standTile(t, sq);
   if (tile.work && WORK_ARMOUR_APPLIES_TO.indexOf(own) !== -1) {
     return DEPLOYABLES[tile.work].armourClass;
@@ -303,10 +328,34 @@ function armourKeyOf(t, sq, from, overhead) {
   return own;
 }
 
-/** The facing key a hit from `from` lands on, for the log and for fx. */
+/**
+ * THE PLATE A HIT LANDS ON — the face AND the class behind it, from ONE
+ * decision, because they were two.
+ *
+ * `facings` is PERSISTED on the Game record at deployment, so a battle saved
+ * before Lane J last touched the plate set can come back missing a face.
+ * Handing `undefined` to resolveSquadHit would resolve the hit against no
+ * armour class at all, which is the softest possible answer to the hardest
+ * possible question, so the fallback is the FRONT plate — the conservative
+ * one. A test drives it.
+ *
+ * The fallback used to live in `armourKeyOf` alone while the facing reported
+ * to the client was recomputed independently, so on that path the engine
+ * resolved the shot against `front` and TOLD the client — in `fx.facing` and
+ * in the log line — that it had landed on the rear. One decision, returned
+ * whole, is the only shape in which the two cannot disagree: the reported
+ * face is by construction the face whose class was asked about.
+ */
+function plateOf(sq, from, overhead) {
+  const face = struckFacing({ from, at: { q: sq.q, r: sq.r }, facing: sq.facing, overhead: !!overhead });
+  if (sq.facings[face]) return { facing: face, key: sq.facings[face] };
+  return { facing: 'front', key: sq.facings.front };
+}
+
+/** The facing key a hit from `from` RESOLVED against, for the log and for fx. */
 function facingKeyOf(sq, from, overhead) {
   if (!sq.facings) return null;
-  return struckFacing({ from, at: { q: sq.q, r: sq.r }, facing: sq.facing, overhead: !!overhead });
+  return plateOf(sq, from, overhead).facing;
 }
 
 /**
@@ -729,16 +778,22 @@ function buildQueue(t) {
 export const activeFormation = (t) =>
   t && t.status === 'fighting' ? t.squads.find((s) => s.id === t.queue[t.qIndex]) || null : null;
 
+/**
+ * Hand the activation to the next stand, and close the round when the queue
+ * runs out.
+ *
+ * ONE STEP, NOT A SEARCH. This used to be a bounded loop that skipped queue
+ * entries naming stands no longer on the field, because a wiped stand was
+ * removed from `t.squads` and left in `t.queue`. It is not skipped any more
+ * because it is not there any more (`removeFigures`), and a loop whose second
+ * iteration is unreachable is a guard against a state the engine no longer
+ * has. `endRound` rebuilds the queue from the survivors and resets the index,
+ * except past the round limit, where it returns with the engagement called.
+ */
 function advanceQueue(t) {
-  for (let guard = 0; guard < COMBAT.queueGuard; guard++) {
-    t.qIndex++;
-    if (t.qIndex >= t.queue.length) {
-      endRound(t);
-      if (t.round > t.roundLimit) return;
-      if (t.queue.length === 0) return;
-    }
-    if (t.squads.some((s) => s.id === t.queue[t.qIndex])) return;
-  }
+  t.qIndex++;
+  if (t.qIndex < t.queue.length) return;
+  endRound(t);
 }
 
 /**
@@ -860,7 +915,29 @@ function applyMorale(t, sq, result) {
 // 8. Damage
 // ---------------------------------------------------------------------------
 
-/** Remove whole figures; a stand at zero leaves the field and the queue. */
+/**
+ * Remove whole figures; a stand at zero leaves the field AND THE QUEUE.
+ *
+ * The queue half is not bookkeeping. `tacticalView` publishes `t.queue`
+ * verbatim, `advanceQueue` only SKIPS a dead id rather than dropping it, and
+ * the queue is not rebuilt until `endRound` — so a stand killed mid-round
+ * stayed in the emitted payload for the rest of that round, and §4 declares
+ * `queue: [squadId]`. Lane E's rail resolves those ids against `squads[]`;
+ * a dangling one is an `undefined` in the middle of the strip. The committed
+ * fixture carried one.
+ *
+ * THE INDEX HAS TO FOLLOW THE SPLICE. Removing an entry at or before the
+ * current activation shifts every later entry one to the left underneath it,
+ * so without the decrement `advanceQueue`'s `++` lands one stand too far and
+ * a section silently loses its turn. `at === t.qIndex` is the actor killing
+ * itself — its own burst, or a commissar's toll on its last figure — and
+ * leaves `qIndex` at -1 for the few statements before `advanceQueue` restores
+ * it to 0, which is the stand that took its place. That window is closed by
+ * construction and not by a clamp: every caller of `removeFigures` sits after
+ * the commit point of `resolveOrders` or `resolveRout`, and both of those end
+ * in `advanceQueue` on every path. Both halves are driven by tests — the
+ * skip-the-next-stand one and the actor-kills-itself one.
+ */
 function removeFigures(t, sq, n) {
   const gone = Math.max(0, Math.min(sq.figures, Math.floor(n)));
   if (gone <= 0) return 0;
@@ -869,6 +946,11 @@ function removeFigures(t, sq, n) {
   if (sq.figures <= 0) {
     t.lost.push({ q: sq.q, r: sq.r, side: sq.side });
     t.squads = t.squads.filter((x) => x.id !== sq.id);
+    const at = t.queue.indexOf(sq.id);
+    if (at !== -1) {
+      t.queue.splice(at, 1);
+      if (at <= t.qIndex) t.qIndex--;
+    }
     t.log.push(`${sq.name} is wiped from the field.`);
   }
   return gone;
@@ -944,12 +1026,25 @@ function strike(t, actor, act, victim, falloffMult) {
  * armbands, and a mod that denied ground at no cost to the side using it
  * would be free area denial.
  *
+ * THE FIRER IS NOT IN ITS OWN RING. For point fire the ring is measured from
+ * the TARGET's hex with a reach of `aoeSuppress` alone, so a section firing at
+ * an adjacent stand stands inside it — and the ring pins and morale-tests
+ * every stand it finds, so the section pinned ITSELF and could break and run
+ * on its own order. Driven against the real tables before the fix: a gunner
+ * section with a heavy gunner, issued the `suppress` the staff itself chooses,
+ * came out of its own activation `suppressed: 2` and `routed: true`, and the
+ * log read "MG breaks and runs for its own line." / "The belt walks on and
+ * pins 1 more section." — the one more section being the firer. Friendly
+ * stands stay in, for the reason the docstring above gives; the man behind the
+ * gun is not one of them.
+ *
  * Returns the stands it pinned, for the log.
  */
 function suppressRing(t, actor, act, aimHex, struck, reach) {
   if (reach <= 0 || !aimHex) return [];
   const pinned = [];
   for (const other of t.squads.slice()) {
+    if (other.id === actor.id) continue;
     if (other.figures <= 0 || struck.has(other.id)) continue;
     if (hexDistance(other, aimHex) > reach) continue;
     // `false`, not `true`: SUPPRESSION.onZeroEffect is the weight a hit that
@@ -1121,9 +1216,17 @@ export function resolveOrders(t, squadId, moveTo, action, target) {
     fx.at = { q: sq.q, r: sq.r };
     t.log.push(`${sq.name} breaks ground — ${work.label.toLowerCase()}, ${turns} turn${turns === 1 ? '' : 's'} of work.`);
   } else if (act.screenTurns > 0 && aimHex) {
-    layScreen(t, aimHex, act.screenTurns);
+    // THE SCREEN IS THE ORDER'S OWN RADIUS. Lane A declares
+    // `smoke.aoe = { radius: 1, falloff: 0 }` and this branch screened the
+    // impact hex alone, so a content field that reads as a rule had no effect
+    // on the board at all — the radius was load-bearing only for routing the
+    // order down the hex-target branch, which is the worst kind of half-used:
+    // it looks read. Numbers live in one place (drift guard 7), and this is
+    // the place that reads this one.
+    const cloud = aoe ? hexRange(t.field, aimHex, aoe.radius) : [aimHex];
+    for (const hx of cloud) layScreen(t, hx, act.screenTurns);
     fx.at = { q: aimHex.q, r: aimHex.r };
-    t.log.push(`${sq.name} puts smoke into ${aimHex.q},${aimHex.r}. Sight dies in the hex.`);
+    t.log.push(`${sq.name} puts smoke onto ${aimHex.q},${aimHex.r}. Sight dies in ${cloud.length} hex${cloud.length === 1 ? '' : 'es'}.`);
   } else if (aoe && aimHex) {
     fx.at = { q: aimHex.q, r: aimHex.r };
     sq.facing = directionIndex({ q: sq.q, r: sq.r }, aimHex, sq.facing);
@@ -1331,12 +1434,20 @@ function directionIndex(a, b, fallback) {
  * either. Deterministic — every choice is an argmax with an explicit
  * tie-break, and no draw is taken.
  *
+ * BOTH KEYS ALWAYS DESCRIBE A LEGAL ORDER. `targetId` is a squad id whenever
+ * the order takes a target at all — including an area order, which reports
+ * the true aim point on `target` and a stand under the burst on `targetId` —
+ * because the shipped seam passes `targetId` and nothing else. The only
+ * orders that carry neither are the ones resolveOrders never reads a target
+ * for: `hold`, the march, and `build_*`.
+ *
  * Doctrine, in order:
  *   0. a broken section is never given a firing order;
  *   1. a section already at work stands to it;
  *   2. a sapper with no enemy inside its reach raises a work;
  *   3. an AoE order goes onto the hex covering the most enemy stands, when
- *      that is two or more and no friend is under it;
+ *      that is two or more, no friend is under it, and one of them can be
+ *      NAMED to the shipped seam (see the note at that branch);
  *   4. otherwise the hardest order that reaches a target from here;
  *   5. otherwise close, PREFERRING THE HIGHEST-COVER hex that puts a target
  *      in range and sight;
@@ -1389,15 +1500,35 @@ export function autoOrders(t, sq) {
     for (const hx of hexRange(t.field, here, reach)) {
       if (!act.indirect && !lineOfSight(t.field, here, hx)) continue;
       const under = t.squads.filter((x) => hexDistance(x, hx) <= radius);
-      const enemies = under.filter((x) => x.side !== sq.side).length;
-      const friends = under.length - enemies;
-      if (enemies < 2 || friends > 0) continue;
-      const score = enemies * 100 - hexDistance(here, hx);
-      if (!cluster || score > cluster.score) cluster = { score, key: k, hex: hx };
+      const enemies = under.filter((x) => x.side !== sq.side);
+      if (enemies.length < 2 || under.length > enemies.length) continue;
+      // THE SAME ORDER IN BOTH THE FORMS THE PLATFORM CAN PASS. The shipped
+      // seam (`gameEngine`'s runAutoTurns) hands `o.targetId` to
+      // resolveOrders, so a burst that reported only `target: { q, r }` was
+      // refused by the platform's own call — 'That order needs a hex to fall
+      // on' — and the `break` ended the whole auto run inside round one, the
+      // first time any section was issued a barrage. So the staff also NAMES
+      // a stand under the burst that the same order could legally have been
+      // fired at directly. `target` still carries the true aim point; the id
+      // is the seam's degraded but LEGAL reading of it, and a candidate hex
+      // that cannot be named this way is not offered at all, so the two forms
+      // never disagree about whether the order is legal.
+      const named = enemies
+        .filter((x) => hexDistance(here, x) <= reach
+          && (act.indirect || lineOfSight(t.field, here, { q: x.q, r: x.r })))
+        .sort((a, b) => hexDistance(a, hx) - hexDistance(b, hx) || (a.id < b.id ? -1 : 1))[0];
+      if (!named) continue;
+      const score = enemies.length * 100 - hexDistance(here, hx);
+      if (!cluster || score > cluster.score) cluster = { score, key: k, hex: hx, named };
     }
   }
   if (cluster) {
-    return { moveTo: null, actionKey: cluster.key, targetId: null, target: { q: cluster.hex.q, r: cluster.hex.r } };
+    return {
+      moveTo: null,
+      actionKey: cluster.key,
+      targetId: cluster.named.id,
+      target: { q: cluster.hex.q, r: cluster.hex.r },
+    };
   }
 
   // 4. shoot from where we stand
@@ -1508,7 +1639,16 @@ function orderValue(t, sq, d, act, foe, extra, seen) {
   const kill = (hit.effective / perFigure) * (output / Math.max(1, fd.figures)) * left;
   const turns = Math.floor(suppressWeightOf(t, sq, act, hit.suppressOnly) + COMBAT.suppressRound);
   const gained = Math.max(0, turns - foe.status.suppressed);
-  const ring = extra > 0 ? t.squads.filter((x) => x.id !== foe.id && hexDistance(x, foe) <= extra).length : 0;
+  // The stands the ring would ADD, counted the way `suppressRing` actually
+  // lays it. This used to count every stand within `extra` of the target
+  // REGARDLESS OF SIDE, so the shooter's own body and its own sections raised
+  // the value of the shot — a friendly stand caught in the ring is a COST, and
+  // the firer is not in its own ring at all. The side test covers the firer
+  // too, so there is deliberately no separate identity check to go stale.
+  const ring = extra > 0
+    ? t.squads.filter((x) => x.id !== foe.id && x.side !== sq.side
+      && hexDistance(x, foe) <= extra).length
+    : 0;
   const pin = gained * (1 - COMBAT.suppressedOutput) * output * (1 + ring);
   const value = kill + pin;
   seen.set(memo, value);

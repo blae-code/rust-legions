@@ -606,7 +606,9 @@ spent only closing the ground is the **march** order.
   and **the shell weight is divided among the stands it finds** — one section under a grenade takes the
   whole of it, eight sections under a bombardment share it. An order that struck every stand for its
   full effect would multiply itself by its own area.
-- **Smoke** blocks sight in its hex for two rounds and then lifts, restoring the ground's own state.
+- **Smoke** blocks sight across the order's **own radius** — the impact hex and the ring around it,
+  **7 hexes** — for two rounds, then lifts, restoring each hex's own state. The radius is the order's,
+  not a constant: it is read off the same `aoe` row that decides where the order may be aimed.
 
 ### 26.4 Armour, and the plate a shot lands on
 
@@ -669,7 +671,9 @@ nothing.
 
 **The suppression ring.** A heavy gunner's attachment adds **1 hex to the suppress radius, and never to
 the damage radius**. Stands inside the ring that the order did not strike are pinned and morale-tested
-and **lose no figures** — the belt goes over their heads. For an area order the ring begins where the
+and **lose no figures** — the belt goes over their heads. **The firer is never inside its own ring**:
+for point fire the ring is measured from the target's hex, so a section firing on the stand in the next
+hex would otherwise pin itself, and could break and run on its own order. For an area order the ring begins where the
 burst stops (radius + 1); for point fire it is measured one hex out from the hex the order fell on.
 Friendly stands are caught in it, for the same reason they are caught under a burst.
 
@@ -688,14 +692,14 @@ A morale test is **3d6 roll-under** the section's derived morale, adjusted:
 | In cover / in a work / entrenched | **+1 / +1 / +2** |
 | A signaler or commissar in the next hex | **+1** |
 | Rallying | **+2** |
-| The order's own shock | the order's `moraleHit` (`fire` 1, `grenade` 2, `assault` and both barrages 3, `suppress` and `bombard` 4, `overrun` 5) |
+| The order's own shock | the order's `moraleHit` (`fire` 1, `grenade` 2, `assault`, `mortar_barrage` and `strafe` 3, `bombard` and `suppress` 4, `overrun` 5) |
 
 Failing pins the section for a round. **Failing by 4 or more breaks it.** A broken section runs for its
 own board edge on each activation, never fires, and may not be given an attacking order; it tests to
 rally at **+2** each activation, and a section that rallies stands where it is, suppressed.
 
-**The commissar.** A section carrying a Ministry Commissar does not break: the rout becomes **one figure
-removed** and the section stands, suppressed. If that figure was its last, the section is gone — the
+**The commissar.** A section carrying a Ministry Commissar does not break: the rout becomes
+**1 figure removed** and the section stands, suppressed. If that figure was its last, the section is gone — the
 commissar closes the ledger on an empty section as readily as on a full one.
 
 **The medic.** A section carrying a Field Medic with no enemy adjacent returns **1 figure per round**,
@@ -708,12 +712,12 @@ never above the figures it mustered with.
 | Foxholes | 1 | no | +0 | 1 | light | infantry only |
 | Trench Line | 2 | yes | +1 | 1 | light | infantry only |
 | Bunker | 4 | yes | +1 | 2 | fortified | any |
-| Gun Emplacement | 2 | no | +0 | 1 | light | any |
+| Emplacement | 2 | no | +0 | 1 | light | any |
 
 A section with the order breaks ground on the hex it stands on and finishes at the end of the turn count
 (a Sapper takes one turn off, never below one). The work is written into the ground on completion and
 belongs to the ground, not to the section: whoever stands in it afterwards gets its cover, its armour
-class and its modifiers. A Gun Emplacement pins the piece in it at **speed 0** and lengthens its reach —
+class and its modifiers. An Emplacement pins the piece in it at **speed 0** and lengthens its reach —
 which is the trade the order is for. Ground that already carries a work cannot be dug twice.
 
 ### 26.9 The staff
@@ -734,13 +738,19 @@ order on a hex holding two or more enemies rather than firing at one, sets an un
 Sapper to work, never drops a burst on its own people, and never gives a broken section anything but the
 attempt to rally.
 
+Every order it issues names **both** a hex and a stand — the aim point, and a stand under the burst the
+same order could legally have been fired at directly. That is not two orders: it is one order in the two
+forms the platform can carry, so a caller that reads only the stand still receives a legal order rather
+than a refusal.
+
 ### 26.10 The result
 
 The engagement ends when one side has nothing on the field, or at the end of round 20. Survivors fold
 back into regiments **rounding down**, so a battle never creates a company. **Mutual annihilation is a
 defender's win** — the attacker had to take the ground, and an empty field was not taken. When the clock
 decides it, the side holding more of the field wins, measured as the sum over its surviving sections of
-melee + ranged + figures × armor.
+melee + ranged + figures × armor. **An exact tie is the defender's**, for the same reason mutual
+annihilation is: the attacker is the side that had to take the ground.
 
 > **Open for the platform lane.** The engine never sets `status: 'done'`; `gameEngine` does, after
 > reading the result once. Figures still in the depot — mustered but never carved into a section — are

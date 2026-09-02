@@ -702,7 +702,7 @@ One consequence of the current ordering worth knowing rather than changing: `bat
 **defender's** auto order of battle at set-mode time, before the attacker has deployed. That is legal
 (the deploy zones are disjoint) and the engine seats the second filing around the first.
 
-#### C2 — `runAutoTurns` passes `o.targetId`, and the staff's area orders have no `targetId`
+#### C2 — `runAutoTurns` passes `o.targetId` (**NO LONGER A BREAKAGE — now an aim-quality item**)
 
 `entry.ts` ≈ line 1908:
 
@@ -711,16 +711,28 @@ const o = autoOrders(t, f);
 if (!o || resolveOrders(t, f.id, o.moveTo, o.actionKey, o.targetId)) break;
 ```
 
-`autoOrders` returns **both** `targetId` (the seam's original three keys) and the §4 `target` object.
-`targetId` is a squad id for a shot at a stand and **`null` for every order that falls on a HEX** —
-`grenade`, `mortar_barrage`, `bombard`, `smoke` and every `build_*`, all of which report
-`target: { q, r }`. Handing `null` to `resolveOrders` for one of those gets the order refused
-(*"That order needs a hex to fall on"*), and the `break` ends the whole auto run.
+**What this note said before, and what changed.** `autoOrders` used to report `targetId: null` for every
+order that falls on a HEX — `grenade`, `mortar_barrage`, `bombard` — so the first time the staff chose a
+barrage the platform's own call refused its own order (*"That order needs a hex to fall on"*) and the
+`break` ended the whole auto run inside round one, with `battleResult` still null and `settleTactical`
+returning without settling. **That was an engine defect wearing a platform label: the export freeze held
+by signature and not in effect, which is not what §6.2 asks for.** It is fixed in the engine, not here:
+`autoOrders` now reports BOTH forms of the same order — `target` carries the true aim point and
+`targetId` names a stand under the burst that the same order could legally have been fired at directly —
+and a candidate aim hex with no such stand is not offered at all, so the two forms never disagree about
+whether the order is legal.
 
-**Measured, not read** (`test/tactical-engine.test.js`, *"hands the platform a hex target the SHIPPED
-seam then drops"*, and the same loop over five seeds): the shipped form stops after **16–38** of its 60
-activations, **inside round 1**, the first time any section is issued a barrage. The same loop with
-`o.target` runs all 60 and passes the round.
+**Measured** (`test/tactical-engine.test.js`, *"hands the SHIPPED seam an order it can issue"*): over
+seeds 1–5, the shipped `o.targetId` form now runs all **60** of its activations and passes out of round
+1, and so does the `o.target` form. The case asserts the count rather than describing it, because the
+note that stood here published a range ("16–38 of 60 over five seeds") that **no committed test
+reproduced and that did not reproduce when it was re-measured** — the backing case ran one seed and
+asserted only that the run stopped. A second case walks a whole auto battle and asserts that `targetId`
+is non-null for every order `resolveOrders` reads a target for.
+
+**What is still worth doing, and it is no longer urgent.** `targetId` is the staff's *degraded* reading
+of an area order: it aims the burst at the named stand's hex rather than at the hex that put the most
+stands under it. Passing `o.target` restores the true aim point.
 
 - [ ] One word: `resolveOrders(t, f.id, o.moveTo, o.actionKey, o.target)`. `resolveOrders` normalises
       `{ squadId }`, `{ q, r }` **and** a bare id string at the top of the function, so this is
@@ -815,12 +827,54 @@ it**, deliberately: `battleResult(t)` returns `null` unless `t.status === 'fight
 #### C9 — the fixture, and what to point Lanes D and E at
 
 `test/fixtures/tactical-state.json` **is** the `getState → battle.tactical` payload, byte for byte, at a
-recorded moment of a scripted battle: 14 top-level keys, 15×11 field with `meta`, 22 stands (11 a side)
-of 7 types, one mechanized stand per side, four stands suppressed, five routed, one at work on a bunker,
-two finished foxholes on the ground, 77 hexes of sight, an 18-line log, and an `fx` recording a hit that
-selected the **rear** plate of a hull. `UPDATE_FIXTURE=1 npm test` regenerates it; a default run asserts
-the committed bytes against the battle, so an engine change fails loudly instead of drifting away from
-what the UI draws.
+recorded moment of a scripted battle: 14 top-level keys, 15×11 field with `meta`, 23 stands (11 attacker,
+12 defender) of 8 types, one mechanized stand per side, seven stands suppressed, three routed, two at
+work, two finished works on the ground, 90 hexes of sight, an 18-line log, a **23-entry queue naming
+exactly those 23 stands**, and an `fx` recording a hit that selected the **rear** plate of a hull.
+`UPDATE_FIXTURE=1 npm test` regenerates it; a default run asserts the committed bytes against the battle,
+so an engine change fails loudly instead of drifting away from what the UI draws.
+
+**The queue is now a subset of `squads[]`, and it was not.** The committed fixture used to carry 23 queue
+entries for 22 stands — `a7` named a stand that had been wiped from the field — because `removeFigures`
+dropped a dead stand from `t.squads` and left it in `t.queue` until the round ended, and `tacticalView`
+publishes the queue verbatim. Measured over four seeded auto battles at the time, **71 % of published
+views named at least one stand that was not on the board**. Lane E's initiative rail resolves those ids
+against `squads[]`, so `queue.map(id => squads.find(s => s.id === id))` handed it an `undefined` in the
+middle of the strip. Fixed in the engine; asserted on the fixture and over a whole auto battle.
 
 - [ ] When P3 goes live, diff a real `getState` response against this file. Any key that differs is
       either a platform projection dropping engine state (C6) or a contract change nobody filed.
+
+#### C10 — a hull's MOUNTS do not reach the damage model, and this lane cannot make them (Lane A + Lane J)
+
+`base44/shared/tactical.ts`'s `resolveSquadHit` — §4's declared *"only route to arms.ts resolveHit"* —
+computes its damage source as `deriveSquad(attacker).melee|ranged` and **never inspects
+`attacker.vehicle`**. It honours `attacker.profile` for `armorPen` and `damageType`, and `profileOf`
+reads `loadout` only, so nothing a `VehicleInstance` declares changes a single number in a resolution.
+Driven: for a `heavy_crawler` hull, `resolveSquadHit` returns a byte-identical result with and without
+`vehicle` on the row.
+
+The engine used to overlay `deriveMechanized`'s `melee`/`ranged` onto the stand's derived block anyway.
+That published a figure the stand does not fire at — in the `squads[]` view row, in the fixture Lanes D
+and E render, in the clock-decided `holdingPower`, and in the staff's own valuation — while the shot
+resolved from Lane A's column. Measured: the overlay said **10.9** and the shot resolved at **12**. The
+engine now publishes Lane A's column, which is the one that fires; `speed`, `range`, `morale`,
+`initiative` and `pts` from Lane J are unchanged and still overlaid.
+
+- [ ] **Decide where the hull's mounts enter the damage model.** The narrow fix is one line in Lane A's
+      adapter — take the damage source from Lane J when the row carries a `vehicle` — and it belongs
+      there rather than here, because a second damage-source chain in `tacticalEngine.ts` is exactly
+      what drift guard 12 forbids. `test/tactical-engine.test.js` ("publishes the melee and ranged a
+      mechanized stand actually fires at") pins the gap and will go red the moment it closes: move the
+      overlay back into `derivedOf` in the SAME change, so the published number and the fired number
+      never part again.
+
+#### C11 — `docs/TACTICAL_SQUAD_PLAN.md` §0 still says the board is 9×7 (one word, orchestrator-owned)
+
+Line 14 of the plan reads *"9×7 axial hex grid, initiative queue, 20-round limit"*, while line 35 of the
+same document says *"8–24 squads per side on a **15×11** grid (up from 9×7)"* and the shipped code
+exports `GRID = { w: 15, h: 11 }`, asserted equal to Lane B's `FIELD`. The addendum made the change this
+lane's move; §0 is a section this lane may not edit (its one sanctioned exception is §4), so it is named
+here rather than quietly left for an audit to find.
+
+- [ ] `docs/TACTICAL_SQUAD_PLAN.md:14` — `9×7` → `15×11`.
