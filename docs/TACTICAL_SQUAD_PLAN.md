@@ -210,8 +210,15 @@ SquadTemplate = { name: string, type: SquadTypeKey, specialists: SpecialistKey[]
 { attackerWon: bool, attackerUnits: Regiments, defenderUnits: Regiments }
 
 // ---- Content contracts (Lanes F/G/H) ----
-SquadType  = { key, label, short, from: RegimentKey, tier: 'I'|'II:Cache'|'II:Eng'|'II:Ciph'|'II:Wake'|'III', figures, melee, ranged, range, armor, speed, morale, pts, specials: string[], factionLock?: string, creedLock?: string, blurb, doctrineNote }
-Specialist = { key, label, pts, mods: { morale?, initiative?, recoverPerTurn?, moraleFloor?, aoeSuppress?, buildSpeed? }, blurb }
+SquadType  = { key, label, short, from: RegimentKey, tier: 'I'|'II:Cache'|'II:Eng'|'II:Ciph'|'II:Wake'|'III', figures, minFigures, maxFigures, melee, ranged, range, armor, speed, morale, pts, specials: string[], armour: ArmourClassKey, damageType: DamageType, armorPen: number, factionLock?: string, creedLock?: string, blurb, doctrineNote }
+// AMENDMENT 2026-09-01 (Lane A, Amendment A1): SquadType gains `minFigures`/`maxFigures` (the bounds a
+// commander may carve a squad to) and the three arms-facing fields `armour`/`damageType`/`armorPen` — the
+// squad's pre-loadout defaults, overridden by deriveLoadout/loadoutProfile output when a loadout is carried.
+// `armor` is a NUMBER (the resilience the melee/ranged contest pairs against); `armour` is an ArmourClass
+// KEY and the only armour concept Lane A may hold. All 21 fields are required on every row.
+Specialist = { key, label, pts, mods: { morale?, initiative?, recoverPerTurn?, moraleFloor?, aoeSuppress?, buildSpeed?, executionToll? }, blurb }
+// AMENDMENT 2026-09-01 (Lane A, Amendment A2): `executionToll` joins the mods vocabulary — the figures a
+// squad loses INSTEAD of routing on a failed morale test (the commissar effect, section 1, as a number).
 Upgrade    = { key, label, appliesTo: SquadTypeKey[], pts, tier, mods: Partial<SquadType values>, blurb }
 Tech       = { key, branch, tier: 1|2|3|4, label, cost, prereq: string|string[]|null, creedLock?, effect: string, effects: [{ scope: 'macro'|'tactical'|'economy', key: string, value: number }], desc }
 ArmoryItem = { key, kind: 'module'|'decree'|'relic_project', label, cost: { steel?, manpower?, fuel?, fragments?: { cache?, engine?, cipher?, wake? } }, tier, axis?: 'authority'|'economy'|'creed'|'mobilization', direction?: -1|1, creedLock?, effects: Tech['effects'], desc }
@@ -268,6 +275,69 @@ VehicleInstance = { chassisKey, quality: QualityKey, powerplant: PowerplantKey, 
 // Engine rule (Lane A/C): a hit resolves via resolveHit against the struck facing — rear if the attacker occupies a hex behind the stand's facing
 // tacticalDeploy squads may carry `loadout`; platform validates instances against the caller's arsenal
 Plate      = P(key, category, title, desc, prompt /* no house style — prepended at generation */, aspect?)  // url always null from a lane
+// ---- Tactical squad rules (Lane A) ----
+// AMENDMENT 2026-09-01 (Lane A, Amendment A3): the shapes and tables section 3 named in prose only.
+// Every one of these is authored by Lane A and consumed by Lane C (engine), Lane D (builder) and
+// Lane E (arena). Lane F appends ROWS to SQUAD_TYPES / SPECIALISTS and authors none of the below.
+SquadAction = { key, label, requires: { types: SquadTypeKey[], specialists: SpecialistKey[] } | null,
+                uses: 'melee'|'ranged'|null, dmg: number /* MULTIPLIER on the derived `uses` stat */,
+                guard: number /* multiplier on the squad's defence for the round */,
+                range: number | null /* override in hexes; null = the squad's own */,
+                aoe: { radius, falloff } | null, moraleHit: number, suppress: number,
+                screenTurns: number /* turns of LOS-blocking screen left on the hex */,
+                noMove: boolean, turns: number, builds: DeployableKey | null,
+                damageType: DamageType | null /* null = the squad's own */, indirect: boolean, blurb }
+// GATING IS A UNION: an order is offered when `requires` is null, OR requires.types names the type, OR
+// the TYPE names the order in its own `specials`, OR requires.specialists names a carried specialist.
+// The third clause is what lets Lane F add a type without editing SQUAD_ACTIONS. Status gating
+// (suppressed / routed / entrenched / already building) is Lane C's and is not expressed here.
+Deployable  = { key, label, cover: number /* ADDED to the tile's terrain cover */, blocksLOS: boolean,
+                moveCost: number /* ADDED to the tile's entry cost */, buildTurns: number,
+                infantryOnly: boolean, armourClass: ArmourClassKey /* the class a stand in the work
+                resolves against, only when its own class is in WORK_ARMOUR_APPLIES_TO */,
+                mods: { speed: number|null /* ABSOLUTE SET, not a delta; null = unchanged */,
+                        range: number /* delta */, suppress: number /* delta */ }, blurb }
+// Lane-A-owned tables Lane C reads and never re-authors (drift guard 7):
+//   FIGURES_PER_COMPANY  { riflemen: 10, crawler: 1, artillery: 1, fighter: 1 } — keyed by REGIMENT
+//   MORALE_MODS          the roll (dice/dieSides), the situational modifiers (added to the target;
+//                        negative is harder) and the outcome thresholds (routMargin, autoPass/autoFail)
+//   SCALING              every figure-scaling and derivation constant; no scaling number lives outside it
+//   POINTS_MODEL         (tactical.ts) the six combat-value weights, the anchor row and the efficiency
+//                        cap. NAME COLLISION, and it is deliberate on both sides: arms.ts exports its
+//                        own POINTS_MODEL (AP_RATE / AA_RATE / rangeFactorDivisor / the two reference
+//                        keys / efficiencyCap) which prices WEAPON PATTERNS. Two currencies, two
+//                        tables. Import the one whose module you mean, never both unaliased.
+//   WORK_ARMOUR_APPLIES_TO  the ArmourClass keys a work may re-class
+//   INFANTRY_REGIMENTS   the RegimentKeys that are men on foot. squadActions refuses a build order
+//                        whose work is `infantryOnly` to any type from a regiment outside this list;
+//                        OCCUPYING such a work is Lane C's half of the same flag
+//   HEX_DIRECTIONS       the six axial directions, in the SAME ORDER as Lane B's neighbors()
+//   FACING_ARCS          { front: [5,0,1], side: [2,4], rear: [3] } — offsets from a stand's facing
+// Lane-A derivations:
+//   deriveSquad(squad) -> { figures, melee, ranged, range, armor, speed, morale, initiative, actions, pts }
+//   squadFigures(squad) -> integer, clamped to [0, maxFigures]
+//   squadStaffMods(specialists) -> { keys, pts, morale, initiative, moraleFloor, recoverPerTurn,
+//                                    aoeSuppress, buildSpeed, executionToll } — the stacking rule, once
+//   squadActions(typeKey, specialists) -> SquadActionKey[]
+//   poolCost(squads) -> { [RegimentKey]: figures }   all four keys, always, zero by default
+//   toRegiments(squads) -> { [RegimentKey]: companies }   Math.floor, all four keys
+//   combatValue/fairPts/typeEfficiency(typeKey) -> the Points Audit, as code
+//     fairPts here is tactical.ts's fairPts(typeKey: SquadTypeKey) -> pts in the riflemen=100 currency.
+//     SECOND NAME COLLISION: arms.ts exports fairPts(pattern: WeaponPattern) -> the cost of ONE weapon
+//     in the levy-rifle=1 currency. Different argument, different scale, both correct; §12 of arms.ts
+//     declares the join between the two. Qualify the module whenever you name either.
+//   resolveSquadHit({ attacker, action, targetArmour, targetDerived? }) -> { effective, suppressOnly }
+//     THE TACTICAL LAYER'S ONLY ROUTE TO arms.ts resolveHit. A thin adapter with no armour arithmetic
+//     of its own. PENETRATION FOLLOWS THE KIT: when `attacker.loadout.primary` is present the adapter
+//     calls Lane I loadoutProfile for armorPen/damageType, the same way deriveSquad calls deriveLoadout
+//     for melee/ranged. An explicit `attacker.profile` overrides that; the type's declared defaults are
+//     the last resort; an order's own `damageType` overrides both. It resolves ONE stand and never a
+//     burst — AoE falloff is Lane C's, via arms.ts resolveAoe. Returns the inert result rather than
+//     throwing on any unknown input.
+//   struckFacing({ from, at, facing, overhead? }) -> 'front'|'side'|'rear'|'top'
+//     Pure axial geometry; `facing` indexes HEX_DIRECTIONS. 'top' for an overhead attack or an
+//     attacker in the target's own hex. It picks WHICH facing a hit lands on and never what is behind it.
+
 // ---- Field generator (Lane B) ----
 TerrainKey  = 'open'|'road'|'rail'|'field'|'rubble'|'ruins'|'building'|'wall'|'woods'|'hedgerow'|'crater'|'water'|'marsh'|'hill'|'fuel_tank'|'precursor_wall'
 WorkKey     = 'foxhole'|'trench'|'bunker'|'emplacement'   // Lane A owns DEPLOYABLES; Lane B only ever emits 'trench' | 'bunker'
