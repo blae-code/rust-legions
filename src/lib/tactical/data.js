@@ -301,7 +301,7 @@ export const SCALING = {
 // mirror test reads that table back out of the markdown and recomputes every
 // cell — a stale number in the document is a failing test.
 //
-// combatValue is the sum of five terms, all from fields this file owns:
+// combatValue is the sum of six terms, all from fields this file owns:
 //   anti-personnel   ranged * (1 + range / rangeDivisor)
 //   anti-armour      ranged * max(0, armorPen - penFloor) * penWeight
 //   contact          melee * meleeWeight
@@ -517,7 +517,7 @@ export function deriveSquad(squad) {
 
 // ---- the points audit, as code --------------------------------------------
 
-/** The five-term value of a type at full strength. See POINTS_MODEL. */
+/** The six-term value of a type at full strength. See POINTS_MODEL. */
 export function combatValue(typeKey) {
   const t = SQUAD_TYPES[typeKey];
   if (!t) return 0;

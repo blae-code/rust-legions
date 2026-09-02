@@ -381,3 +381,59 @@ and `pattern_shop` is its first consumer.
 reasoning behind every number stay in `docs/TECH_DESIGN.md` §8–§12. Existing §19 (research tree) and
 §20 (State Armory) were **not** edited — §23 supersedes them on the day the marker comes off, and
 folding the two old sections into it is a platform-lane edit, not a content-lane one.
+
+### Lane A — the squad rules core (`base44/shared/tactical.ts`)
+
+Data, derivations and documentation are complete, mirrored (`src/lib/tactical/data.js`) and proven
+(`test/tactical-mirror.test.js`). **Nothing below is wired**, and none of it is a change this lane
+could make: every item is either a platform-owned file or a persisted shape.
+
+- [ ] **`docs/GAME_RULES.md` §25 — the tactical squad layer.** Platform-owned, so this lane did not
+      write it (drift guard 9). `## 23` is Lane I's Arms Catalogue and `## 24` is Lane G's doctrine
+      section, so **`## 25` is the next free number** and is reserved for this. Mark it
+      `[PROPOSED — awaiting platform wiring]` like its two neighbours. Write it as a *reference to*
+      `docs/COMBAT_DESIGN.md` §13, not a copy of it: every table in §13 — the nine types, the five
+      specialists, the sixteen orders, the four works, the Points Audit, the morale modifiers and
+      the worked example — is read back out of that document and recomputed against the exported
+      tables on every test run, so a figure retyped into `GAME_RULES.md` is a figure with no gate
+      on it. §13.2 is the stat block; §13.6 is the figures↔companies ratio in prose.
+- [ ] **Import the module; do not inline it.** `gameEngine` (and `concurrentPlay`, if it ever prices
+      a squad) must consume `base44/shared/tactical.ts` the way Lane G asks for `catalog.ts`. Every
+      balance constant is in an exported table — `SCALING`, `POINTS_MODEL`, `MORALE_MODS`,
+      `FIGURES_PER_COMPANY`, `WORK_ARMOUR_APPLIES_TO` — precisely so no third copy has to exist.
+- [ ] **Never persist a derived row.** `deriveSquad` is pure and total: the same
+      `{ type, figures, specialists, loadout }` always yields the same ten keys, and a degenerate
+      input returns the zero row rather than throwing. Persist the squad, derive the stats on read.
+      A stored `melee`/`ranged`/`pts` is a number that silently survives a balance patch.
+- [ ] **`toRegiments` returns all four `COLUMN_KEYS`, always, and rounds DOWN.**
+      `battleResult` → `macroApplyBattleOutcome` already depends on the four-key shape; the rounding
+      is the rule that stops a battle *creating* companies. `poolCost` is in **figures**, matching
+      §4's `myPool` comment; `toRegiments` is in **companies**. They are not interchangeable.
+- [ ] **Two persisted fields the entity schema does not have yet.** `struckFacing` needs a stand's
+      **`facing`** — an integer index into `HEX_DIRECTIONS`, which is asserted equal to Lane B's
+      neighbour order — and an **`overhead`** flag on a hit that arrives from the air or by indirect
+      fire (both land on the top plate whatever the hull is pointed at). Without `facing` persisted,
+      every vehicle is struck on the front and rear shots stop existing.
+- [ ] **Screen state has nowhere to live.** `SQUAD_ACTIONS.smoke.screenTurns` is the only non-zero
+      screen in the sixteen orders and it blinds a hex **for both sides**. That is per-hex, per-turn
+      battle state, not squad state, and the battle document has no field for it.
+- [ ] **Four staff mods have no consumer yet** — `recoverPerTurn`, `aoeSuppress`, `buildSpeed` and
+      `executionToll` are read from `SPECIALISTS` at resolution time, and resolution is Lane C's.
+      They are live data in an inert path until then: a medic currently steadies a squad's morale and
+      heals nobody. Same shape as Lane G's unconsumed effect keys; worth tracking the same way.
+- [ ] **Decide what an over-staffed squad does on the server.** `deriveSquad` applies at most
+      `SCALING.maxSpecialists` attachments and **silently ignores** the rest, in declaration order,
+      so the derivation is invariant under the order the player attached them. That is the right
+      behaviour for a derivation and the wrong behaviour for a muster screen: the server should
+      *refuse* a third attachment at muster rather than let the player buy one that does nothing.
+- [ ] **A work re-classes a man, never a hull.** `DEPLOYABLES[k].armourClass` replaces the stand's own
+      armour class while it occupies the work, **and only if** the stand's own class is in
+      `WORK_ARMOUR_APPLIES_TO`. Applying it unconditionally would make a bunker upgrade a crawler.
+      The work's `cover` and `moveCost` are **added** to the tile's — Lane B's generator deliberately
+      never folds them in, so exactly one layer applies them and it is the resolver.
+
+**One transitional mismatch, expected and accepted** (also in this lane's PR body): `poolCost` and
+`toRegiments` were re-based from formations onto squads per §3, while the un-rewritten
+`tacticalEngine.ts` on `main` still passes formations to them. Merge order is A → C and Lane C
+rewrites both call sites in P2; no test on `main` covers the intermediate state. It is not a defect
+to be "fixed" by restoring a dual code path that sniffs its argument.

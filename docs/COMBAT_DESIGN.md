@@ -288,30 +288,35 @@ effect that no field implements would be a rule nobody can resolve.
 Thirteen the plan names, plus one signature verb each for the crawler, the gun and the aeroplane,
 which would otherwise have had nothing to do that a rifle section could not also do.
 
-| Order | Gated to | uses | dmg | guard | range | aoe | moraleHit | suppress | noMove | turns | indirect |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `fire` | any squad | ranged | 1 | 1 | squad | — | 1 | 0.25 | false | 1 | false |
-| `assault` | any squad | melee | 1.2 | 0.9 | 1 | — | 3 | 0 | false | 1 | false |
-| `hold` | any squad | — | 0 | 1.45 | squad | — | 0 | 0 | true | 1 | false |
-| `rally` | any squad | — | 0 | 1.1 | squad | — | 0 | 0 | true | 1 | false |
-| `entrench` | any squad | — | 0 | 1.9 | squad | — | 0 | 0 | true | 1 | false |
-| `grenade` | `riflemen` / `assault` / `pioneers` | ranged | 0.9 | 1 | 2 | r1 f0.4 | 2 | 0.5 | false | 1 | false |
-| `suppress` | `gunners` / `heavy_gunner` | ranged | 0.5 | 1 | squad | — | 4 | 1.5 | true | 1 | false |
-| `smoke` | `scouts` / `mortars` | — | 0 | 1 | 4 | r1 f0 | 0 | 0.25 | false | 1 | false |
-| `mortar_barrage` | `mortars` | ranged | 1.35 | 1 | squad | r1 f0.35 | 3 | 0.75 | true | 1 | true |
-| `bombard` | `artillery` | ranged | 1.5 | 1 | squad | r2 f0.3 | 4 | 1 | true | 1 | true |
-| `strafe` | `fighter` | ranged | 1.25 | 0.85 | squad | r1 f0.5 | 3 | 0.5 | false | 1 | false |
-| `overrun` | `crawler` | melee | 1.6 | 1 | 1 | — | 5 | 1 | false | 1 | false |
-| `build_foxhole` | `pioneers` / `sapper` | — | 0 | 1 | squad | — | 0 | 0 | true | 1 | false |
-| `build_trench` | `pioneers` / `sapper` | — | 0 | 1 | squad | — | 0 | 0 | true | 1 | false |
-| `build_bunker` | `pioneers` / `sapper` | — | 0 | 1 | squad | — | 0 | 0 | true | 2 | false |
-| `build_emplacement` | `pioneers` / `sapper` | — | 0 | 1 | squad | — | 0 | 0 | true | 1 | false |
+| Order | Gated to | uses | dmg | guard | range | aoe | moraleHit | suppress | screenTurns | noMove | turns | indirect |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `fire` | any squad | ranged | 1 | 1 | squad | — | 1 | 0.25 | 0 | false | 1 | false |
+| `assault` | any squad | melee | 1.2 | 0.9 | 1 | — | 3 | 0 | 0 | false | 1 | false |
+| `hold` | any squad | — | 0 | 1.45 | squad | — | 0 | 0 | 0 | true | 1 | false |
+| `rally` | any squad | — | 0 | 1.1 | squad | — | 0 | 0 | 0 | true | 1 | false |
+| `entrench` | any squad | — | 0 | 1.9 | squad | — | 0 | 0 | 0 | true | 1 | false |
+| `grenade` | `riflemen` / `assault` / `pioneers` | ranged | 0.9 | 1 | 2 | r1 f0.4 | 2 | 0.5 | 0 | false | 1 | false |
+| `suppress` | `gunners` / `heavy_gunner` | ranged | 0.5 | 1 | squad | — | 4 | 1.5 | 0 | true | 1 | false |
+| `smoke` | `scouts` / `mortars` | — | 0 | 1 | 4 | r1 f0 | 0 | 0.25 | 2 | false | 1 | false |
+| `mortar_barrage` | `mortars` | ranged | 1.35 | 1 | squad | r1 f0.35 | 3 | 0.75 | 0 | true | 1 | true |
+| `bombard` | `artillery` | ranged | 1.5 | 1 | squad | r2 f0.3 | 4 | 1 | 0 | true | 1 | true |
+| `strafe` | `fighter` | ranged | 1.25 | 0.85 | squad | r1 f0.5 | 3 | 0.5 | 0 | false | 1 | false |
+| `overrun` | `crawler` | melee | 1.6 | 1 | 1 | — | 5 | 1 | 0 | false | 1 | false |
+| `build_foxhole` | `pioneers` / `sapper` | — | 0 | 1 | squad | — | 0 | 0 | 0 | true | 1 | false |
+| `build_trench` | `pioneers` / `sapper` | — | 0 | 1 | squad | — | 0 | 0 | 0 | true | 1 | false |
+| `build_bunker` | `pioneers` / `sapper` | — | 0 | 1 | squad | — | 0 | 0 | 0 | true | 2 | false |
+| `build_emplacement` | `pioneers` / `sapper` | — | 0 | 1 | squad | — | 0 | 0 | 0 | true | 1 | false |
 
 `dmg` is a **multiplier** on the derived stat named in `uses`, never an absolute. `guard` is a
 multiplier on the squad's own defence for the round — standing still is worth 1.45 and digging in is
 worth 1.9, while an assault and a strafing run cost you something for the privilege. `range` is an
 override in hexes; `squad` means the squad's own reach. An `indirect` order needs no sight line at
 all, which is what a mortar is for.
+
+`suppress` is the pin an order lays on top of its damage and `screenTurns` is how long it blinds the
+hex it lands in. **`smoke` is the only one of the sixteen that sets a screen**, and the screen is
+symmetrical: the section that laid it cannot see through it either, which is why it is a
+disengagement tool and not a free advance.
 
 **The gate is a union**, and it is written that way so the roster can grow without this table being
 touched. An order is offered when it requires nothing, or when `requires.types` names the squad
@@ -473,6 +478,96 @@ be passed is not a test. Stack the best of it and the target runs past 18, which
 thresholds are therefore *reachable* by the modifiers actually printed above, and the mirror test
 asserts exactly that rather than trusting this paragraph.
 
+### 13.11 One section, worked end to end
+
+The tables above are each true on their own; `deriveSquad` is where they have to be true at the same
+time. So here is one section carried the whole way through, from its roster row to the number a hit
+actually takes off it.
+
+**The section.** A rifle section that mustered at ten and is down to six, with a signaler and a
+medic attached: `{ type: 'riflemen', figures: 6, specialists: ['signaler', 'medic'] }`. The staff
+are listed in the order the player attached them, which is deliberately not the order they are
+applied in — 13.8's declaration-order rule means the same six men with the same two attachments
+derive the same row however the array is written.
+
+| Field | Value | Where it comes from |
+| --- | --- | --- |
+| `figures` | 6 | as mustered, capped at the type's `maxFigures` |
+| `melee` | 3.16 | the declared 5, eroded by `ratio ** SCALING.offenceExponent` |
+| `ranged` | 8.84 | the declared 14, eroded by the same factor |
+| `range` | 7 | declared, unscaled — losses do not shorten a rifle |
+| `armor` | 2 | declared, unscaled |
+| `speed` | 3 | declared, no kit delta, floored at `SCALING.speedFloor` |
+| `morale` | 10 | declared 11, medic +1, strain −2 for being four men short |
+| `initiative` | 13 | `speed × SCALING.initiativePerSpeed + SCALING.initiativeBase`, signaler +3 |
+| `pts` | 82 | `round(100 × 0.6)` for the bodies, plus both attachments at full price |
+| `actions` | `fire`, `assault`, `hold`, `rally`, `entrench`, `grenade` | the five universal orders, plus the one the type names in its own `specials` |
+
+Two things in that column are worth stating out loud, because both are decisions rather than
+consequences. **Attachments do not erode.** A medic costs his twelve points whether he is walking
+with ten men or four; the section's own price falls with its strength and his does not, so a badly
+mauled section carrying two specialists is an expensive thing to keep in the line — which is the
+intended pressure. And **initiative is bought, not earned**: three points of signaler is worth a
+point and a half of speed, so a signalled rifle section moves in the order before an unsignalled
+assault section, and the scouts still go first.
+
+**The section fires.** `resolveSquadHit` hands the derived `ranged` value, multiplied by the order's
+`dmg`, to `arms.ts` as a weapon with the type's `armorPen` and `damageType`. Everything in this
+table is what comes back — this layer performs none of it (13.9). A `0` is a hit
+that came back `suppressOnly`: it lands, it may still pin, and it takes nothing off the stand.
+
+| Order | `none` | `soft` | `light` | `medium` | `heavy` | `superheavy` | `fortified` |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `fire` | 8.84 | 8.84 | 5.0388 | 2.3868 | 0 | 0 | 0 |
+| `assault` | 3.79 | 3.79 | 2.1603 | 1.0233 | 0 | 0 | 0 |
+| `grenade` | 10.746 | 11.144 | 2.1492 | 0.3582 | 0 | 0 | 0 |
+
+The grenade lands *harder* on a greatcoat than on a man in shirtsleeves, which looks like an error
+and is not: fragmentation peaks against cloth and webbing and is spent on plate, and the Arms
+Catalogue prices it that way. This layer does not second-guess that row; it hands over a key and
+prints what it is told.
+
+**And what the roster cannot hurt.** The same call again — six of the nine at full strength, each
+giving the order it exists for. The three left out would add nothing to it: `assault` and `pioneers`
+throw the same `grenade` the rifle section above throws, and the scout's own verb is `smoke`, which
+does no damage to anybody by design.
+
+| Type | Order | `soft` | `light` | `medium` | `heavy` | `superheavy` | `fortified` |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `riflemen` | `fire` | 14 | 7.98 | 3.78 | 0 | 0 | 0 |
+| `gunners` | `suppress` | 9 | 8.55 | 2.43 | 0 | 0 | 0 |
+| `mortars` | `mortar_barrage` | 22.68 | 4.374 | 0.729 | 0 | 0 | 0 |
+| `artillery` | `bombard` | 41.4 | 30 | 20.4 | 5.04 | 0 | 2.16 |
+| `fighter` | `strafe` | 20.3125 | 19.2969 | 14.625 | 3.9 | 0 | 0.975 |
+| `crawler` | `overrun` | 14.4 | 13.68 | 10.8 | 4.608 | 0.672 | 1.728 |
+
+Read the right-hand columns rather than the left. Six of the base nine cannot scratch a bunker at
+all, whatever order they are given; the three that can are the gun, the aeroplane and the tracks, and none of them does it well. A
+land-fort's belt is thicker still, and **exactly one order in the roster puts a number on it — the
+crawler driving onto the thing**. That is the shape the layer wants: infantry is for ground and for
+each other, works are genuinely proof against small arms, and the answers to armour are few enough
+to be worth planning around. When Lane F adds a type that changes one of those zeroes, this table
+moves with it, because the mirror test recomputes every cell of it on every run.
+
+### 13.12 The seams — what this layer decides and what it does not
+
+The tactical layer is five lanes wide and this file is one of them. Everything below is deliberately
+absent from `tactical.ts`, and a number for it appearing here later is a merge accident, not a
+feature.
+
+| Not here | Whose | Where it lives |
+| --- | --- | --- |
+| Terrain, cover of the ground, elevation, sight lines, paths, the board itself | Lane B | `tacticalField.ts` (§14) |
+| The rolls: the morale test, hit resolution order, initiative ties, movement, stacking, status gating (suppressed / routed / entrenched / already building) | Lane C | `tacticalEngine.ts` |
+| Weapon stats, penetration, damage-type matrices, armour classes, `deriveLoadout` | Lane I | `arms.ts` (`docs/ARMS_CATALOGUE.md`) |
+| Vehicle chassis, powerplants, armour packages, per-facing `Facings` | Lane J | `motorPool.ts` |
+| Roster growth — tiers `II:*` and `III`, the further specialists, upgrades | Lane F | appended to the tables here |
+
+Two of those seams are load-bearing enough to have their own mechanical guard. `struckFacing`
+returns a facing KEY and never an armour value, so the vehicle lanes and the damage model meet only
+through `arms.ts`; and the squad's own `actions` list is gated on type and staff alone, so a status
+rule Lane C adds later cannot silently become a roster rule here.
+
 ## 14. The Field Generator *(Lane B — the ground the squads fight over)*
 
 Layer Two gave the battle a *line*; the tactical layer gives it a *place*. `generateField` is one
@@ -485,7 +580,10 @@ generateField({ seed, nodeKind, weather, fortBonus, w = 15, h = 11 })
 Canonical implementation `base44/shared/tacticalField.ts`, frontend mirror `src/lib/tactical/field.js`,
 proven in `test/tactical-field.test.js`. **Every number this section refers to lives in one of the five
 exported tables — `FIELD`, `TERRAIN`, `PALETTES`, `WEATHER_FIELD`, `WORKS_SEED` — and is deliberately not
-restated here.** Read the table; a figure copied into prose is a figure that goes stale.
+restated here.** Read the table; a figure copied into prose is a figure that goes stale. The two
+figures that unavoidably appear below — the size of the board and the playability floor — are read
+back out of *this document* by `test/tactical-mirror.test.js`, which regenerates boards and measures
+them rather than trusting the sentence.
 
 ### 14.1 What a field is
 
@@ -494,8 +592,17 @@ flag and a move cost (`null` = impassable), plus an optional `work` where the de
 come the two deployment strips — the attacker owns the westernmost three columns, the defender the eastern
 three — and a `meta` block recording the inputs, the weather's sight cap and whether fighters are grounded.
 
+Both strips are flat as well as clear: the normalisation pass sets every deploy hex to elevation 0,
+so neither side is handed a crest before an order is issued.
+
 Elevation is **three steps, not five**: ground, rise, crest. It is a separate layer from terrain and never
 changes cover or movement — its only job is deciding who is shooting *over* whom.
+
+One reading trap in `TERRAIN`, worth naming because the column invites the mistake: an impassable
+hex still carries a `cover` number and that number is **inert**. Nothing can stand in a wall, a
+lake, a fuel drum or a slab of precursor masonry; three of those four stop a sight line as well,
+and not one of them shelters anybody. The cover a stand gets is always the cover of the hex the
+stand is standing in.
 
 ### 14.2 The five palettes — five places, not five reskins
 
@@ -506,17 +613,21 @@ painted as ragged radius-1 clusters.
 | Node | The board it makes | Signature | Artery |
 | --- | --- | --- | --- |
 | `city` | Dense and vertical, well over half of it wreckage. The fight is for window-lines; `wall` is the only hard stop the palette paints. | `building` clusters | `road` |
-| `town` | Open farmland cut by hedge banks, which are the signature and the only real terrain feature. Buildings are scattered thin, a chapel and a farm at a time. | `hedgerow` banks | `road` |
-| `depot` | Rail, hardstanding and drums: almost no natural cover, and the drums are cover until they are lit. | `fuel_tank` farms | `rail` |
-| `ruin` | Precursor ground: cratered, waterlogged, slow underfoot, with uncuttable masonry standing where nothing else does. | `precursor_wall` | `road` |
-| `crossroads` | Rolling country and the most open board in the set — the armour board. Woods are the only screen there is. | `woods` | `road` |
+| `town` | Open farmland cut by hedge banks — the hedgerow is the only thing this palette gathers into clusters, so buildings arrive singly rather than as a village. Nothing in the palette is impassable: the town board has no hard stops at all. | `hedgerow` banks | `road` |
+| `depot` | Rail, hardstanding and fuel drums. Thin cover on the ground you can stand on, and the cover you can *see* — drums and dividing walls — is impassable, so it screens you and shelters nobody. The only board whose lane is metalled with `rail`. | `fuel_tank` farms | `rail` |
+| `ruin` | Precursor ground: cratered, waterlogged, slow underfoot, with uncuttable masonry standing where nothing else does — and the only palette that paints standing water. It never paints `road`, so the lane is the only metalled ground on the board. | `precursor_wall` | `road` |
+| `crossroads` | Rolling country and the most open board in the set: the thinnest cover in the palettes and, like `town`, nothing impassable in it at all. The armour board, and woods are the only screen there is. | `woods` | `road` |
 
 The design gate is that **a board must stay a battlefield rather than become a maze**: the contract floor
 is that at least 55% of every generated field is passable, non-LOS-blocking ground. That is not an
 aspiration in a document — it is asserted per board across the whole test corpus, alongside a second,
 tighter floor pinned just under the measured worst board, so a palette that quietly got mazier would fail
-long before the 55% gate noticed it. The arterial alone accounts for roughly a tenth of every board, which
-is why `road` is weighted *down* in the palettes that already run one.
+long before the 55% gate noticed it.
+
+The lane is one hex in every column plus a bridging hex wherever it drifts (14.5) — a column or two
+of board, and it is **connectivity, not terrain**. That is what lets
+`ruin` paint no `road` at all and `depot` paint a yard full of `rail`: the palette can say whatever
+it likes about metalled ground, because the lane is laid on top of it either way.
 
 ### 14.3 Weather bends sight and ground, never terrain
 
@@ -524,7 +635,10 @@ Weather never repaints a hex. It does three things: caps sight range (`meta.losC
 grounds aircraft (`meta.groundsFighters` — reported here, enforced by the resolution layer). Metalled lanes
 are explicitly exempt from the mud tax; that exemption is the whole reason the arterial is worth having.
 Fog is the extreme case — the shortest cap in the table and no movement penalty at all, which turns a
-`crossroads` board from an armour duel into a knife fight.
+`crossroads` board from an armour duel into a knife fight. Three singletons in that table carry most
+of its character and each is the only row of its kind: only `snow` taxes the woods as well as the
+soft going, only `storm` grounds aircraft, and `clear` caps sight at a number larger than the board,
+which is the table's way of writing *no cap at all*.
 
 ### 14.4 Fortification is dug ground, not a structure
 
@@ -534,9 +648,11 @@ from `WORKS_SEED`: trenches rise with every level of the bonus, and bunkers appe
 `WORKS_SEED.bunkerFromLevel` upward.
 
 A work is a **stamp on the ground and nothing else**. It never makes a hex impassable, never blocks sight,
-and never folds its value into the tile's `cover` — the tile stays purely terrain-derived. The mechanical
-effect of a trench or a bunker lives in the deployables catalogue at 13.5 and is applied at resolution
-time. Keeping those two apart is what stops the same defensive bonus being counted twice.
+and never folds its value into the tile's `cover` — the tile stays purely terrain-derived, and a test
+reads every work hex on the corpus back against the terrain table to keep it that way. The stamp also
+*clears* what it lands on: a hex that was impassable or sight-blocking is repainted `open` before the
+work goes down, so a bunker never appears inside a wall. The mechanical effect of a trench or a
+bunker lives in the deployables catalogue at 13.5 and is applied at resolution time. Keeping those two apart is what stops the same defensive bonus being counted twice.
 
 ### 14.5 The order is the ruleset
 
@@ -544,7 +660,8 @@ The pipeline runs in a fixed order and the acceptance properties are properties 
 artery -> features -> elevation -> weather -> deploy zones -> **normalise the zones** -> works ->
 **connectivity repair**. Normalising the zones before stamping works is what makes "no side ever deploys
 into a wall" true by construction rather than by luck, and the repair runs last so nothing can re-block
-what it opened.
+what it opened. `meta` is filled in just before the repair rather than at the end, because the repair
+reads the weather off it to re-cost anything it opens.
 
 The arterial deserves one line of its own, because it is the step most likely to be broken by a tidy-up: a
 lane that drifts one row SOUTH between columns is not adjacent to where it came from — those two hexes are
@@ -563,4 +680,6 @@ being hoped for and sampled.
 No damage, armour or penetration arithmetic; no squad state; no resolution. Cover is terrain metadata that
 the combat math reads, not a combat calculation. The generator is a pure data structure and a set of pure
 queries over it — `neighbors`, `hexRange`, `hexLine`, `lineOfSight`, `pathCost` — and every rule that spends
-a die roll lives elsewhere.
+a die roll lives elsewhere. `repairConnectivity` is exported alongside them for one reason: the last
+pass of the pipeline should have a return value a test can read, rather than a guard counter sealed
+inside a closure where nothing can see it do its job.

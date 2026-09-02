@@ -41,7 +41,8 @@ import { describe, it, expect } from "vitest";
 import { readRepoFile, extractConst } from "./helpers/extract-const.js";
 import * as MIRROR from "@/lib/tactical/data.js";
 import { ARMOUR_CLASSES, PEN_TABLE, TYPE_MATRIX, LOADOUT_KEYS, deriveLoadout } from "@/lib/arms.js";
-import { neighbors, TERRAIN } from "@/lib/tactical/field.js";
+import * as FIELD_MOD from "@/lib/tactical/field.js";
+import { neighbors, TERRAIN, FIELD, PALETTES, WEATHER_FIELD, WORKS_SEED, generateField } from "@/lib/tactical/field.js";
 
 const CANON_SRC = readRepoFile("base44/shared/tactical.ts");
 const MIRROR_SRC = readRepoFile("src/lib/tactical/data.js");
@@ -226,7 +227,46 @@ const parseMdTable = (doc, headingRe) => {
   return { header: rows[0], body: rows.slice(1) };
 };
 
+/**
+ * One document section: from its heading to the NEXT heading, never to EOF.
+ * The slice this replaced ran to the end of the file, so every assertion made
+ * against it could have been satisfied by prose in somebody else's section —
+ * the "bounded at one end" defect this project has already paid for once.
+ */
+const docSection = (doc, headingRe) => {
+  const lines = doc.split("\n");
+  const start = lines.findIndex((l) => headingRe.test(l));
+  expect(start, `heading ${headingRe} not found in COMBAT_DESIGN.md`).toBeGreaterThan(-1);
+  let end = lines.length;
+  for (let i = start + 1; i < lines.length; i++) {
+    if (/^#{1,6}\s/.test(lines[i])) { end = i; break; }
+  }
+  return lines.slice(start, end).join("\n");
+};
+
+/** Every markdown table in a section, kept apart — a blank line ends one. */
+const parseMdTables = (doc, headingRe) => {
+  const tables = [];
+  let cur = null;
+  for (const raw of docSection(doc, headingRe).split("\n")) {
+    const l = raw.trim();
+    if (l.startsWith("|") && l.endsWith("|")) {
+      if (/^\|[\s|:-]+\|$/.test(l)) continue;
+      const cells = l.slice(1, -1).split("|").map((c) => c.trim());
+      if (!cur) { cur = { header: cells, body: [] }; tables.push(cur); }
+      else cur.body.push(cells);
+    } else if (!l) {
+      cur = null;
+    }
+  }
+  expect(tables.length, `no table under ${headingRe}`).toBeGreaterThan(0);
+  return tables;
+};
+
 const num = (s) => Number(String(s).replace(/[^0-9.-]/g, ""));
+
+/** The digits a markdown cell prints, without the backticks. */
+const bare = (s) => String(s).replace(/`/g, "").trim();
 
 // The rounding both rules files apply to a derived offence value. Restated here
 // on purpose: a test that imported the module's own rounding could not tell a
@@ -1018,14 +1058,32 @@ describe("tactical mirror — the points anchor and the audit (check 13)", () =>
     // A stat rise must move the value. Recomputed by hand from POINTS_MODEL,
     // so the formula cannot be quietly re-weighted without this failing.
     const P = POINTS_MODEL;
-    const t = SQUAD_TYPES.gunners;
-    const byHand = t.ranged * (1 + t.range / P.rangeDivisor)
-      + t.ranged * Math.max(0, t.armorPen - P.penFloor) * P.penWeight
-      + t.melee * P.meleeWeight
-      + t.figures * (t.armor * P.armorWeight + t.morale * P.moraleWeight)
-      + t.speed * P.speedWeight
-      + t.specials.length * P.specialWeight;
-    expect(combatValue("gunners")).toBeCloseTo(byHand, 4);
+    // Every row, not one row: a term that only ever contributes zero on the
+    // sampled type would be invisible, and the six-term count in both files'
+    // headers is only true if all six are still being summed for all nine.
+    for (const k of SQUAD_TYPE_KEYS) {
+      const t = SQUAD_TYPES[k];
+      const byHand = t.ranged * (1 + t.range / P.rangeDivisor)
+        + t.ranged * Math.max(0, t.armorPen - P.penFloor) * P.penWeight
+        + t.melee * P.meleeWeight
+        + t.figures * (t.armor * P.armorWeight + t.morale * P.moraleWeight)
+        + t.speed * P.speedWeight
+        + t.specials.length * P.specialWeight;
+      expect(combatValue(k), `${k} combat value`).toBeCloseTo(byHand, 4);
+    }
+    // And each of the six actually moves at least one row, so none is dead.
+    const terms = [
+      (t) => t.ranged * (1 + t.range / P.rangeDivisor),
+      (t) => t.ranged * Math.max(0, t.armorPen - P.penFloor) * P.penWeight,
+      (t) => t.melee * P.meleeWeight,
+      (t) => t.figures * (t.armor * P.armorWeight + t.morale * P.moraleWeight),
+      (t) => t.speed * P.speedWeight,
+      (t) => t.specials.length * P.specialWeight,
+    ];
+    terms.forEach((term, i) => {
+      const live = SQUAD_TYPE_KEYS.some((k) => term(SQUAD_TYPES[k]) > 0);
+      expect(live, `points term ${i} contributes nothing to any row`).toBe(true);
+    });
   });
 });
 
@@ -1139,9 +1197,15 @@ describe("tactical mirror — the design document is recomputed, not retyped (ch
   });
 
   it("the figures-to-companies ratio is stated in prose as well as in code", () => {
-    const section = DESIGN_DOC.slice(DESIGN_DOC.indexOf("### 13.6"));
+    // Bounded at BOTH ends. Sliced to EOF, this passed on the strength of
+    // any later section mentioning either phrase — including sections written
+    // by other lanes after it.
+    const section = docSection(DESIGN_DOC, /^### 13\.6 /);
     expect(section).toMatch(/FIGURES_PER_COMPANY/);
     expect(section).toMatch(/rounds down|rounding down/i);
+    for (const k of COLUMN_KEYS) {
+      expect(section, `13.6 never prints the ratio for ${k}`).toContain(`${k}: ${FIGURES_PER_COMPANY[k]}`);
+    }
   });
 });
 
@@ -1332,5 +1396,400 @@ describe("tactical mirror — the cross-lane seams", () => {
     const terrainMax = Math.max(...Object.keys(TERRAIN).map((k) => TERRAIN[k].cover));
     expect(DEPLOYABLES.bunker.cover).toBeGreaterThan(terrainMax);
     expect(DEPLOYABLES.foxhole.cover).toBeLessThanOrEqual(terrainMax);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The document, continued: the two tables nothing was reading, and the worked
+// example. 13.2, 13.3, 13.5, 13.7 and 13.10 were already read back cell by
+// cell; 13.4 — the biggest table in the section — was not, and neither was
+// anything downstream of it. A published table checked by nothing is the
+// defect class this wave exists to stop repeating.
+// ---------------------------------------------------------------------------
+describe("tactical mirror — the orders table is read back (13.4)", () => {
+  const gateCell = (a) => (!a.requires
+    ? "any squad"
+    : (a.requires.types || []).concat(a.requires.specialists || []).map((k) => `\`${k}\``).join(" / "));
+  const rangeCell = (a) => (a.range === null ? "squad" : String(a.range));
+  const aoeCell = (a) => (a.aoe ? `r${a.aoe.radius} f${a.aoe.falloff}` : "—");
+
+  it("every order, every column, in declaration order and in both directions", () => {
+    const [{ header, body }] = parseMdTables(DESIGN_DOC, /^### 13\.4 /);
+    // Both directions: not "every printed row exists" but "the printed rows ARE
+    // the table", so an order dropped from the prose fails as loudly as one
+    // invented in it.
+    expect(body.map((r) => bare(r[0]))).toEqual(SQUAD_ACTION_KEYS);
+    const col = (name) => {
+      const i = header.indexOf(name);
+      expect(i, `column ${name} missing from 13.4`).toBeGreaterThan(-1);
+      return i;
+    };
+    body.forEach((row, i) => {
+      const k = SQUAD_ACTION_KEYS[i];
+      const a = SQUAD_ACTIONS[k];
+      expect(row[col("Gated to")], `${k} gate`).toBe(gateCell(a));
+      expect(row[col("uses")], `${k}.uses`).toBe(a.uses === null ? "—" : a.uses);
+      expect(row[col("range")], `${k}.range`).toBe(rangeCell(a));
+      expect(row[col("aoe")], `${k}.aoe`).toBe(aoeCell(a));
+      for (const f of ["dmg", "guard", "moraleHit", "suppress", "screenTurns", "turns"]) {
+        expect(num(row[col(f)]), `${k}.${f}`).toBe(a[f]);
+      }
+      for (const f of ["noMove", "indirect"]) {
+        expect(row[col(f)], `${k}.${f}`).toBe(String(a[f]));
+      }
+    });
+  });
+
+  it("the screen is smoke's alone, which is what 13.4 claims in prose", () => {
+    const screening = SQUAD_ACTION_KEYS.filter((k) => SQUAD_ACTIONS[k].screenTurns > 0);
+    expect(screening).toEqual(["smoke"]);
+    expect(SQUAD_ACTIONS.smoke.screenTurns).toBeGreaterThan(1);
+    expect(docSection(DESIGN_DOC, /^### 13\.4 /)).toMatch(/only one of the sixteen that sets a screen/);
+  });
+
+  it("every order that builds names a work, and no other order does", () => {
+    for (const k of SQUAD_ACTION_KEYS) {
+      const a = SQUAD_ACTIONS[k];
+      if (k.startsWith("build_")) expect(DEPLOYABLE_KEYS, `${k}.builds`).toContain(a.builds);
+      else expect(a.builds, `${k}.builds`).toBeNull();
+    }
+  });
+});
+
+describe("tactical mirror — the worked example is worked, not written (13.11)", () => {
+  const SECTION = /^### 13\.11 /;
+
+  // The squad is READ OUT OF THE DOCUMENT. If the prose and the tables ever
+  // described different sections, this would derive the prose's one and the
+  // tables would stop matching — which is the failure anyone reading it would
+  // hit, made mechanical.
+  const workedSquad = () => {
+    const m = docSection(DESIGN_DOC, SECTION)
+      .match(/\{ type: '(\w+)', figures: (\d+), specialists: \[([^\]]*)\] \}/);
+    expect(m, "13.11 no longer states the squad it works through").toBeTruthy();
+    return {
+      type: m[1],
+      figures: Number(m[2]),
+      specialists: m[3].split(",").map((s) => s.trim().replace(/'/g, "")).filter(Boolean),
+    };
+  };
+
+  it("the derivation table is what deriveSquad returns for the squad the prose names", () => {
+    const squad = workedSquad();
+    const d = deriveSquad(squad);
+    const [{ body }] = parseMdTables(DESIGN_DOC, SECTION);
+    const printed = {};
+    for (const row of body) printed[bare(row[0])] = row[1];
+    // Both directions: every one of the ten derived keys is printed, and
+    // nothing is printed that deriveSquad does not return.
+    expect(Object.keys(printed).sort()).toEqual(Object.keys(d).sort());
+    for (const k of Object.keys(d)) {
+      if (k === "actions") {
+        expect(printed[k].split(",").map((s) => bare(s)), "13.11 actions").toEqual(d.actions);
+      } else {
+        expect(num(printed[k]), `13.11 ${k}`).toBe(d[k]);
+      }
+    }
+  });
+
+  it("the worked section is invariant under the order the player attached the staff", () => {
+    const squad = workedSquad();
+    const reversed = { ...squad, specialists: [...squad.specialists].reverse() };
+    expect(deriveSquad(reversed)).toEqual(deriveSquad(squad));
+    expect(squad.specialists.length).toBeGreaterThan(1);
+  });
+
+  it("the two claims about attachments hold at any strength", () => {
+    const squad = workedSquad();
+    const staff = squadStaffMods(squad.specialists);
+    const bareSquad = { type: squad.type, figures: squad.figures };
+    // "Attachments do not erode": the staff cost is the same at any headcount.
+    const full = deriveSquad({ ...squad, figures: SQUAD_TYPES[squad.type].figures });
+    const cut = deriveSquad(squad);
+    expect(cut.pts - deriveSquad(bareSquad).pts).toBe(staff.pts);
+    expect(full.pts - deriveSquad({ ...bareSquad, figures: SQUAD_TYPES[squad.type].figures }).pts).toBe(staff.pts);
+    // "Initiative is bought": the signaler is worth more than a point of speed.
+    expect(staff.initiative).toBeGreaterThan(SCALING.initiativePerSpeed);
+    // ...and the scouts still go first, which is the sentence's second half.
+    const scouts = deriveSquad({ type: "scouts", figures: SQUAD_TYPES.scouts.figures });
+    expect(scouts.initiative).toBeGreaterThan(cut.initiative);
+  });
+
+  it("the hit table under 13.11 is what resolveSquadHit returns, cell by cell", () => {
+    const squad = workedSquad();
+    const [, hits] = parseMdTables(DESIGN_DOC, SECTION);
+    const classes = hits.header.slice(1).map(bare);
+    expect(classes, "13.11 armour columns").toEqual(Object.keys(ARMOUR_CLASSES));
+    for (const row of hits.body) {
+      const action = bare(row[0]);
+      expect(SQUAD_ACTION_KEYS, `13.11 names ${action}`).toContain(action);
+      classes.forEach((cls, i) => {
+        const got = resolveSquadHit({ attacker: squad, action, targetArmour: cls });
+        expect(num(row[i + 1]), `13.11 ${action} vs ${cls}`).toBeCloseTo(got.effective, 4);
+        if (got.suppressOnly) expect(got.effective, `${action} vs ${cls}`).toBe(0);
+      });
+    }
+  });
+
+  it("the roster table under 13.11 is recomputed from every type's own order", () => {
+    const [, , roster] = parseMdTables(DESIGN_DOC, SECTION);
+    const classes = roster.header.slice(2).map(bare);
+    for (const row of roster.body) {
+      const type = bare(row[0]);
+      const action = bare(row[1]);
+      expect(SQUAD_TYPE_KEYS, `13.11 names type ${type}`).toContain(type);
+      expect(squadActions(type, []), `${type} may not give ${action}`).toContain(action);
+      const attacker = { type, figures: SQUAD_TYPES[type].figures };
+      classes.forEach((cls, i) => {
+        const got = resolveSquadHit({ attacker, action, targetArmour: cls });
+        expect(num(row[i + 2]), `13.11 ${type}/${action} vs ${cls}`).toBeCloseTo(got.effective, 4);
+      });
+    }
+  });
+
+  it("the three types the roster table leaves out really would add nothing to it", () => {
+    // The prose gives a reason for six rows where there are nine types. If a
+    // later lane gave one of the three a damaging verb of its own, the reason
+    // would stop being true and the table would quietly be incomplete.
+    const [, hits, roster] = parseMdTables(DESIGN_DOC, SECTION);
+    const shownTypes = new Set(roster.body.map((r) => bare(r[0])));
+    const shownActions = new Set(
+      roster.body.map((r) => bare(r[1])).concat(hits.body.map((r) => bare(r[0]))),
+    );
+    const universal = SQUAD_ACTION_KEYS.filter((k) => !SQUAD_ACTIONS[k].requires);
+    const omitted = SQUAD_TYPE_KEYS.filter((k) => !shownTypes.has(k));
+    expect(omitted.sort()).toEqual(["assault", "pioneers", "scouts"]);
+    for (const k of omitted) {
+      for (const action of squadActions(k, []).filter((a) => !universal.includes(a))) {
+        const covered = shownActions.has(action) || SQUAD_ACTIONS[action].dmg === 0;
+        expect(covered, `${k} may give ${action}, which 13.11 neither shows nor excuses`).toBe(true);
+      }
+    }
+  });
+
+  it("the two claims about what the roster cannot hurt are counted, not asserted in prose", () => {
+    // For each type, the best it can do with any order it may actually give.
+    const best = (typeKey, armour) => squadActions(typeKey, Object.keys(SPECIALISTS))
+      .reduce((m, action) => Math.max(m, resolveSquadHit({
+        attacker: { type: typeKey, figures: SQUAD_TYPES[typeKey].figures }, action, targetArmour: armour,
+      }).effective), 0);
+    const canHurt = (armour) => SQUAD_TYPE_KEYS.filter((k) => best(k, armour) > 0);
+    // "the three that can are the gun, the aeroplane and the tracks"
+    expect(canHurt("fortified").sort()).toEqual(["artillery", "crawler", "fighter"]);
+    // "exactly one order in the roster puts a number on it — the crawler"
+    expect(canHurt("superheavy")).toEqual(["crawler"]);
+    const section = docSection(DESIGN_DOC, SECTION);
+    expect(section).toMatch(/gun, the aeroplane and the tracks/);
+  });
+});
+
+describe("tactical mirror — the seams section names live lanes only (13.12)", () => {
+  it("every module 13.12 hands a seam to is a module that exists", () => {
+    const [{ body }] = parseMdTables(DESIGN_DOC, /^### 13\.12 /);
+    expect(body.length).toBeGreaterThanOrEqual(5);
+    const named = body.map((r) => r[2]).join(" ");
+    for (const f of ["tacticalField.ts", "tacticalEngine.ts", "arms.ts", "motorPool.ts"]) {
+      expect(named, `13.12 no longer routes anything to ${f}`).toContain(f);
+    }
+    // The seam is only real if this file holds none of it: the status gates
+    // 13.12 assigns to Lane C must not appear in the action gating here.
+    for (const status of ["suppressed", "routed", "entrenched"]) {
+      expect(fnSource(CANON_SRC, "squadActions"), `squadActions gates on ${status}`).not.toContain(status);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Section 14 — the field generator. Lane B wrote the draft, this lane owns the
+// file, and editing somebody else's section without a gate on it is how a
+// document acquires a claim nobody can check. Lane B's own suite proves the
+// GENERATOR; what follows proves the PROSE — every factual claim section 14
+// makes is recomputed here from Lane B's exported tables or measured on boards
+// generated for the purpose. Two claims in the draft did not survive it and
+// were cut rather than reworded (see the commit message).
+// ---------------------------------------------------------------------------
+const FIELD_CORPUS = [];
+for (const nodeKind of Object.keys(PALETTES)) {
+  for (const weather of Object.keys(WEATHER_FIELD)) {
+    for (const seed of [11, 2718]) {
+      FIELD_CORPUS.push(generateField({ seed, nodeKind, weather, fortBonus: FIELD_CORPUS.length % 4 }));
+    }
+  }
+}
+const paletteCover = (k) => {
+  const w = PALETTES[k].weights;
+  const total = Object.keys(w).reduce((s, t) => s + w[t], 0);
+  return Object.keys(w).reduce((s, t) => s + w[t] * TERRAIN[t].cover, 0) / total;
+};
+const paletteHas = (k, pred) => Object.keys(PALETTES[k].weights).filter(pred);
+
+describe("section 14 — the board the prose describes is the board the generator makes", () => {
+  it("the board size and the deploy strips are read back out of the section", () => {
+    const s = docSection(DESIGN_DOC, /^### 14\.1 /);
+    const grid = s.match(/(\d+)x(\d+) axial hex grid: (\d+) tiles/);
+    expect(grid, "14.1 no longer states the board size").toBeTruthy();
+    expect(Number(grid[1])).toBe(FIELD.w);
+    expect(Number(grid[2])).toBe(FIELD.h);
+    expect(Number(grid[3])).toBe(FIELD.w * FIELD.h);
+    const WORDS = { one: 1, two: 2, three: 3, four: 4, five: 5 };
+    const strip = s.match(/westernmost (\w+) columns/);
+    expect(strip, "14.1 no longer states the deploy depth").toBeTruthy();
+    expect(WORDS[strip[1]]).toBe(FIELD.deployCols);
+    for (const f of FIELD_CORPUS) {
+      expect(Object.keys(f.tiles).length).toBe(f.w * f.h);
+      expect(f.deploy.attacker.length).toBe(FIELD.deployCols * f.h);
+    }
+  });
+
+  it("the deploy strips really are flat, which is 14.1's new sentence", () => {
+    expect(docSection(DESIGN_DOC, /^### 14\.1 /)).toMatch(/flat/);
+    for (const f of FIELD_CORPUS) {
+      for (const hx of f.deploy.attacker.concat(f.deploy.defender)) {
+        expect(f.tiles[`${hx.q},${hx.r}`].elev, "a deploy hex is elevated").toBe(0);
+      }
+    }
+  });
+
+  it("impassable cover is inert, and only three of the four impassable terrains screen", () => {
+    const impassable = Object.keys(TERRAIN).filter((k) => TERRAIN[k].moveCost === null);
+    expect(impassable.length, "the trap paragraph in 14.1 counts four").toBe(4);
+    expect(impassable.filter((k) => TERRAIN[k].blocksLOS).length, "…three of which screen").toBe(3);
+    // Inert, mechanically: no stand ever occupies one, so its cover is unread.
+    for (const f of FIELD_CORPUS) {
+      for (const k of Object.keys(f.tiles)) {
+        const t = f.tiles[k];
+        if (t.moveCost === null) expect(TERRAIN[t.terrain].moveCost).toBeNull();
+      }
+    }
+  });
+
+  it("the palette table names each palette's real artery and real signature", () => {
+    const [{ header, body }] = parseMdTables(DESIGN_DOC, /^### 14\.2 /);
+    expect(header[0]).toBe("Node");
+    expect(body.map((r) => bare(r[0]))).toEqual(Object.keys(PALETTES));
+    const iSig = header.indexOf("Signature");
+    const iArt = header.indexOf("Artery");
+    expect(Math.min(iSig, iArt)).toBeGreaterThan(-1);
+    body.forEach((row, i) => {
+      const k = Object.keys(PALETTES)[i];
+      expect(row[iSig], `${k} signature`).toContain(PALETTES[k].features.terrain);
+      expect(bare(row[iArt]), `${k} artery`).toBe(PALETTES[k].artery);
+    });
+  });
+
+  it("every distinguishing claim in the palette table is true of the weights", () => {
+    const [{ header, body }] = parseMdTables(DESIGN_DOC, /^### 14\.2 /);
+    const iBoard = header.indexOf("The board it makes");
+    const cellFor = (k) => body[Object.keys(PALETTES).indexOf(k)][iBoard];
+    const impassableIn = (k) => paletteHas(k, (t) => TERRAIN[t].moveCost === null);
+
+    // city: "`wall` is the only hard stop the palette paints"
+    expect(impassableIn("city")).toEqual(["wall"]);
+    expect(cellFor("city")).toContain("wall");
+    // city: "well over half of it wreckage"
+    const w = PALETTES.city.weights;
+    const total = Object.keys(w).reduce((s, t) => s + w[t], 0);
+    expect((w.ruins + w.rubble + w.building) / total).toBeGreaterThan(0.5);
+
+    // town: "nothing in the palette is impassable" — and it is one of exactly
+    // two such boards, the other being crossroads, which the cell also says.
+    expect(impassableIn("town")).toEqual([]);
+    expect(impassableIn("crossroads")).toEqual([]);
+    expect(Object.keys(PALETTES).filter((k) => impassableIn(k).length === 0).sort())
+      .toEqual(["crossroads", "town"]);
+    expect(cellFor("town")).toContain("impassable");
+    // town: the hedgerow is the only thing it CLUSTERS; buildings are painted.
+    expect(PALETTES.town.features.terrain).toBe("hedgerow");
+    expect(PALETTES.town.weights.building).toBeGreaterThan(0);
+
+    // depot: the only board metalled with rail.
+    expect(Object.keys(PALETTES).filter((k) => PALETTES[k].artery === "rail")).toEqual(["depot"]);
+    // depot: "the cover you can see is impassable" — its signature is a blocker.
+    expect(TERRAIN[PALETTES.depot.features.terrain].moveCost).toBeNull();
+
+    // ruin: never paints road, and is the only palette with standing water.
+    expect(PALETTES.ruin.weights.road).toBeUndefined();
+    expect(Object.keys(PALETTES).filter((k) => PALETTES[k].weights.water > 0)).toEqual(["ruin"]);
+
+    // crossroads: "the thinnest cover in the palettes", measured not asserted.
+    const thinnest = Object.keys(PALETTES).sort((a, b) => paletteCover(a) - paletteCover(b))[0];
+    expect(thinnest).toBe("crossroads");
+  });
+
+  it("the playability floor the section publishes is met by every board generated here", () => {
+    const s = docSection(DESIGN_DOC, /^### 14\.2 /);
+    const floor = s.match(/at least (\d+)% of every generated field/);
+    expect(floor, "14.2 no longer states the playability floor").toBeTruthy();
+    const pct = Number(floor[1]) / 100;
+    for (const f of FIELD_CORPUS) {
+      const tiles = Object.keys(f.tiles).map((k) => f.tiles[k]);
+      const fightable = tiles.filter((t) => t.moveCost !== null && !t.blocksLOS).length;
+      expect(fightable / tiles.length, `${f.meta.nodeKind}/${f.meta.weather}`).toBeGreaterThanOrEqual(pct);
+    }
+  });
+
+  it("the lane reaches every column, which is the claim that replaced the share figure", () => {
+    expect(docSection(DESIGN_DOC, /^### 14\.2 /)).toMatch(/one hex in every column/);
+    for (const f of FIELD_CORPUS) {
+      const cols = new Set();
+      for (const k of Object.keys(f.tiles)) {
+        if (f.tiles[k].terrain === PALETTES[f.meta.nodeKind].artery) cols.add(Number(k.split(",")[0]));
+      }
+      expect(cols.size, `${f.meta.nodeKind} lane coverage`).toBe(f.w);
+    }
+  });
+
+  it("the three weather singletons in 14.3 are each the only row of their kind", () => {
+    const rows = Object.keys(WEATHER_FIELD);
+    expect(rows.filter((k) => WEATHER_FIELD[k].woodsMoveAdd > 0)).toEqual(["snow"]);
+    expect(rows.filter((k) => WEATHER_FIELD[k].groundsFighters)).toEqual(["storm"]);
+    expect(WEATHER_FIELD.clear.losCap).toBeGreaterThan(FIELD.w + FIELD.h);
+    // fog: the shortest cap, and no movement tax at all.
+    const caps = rows.map((k) => WEATHER_FIELD[k].losCap);
+    expect(WEATHER_FIELD.fog.losCap).toBe(Math.min(...caps));
+    expect(rows.filter((k) => WEATHER_FIELD[k].losCap === WEATHER_FIELD.fog.losCap)).toEqual(["fog"]);
+    expect(WEATHER_FIELD.fog.openMoveAdd + WEATHER_FIELD.fog.woodsMoveAdd).toBe(0);
+    // …and the metalled lane is exempt from the tax, on a real wet board.
+    const wet = generateField({ seed: 5, nodeKind: "town", weather: "rain", fortBonus: 0 });
+    for (const k of Object.keys(wet.tiles)) {
+      const t = wet.tiles[k];
+      if (t.terrain === "road" || t.terrain === "rail") expect(t.moveCost).toBe(TERRAIN[t.terrain].moveCost);
+    }
+  });
+
+  it("a work is a stamp: it clears its hex, never blocks it, and never edits its cover", () => {
+    let seen = 0;
+    for (const f of FIELD_CORPUS) {
+      const trenches = [];
+      const bunkers = [];
+      for (const k of Object.keys(f.tiles)) {
+        const t = f.tiles[k];
+        if (!t.work) continue;
+        seen++;
+        expect(DEPLOYABLE_KEYS, `unknown work ${t.work}`).toContain(t.work);
+        expect(t.moveCost, "a work on impassable ground").not.toBeNull();
+        expect(t.blocksLOS, "a work on sight-blocking ground").toBe(false);
+        expect(t.cover, "a work folded into the tile's cover").toBe(TERRAIN[t.terrain].cover);
+        expect(Number(k.split(",")[0]), "a work too far forward").toBeGreaterThanOrEqual(f.w - WORKS_SEED.depthCols);
+        (t.work === "bunker" ? bunkers : trenches).push(k);
+      }
+      // The counts 14.4 describes in words: trenches per level, bunkers from a level.
+      expect(trenches.length, "trenches").toBe(f.meta.fortBonus * WORKS_SEED.trenchPerLevel);
+      expect(bunkers.length, "bunkers").toBe(Math.max(0, f.meta.fortBonus - (WORKS_SEED.bunkerFromLevel - 1)));
+    }
+    expect(seen, "no works in the corpus at all — the assertions above are vacuous").toBeGreaterThan(0);
+  });
+
+  it("every query 14.6 names is exported by the generator, and the repair reports its work", () => {
+    const s = docSection(DESIGN_DOC, /^### 14\.6 /);
+    const named = (s.match(/`(\w+)`/g) || []).map((x) => x.replace(/`/g, ""));
+    const queries = named.filter((n) => typeof FIELD_MOD[n] === "function");
+    expect(queries.length, "14.6 names no exported query at all").toBeGreaterThanOrEqual(5);
+    for (const n of ["neighbors", "hexRange", "hexLine", "lineOfSight", "pathCost", "repairConnectivity"]) {
+      expect(named, `14.6 stopped naming ${n}`).toContain(n);
+      expect(typeof FIELD_MOD[n], `${n} is not exported`).toBe("function");
+    }
+    const report = FIELD_MOD.repairConnectivity(generateField({ seed: 3, nodeKind: "ruin", weather: "fog", fortBonus: 3 }));
+    expect(Object.keys(report).sort()).toEqual(["carved", "forced", "passes"]);
   });
 });
