@@ -1577,6 +1577,7 @@ export const ENTRIES = [
       { note: "A pattern chambered for this round sits within half again of every figure above — that band is what stops a \"rifle\" being an artillery piece with a rifle's paperwork." },
     ],
     see: ["maker-ascendancy-signal-works", "maker-salvage-court-prize-yard", "supply", "order-of-battle"],
+  },
   // ——— LANE G: doctrine, decrees & relic projects ———
   // Appended as one contiguous tail block per the shared-file protocol. Every claim
   // here is read off `base44/shared/catalog.ts`; nothing below invents canon, and the
@@ -1586,7 +1587,7 @@ export const ENTRIES = [
     title: "The Signals Branch",
     folk: "red traffic",
     category: "war",
-    tag: "Doctrine §23",
+    tag: "Doctrine §24",
     status: "thin",
     summary: "Four tiers of listening: discipline on our own band, masts on the swath, and a room that reads the enemy's week.",
     blocks: [
@@ -1602,7 +1603,7 @@ export const ENTRIES = [
     title: "The Reclamation Branch",
     folk: "the pit trades",
     category: "leavings",
-    tag: "Doctrine §23",
+    tag: "Doctrine §24",
     status: "thin",
     summary: "The branch that turns buried imperial leavings into classed fragments, and fragments into everything above Tier I.",
     blocks: [
