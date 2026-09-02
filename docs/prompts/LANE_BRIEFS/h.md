@@ -796,3 +796,68 @@ pre-existing and unrelated to this plan). It was repaired first — `main` is gr
 before your lane begins. Do not record an absolute test count as your success gate; other lanes add
 tests. Your gate is **0 failed** plus your own lane's named tests passing.
 
+
+---
+
+## WAVE 4 ADDENDUM — 2026-09-02 (orchestrator, AUTHORITATIVE)
+
+Waves 1-3 are merged. `main` is green at **1179 tests**. Every key you reference now exists.
+
+### What is on main for you to reference
+- `SQUAD_TYPES` **20 rows** and `SPECIALISTS` **10** and `UPGRADES` **10** (Lanes A + F) in
+  `base44/shared/tactical.ts` / `src/lib/tactical/data.js`.
+- `TECHS` **25**, `ARMORY_ITEMS` **32**, `RELIC_PROJECTS` **4**, `CREEDS` **4** (Lane G) in
+  `base44/shared/catalog.ts` / `src/lib/doctrine.js` / `src/lib/armory.js`.
+- `WEAPON_PATTERNS` **49**, `MANUFACTURERS` **14** (9 + Lane J's 5 `mw_*`), `CALIBRES` 16 (Lane I) in
+  `base44/shared/arms.ts`.
+- `CHASSIS_PATTERNS` **20** and the rest of the Motor Pool (Lane J).
+**Read the live tables and use real keys.** Every key in a `uniqueRoster` must exist; the orchestrator
+checks. §4 `Preset.uniqueRoster` is `{ squads, upgrades, decree, patterns }` — `patterns` included
+(amendment Q3).
+
+### Hard requirements
+- **13 house presets**, each a LEGAL point-buy ledger (`netPoints <= 0`, `<= 3` liabilities) that passes
+  `pointBuy.js` validation in a unit test, with `traits[]` in the validated effect schema,
+  `npcDispositions`, `lifepathChoices`, `insigniaDescription`, 120-180 words of `lore`,
+  `uniqueRoster { squads, upgrades, decree, patterns }` and `heraldVoice`.
+- **NO `keel` field on `Preset`** (amendment Q3b). The required `keel_<key>` plate is keyed off the
+  existing `house` value. Do not add a field.
+- **Herald voices for all 13** in `docs/HERALD_VOICES.md` — register, catchphrases, 3 sample intercepts
+  per mood.
+- **40+ new Codex entries** appended as ONE banner-commented tail block at the very end of
+  `src/lib/wiki/entries.js`, after the existing Lane I / G / J / F blocks. Never insert between them.
+  Your minimum is 40 entries **in your own diff**, not 40 in the file.
+- **>= 8 new point-buy perks** (4 assets / 4 liabilities) tied to nomad-keel play.
+- **One new lifepath chapter "VI — The Standard"** with 4 choices, `std_*` plates and a numeric effect.
+- **Unique lore + one bespoke crisis/charter hook** for each of the 10 named polities in `LORE §6`, as
+  rows in `settlementLore.ts` matching the existing row shape EXACTLY.
+- **Every house's Departure must be derivable from its Creed-axis position** — Lane G's G4 relies on it.
+- **Close `docs/TECH_DESIGN.md` §7 Q5** on the operator's ruling below, and write the herald line for the
+  loss.
+
+### Operator rulings you must encode
+1. **Relic projects die with the keel; materials only.** When a fortress-base is captured the captor
+   loots the running project's unspent **materials**; the project, its progress and its housed-Object
+   requirement are **lost**. This is what closes §7 Q5. Write the herald line for that loss.
+2. **Module effects apply on FIT, never on unlock.** A `kind: 'module'` row's certification is inert.
+   **Your presets must not assume that unlocking a module grants its effect** — no preset lore or trait
+   may imply a faction-wide bonus from certification alone.
+
+### The four defect classes earlier waves shipped — you are the last content lane, so you inherit all of them
+1. **DEAD CODE WITH A FALSE JUSTIFICATION.**
+2. **A PUBLISHED NUMBER ARITHMETICALLY FALSE AGAINST ITS OWN TABLE** — compute every figure from the
+   tables and add a test that recomputes it.
+3. **A GATE BOUNDED BY "EVERYTHING TO END OF FILE"** — bound both ends.
+4. **A CLOSED SET THAT FORBIDS A LEGAL VALUE.** This one cost two extra passes: Lane A pinned
+   `SQUAD_TYPE_KEYS` to the nine that existed, which structurally forbade the appends §3 *mandates*; the
+   repair then left the FIELD set closed, which forbade `creedLock` — a field §4 marks **optional**.
+   **Ask what §4 marks with a `?`, at every level — tables, rows, fields, and the values inside a field.**
+   You are the last lane to append; write no gate that a future Field Amendment would have to fight.
+
+### Shared-file state
+`docs/GAME_RULES.md`: `## 23` Lane I, `## 24` Lane G, `## 25` Lane J, `## 26` Lane C, `## 27` Lane F.
+Take the next free number, name it in your PR body, and hard-code it nowhere a renumber would break.
+`IMAGE_LIBRARY` carries tail blocks from Lanes I, G, J and F — append ONE more at the very end.
+`IMAGE_CATEGORIES` already has `arms` and `motor`; you need no new key.
+`docs/prompts/PLATFORM_HANDOFF.md` is a sanctioned append surface (amendment Q8).
+**Do NOT edit `docs/prompts/ART_MANIFEST.md`** — report your plate keys in the PR body.
