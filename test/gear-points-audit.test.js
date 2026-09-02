@@ -21,10 +21,14 @@
 // position, so inserting a paragraph moves nothing.
 //
 // OWNERSHIP. TACTICAL_SQUAD_PLAN §3 assigns test/tactical-mirror.test.js to
-// Lane A and names no test for Lane F. This file is new and unassigned, and
-// Lane F claims it explicitly — the same move §3's Lane G Amendment 3 makes for
-// test/rules-mirror.test.js. It duplicates no assertion in the mirror suite: it
-// reads documents, which no other suite does.
+// Lane A and named no test for Lane F. The Wave 3 addendum requires a test that
+// recomputes the Points Audit; the brief it supersedes forbids a new test file.
+// That conflict is resolved IN THE PLAN, not here: §3 Lane F now carries
+// "AMENDMENT 2026-09-01 (Lane F, Amendment 1)" claiming this path, in the same
+// form as §3's Lane G Amendment 3 for test/rules-mirror.test.js. An earlier
+// revision of this comment cited that precedent while no such amendment existed,
+// which is a claim of sanction rather than sanction. It duplicates no assertion
+// in the mirror suite: it reads documents, which no other suite does.
 import { describe, it, expect } from "vitest";
 import { readRepoFile, extractConst } from "./helpers/extract-const.js";
 import { DESIGN_SLOTS, SLOT_KEYS, DEFAULT_DESIGN, SQUAD_MOD_KEYS, compileDesign } from "@/lib/armyDesign.js";
@@ -49,13 +53,33 @@ const librarySrc = readRepoFile("src/lib/imageLibrary.js");
 // From a heading line to the NEXT top-level heading, or the end of the file if
 // this section is currently last. Both ends are bound: a later lane's section
 // is excluded whether it exists yet or not.
-function section(src, headingStartsWith) {
+function section(src, heading) {
+  // `heading` is a RegExp anchored on the heading's TEXT, never on its number.
+  // A string is still accepted for a heading whose number this lane owns and
+  // no other lane can renumber.
   const lines = src.split("\n");
-  const start = lines.findIndex((l) => l.startsWith(headingStartsWith));
-  expect(start, `heading not found: ${headingStartsWith}`).toBeGreaterThan(-1);
+  const match = (l) => (typeof heading === "string" ? l.startsWith(heading) : heading.test(l));
+  const start = lines.findIndex(match);
+  expect(start, `heading not found: ${heading}`).toBeGreaterThan(-1);
   let end = lines.length;
   for (let i = start + 1; i < lines.length; i++) {
     if (/^## /.test(lines[i])) { end = i; break; }
+  }
+  return lines.slice(start, end).join("\n");
+}
+
+// A SUBSECTION inside an already-sliced section: from its `###` heading to the
+// next `###`, or to the end of the enclosing section. Bounded at both ends for
+// the same reason `section()` is — 11.7 is not the last subsection today and was
+// never guaranteed to be.
+function sub(sectionText, heading) {
+  const lines = sectionText.split("\n");
+  const match = (l) => (typeof heading === "string" ? l.startsWith(heading) : heading.test(l));
+  const start = lines.findIndex(match);
+  expect(start, `subsection not found: ${heading}`).toBeGreaterThan(-1);
+  let end = lines.length;
+  for (let i = start + 1; i < lines.length; i++) {
+    if (/^### /.test(lines[i])) { end = i; break; }
   }
   return lines.slice(start, end).join("\n");
 }
@@ -75,12 +99,19 @@ function table(sectionText, ...headerCells) {
   return rows;
 }
 
-const AUDIT = section(gearSrc, "## 11. Points Audit");
-const ACCESS = section(rosterSrc, "## 5. Unit Access");
-// Located by its heading TEXT, never by its number. Lanes append concurrently and
-// the orchestrator may renumber at merge; a suite that hard-codes 26 turns a
-// mechanical renumber into a red test in a file the renumberer is not editing.
-const RULES = section(rulesSrc, "## 26. Squads, Specialists & Upgrade Kits");
+// EVERY section is located by its heading TEXT and its number is read back out
+// of what was found — never written into the locator. Lanes append to these three
+// files concurrently and the orchestrator may renumber any of them at merge; a
+// locator that pins a digit turns a mechanical renumber into a red test in a file
+// the renumberer is not editing, and because these run at module scope it would
+// take the whole suite down at import, not one assertion.
+//
+// An earlier revision of this file pinned "## 26." here while the comment above it
+// claimed the opposite. The claim is now enforced by the last test in the file,
+// which reads this source back and fails on any `## <digit>` locator.
+const AUDIT = section(gearSrc, /^## \d+\. Points Audit/);
+const ACCESS = section(rosterSrc, /^## \d+\. Unit Access/);
+const RULES = section(rulesSrc, /^## \d+\. Squads, Specialists & Upgrade Kits/);
 
 // A lane's own tail block in a shared file, bounded at BOTH ends: from this
 // lane's banner to whichever comes first — the NEXT lane's banner, or the array
@@ -105,7 +136,15 @@ const laneFCodexBlock = (() => {
   const block = laneFCodexSrc;
   const ids = new Set([...block.matchAll(/^\s*id: "([^"]+)"/gm)].map((m) => m[1]));
   expect(ids.size, "the Lane F Codex block declares no entries").toBeGreaterThan(0);
-  return ENTRIES.filter((e) => ids.has(e.id));
+  // Count the entry openers independently of the id regex and demand agreement.
+  // Everything scoped to "Lane F's entries" below is scoped by THIS set, so a
+  // regex that quietly matched a subset would narrow every one of those gates
+  // without failing any of them — the parser is the precondition, so assert it.
+  const openers = (block.match(/^\s*\{$/gm) || []).length;
+  expect(ids.size, "the Codex id parser missed an entry in the Lane F block").toBe(openers);
+  const found = ENTRIES.filter((e) => ids.has(e.id));
+  expect(found.length, "an id in the Lane F block resolves to no live ENTRIES row").toBe(ids.size);
+  return found;
 })();
 const bare = (c) => c.replace(/[`*]/g, "").trim();
 const keysOf = (cell) => bare(cell).split(",").map((s) => s.trim()).filter(Boolean);
@@ -155,9 +194,34 @@ const f3 = (n) => z(n).toFixed(3);
 const sgn = (n) => (z(n) >= 0 ? "+" : "") + f2(n);
 const ANCHOR = SQUAD_TYPES[POINTS_MODEL.anchorKey].pts;
 
+// Lane A's nine, in plan order, and Lane F's eleven. Written out because they are
+// the SPLIT this lane is audited against — which rows it may not have touched and
+// which rows it is answerable for — not because they are a count of the table.
+const BASE_NINE = ["riflemen", "assault", "gunners", "scouts", "mortars", "pioneers",
+  "crawler", "artillery", "fighter"];
+const NEW_TYPES = ["stormtroops", "sappers", "ski_troops", "digger_corps", "pilgrim_levy", "provost",
+  "marksmen", "flame_team", "autocar_scouts", "siege_mortar", "land_dreadnought"];
+
 describe("points audit — the formula in §11.1", () => {
   it("prints the coefficients Lane F's brief mandates", () => {
     expect(COEF).toEqual({ melee: 1, ranged: 1, armor: 0.6, speed: 0.35, morale: 0.5, range: 0.25 });
+  });
+
+  it("prints the sign convention for the dev column, and it is the one that discriminates", () => {
+    // §11.2 adds `fair pts` and `dev` to the four the fence defined. `fair pts`
+    // recomputes identically under either base, so a reader who guesses wrong
+    // still reproduces it — and then reads every dev sign backwards.
+    expect(FENCE[1], "§11.1 does not print dev(t)").toContain("dev(t)        = ( t.pts − fairPts(t) ) ÷ fairPts(t)");
+    expect(FENCE[1], "§11.1 does not print fairPts(t)").toContain("fairPts(t)    = combatValue(t) ÷ combatValue(SQUAD_TYPES.riflemen) × POINTS_MODEL.anchorPts");
+    // Proof the printed convention is load-bearing: the other base flips every
+    // non-zero cell. If it did not, printing the convention would prove nothing.
+    const rows = table(AUDIT, "key", "from", "tier", "figures", "pts", "value");
+    const differ = rows.filter((r) => {
+      const t = SQUAD_TYPES[bare(r[0])];
+      return `${sgn((fairPts(t) - t.pts) / t.pts * 100)}%` !== r[9];
+    });
+    expect(differ.length, "the two conventions agree on this table — the fence line proves nothing")
+      .toBe(rows.filter((r) => r[9] !== "+0.00%").length);
   });
 
   it("names the anchor the rest of the audit is divided by, and prints its computed baseline", () => {
@@ -205,14 +269,76 @@ describe("points audit — §11.2, every squad type", () => {
     expect(AUDIT).toContain(`widest ratio in the roster is \`${widest}\` at **${f2(ratio(SQUAD_TYPES[widest]))}**`);
   });
 
-  it("states the band exceptions against the base nine, computed", () => {
-    const BASE_NINE = ["riflemen", "assault", "gunners", "scouts", "mortars", "pioneers", "crawler", "artillery", "fighter"];
+  it("recomputes the two deviation claims printed under the table", () => {
+    // Both were prose-only. "The largest deviation is `assault` at -2.29%" and
+    // "every one of the eleven new rows prices within 1.12% of exactly fair" are
+    // conclusions about the table, so they are rebuilt from the table.
+    const dev = (t) => (t.pts - fairPts(t)) / fairPts(t) * 100;
+    const worst = Object.keys(SQUAD_TYPES).reduce((a, b) => (Math.abs(dev(SQUAD_TYPES[a])) >= Math.abs(dev(SQUAD_TYPES[b])) ? a : b));
+    expect(AUDIT).toContain(`\`${worst}\` at **${sgn(dev(SQUAD_TYPES[worst]))}%**`);
+    const worstNew = Math.max(...NEW_TYPES.map((k) => Math.abs(dev(SQUAD_TYPES[k]))));
+    expect(AUDIT).toContain(`prices within **${f2(worstNew)}%** of exactly fair`);
+  });
+
+  it("holds Work item 2.1 for every new row and every band field, not only the two exceptions", () => {
+    // THE RULE, not its two footnotes. The published version of this gate asserted
+    // only that land_dreadnought.armor and marksmen.range sat inside their
+    // sanctioned excursions; nine rows and four fields were unread, so a
+    // flame_team morale of 14 — four points over the base-nine maximum — passed
+    // this suite, passed the efficiency cap, and was published in a table that
+    // never prints morale. The exceptions are the exceptions to THIS.
+    const FIELDS = ["melee", "ranged", "range", "armor", "speed", "morale"];
+    const band = Object.fromEntries(FIELDS.map((f) => {
+      const vals = BASE_NINE.map((k) => SQUAD_TYPES[k][f]);
+      return [f, { min: Math.min(...vals), max: Math.max(...vals) }];
+    }));
+    // The two sanctioned excursions, by name and by size. Everything else: inside.
+    const SANCTIONED = { land_dreadnought: { armor: 2 }, marksmen: { range: 1 } };
+    for (const k of NEW_TYPES) {
+      for (const f of FIELDS) {
+        const v = SQUAD_TYPES[k][f];
+        const slack = (SANCTIONED[k] || {})[f] || 0;
+        expect(v, `${k}.${f} = ${v} is below the base-nine minimum ${band[f].min}`).toBeGreaterThanOrEqual(band[f].min);
+        expect(v, `${k}.${f} = ${v} exceeds the base-nine maximum ${band[f].max}${slack ? ` + the sanctioned ${slack}` : " and is not a sanctioned exception"}`)
+          .toBeLessThanOrEqual(band[f].max + slack);
+      }
+    }
+    // And the excursions must actually be excursions, or the allowance is dead.
+    expect(SQUAD_TYPES.land_dreadnought.armor, "the armour exception is no longer an exception")
+      .toBeGreaterThan(band.armor.max);
+  });
+
+  it("states the band exceptions against the base nine, with every published maximum computed", () => {
     const maxArmor = Math.max(...BASE_NINE.map((k) => SQUAD_TYPES[k].armor));
     const maxRange = Math.max(...BASE_NINE.map((k) => SQUAD_TYPES[k].range));
+    const footMaxRange = Math.max(...BASE_NINE.filter((k) => SQUAD_TYPES[k].from === "riflemen").map((k) => SQUAD_TYPES[k].range));
     expect(SQUAD_TYPES.land_dreadnought.armor - maxArmor, "armour exception exceeds the sanctioned +2").toBeLessThanOrEqual(2);
     expect(SQUAD_TYPES.marksmen.range - maxRange, "range exception exceeds the sanctioned +1").toBeLessThanOrEqual(1);
     expect(AUDIT).toContain(`\`land_dreadnought.armor\` = **${SQUAD_TYPES.land_dreadnought.armor}**`);
     expect(AUDIT).toContain(`\`marksmen.range\` = **${SQUAD_TYPES.marksmen.range}**`);
+    // The three maxima the bullets quote were prose-only.
+    expect(AUDIT).toContain(`a base-nine maximum of **${maxArmor}**`);
+    expect(AUDIT).toContain(`The base-nine maximum is **${maxRange}**`);
+    expect(AUDIT).toContain(`the base maximum is **${footMaxRange}**`);
+    expect(AUDIT).toContain(`— **+${SQUAD_TYPES.land_dreadnought.armor - maxArmor}**, the sanctioned ceiling`);
+  });
+
+  it("pins the from / tier / figures Work item 1 mandated, so a mandate cannot be edited away", () => {
+    // These three columns are not this lane's to choose — the brief fixes them per
+    // key. §11.2 and GAME_RULES both mirror the table, so table and document drift
+    // together and neither notices. This is the only place the MANDATE is written.
+    const MANDATED = {
+      stormtroops: ["riflemen", "I", 8], sappers: ["riflemen", "I", 8],
+      ski_troops: ["riflemen", "I", 10], digger_corps: ["riflemen", "I", 10],
+      pilgrim_levy: ["riflemen", "I", 14], provost: ["riflemen", "I", 6],
+      marksmen: ["riflemen", "I", 5], flame_team: ["riflemen", "II:Eng", 6],
+      autocar_scouts: ["crawler", "I", 1], siege_mortar: ["artillery", "I", 1],
+      land_dreadnought: ["crawler", "III", 1],
+    };
+    expect(Object.keys(MANDATED)).toEqual(NEW_TYPES);
+    for (const [k, [from, tier, figures]] of Object.entries(MANDATED)) {
+      expect([SQUAD_TYPES[k].from, SQUAD_TYPES[k].tier, SQUAD_TYPES[k].figures], k).toEqual([from, tier, figures]);
+    }
   });
 });
 
@@ -230,10 +356,37 @@ describe("points audit — §11.3, specialists", () => {
     }
   });
 
-  it("keeps every specialist inside the quarter-of-anchor ceiling with at least one numeric mod", () => {
+  it("keeps every specialist inside the BINDING ceiling, which is the smaller of the two", () => {
+    // Two ceilings apply: the brief's quarter-of-anchor BUDGET, and Lane A's
+    // POINTS_MODEL.specialistPtsCap, which its mirror suite enforces against every
+    // row in this table. This gate used to read only the budget — the looser one —
+    // so a 21-to-24 pt specialist would pass here and turn Lane A's suite red. Read
+    // the constant that actually decides, not the one that merely travels with it.
+    const BINDING = Math.min(ANCHOR * 0.25, POINTS_MODEL.specialistPtsCap);
+    expect(BINDING, "the quarter-of-anchor budget is no longer the looser of the two")
+      .toBe(POINTS_MODEL.specialistPtsCap);
     for (const [k, s] of Object.entries(SPECIALISTS)) {
       expect(s.pts, `${k} is over a quarter of the anchor squad`).toBeLessThanOrEqual(ANCHOR * 0.25);
+      expect(s.pts, `${k} is over POINTS_MODEL.specialistPtsCap, which Lane A's mirror suite enforces`)
+        .toBeLessThanOrEqual(POINTS_MODEL.specialistPtsCap);
       expect(Object.values(s.mods).some(Number.isFinite), `${k} has no numeric mod`).toBe(true);
+    }
+    // And the document must name the binding one as the ceiling, computed.
+    expect(AUDIT).toContain("`min(SQUAD_TYPES.riflemen.pts × 0.25, POINTS_MODEL.specialistPtsCap)`");
+    expect(AUDIT).toContain(`which computes to **${BINDING}** pts`);
+  });
+
+  it("names SCALING.maxSpecialists without retyping its value beside it", () => {
+    // Drift guard 7, applied to this document the way §26.3 already applies it to
+    // GAME_RULES. A constant's digit typed next to the constant's name is the
+    // thing that goes stale silently.
+    for (const [name, value] of [["SCALING.maxSpecialists", SCALING.maxSpecialists],
+                                 ["UPGRADE_RULES.maxPerSquad", UPGRADE_RULES.maxPerSquad]]) {
+      const lines = AUDIT.split("\n").filter((l) => l.includes(`\`${name}\``));
+      expect(lines.length, `the audit never names ${name}`).toBeGreaterThan(0);
+      for (const l of lines) {
+        expect(l, `${name}'s value is retyped beside the constant`).not.toContain(`**${value}**`);
+      }
     }
   });
 
@@ -248,6 +401,13 @@ describe("points audit — §11.4, upgrade kits", () => {
   const rows = table(AUDIT, "key", "appliesTo", "tier", "pts");
   const deltas = table(AUDIT, "key", "Δ fair pts, min");
   const stacks = table(AUDIT, "type", "pts", "dearest legal stack");
+
+  it("states the kit ceiling as a computed fraction of the anchor, and holds every kit under it", () => {
+    expect(AUDIT).toContain(`\`SQUAD_TYPES.${POINTS_MODEL.anchorKey}.pts × 0.4\` = **${ANCHOR * 0.4}** pts`);
+    for (const [k, u] of Object.entries(UPGRADES)) {
+      expect(u.pts, `${k} is over 40% of the anchor squad`).toBeLessThanOrEqual(ANCHOR * 0.4);
+    }
+  });
 
   it("carries one row per UPGRADES key and republishes appliesTo, tier and pts", () => {
     expect(rows.map((r) => bare(r[0]))).toEqual(Object.keys(UPGRADES));
@@ -456,7 +616,56 @@ describe("points audit — §11.6, proposed macro support classes", () => {
   });
 });
 
+describe("points audit — §11.7, the per-type justifications", () => {
+  // ELEVEN PARAGRAPHS CARRYING FIVE FIGURES EACH. The section opens by claiming
+  // every figure in it is computed; these fifty-five were recomputed by nothing,
+  // which is the "110 against a table that sums to 138" defect one step removed —
+  // right today, and kept right by no mechanism. Regenerating 11.2 after a stat
+  // change leaves every one of these stale and the suite green.
+  const S = sub(AUDIT, "### 11.7");
+  const PARA = /\*\*`(\w+)`\*\* — (\d+) figures?, (\d+) pts, ratio ([\d.]+), fair ([\d.]+) \(([-+][\d.]+)%\)/g;
+  const paras = [...S.matchAll(PARA)].map((m) => ({
+    key: m[1], figures: Number(m[2]), pts: Number(m[3]), ratio: m[4], fair: m[5], dev: m[6],
+  }));
+
+  it("carries one paragraph per NEW type and no paragraph that is not one", () => {
+    // Counted independently of the regex, so a parser that silently matches
+    // nothing cannot turn the recompute below into a vacuous pass.
+    const openers = (S.match(/^\*\*`\w+`\*\* — /gm) || []).length;
+    expect(paras.length, "the paragraph parser missed a justification").toBe(openers);
+    expect(paras.map((x) => x.key)).toEqual(NEW_TYPES);
+  });
+
+  it("recomputes all five figures in every paragraph from the tables", () => {
+    for (const x of paras) {
+      const t = SQUAD_TYPES[x.key];
+      const dev = (t.pts - fairPts(t)) / fairPts(t) * 100;
+      expect([x.figures, x.pts, x.ratio, x.fair, x.dev], x.key)
+        .toEqual([t.figures, t.pts, f2(ratio(t)), f2(fairPts(t)), sgn(dev)]);
+    }
+  });
+
+  it("keeps its two prose claims about the band exceptions true against the table", () => {
+    const maxRange = Math.max(...BASE_NINE.map((k) => SQUAD_TYPES[k].range));
+    const crawlerArmor = SQUAD_TYPES.crawler.armor;
+    // marksmen: the paragraph says no exception was NEEDED. That is a claim.
+    expect(SQUAD_TYPES.marksmen.range, "marksmen now needs its range exception after all")
+      .toBeLessThanOrEqual(maxRange);
+    expect(S, "the marksmen paragraph claims an exception it does not use").toContain("No band exception was needed");
+    // land_dreadnought: the paragraph quotes both numbers.
+    expect(S).toContain(`armour ${SQUAD_TYPES.land_dreadnought.armor}, two over the crawler's ${crawlerArmor}`);
+    expect(SQUAD_TYPES.land_dreadnought.armor - crawlerArmor, "the quoted excursion is no longer two").toBe(2);
+  });
+});
+
 describe("points audit — §11.8, what is reported and not failed", () => {
+  it("recomputes the range Lane A's own model reads the roster at", () => {
+    // "reads the whole roster between 0.977 and 1.016 of exactly fair" — a
+    // conclusion about all twenty rows, published as two typed decimals.
+    const r = Object.values(SQUAD_TYPES).map((t) => t.pts / fairPts(t));
+    expect(AUDIT).toContain(`between **${f3(Math.min(...r))}** and **${f3(Math.max(...r))}** of exactly fair`);
+  });
+
   it("lists exactly the types under the thin threshold, to the precision the threshold needs", () => {
     const thin = Object.entries(SQUAD_TYPES).filter(([, t]) => ratio(t) < 0.55);
     expect(AUDIT).toContain(`${thin.length} of ${Object.keys(SQUAD_TYPES).length}`);
@@ -513,7 +722,6 @@ describe("faction roster — §5 unit access", () => {
 
   it("declares every lock the lane actually uses, and no more than the budgeted two", () => {
     const locked = Object.entries(SQUAD_TYPES).filter(([, t]) => t.creedLock || t.factionLock);
-    const BASE_NINE = ["riflemen", "assault", "gunners", "scouts", "mortars", "pioneers", "crawler", "artillery", "fighter"];
     expect(locked.filter(([k]) => !BASE_NINE.includes(k)).length,
       "more than two of the new rows carry a lock").toBeLessThanOrEqual(2);
     for (const [k, t] of locked) {
@@ -545,8 +753,6 @@ const laneFPlates = [...laneFPlateBlock.matchAll(PLATE_CALL)].map((m) => ({
   aspect: (m[6] || "").trim() ? (m[6].match(/"([^"]+)"/) || [])[1] : "1:1",
 }));
 
-const NEW_TYPES = ["stormtroops", "sappers", "ski_troops", "digger_corps", "pilgrim_levy", "provost",
-  "marksmen", "flame_team", "autocar_scouts", "siege_mortar", "land_dreadnought"];
 const LEGACY_DESIGN_OPTIONS = ["line", "vanguard", "skirmish", "column", "rifles", "trench_guns",
   "mortars", "standard", "plated", "scout", "none", "medics", "signals", "commissars"];
 
@@ -719,12 +925,25 @@ describe("codex — the Lane F block in src/lib/wiki/entries.js", () => {
   });
 
   it("leaves every id unique and every see target live, across the WHOLE array", () => {
+    // GLOBAL on purpose, and only for the two things that ARE file-wide
+    // invariants: a duplicate id and a dangling cross-link are broken however
+    // they got there, and acceptance check A15 asks for exactly this scope.
     const ids = ENTRIES.map((e) => e.id);
     expect([...new Set(ids.filter((k, i) => ids.indexOf(k) !== i))], "duplicate Codex ids").toEqual([]);
     const live = new Set(ids);
     for (const e of ENTRIES) {
+      for (const t of e.see || []) expect(live, `${e.id} sees missing entry ${t}`).toContain(t);
+    }
+  });
+
+  it("gives every entry of its OWN a non-empty see list", () => {
+    // SCOPED, unlike the two above. "Every entry has a non-empty see" is Lane F's
+    // requirement (brief 11.6), not a file-wide one, and Lane H owns this file and
+    // merges after Lane F. Left global, this gate reports red on Lane H's content
+    // inside Lane F's suite the first time Lane H appends an entry without one —
+    // the same over-reach this file refuses two describes above.
+    for (const e of laneFCodexBlock) {
       expect(Array.isArray(e.see) && e.see.length > 0, `${e.id} has no see links`).toBe(true);
-      for (const t of e.see) expect(live, `${e.id} sees missing entry ${t}`).toContain(t);
     }
   });
 
@@ -734,7 +953,7 @@ describe("codex — the Lane F block in src/lib/wiki/entries.js", () => {
   });
 
   it("marks the five companies GEAR_LIBRARY §8 already names canon, and everything it invents thin", () => {
-    const gear8 = section(gearSrc, "## 8. Infantry");
+    const gear8 = section(gearSrc, /^## \d+\. Infantry/);
     for (const k of NEW_TYPES) {
       const e = ENTRIES.find((x) => x.id === `squad-${k.replace(/_/g, "-")}`);
       // "Named by §8" is read out of §8 itself, not from a list retyped here.
@@ -747,8 +966,12 @@ describe("codex — the Lane F block in src/lib/wiki/entries.js", () => {
 
   it("quotes no stat and no section number in its prose", () => {
     for (const e of laneFCodexBlock) {
-      const prose = [e.title, e.folk || "", e.summary,
-        ...e.blocks.map((b) => b.p || b.lead || b.note || b.h || (b.list || []).join(" ") || "")].join(" ");
+      // `{ table: { head, rows } }` fell through every branch of this map and
+      // contributed "", so a stat table inside an entry — the one place a stat
+      // would actually be written — was invisible to the gate reading for stats.
+      const flat = (b) => b.p || b.lead || b.note || b.h || (b.list || []).join(" ")
+        || (b.table ? [...(b.table.head || []), ...(b.table.rows || []).flat()].join(" ") : "") || "";
+      const prose = [e.title, e.folk || "", e.summary, ...e.blocks.map(flat)].join(" ");
       const digits = prose.match(/\d/g) || [];
       expect(digits, `${e.id} quotes a number in prose — the tables are the only place a stat is written`).toEqual([]);
     }
@@ -756,7 +979,13 @@ describe("codex — the Lane F block in src/lib/wiki/entries.js", () => {
 });
 
 describe("game rules — the [PROPOSED] section, recomputed", () => {
-  it("is marked [PROPOSED — awaiting platform wiring] and is the last section in the file", () => {
+  it("is marked [PROPOSED — awaiting platform wiring] and states that its numbers are read from tactical.ts", () => {
+    // DELIBERATELY NOT "and is the last section in the file". Lane H appends to
+    // docs/GAME_RULES.md after Lane F, and a gate demanding Lane F stay last
+    // would forbid the next required step. `section()` already bounds this slice
+    // at the next `## ` heading, so a later lane's section is excluded whether it
+    // exists yet or not — last-ness is not needed and is not asserted. The test's
+    // NAME once claimed it was, which is a coverage claim outrunning its body.
     expect(RULES.split("\n")[0]).toContain("[PROPOSED — awaiting platform wiring]");
     expect(RULES).toContain("Every number in this section is read from `base44/shared/tactical.ts`");
   });
@@ -818,14 +1047,34 @@ describe("game rules — the [PROPOSED] section, recomputed", () => {
       "the ceiling's digit is retyped beside the constant").toBe(false);
   });
 
-  it("hard-codes its own section number nowhere a renumber would break", () => {
+  it("pins no GAME_RULES section number — its own or another lane's — anywhere a renumber would break", () => {
     const n = RULES.match(/^## (\d+)\./)[1];
-    // This suite finds the section by heading text. Nothing in the lane's OWN
-    // blocks may pin the number: a renumber at merge is one edit, here. Scoped
-    // to Lane F's blocks and not to the whole shared file — a later lane's
-    // content is not this gate's to report on.
+    // Nothing in the lane's OWN blocks may pin the number: a renumber at merge is
+    // one edit, in the heading. Scoped to Lane F's blocks and not to the whole
+    // shared file — a later lane's content is not this gate's to report on.
     for (const src of [laneFPlateBlock, laneFCodexSrc])
       expect(src, `a Lane F block pins GAME_RULES §${n}`).not.toContain(`GAME_RULES.md §${n}`);
-    expect(RULES.slice(RULES.indexOf("\n")), "the section body restates its own number").not.toContain(`§${n}`);
+    // Its own number, and every OTHER section's. Four `[PROPOSED]` sections were
+    // appended to this file in one wave, so a cross-reference to a NEIGHBOUR is
+    // likelier to rot than a self-reference: the orchestrator merges them in some
+    // order and every number moves. A citation qualified by its document
+    // (`docs/GEAR_LIBRARY.md §11`) is a different file and is not this gate's.
+    const body = RULES.slice(RULES.indexOf("\n")).replace(/`docs\/[A-Z_]+\.md` §[\d.]+/g, "");
+    expect(body, "the section body cites a GAME_RULES section by number").not.toMatch(/§\d/);
+  });
+
+  it("locates every document section by heading TEXT, in its own source", () => {
+    // THE GUARD'S OWN PRECONDITION. Every locator above runs at MODULE scope, so
+    // a pinned number does not fail one assertion — it throws at import and takes
+    // all of this file's tests with it. That is exactly the state this suite
+    // shipped in, under a comment claiming the opposite. Read the source back and
+    // prove the claim rather than repeating it.
+    const self = readRepoFile("test/gear-points-audit.test.js");
+    const locators = [...self.matchAll(/^const \w+ = section\(\w+, (.+)\);$/gm)].map((m) => m[1]);
+    expect(locators.length, "the locator scan matched nothing — the gate would be vacuous").toBeGreaterThanOrEqual(3);
+    for (const l of locators) {
+      expect(l, `a section locator pins a heading number: ${l}`).not.toMatch(/## \s*\d/);
+      expect(l, `a section locator is not anchored on heading text: ${l}`).toMatch(/^\/\^## /);
+    }
   });
 });

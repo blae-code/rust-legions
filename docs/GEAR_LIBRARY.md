@@ -246,11 +246,13 @@ radius +1 on the march) · Winter Quarters Kit [I] (winter camp attrition zero) 
 
 ## 11. Points Audit — Tactical Squads, Specialists & Kits (Lane F)
 
-**Every figure in this section is computed, none is typed.** `test/gear-points-audit.test.js` parses
-the tables below back out of this file, recomputes each cell from `base44/shared/tactical.ts`,
-`src/lib/armyDesign.js` and `src/lib/units.js`, and fails on any disagreement — including a
-disagreement between the formula printed in 11.1 and the numbers printed under it. A stale number
-here is a red test, not a reading error.
+**Every figure in this section is computed, none is typed — and that claim is itself gated.**
+`test/gear-points-audit.test.js` parses the tables below back out of this file, recomputes each cell
+from `base44/shared/tactical.ts`, `src/lib/armyDesign.js` and `src/lib/units.js`, and fails on any
+disagreement — including a disagreement between the formula printed in 11.1 and the numbers printed
+under it. **The prose carries figures too, and they are recomputed on the same terms:** 11.7's eleven
+paragraphs are parsed for their five figures each, and the summary figures in 11.2, 11.3 and 11.8 are
+rebuilt from the tables. A stale number anywhere in this section is a red test, not a reading error.
 
 The audit is bounded at both ends: it begins at this heading and ends at the next `##` heading, so a
 later lane appending its own section after this one changes nothing the test reads.
@@ -263,6 +265,9 @@ efficiency(t) = value(t) ÷ t.pts
 baseline      = efficiency(SQUAD_TYPES.riflemen)          // the reference: riflemen ×10 = 100 pts
 ratio(t)      = efficiency(t) ÷ baseline
 HARD GATE:      ratio(t) ≤ 1.60 for every t in SQUAD_TYPES
+
+fairPts(t)    = combatValue(t) ÷ combatValue(SQUAD_TYPES.riflemen) × POINTS_MODEL.anchorPts
+dev(t)        = ( t.pts − fairPts(t) ) ÷ fairPts(t)   // + = this row costs MORE than fair
 ```
 
 The anchor is `SQUAD_TYPES.riflemen.pts = 100` — the cost of **one squad** at its default
@@ -274,6 +279,11 @@ lane's brief mandates and the one the hard gate reads. Lane A also ships a point
 — and **that** is what every `pts` in this roster was actually solved against, because it is the model
 the engine will price with. The `fair pts` and `dev` columns below are its verdict. Where the two
 disagree, the disagreement is a property of the formulae and is reported in 11.8, never smoothed.
+
+`dev`'s base is printed above with the rest of the formula because it is not self-evident: the other
+obvious base, `(fairPts − pts) ÷ pts`, reproduces every `fair pts` cell in 11.2 **exactly** and inverts
+the sign of all 19 non-anchor `dev` cells. A reader recomputing the column without the convention
+gets the right magnitudes and the wrong signs.
 
 ### 11.2 Every squad type, priced
 
@@ -312,8 +322,15 @@ rows prices within **1.12%** of exactly fair.
 
 ### 11.3 Specialists
 
-Ceiling: **25% of the anchor**, i.e. `SQUAD_TYPES.riflemen.pts × 0.25` = **25** pts. `SCALING.maxSpecialists`
-is **2**, so a fully staffed squad carries at most **38** pts of staff.
+**Two ceilings apply and they are not the same number; the binding one is the smaller.** The brief sets
+a *budget* of a quarter of the anchor squad — `SQUAD_TYPES.riflemen.pts × 0.25` — and Lane A ships a
+*ceiling* in code, `POINTS_MODEL.specialistPtsCap`, which its mirror suite enforces against every row in
+this table including this lane's five. The binding ceiling is therefore
+`min(SQUAD_TYPES.riflemen.pts × 0.25, POINTS_MODEL.specialistPtsCap)`, which computes to **20** pts —
+`relic_bearer` sits exactly on it. A specialist priced at 21–24 would pass the quarter-of-anchor budget
+and still turn Lane A's mirror test red, so the budget is quoted here as a budget and never as the
+ceiling. A squad carries at most `SCALING.maxSpecialists` attachments — the constant, not a digit typed
+here — so a fully staffed squad carries at most **38** pts of staff.
 
 | key | pts | % of anchor | mods | justification |
 | --- | --- | --- | --- | --- |
@@ -330,8 +347,9 @@ is **2**, so a fully staffed squad carries at most **38** pts of staff.
 
 ### 11.4 Upgrade kits
 
-Ceiling: **40% of the anchor** = **40** pts. A squad may carry at most
-`UPGRADE_RULES.maxPerSquad` kits — the constant, not a digit typed here.
+Ceiling: 40% of the anchor, `SQUAD_TYPES.riflemen.pts × 0.4` = **40** pts, and unlike the specialist
+ceiling nothing in code binds tighter. A squad may carry at most `UPGRADE_RULES.maxPerSquad` kits — the
+constant, not a digit typed here.
 
 | key | appliesTo | tier | pts | % of anchor | mods | the tradeoff |
 | --- | --- | --- | --- | --- | --- | --- |

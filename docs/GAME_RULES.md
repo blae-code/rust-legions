@@ -800,8 +800,9 @@ section at its default figure count.
 
 Every row raised from `crawler`, `artillery` or `fighter` fields at one figure, and every row raised
 from `riflemen` fields at more than one. A single-figure stand is a `SquadType` row and nothing more —
-a stand's chassis, powerplant, armour package, suspension, mount and hardpoints live in the Motor Pool
-(§25) and reach the engine only through `deriveMechanized` plus its facings.
+a stand's chassis, powerplant, armour package, suspension, mount and hardpoints live in the section
+titled *The Motor Pool* — cited by title, not by number, because these `[PROPOSED]` sections may be
+renumbered at merge — and reach the engine only through `deriveMechanized` plus its facings.
 
 `land_dreadnought` is one machine described by two rows in two tables: the relic **project** that
 raises it, in the catalogue, and this **stand** that then fights. Both carry tier III. It dies with the
