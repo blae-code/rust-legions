@@ -226,6 +226,19 @@ specialists, the works and the Points Audit are each parsed out of this document
 against the exported tables on every run, so a number that goes stale here is a failing test rather
 than a reader's problem. Do not hand-edit a cell: change the table and regenerate.
 
+**Scope: the core roster only, and this is a decision rather than an omission.** `SQUAD_TYPES` and
+`SPECIALISTS` are tables the content lanes are contracted to APPEND to — plan §3 takes the squad
+roster from nine to sixteen and the specialists from five to ten, and Lane F owns those rows.
+This section documents the **base nine** and the **founding five**: the core roster Lane A ships,
+the anchor everything later is priced against, and the rows the mirror test pins field for field so
+they cannot drift. It does not grow with the content lanes. **A lane appending a squad type, a
+specialist or an upgrade kit owes NO edit to this file** — its rows are documented and priced in
+`docs/GEAR_LIBRARY.md`, which plan §3 assigns to Lane F along with its own Points Audit against the
+same `riflemen ×10 = 100 pts` anchor. The mirror test enforces exactly that boundary in both
+directions: every table below must print the core roster, in declaration order, cell for cell, and
+must print nothing else. Widening one of these tables to cover an appended row is therefore a
+deliberate change of scope — change the sentence above the table first, or the gate will refuse it.
+
 ### 13.1 What a squad is
 
 A squad is **N figures of one type plus up to two specialists**. Figures are the hit pool, in the
@@ -243,6 +256,9 @@ and it is the only armour concept the tactical layer is permitted to hold — se
 Nine types ship with the layer. Six of them are drawn from the rifle regiment: the Ministry does not
 recruit a mortar man, it retrains a rifleman and issues him a tube. The remaining three are the
 vehicle regiments, and each is a **single-figure squad** — one crawler, one gun, one aeroplane.
+
+*Scope: the core roster only. Appended squad types are documented and priced in
+`docs/GEAR_LIBRARY.md`; this table does not grow with them.*
 
 | Type | Label | From | figures | melee | ranged | range | armor | speed | morale | armour | damageType | armorPen | pts |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -269,12 +285,19 @@ to 11, a mortar 8 to 13, a field piece 16 to 23. The rifle band is the wide one 
 class runs from a stubby field pattern to a long rifle, and the section is written at 7 because it
 is issued the middle of it, not the top. All four bands are recomputed from `WEAPON_PATTERNS` by
 the mirror test; the rifle band read 6 to 9 here until that test was written, and was wrong at both
-ends.
+ends. Note the direction of that obligation: these four bands are **derived from Lane I's
+catalogue**, not from the table above, so a lane appending a weapon pattern that widens a class
+moves this sentence and owes Lane A the edit — unlike an appended squad type, which owes this file
+nothing at all.
 
 ### 13.3 The five specialists
 
 Attached staff, at most two to a squad. Every one of them is a **number**: a blurb describing an
 effect that no field implements would be a rule nobody can resolve.
+
+*Scope: the core roster only. Appended specialists are documented in `docs/GEAR_LIBRARY.md`; this
+table does not grow with them. The rule that every specialist's effect is a number in the fixed
+`mods` vocabulary binds every row of `SPECIALISTS`, appended ones included, and is enforced there.*
 
 | Specialist | Label | pts | Numeric mods | What the number does |
 | --- | --- | --- | --- | --- |
@@ -373,6 +396,11 @@ one. Nineteen riflemen walk off the field as one company and nine men; nine walk
 
 `SquadType.pts` is the cost of the **SQUAD**, not of a figure: a rifle section of ten men is 100
 points, and that row is the anchor every other price is set against.
+
+*Scope: the core roster only. Appended squad types are audited in `docs/GEAR_LIBRARY.md` against
+this same anchor; this table does not grow with them. The one bound that binds EVERY row of
+`SQUAD_TYPES` wherever it is audited is `POINTS_MODEL.efficiencyCap`, and the mirror test applies it
+to the whole table.*
 
 The audit is code. `combatValue(key)` sums six terms, all read from the table:
 
@@ -570,6 +598,9 @@ giving the order it exists for. The three left out would add nothing to it: `ass
 throw the same `grenade` the rifle section above throws, and the scout's own verb is `smoke`, which
 does no damage to anybody by design.
 
+*Scope: the core roster only. The table below and the claims under it are about the base nine.
+Appended squad types are documented in `docs/GEAR_LIBRARY.md`; this table does not grow with them.*
+
 | Type | Order | `soft` | `light` | `medium` | `heavy` | `superheavy` | `fortified` |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `riflemen` | `fire` | 14 | 7.98 | 3.78 | 0 | 0 | 0 |
@@ -581,11 +612,16 @@ does no damage to anybody by design.
 
 Read the right-hand columns rather than the left. Six of the base nine cannot scratch a bunker at
 all, whatever order they are given; the three that can are the gun, the aeroplane and the tracks, and none of them does it well. A
-land-fort's belt is thicker still, and **exactly one order in the roster puts a number on it — the
-crawler driving onto the thing**. That is the shape the layer wants: infantry is for ground and for
-each other, works are genuinely proof against small arms, and the answers to armour are few enough
-to be worth planning around. When Lane F adds a type that changes one of those zeroes, this table
-moves with it, because the mirror test recomputes every cell of it on every run.
+land-fort's belt is thicker still, and **exactly one order in the base nine puts a number on it —
+the crawler driving onto the thing**. That is the shape the layer wants: infantry is for ground and
+for each other, works are genuinely proof against small arms, and the answers to armour are few
+enough to be worth planning around.
+
+Both of those counts are about the **base nine**, and the mirror test enumerates them over the base
+nine rather than trusting the prose. A Lane F relic that can crack a land-fort does not falsify
+either sentence and does not owe this file an edit — it is a row in `docs/GEAR_LIBRARY.md`, and the
+sentence to read alongside it is the one above the table. What the test does still recompute on
+every run is every cell printed here, so a base row that moves takes the table with it.
 
 ### 13.12 The seams — what this layer decides and what it does not
 
