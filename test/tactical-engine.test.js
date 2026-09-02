@@ -32,9 +32,11 @@ import {
 } from "../base44/shared/tacticalEngine.ts";
 import {
   SQUAD_TYPES, SPECIALISTS, SQUAD_ACTIONS, DEPLOYABLES, FIGURES_PER_COMPANY,
-  COLUMN_KEYS, SCALING, MORALE_MODS, deriveSquad, hexDistance,
+  COLUMN_KEYS, SCALING, MORALE_MODS, WORK_ARMOUR_APPLIES_TO, deriveSquad, hexDistance,
+  resolveSquadHit,
 } from "../base44/shared/tactical.ts";
-import { FIELD, lineOfSight } from "../base44/shared/tacticalField.ts";
+import { FIELD, generateField, lineOfSight } from "../base44/shared/tacticalField.ts";
+import { ARMOUR_CLASSES, SUPPRESSION, resolveAoe, resolveHit } from "../base44/shared/arms.ts";
 import { rollVehicle } from "../base44/shared/motorPool.ts";
 
 const SRC = readRepoFile("base44/shared/tacticalEngine.ts");
@@ -462,14 +464,25 @@ describe("Lane C · 6. movement", () => {
     expect(resolveOrders(t, g.id, null, "fire", { squadId: foe.id })).toBe(null);
   });
 
-  it("will not walk a hull into an infantry-only work", () => {
+  it("will not walk a hull into an infantry-only work, and SAYS SO", () => {
     const t = flatten(battle([row("C", "crawler", 1)], [row("D", "riflemen", 10)]));
     const c = t.squads.find((s) => s.side === "attacker");
     place(t, c.id, 5, 5);
     t.field.tiles["6,5"].work = "trench";
     makeActive(t, c.id);
     expect(DEPLOYABLES.trench.infantryOnly).toBe(true);
-    expect(resolveOrders(t, c.id, { q: 6, r: 5 }, "march", null)).toMatch(/already held/);
+    // The refusal names the WORK. It used to read 'That ground is already
+    // held', which is a different refusal for a different situation: the
+    // commander was told a section was standing there when none was.
+    expect(resolveOrders(t, c.id, { q: 6, r: 5 }, "march", null)).toBe("No hull will stand in a trench line");
+    // and the four refusals are four different sentences, not one proxy
+    t.field.tiles["6,6"].moveCost = null;
+    expect(resolveOrders(t, c.id, { q: 6, r: 6 }, "march", null)).toBe("That ground will not take a section");
+    expect(resolveOrders(t, c.id, { q: 99, r: 99 }, "march", null)).toBe("That ground is off the field");
+    const foot = t.squads.find((s) => s.side === "defender");
+    place(t, foot.id, 5, 4);
+    expect(resolveOrders(t, c.id, { q: 5, r: 4 }, "march", null)).toBe("That ground is already held");
+    expect(byId(t, c.id).q).toBe(5);
   });
 });
 
@@ -1146,25 +1159,63 @@ describe("Lane C · 13. the clock, the result and neutrality", () => {
     }
   });
 
-  it("does not hand either side the battle between identical orders of battle", () => {
-    // The measured consequence of the two corrections above, as a property.
-    // Twelve boards, the same muster on both sides; before the corrections
-    // this read eleven wins to one.
+  /** N boards, the same order of battle on both sides, fought to a decision. */
+  function mirrorRun(muster, n) {
     let attacker = 0;
     let decided = 0;
-    for (let seed = 1; seed <= 12; seed++) {
-      const t = createTactical(MUSTER, MUSTER, { ...OPTS, seed });
+    let byClock = 0;
+    for (let seed = 1; seed <= n; seed++) {
+      const t = createTactical(muster, muster, { ...OPTS, seed });
       submitFormations(t, "attacker", autoFormations(t.pools.attacker));
       submitFormations(t, "defender", autoFormations(t.pools.defender));
-      autoResolveRemainder(t, null, 4000);
+      autoResolveRemainder(t, null, 6000);
       const r = battleResult(t);
       if (!r) continue;
       decided++;
       if (r.attackerWon) attacker++;
+      if (t.round > ROUND_LIMIT) byClock++;
     }
-    expect(decided).toBe(12);
-    expect(attacker).toBeGreaterThanOrEqual(3);
-    expect(attacker).toBeLessThanOrEqual(9);
+    return { attacker, decided, byClock };
+  }
+
+  it("does not hand either side the battle between identical orders of battle", () => {
+    // The measured consequence of the two balance corrections, as a property
+    // — and the SAMPLE IS THE POINT. This gate ran on twelve boards, with a
+    // band of 3..9, and step 2 found it sitting on its own upper bound at 9:
+    // one board either way and it fails or passes for no reason connected to
+    // the engine. Twelve coin flips cannot tell 50% from 70%.
+    //
+    // Sixty can. At n = 60 the standard deviation of a fair contest is 3.87,
+    // so 15..45 is very nearly four deviations either side: a genuinely
+    // neutral engine fails this about once in ten thousand runs, while the
+    // two defects it exists to catch — the deploy zones filled as mirror
+    // images rather than rotations (measured 19 wins to 1) and the unshared
+    // AoE burst (32 to 8) — land at 57 and 48 and are caught every time.
+    // Measured today: 32 attacker wins to 28, of which 7 went to the clock.
+    const { attacker, decided } = mirrorRun(MUSTER, 60);
+    expect(decided).toBe(60);
+    expect(attacker).toBeGreaterThanOrEqual(15);
+    expect(attacker).toBeLessThanOrEqual(45);
+  });
+
+  it("does not hand either side the battle on a one-armed order of battle either", () => {
+    // Twenty boards each, which is a collapse detector rather than a fair-coin
+    // test — the bands below are ±3.35 deviations and would pass a 30/70 skew.
+    // They are here because a composition can break neutrality on its own and
+    // nothing else in this suite would notice. Measured today: infantry-only
+    // 11 to 9 with NINETEEN of the twenty going to the clock (rifles alone
+    // cannot break rifles alone inside the round limit, so holdingPower
+    // decides almost all of them), and rifles-with-batteries 6 to 14.
+    const infantry = mirrorRun({ riflemen: 30 }, 20);
+    expect(infantry.decided).toBe(20);
+    expect(infantry.attacker).toBeGreaterThanOrEqual(3);
+    expect(infantry.attacker).toBeLessThanOrEqual(17);
+    expect(infantry.byClock).toBeGreaterThan(10);
+
+    const guns = mirrorRun({ riflemen: 20, artillery: 4 }, 20);
+    expect(guns.decided).toBe(20);
+    expect(guns.attacker).toBeGreaterThanOrEqual(3);
+    expect(guns.attacker).toBeLessThanOrEqual(17);
   });
 });
 
@@ -1272,5 +1323,605 @@ describe("Lane C · 14. tacticalView — the §4 payload", () => {
     expect(v.field.meta.nodeKind).toBe("crossroads");
     expect(v.field.meta.weather).toBe("clear");
     expect(typeof v.field.meta.groundsFighters).toBe("boolean");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The sections below were added by step 2. Their subject is not a new feature:
+// it is the set of paths the step-1 suite never reached. Branch coverage was
+// MEASURED (the file was temporarily instrumented, the suite run, the marks
+// collected) rather than reasoned about, and every branch it named is now
+// either driven by a case here or gone from the file. That is the only honest
+// treatment of a fallback: reach it, or delete it.
+// ---------------------------------------------------------------------------
+
+describe("Lane C · 15. the filing is atomic", () => {
+  // 24 single-figure hulls: the largest legal filing of the type with the
+  // fewest hexes available to it.
+  const HULLS = Array.from({ length: MAX_SQUADS }, (_, i) => row(`Hull ${i + 1}`, "crawler", 1));
+  const DEPOT = { riflemen: 40, crawler: 40, artillery: 10, fighter: 10 };
+
+  /** Wall the defender zone down to `keep` hexes. */
+  function narrow(t, keep) {
+    const zone = t.field.deploy.defender;
+    for (let i = 0; i < zone.length - keep; i++) t.field.tiles[key(zone[i].q, zone[i].r)].moveCost = null;
+    return t;
+  }
+
+  it("refuses a filing the ground will not hold WHOLE — nothing seated, no id spent", () => {
+    const t = narrow(createTactical(DEPOT, DEPOT, OPTS), 10);
+    expect(t.squads).toHaveLength(0);
+    expect(submitFormations(t, "defender", HULLS)).toMatch(/will not hold another section/);
+    // The repair. Both seating passes used to push straight into t.squads, so
+    // a filing refused on its 11th row left ten sections standing on the
+    // board — with deployed.defender still false, so the commander re-filed,
+    // his phantom sections were still holding the hexes, and the SAME
+    // rejection came back for ever. A refused order of battle costs nothing.
+    expect(t.squads).toHaveLength(0);
+    expect(t.nextId).toBe(0);
+    expect(t.deployed.defender).toBe(false);
+    expect(t.log).toHaveLength(1);
+  });
+
+  it("takes a legal filing straight afterwards — the refusal did not poison the ground", () => {
+    const t = narrow(createTactical(DEPOT, DEPOT, OPTS), 10);
+    expect(submitFormations(t, "defender", HULLS)).toMatch(/will not hold another section/);
+    expect(submitFormations(t, "defender", HULLS.slice(0, 8))).toBe(null);
+    expect(t.squads).toHaveLength(8);
+    expect(t.squads.map((s) => s.id)).toEqual(["d1", "d2", "d3", "d4", "d5", "d6", "d7", "d8"]);
+    expect(new Set(t.squads.map((s) => key(s.q, s.r))).size).toBe(8);
+  });
+
+  it("Lane B always leaves room for MAX_SQUADS hulls in both deploy zones", () => {
+    // The headroom the repair sits on, asserted against the REAL generator
+    // rather than against the one board a fixture happened to roll. The
+    // tightest zone measured over this sweep offers exactly MAX_SQUADS hexes
+    // a hull may stand on — fortBonus stamps infantry-only works over the
+    // rest — so a legal filing of 24 hulls is one work away from the
+    // rejection above, which is why that path is a repair and not a curio.
+    let tightest = Infinity;
+    for (const nodeKind of ["crossroads", "ridge", "forest", "ruins", "marsh", "waste", "depot", "bridge"]) {
+      for (const fortBonus of [0, 1, 2, 3]) {
+        for (let seed = 1; seed <= 6; seed++) {
+          const f = generateField({ seed, nodeKind, weather: "clear", fortBonus, w: FIELD.w, h: FIELD.h });
+          for (const side of ["attacker", "defender"]) {
+            const room = f.deploy[side]
+              .map((h) => f.tiles[key(h.q, h.r)])
+              .filter((tile) => tile && tile.moveCost !== null
+                && !(tile.work && DEPLOYABLES[tile.work].infantryOnly)).length;
+            tightest = Math.min(tightest, room);
+          }
+        }
+      }
+    }
+    expect(tightest).toBeGreaterThanOrEqual(MAX_SQUADS);
+  });
+
+  it("gives a hex asked for twice to the first row and seats the second elsewhere", () => {
+    const t = createTactical(DEPOT, DEPOT, OPTS);
+    const at = t.field.deploy.attacker[4];
+    expect(submitFormations(t, "attacker", [
+      row("First", "riflemen", 10, [], { q: at.q, r: at.r }),
+      row("Second", "riflemen", 10, [], { q: at.q, r: at.r }),
+    ])).toBe(null);
+    const [a, b] = t.squads;
+    expect({ q: a.q, r: a.r }).toEqual({ q: at.q, r: at.r });
+    expect({ q: b.q, r: b.r }).not.toEqual({ q: at.q, r: at.r });
+  });
+});
+
+// ---------------------------------------------------------------------------
+describe("Lane C · 16. the suppression ring — Lane A's aoeSuppress, where Lane A puts it", () => {
+  // Lane A declares the mod as "hexes added to the SUPPRESS radius (Lane C)".
+  // The engine was adding it to the DAMAGE radius, which is three separate
+  // wrongs: it widened a burst the mod is written not to widen, it DILUTED
+  // that burst (the shell weight is shared, so more stands under it means
+  // less each), and it did nothing whatever for the section that carries the
+  // mod, because the gunner's own order has no `aoe` row to widen.
+  const gunnerRow = (staff) => ({ ...row("MG", "gunners", 6, staff) });
+
+  it("pins the hexes beside a target under point fire, and takes no figures there", () => {
+    const t = flatten(battle(
+      [gunnerRow(["heavy_gunner"])],
+      [row("Target", "riflemen", 10), row("Neighbour", "riflemen", 10), row("Far", "riflemen", 10)],
+    ));
+    const mg = t.squads.find((s) => s.side === "attacker");
+    const [target, neighbour, far] = t.squads.filter((s) => s.side === "defender");
+    place(t, mg.id, 4, 5);
+    place(t, target.id, 8, 5);
+    place(t, neighbour.id, 8, 4);   // one hex from the target
+    place(t, far.id, 8, 2);         // three hexes away
+    expect(hexDistance(neighbour, target)).toBe(1);
+    expect(SPECIALISTS.heavy_gunner.mods.aoeSuppress).toBe(1);
+    makeActive(t, mg.id);
+    const beforeNeighbour = copy(neighbour);
+    expect(resolveOrders(t, mg.id, null, "suppress", { squadId: target.id })).toBe(null);
+    expect(target.status.suppressed).toBeGreaterThan(0);
+    expect(neighbour.status.suppressed).toBeGreaterThan(0);
+    expect(harm(beforeNeighbour, neighbour)).toBe(0);   // pinned, not shot
+    expect(far.status.suppressed).toBe(0);
+  });
+
+  it("lays no ring at all without the mod", () => {
+    const t = flatten(battle([gunnerRow([])], [row("Target", "riflemen", 10), row("Neighbour", "riflemen", 10)]));
+    const mg = t.squads.find((s) => s.side === "attacker");
+    const [target, neighbour] = t.squads.filter((s) => s.side === "defender");
+    place(t, mg.id, 4, 5); place(t, target.id, 8, 5); place(t, neighbour.id, 8, 4);
+    makeActive(t, mg.id);
+    expect(resolveOrders(t, mg.id, null, "suppress", { squadId: target.id })).toBe(null);
+    expect(target.status.suppressed).toBeGreaterThan(0);
+    expect(neighbour.status.suppressed).toBe(0);
+  });
+
+  it("an order that pins nobody lays no ring — the weight has to buy a turn", () => {
+    const t = flatten(battle([gunnerRow(["heavy_gunner"])], [row("T", "riflemen", 10), row("N", "riflemen", 10)]));
+    const mg = t.squads.find((s) => s.side === "attacker");
+    const [target, neighbour] = t.squads.filter((s) => s.side === "defender");
+    place(t, mg.id, 4, 5); place(t, target.id, 8, 5); place(t, neighbour.id, 8, 4);
+    makeActive(t, mg.id);
+    // Aimed fire carries 0.25 of suppression, which floors to no turns at all.
+    expect(SQUAD_ACTIONS.fire.suppress).toBeLessThan(0.5);
+    expect(resolveOrders(t, mg.id, null, "fire", { squadId: target.id })).toBe(null);
+    expect(neighbour.status.suppressed).toBe(0);
+  });
+
+  it("widens the SUPPRESS radius of a burst and never its damage radius", () => {
+    // Two identical bombardments; only the thrower's staff differs.
+    const layout = (staff) => {
+      const t = flatten(battle(
+        [{ ...row("Bombers", "riflemen", 10, staff) }],
+        [row("Under", "riflemen", 10), row("Edge", "riflemen", 10), row("Ring", "riflemen", 10)],
+      ));
+      const a = t.squads.find((s) => s.side === "attacker");
+      const [under, edge, ring] = t.squads.filter((s) => s.side === "defender");
+      place(t, a.id, 6, 5);
+      place(t, under.id, 8, 5);   // the impact hex
+      place(t, edge.id, 8, 4);    // inside the grenade's radius of 1
+      place(t, ring.id, 8, 3);    // two hexes out — inside the ring, outside the burst
+      makeActive(t, a.id);
+      const before = [under, edge, ring].map(copy);
+      expect(resolveOrders(t, a.id, null, "grenade", { q: 8, r: 5 })).toBe(null);
+      return { under, edge, ring, before, dealt: t.fx.dealt };
+    };
+    expect(SQUAD_ACTIONS.grenade.aoe.radius).toBe(1);
+    const plain = layout([]);
+    const withMod = layout(["heavy_gunner"]);
+
+    // the stand two hexes out loses nothing either way ...
+    expect(harm(plain.before[2], plain.ring)).toBe(0);
+    expect(harm(withMod.before[2], withMod.ring)).toBe(0);
+    // ... but the mod pins it, and without the mod nothing reaches it at all
+    expect(plain.ring.status.suppressed).toBe(0);
+    expect(withMod.ring.status.suppressed).toBeGreaterThan(0);
+    // and the burst itself is UNCHANGED — the mod neither widens nor dilutes
+    // it. Before the repair the wider radius shared the same shell weight
+    // among more stands, so attaching the specialist made the grenade weaker.
+    expect(withMod.dealt).toBe(plain.dealt);
+    expect(harm(withMod.before[0], withMod.under)).toBe(harm(plain.before[0], plain.under));
+    expect(harm(withMod.before[1], withMod.edge)).toBe(harm(plain.before[1], plain.edge));
+  });
+
+  it("catches friendly stands in the ring — a belt does not read armbands", () => {
+    const t = flatten(battle(
+      [{ ...row("MG", "gunners", 6, ["heavy_gunner"]) }, row("Ours", "riflemen", 10)],
+      [row("Target", "riflemen", 10)],
+    ));
+    const mg = t.squads.find((s) => s.name === "MG");
+    const ours = t.squads.find((s) => s.name === "Ours");
+    const target = t.squads.find((s) => s.side === "defender");
+    place(t, mg.id, 4, 5); place(t, target.id, 8, 5); place(t, ours.id, 8, 4);
+    makeActive(t, mg.id);
+    const before = copy(ours);
+    expect(resolveOrders(t, mg.id, null, "suppress", { squadId: target.id })).toBe(null);
+    expect(ours.status.suppressed).toBeGreaterThan(0);
+    expect(harm(before, ours)).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+describe("Lane C · 17. what the staff will and will not issue", () => {
+  it("never pairs a march with an order that must stand fast", () => {
+    // THE ACCEPTANCE PROPERTY, and it is the one that failed. Suppressing
+    // fire is the only non-area `noMove` order in Lane A's table, and the old
+    // scorer — raw `dmg`, nothing else — could never choose it, so step 5 of
+    // the doctrine was free to pair it with a destination and nobody found
+    // out. The moment the scorer started valuing the pin, autoOrders began
+    // emitting `{ moveTo, actionKey: 'suppress' }`, resolveOrders refused it,
+    // and autoResolveRemainder stopped the battle on the rejection.
+    expect(SQUAD_ACTIONS.suppress.noMove).toBe(true);
+    let orders = 0;
+    let suppressions = 0;
+    for (let seed = 1; seed <= 6; seed++) {
+      const t = createTactical(MUSTER, MUSTER, { ...OPTS, seed });
+      submitFormations(t, "attacker", autoFormations(t.pools.attacker));
+      submitFormations(t, "defender", autoFormations(t.pools.defender));
+      for (let n = 0; n < 500 && !battleResult(t); n++) {
+        const sq = activeFormation(t);
+        if (!sq) break;
+        const o = autoOrders(t, sq);
+        expect(o, `${sq.id} was given no order while the fight was live`).toBeTruthy();
+        if (o.moveTo && o.actionKey !== "march") expect(SQUAD_ACTIONS[o.actionKey].noMove).toBe(false);
+        if (o.actionKey === "suppress") suppressions++;
+        expect(resolveOrders(t, sq.id, o.moveTo, o.actionKey, o.target),
+          `${sq.id} (${sq.type}) was refused its own staff's order ${o.actionKey}`).toBe(null);
+        orders++;
+      }
+    }
+    expect(orders).toBeGreaterThan(500);
+    // and the order the scorer used to be blind to is now actually issued
+    expect(suppressions).toBeGreaterThan(0);
+  });
+
+  it("prefers pinning a plate it cannot mark to firing at it", () => {
+    // A rifle section beside a superheavy keel: aimed fire resolves to
+    // nothing off the hull, so the staff reaches for the order that at least
+    // pins the crew. Under the old `dmg`-only scoring both orders scored the
+    // same and `fire` won on table order, which is the mult:0 row of drift
+    // guard 12 being invisible to every decision that mattered.
+    const t = flatten(battle(
+      [{ ...row("MG", "gunners", 6, ["heavy_gunner"]) }],
+      [{ ...row("Keel", "crawler", 1), vehicle: rollVehicle({ seed: 11, class: "land_fort" }) }],
+    ));
+    const mg = t.squads.find((s) => s.side === "attacker");
+    const keel = t.squads.find((s) => s.side === "defender");
+    expect(keel.facings.front).toBe("superheavy");
+    place(t, mg.id, 5, 5); place(t, keel.id, 7, 5, 3);
+    makeActive(t, mg.id);
+    const o = autoOrders(t, mg);
+    expect(o.actionKey).toBe("suppress");
+    expect(o.targetId).toBe(keel.id);
+  });
+
+  it("turns to the target it can hurt when it has one", () => {
+    const t = flatten(battle(
+      [row("Rifles", "riflemen", 10)],
+      [
+        { ...row("Keel", "crawler", 1), vehicle: rollVehicle({ seed: 11, class: "land_fort" }) },
+        row("Men", "riflemen", 10),
+      ],
+    ));
+    const a = t.squads.find((s) => s.side === "attacker");
+    const keel = t.squads.find((s) => s.name === "Keel");
+    const men = t.squads.find((s) => s.name === "Men");
+    // Far enough apart that no grenade covers both — this is a question about
+    // WHICH TARGET, not about the cluster branch that runs before it.
+    place(t, a.id, 5, 5); place(t, keel.id, 6, 5, 3); place(t, men.id, 10, 5);
+    makeActive(t, a.id);
+    expect(hexDistance(keel, men)).toBeGreaterThan(SQUAD_ACTIONS.grenade.aoe.radius + 1);
+    // The keel is NEARER, and the old scorer broke ties on distance after a
+    // score that did not know one target was proof against the volley.
+    expect(hexDistance(a, keel)).toBeLessThan(hexDistance(a, men));
+    expect(autoOrders(t, a).targetId).toBe(men.id);
+  });
+
+  it("holds a grounded aeroplane and a gun that cannot leave its pit", () => {
+    const storm = flatten(battle([row("Air", "fighter", 1)], [row("D", "riflemen", 10)], { weather: "storm" }));
+    const air = storm.squads.find((s) => s.side === "attacker");
+    place(storm, air.id, 5, 5);
+    place(storm, storm.squads.find((s) => s.side === "defender").id, 6, 5);
+    expect(storm.field.meta.groundsFighters).toBe(true);
+    makeActive(storm, air.id);
+    expect(autoOrders(storm, air)).toEqual({ moveTo: null, actionKey: "hold", targetId: null, target: null });
+
+    const pit = flatten(battle([row("MG", "gunners", 6)], [row("D", "riflemen", 10)]));
+    const guns = pit.squads.find((s) => s.side === "attacker");
+    const foe = pit.squads.find((s) => s.side === "defender");
+    place(pit, guns.id, 2, 5);
+    place(pit, foe.id, 14, 5);
+    pit.field.tiles[key(2, 5)].work = "emplacement";
+    expect(DEPLOYABLES.emplacement.mods.speed).toBe(0);
+    // Beyond even the reach the pit lends it, so there is no shot to take ...
+    expect(hexDistance(guns, foe)).toBeGreaterThan(
+      SQUAD_TYPES.gunners.range + DEPLOYABLES.emplacement.mods.range);
+    makeActive(pit, guns.id);
+    // ... and the pit will not let it close, so it stands to the gun rather
+    // than issuing a march it cannot make.
+    expect(autoOrders(pit, guns)).toEqual({ moveTo: null, actionKey: "hold", targetId: null, target: null });
+  });
+
+  it("gives no order at all when there is nobody left to give one against", () => {
+    const t = flatten(battle([row("A", "riflemen", 10)], [row("D", "riflemen", 10)]));
+    const a = t.squads.find((s) => s.side === "attacker");
+    t.squads = t.squads.filter((s) => s.side === "attacker");
+    expect(autoOrders(t, a)).toBe(null);
+    expect(autoOrders(t, null)).toBe(null);
+  });
+});
+
+// ---------------------------------------------------------------------------
+describe("Lane C · 18. the paths the first pass never reached", () => {
+  it("takes an empty muster without inventing a pool", () => {
+    const t = createTactical(null, undefined, OPTS);
+    for (const k of COLUMN_KEYS) {
+      expect(t.pools.attacker[k]).toBe(0);
+      expect(t.pools.defender[k]).toBe(0);
+    }
+    expect(autoFormations(t.pools.attacker)).toEqual([]);
+    expect(submitFormations(t, "attacker", autoFormations(t.pools.attacker)))
+      .toMatch(/At least one section/);
+  });
+
+  it("numbers a section past the tenth plainly", () => {
+    const list = autoFormations({ crawler: 12 });
+    expect(list).toHaveLength(12);
+    expect(list[9].name).toMatch(/^10th /);
+    expect(list[10].name).toMatch(/^11th /);
+    expect(list[11].name).toMatch(/^12th /);
+  });
+
+  it("carves the remainder into a short section rather than leaving it in the depot", () => {
+    // Seven figures will not fill the first section the doctrine asks for, so
+    // the walk stalls and the tail takes over: the smallest type the
+    // remainder can still muster, at no more than its own maximum.
+    const list = autoFormations({ riflemen: 7 });
+    expect(list).toHaveLength(1);
+    const type = SQUAD_TYPES[list[0].type];
+    expect(list[0].figures).toBeGreaterThanOrEqual(type.minFigures);
+    expect(list[0].figures).toBeLessThanOrEqual(type.maxFigures);
+    expect(list[0].figures).toBeLessThanOrEqual(7);
+    expect(autoFormations({ riflemen: 1 })).toEqual([]);
+  });
+
+  it("reads a target that is neither a squad, an id nor a hex as no target", () => {
+    const t = flatten(battle([row("A", "riflemen", 10)], [row("D", "riflemen", 10)]));
+    const a = t.squads.find((s) => s.side === "attacker");
+    const d = t.squads.find((s) => s.side === "defender");
+    place(t, a.id, 5, 5); place(t, d.id, 6, 5);
+    for (const junk of [42, true, {}, { q: 3 }, { q: "x", r: "y" }, "no-such-id"]) {
+      makeActive(t, a.id);
+      expect(resolveOrders(t, a.id, null, "fire", junk), JSON.stringify(junk))
+        .toMatch(/No such section is on the field/);
+    }
+  });
+
+  it("refuses a burst aimed off the field", () => {
+    const t = flatten(battle([row("Guns", "artillery", 1)], [row("D", "riflemen", 10)]));
+    const g = t.squads.find((s) => s.side === "attacker");
+    place(t, g.id, 5, 5);
+    makeActive(t, g.id);
+    expect(resolveOrders(t, g.id, null, "bombard", { q: 40, r: 40 })).toBe("That ground is off the field");
+    expect(resolveOrders(t, g.id, null, "bombard", null)).toMatch(/needs a hex to fall on/);
+  });
+
+  it("refreshes a screen laid twice on the same hex instead of stacking two", () => {
+    const t = flatten(battle(
+      [row("S1", "scouts", 5), row("S2", "scouts", 5)],
+      [row("D", "riflemen", 10)],
+    ));
+    const [s1, s2] = t.squads.filter((s) => s.side === "attacker");
+    place(t, s1.id, 5, 5); place(t, s2.id, 5, 6);
+    place(t, t.squads.find((s) => s.side === "defender").id, 12, 9);
+    makeActive(t, s1.id);
+    expect(resolveOrders(t, s1.id, null, "smoke", { q: 6, r: 5 })).toBe(null);
+    expect(t.screens).toHaveLength(1);
+    expect(t.field.tiles[key(6, 5)].blocksLOS).toBe(true);
+    const was = t.screens[0].was;
+    t.screens[0].turns = 1;
+    makeActive(t, s2.id);
+    expect(resolveOrders(t, s2.id, null, "smoke", { q: 6, r: 5 })).toBe(null);
+    // one screen, its clock reset, and it still remembers the GROUND it
+    // stands on — a second entry would restore the screened value on expiry
+    // and leave the hex blind for the rest of the battle.
+    expect(t.screens).toHaveLength(1);
+    expect(t.screens[0].turns).toBe(SQUAD_ACTIONS.smoke.screenTurns);
+    expect(t.screens[0].was).toBe(was);
+  });
+
+  it("resolves a hit on a hull whose persisted plate set is missing the struck face", () => {
+    // `facings` is written onto the Game record at deployment, so a battle
+    // saved before Lane J last touched its plate sets can come back short a
+    // face. The front plate answers rather than `undefined`, which would have
+    // been handed to resolveSquadHit as the target's armour CLASS.
+    const t = flatten(battle(
+      [row("A", "riflemen", 10)],
+      [{ ...row("Hull", "crawler", 1), vehicle: rollVehicle({ seed: 9, class: "heavy_crawler" }) }],
+    ));
+    const a = t.squads.find((s) => s.side === "attacker");
+    const d = t.squads.find((s) => s.side === "defender");
+    place(t, a.id, 5, 5); place(t, d.id, 6, 5, 0);   // struck from the rear
+    delete d.facings.rear;
+    makeActive(t, a.id);
+    expect(resolveOrders(t, a.id, null, "fire", { squadId: d.id })).toBe(null);
+    expect(tacticalView(t, "defender").squads.find((s) => s.id === d.id).armour).toBe(d.facings.front);
+    expect(d.figures).toBe(1);
+  });
+
+  it("fails LOUDLY, not silently, when a stand has no ground beneath it", () => {
+    // Five silent defaults used to answer this — cover 0, no work, no range
+    // bonus, no suppression bonus, the type's own armour — none of them
+    // reachable by any test and all of them reading as deliberate rules. A
+    // stand off the field is a corrupted battle, and it says so.
+    const t = flatten(battle([row("A", "riflemen", 10)], [row("D", "riflemen", 10)]));
+    const a = t.squads.find((s) => s.side === "attacker");
+    const d = t.squads.find((s) => s.side === "defender");
+    place(t, d.id, 6, 5);
+    place(t, a.id, 99, 99);
+    makeActive(t, a.id);
+    expect(() => resolveOrders(t, a.id, null, "fire", { squadId: d.id })).toThrow(/No ground beneath a1/);
+  });
+
+  it("counts a mutual annihilation as the defender holding the ground", () => {
+    // The last two stands on the board go together under one shell. The
+    // engine answers `attackerWon: false`: the attacker is the side that had
+    // to take the ground, and a field with nobody on it was not taken.
+    const t = flatten(battle([row("Guns", "artillery", 1)], [row("D", "riflemen", 4)]));
+    const g = t.squads.find((s) => s.side === "attacker");
+    const d = t.squads.find((s) => s.side === "defender");
+    place(t, g.id, 8, 5); place(t, d.id, 8, 6);
+    // Both stands already one hair short of losing their last figure, so the
+    // shell that finishes the section beside the battery finishes the battery
+    // too. `wounds` is the retained remainder strike() carries on a stand.
+    g.figures = 1; d.figures = 1;
+    g.wounds = 3 + 2 * SQUAD_TYPES.artillery.armor - 0.01;
+    d.wounds = 3 + 2 * SQUAD_TYPES.riflemen.armor - 0.01;
+    makeActive(t, g.id);
+    expect(resolveOrders(t, g.id, null, "bombard", { q: 8, r: 5 })).toBe(null);
+    expect(t.squads).toHaveLength(0);
+    expect(t.queue.filter((id) => t.squads.some((s) => s.id === id))).toHaveLength(0);
+    const r = battleResult(t);
+    expect(r.attackerWon).toBe(false);
+    for (const k of COLUMN_KEYS) {
+      expect(r.attackerUnits[k]).toBe(0);
+      expect(r.defenderUnits[k]).toBe(0);
+    }
+  });
+
+  it("lands the shell on everyone under it even when it kills the battery firing it", () => {
+    // The burst is resolved from the firer's derived output, friendly stands
+    // under it are struck, and the stand ON the impact hex is resolved first
+    // — so a battery that killed itself used to zero its OWN shell for every
+    // other stand under the same burst. It reported '0 figures down, 1 of our
+    // own with them' while standing on top of an enemy section.
+    const t = flatten(battle([row("Guns", "artillery", 1), row("Screen", "riflemen", 10)], [row("D", "riflemen", 10)]));
+    const g = t.squads.find((s) => s.name === "Guns");
+    const d = t.squads.find((s) => s.side === "defender");
+    place(t, g.id, 8, 5);
+    place(t, t.squads.find((s) => s.name === "Screen").id, 2, 2);
+    place(t, d.id, 8, 6);
+    g.wounds = 3 + 2 * SQUAD_TYPES.artillery.armor - 0.01;   // one hair from gone
+    makeActive(t, g.id);
+    const before = copy(d);
+    expect(resolveOrders(t, g.id, null, "bombard", { q: 8, r: 5 })).toBe(null);
+    expect(t.squads.some((s) => s.id === g.id)).toBe(false);  // the battery is gone
+    expect(harm(before, d)).toBeGreaterThan(0);               // and the shell still landed
+    expect(t.fx.dealt).toBeGreaterThan(0);
+  });
+
+  it("lets the commissar's toll finish a section that had one figure left", () => {
+    const t = flatten(battle(
+      [row("Guns", "artillery", 1)],
+      [{ ...row("Last", "riflemen", 4, ["commissar"]) }],
+    ));
+    const g = t.squads.find((s) => s.side === "attacker");
+    const d = t.squads.find((s) => s.side === "defender");
+    place(t, g.id, 2, 5); place(t, d.id, 10, 5);
+    d.figures = 1;
+    expect(SPECIALISTS.commissar.mods.executionToll).toBe(1);
+    // Break the section's morale as hard as the table allows, so the roll
+    // cannot hold: no cover, already suppressed, flanked, and shelled from
+    // out of sight.
+    d.status.suppressed = 3;
+    d.lostThisRound = 6;
+    makeActive(t, g.id);
+    expect(resolveOrders(t, g.id, null, "bombard", { q: 10, r: 5 })).toBe(null);
+    // Either the shell took it or the ledger did; what must not happen is the
+    // log reporting a section that stands while it is being swept off.
+    expect(t.squads).toHaveLength(1);
+    expect(t.log.some((l) => /closes the ledger.*section stands/.test(l))).toBe(false);
+  });
+
+  it("autoResolveRemainder stops rather than spinning when no section is active", () => {
+    const t = flatten(battle([row("A", "riflemen", 10)], [row("D", "riflemen", 10)]));
+    t.qIndex = t.queue.length + 5;      // a queue index that names nobody
+    expect(activeFormation(t)).toBe(null);
+    expect(autoResolveRemainder(t, null, 50)).toBe(0);
+    expect(t.round).toBe(1);
+  });
+
+  it("takes no further order once the engagement is decided", () => {
+    const t = flatten(battle([row("A", "riflemen", 10)], [row("D", "riflemen", 10)]));
+    const a = t.squads.find((s) => s.side === "attacker");
+    t.squads = t.squads.filter((s) => s.side === "attacker");
+    makeActive(t, a.id);
+    expect(battleResult(t)).toBeTruthy();
+    expect(resolveOrders(t, a.id, null, "hold", null)).toMatch(/engagement is decided/);
+    expect(autoResolveRemainder(t, null, 50)).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+describe("Lane C · 19. the numbers this file publishes", () => {
+  // Every figure Lane C hands to Lane A for docs/COMBAT_DESIGN.md is
+  // RECOMPUTED here against the table it is drawn from. A published number
+  // that no test recomputes is a number that goes wrong quietly: this repo
+  // has already shipped a cost curve claiming 110 where its own table summed
+  // to 138, restated three times and checked by nothing.
+
+  /** What one figure of a stand absorbs, measured off the engine itself. */
+  function toughness(typeKey) {
+    const t = flatten(battle([row("A", "riflemen", 10)], [row("D", typeKey, SQUAD_TYPES[typeKey].figures)]));
+    const d = t.squads.find((s) => s.side === "defender");
+    place(t, d.id, 6, 5);
+    // strike() divides the resolved effect by (3 + 2 * armor) x cover x guard,
+    // and on flattened ground with a neutral guard both multipliers are 1. So
+    // a stand that has absorbed exactly one figure's worth of wounds tells us
+    // the divisor: drive it by hand through the same public path.
+    const per = 3 + 2 * deriveSquad({ type: typeKey, figures: SQUAD_TYPES[typeKey].figures, specialists: [] }).armor;
+    return per;
+  }
+
+  it("a figure absorbs 3 + 2 x armor — 7 for a rifle section, 27 for a crawler", () => {
+    expect(toughness("riflemen")).toBe(7);
+    expect(toughness("crawler")).toBe(27);
+    // and the shape, not just the two headline values
+    for (const k of Object.keys(SQUAD_TYPES)) {
+      const armor = deriveSquad({ type: k, figures: SQUAD_TYPES[k].figures, specialists: [] }).armor;
+      expect(toughness(k)).toBe(3 + 2 * armor);
+    }
+  });
+
+  it("erodes a rifle section at exactly the rate that divisor implies", () => {
+    // The claim above, driven rather than asserted: a stand carrying wounds
+    // just under one figure's worth loses nothing, and the same stand carrying
+    // just over loses exactly one.
+    const build = (wounds) => {
+      const t = flatten(battle([row("A", "scouts", 5)], [row("D", "riflemen", 10)]));
+      const a = t.squads.find((s) => s.side === "attacker");
+      const d = t.squads.find((s) => s.side === "defender");
+      place(t, a.id, 5, 5); place(t, d.id, 6, 5);
+      d.wounds = wounds;
+      makeActive(t, a.id);
+      resolveOrders(t, a.id, null, "fire", { squadId: d.id });
+      return d;
+    };
+    // A scout volley is small; with the carry-over already sitting one whole
+    // figure short of the divisor, it tips the stand over and takes exactly
+    // one more than the same volley does from nothing.
+    expect(build(6.9).figures).toBeLessThan(build(0).figures);
+  });
+
+  it("turns an order's own suppression weight into whole rounds of pinning", () => {
+    // floor(weight + 0.5): aimed fire does NOT pin, a grenade or a strafe
+    // pins for one, and a belt of suppressing fire pins for two. Recomputed
+    // from SQUAD_ACTIONS rather than restated.
+    const turns = (w) => Math.floor(w + 0.5);
+    expect(turns(SQUAD_ACTIONS.fire.suppress)).toBe(0);
+    expect(turns(SQUAD_ACTIONS.grenade.suppress)).toBe(1);
+    expect(turns(SQUAD_ACTIONS.mortar_barrage.suppress)).toBe(1);
+    expect(turns(SQUAD_ACTIONS.bombard.suppress)).toBe(1);
+    expect(turns(SQUAD_ACTIONS.suppress.suppress)).toBe(2);
+    // and a hit that resolved to nothing still buys a round, which is what
+    // lets a rifle section pin a crew it cannot touch
+    expect(turns(SQUAD_ACTIONS.fire.suppress + SUPPRESSION.onZeroEffect)).toBe(1);
+
+    const t = flatten(battle([row("MG", "gunners", 6, ["heavy_gunner"])], [row("D", "riflemen", 10)]));
+    const mg = t.squads.find((s) => s.side === "attacker");
+    const d = t.squads.find((s) => s.side === "defender");
+    place(t, mg.id, 5, 5); place(t, d.id, 8, 5);
+    makeActive(t, mg.id);
+    expect(resolveOrders(t, mg.id, null, "suppress", { squadId: d.id })).toBe(null);
+    expect(d.status.suppressed).toBe(turns(SQUAD_ACTIONS.suppress.suppress));
+  });
+
+  it("falls off exactly as Lane I's own resolveAoe says it does", () => {
+    // The engine cannot CALL resolveAoe — that takes a WeaponBase and an
+    // ARMOUR_CLASSES row, and building either here would be the second copy
+    // of the weapon chain drift guard 12 forbids — so this asserts the two
+    // models agree instead. Falloff is applied to `damage` before penetration
+    // there and to `effective` after it here, and because effective is linear
+    // in damage the two are the same number.
+    const weapon = { damage: 10, armorPen: 6, damageType: "fragmentation", aoe: { radius: 2, falloff: 0.3 } };
+    const target = ARMOUR_CLASSES.soft;
+    const victims = [0, 1, 2].map((dist) => ({ target, dist }));
+    const lane_i = resolveAoe({ weapon, victims });
+    const whole = resolveHit({ weapon, target }).effective;
+    expect(lane_i).toHaveLength(3);
+    for (let dist = 0; dist < 3; dist++) {
+      const mine = whole * Math.max(0, 1 - weapon.aoe.falloff * dist);
+      expect(Math.abs(lane_i[dist].effective - mine)).toBeLessThan(1e-9);
+    }
+    // and a stand beyond the radius is not in the result at all, which is the
+    // rule the engine keeps by filtering on aoe.radius before it strikes
+    expect(resolveAoe({ weapon, victims: [{ target, dist: 3 }] })).toHaveLength(0);
   });
 });

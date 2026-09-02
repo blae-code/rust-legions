@@ -287,11 +287,17 @@ function derivedOf(sq) {
 function armourKeyOf(t, sq, from, overhead) {
   if (sq.facings) {
     const face = struckFacing({ from, at: { q: sq.q, r: sq.r }, facing: sq.facing, overhead: !!overhead });
+    // `|| front` is not tidiness. `facings` is PERSISTED on the Game record at
+    // deployment, so a battle saved before Lane J last touched the plate set
+    // can come back missing a face — and handing `undefined` to
+    // resolveSquadHit would resolve the hit against no armour class at all,
+    // which is the softest possible answer to the hardest possible question.
+    // The front plate is the conservative one. A test drives this.
     return sq.facings[face] || sq.facings.front;
   }
   const own = (SQUAD_TYPES[sq.type] && SQUAD_TYPES[sq.type].armour) || 'none';
-  const tile = tileAt(t, sq.q, sq.r);
-  if (tile && tile.work && WORK_ARMOUR_APPLIES_TO.indexOf(own) !== -1) {
+  const tile = standTile(t, sq);
+  if (tile.work && WORK_ARMOUR_APPLIES_TO.indexOf(own) !== -1) {
     return DEPLOYABLES[tile.work].armourClass;
   }
   return own;
@@ -303,18 +309,37 @@ function facingKeyOf(sq, from, overhead) {
   return struckFacing({ from, at: { q: sq.q, r: sq.r }, facing: sq.facing, overhead: !!overhead });
 }
 
+/**
+ * THE GROUND UNDER A STAND, and it FAILS LOUDLY when there is none.
+ *
+ * Every stand on this board is standing on a tile: deployment seats it on a
+ * zone hex, a march is validated against `occupiable` before the stand is
+ * moved, and a rout picks from `hexRange`. So a stand off the field is not a
+ * situation, it is a CORRUPTED BATTLE — and five separate silent defaults
+ * (cover 0, no work, no range bonus, no suppression bonus, the type's own
+ * armour) is five different wrong answers to it, none of which any test could
+ * reach and all of which read as deliberate rules.
+ *
+ * The addendum makes the same call about `meta.losCap`: a silent default is
+ * an invisible rules change. One loud invariant, in one place, is the honest
+ * shape — and unlike the defaults, it is drivable from a test.
+ */
+function standTile(t, sq) {
+  const tile = t.field.tiles[keyOf(sq.q, sq.r)];
+  if (!tile) throw new Error(`No ground beneath ${sq.id} at ${sq.q},${sq.r}`);
+  return tile;
+}
+
 /** Cover points on a stand's hex: terrain cover plus the work standing on it. */
 function coverOf(t, sq) {
-  const tile = tileAt(t, sq.q, sq.r);
-  if (!tile) return 0;
+  const tile = standTile(t, sq);
   return tile.cover + (tile.work ? DEPLOYABLES[tile.work].cover : 0);
 }
 
 /** The work's absolute speed set (emplacement pins a gun at 0), or null. */
 function workSpeedOf(t, sq) {
-  const tile = tileAt(t, sq.q, sq.r);
-  if (!tile || !tile.work) return null;
-  return DEPLOYABLES[tile.work].mods.speed;
+  const tile = standTile(t, sq);
+  return tile.work ? DEPLOYABLES[tile.work].mods.speed : null;
 }
 
 /** Hexes a stand may march this activation, after the work it stands in. */
@@ -326,32 +351,44 @@ function speedOf(t, sq, d) {
 /** The reach of an order: its override, else the squad range, plus the work. */
 function rangeOf(t, sq, d, act) {
   const base = act.range === null ? d.range : act.range;
-  const tile = tileAt(t, sq.q, sq.r);
-  const bonus = tile && tile.work ? DEPLOYABLES[tile.work].mods.range : 0;
-  return Math.max(1, base + bonus);
+  const tile = standTile(t, sq);
+  return Math.max(1, base + (tile.work ? DEPLOYABLES[tile.work].mods.range : 0));
 }
 
 /** Suppression weight the order puts out, after the work and the hit result. */
 function suppressWeightOf(t, sq, act, zeroEffect) {
-  const tile = tileAt(t, sq.q, sq.r);
-  const bonus = tile && tile.work ? DEPLOYABLES[tile.work].mods.suppress : 0;
+  const tile = standTile(t, sq);
+  const bonus = tile.work ? DEPLOYABLES[tile.work].mods.suppress : 0;
   return act.suppress + bonus + (zeroEffect ? SUPPRESSION.onZeroEffect : 0);
 }
 
 /**
- * May this stand stand here? Passable ground, nobody else on it, and — the
- * other half of Lane A's `infantryOnly` flag, which Lane A's squadActions
- * owns for RAISING a work and this owns for OCCUPYING one — no hull in a
- * foxhole or a trench.
+ * MAY THIS STAND STAND HERE, AND IF NOT, WHY NOT — a Ministry-voice reason,
+ * or null when the ground will take it.
+ *
+ * It returns the REASON rather than a boolean because resolveOrders used to
+ * ask this question twice: once itself, for the two answers it had a sentence
+ * for, and once here for the two it did not. A hull refused a trench was
+ * therefore told 'That ground is already held', which is not what happened and
+ * not a thing the commander can act on. One decision, four true sentences.
+ *
+ * The last clause is the other half of Lane A's `infantryOnly` flag: Lane A's
+ * squadActions owns RAISING a work, this owns OCCUPYING one.
  */
-function canOccupy(t, sq, q, r) {
+function occupiable(t, sq, q, r) {
   const tile = tileAt(t, q, r);
-  if (!tile || tile.moveCost === null) return false;
+  if (!tile) return 'That ground is off the field';
+  if (tile.moveCost === null) return 'That ground will not take a section';
   const sitting = squadAt(t, q, r);
-  if (sitting && sitting.id !== sq.id) return false;
-  if (tile.work && DEPLOYABLES[tile.work].infantryOnly && !isFoot(sq.type)) return false;
-  return true;
+  if (sitting && sitting.id !== sq.id) return 'That ground is already held';
+  if (tile.work && DEPLOYABLES[tile.work].infantryOnly && !isFoot(sq.type)) {
+    return `No hull will stand in a ${DEPLOYABLES[tile.work].label.toLowerCase()}`;
+  }
+  return null;
 }
+
+/** The same question asked for a yes or a no. */
+const canOccupy = (t, sq, q, r) => occupiable(t, sq, q, r) === null;
 
 /** Is this stand grounded by the weather? Lane B reports; Lane C enforces. */
 function isGrounded(t, sq) {
@@ -509,24 +546,55 @@ export function submitFormations(t, side, squads) {
     ? (b.q - a.q) || (a.r - b.r)
     : (a.q - b.q) || (b.r - a.r)));
   const facing = side === 'attacker' ? 0 : 3;
+  const firstId = t.nextId;
   const placed = list.map((row) => newSquad(t, side, row, facing));
 
-  const seated = [];
+  // PLACEMENT IS ATOMIC, and that is a repair rather than a refinement.
+  //
+  // Both passes used to seat straight into `t.squads`, and the second one can
+  // FAIL — 'the deployment ground will not hold another section' — after the
+  // first has already pushed sections onto the field. The filing was then
+  // rejected with part of it standing on the board, `deployed[side]` still
+  // false and `nextId` advanced: the commander re-filed, the phantom sections
+  // were still holding the hexes his new ones needed, and the same rejection
+  // came back for ever. An order of battle that is refused must leave the
+  // field exactly as it found it, which is the rule every rejection in
+  // resolveOrders already keeps.
+  //
+  // It is one work away from live: the tightest deploy zone Lane B generates
+  // offers exactly MAX_SQUADS hexes a HULL may stand on (fortBonus 3 stamps
+  // infantry-only works over the rest), so a legal filing of 24 hulls sits on
+  // the boundary. A test asserts that headroom against Lane B directly, and
+  // another drives the rejection and then re-files successfully.
+  //
+  // `taken` does the work `t.squads` used to do incidentally: a hex claimed by
+  // an earlier row of THIS filing is not offered to a later one.
+  const taken = new Set();
+  const seating = [];
+  const seat = (sq, q, r) => {
+    sq.q = q; sq.r = r;
+    taken.add(keyOf(q, r));
+    seating.push(sq);
+  };
   for (const sq of placed) {
     const at = sq.wanted;
-    if (!at || !zoneKeys.has(keyOf(at.q, at.r)) || !canOccupy(t, sq, at.q, at.r)) continue;
-    sq.q = at.q; sq.r = at.r;
-    t.squads.push(sq);
-    seated.push(sq.id);
+    if (!at || !zoneKeys.has(keyOf(at.q, at.r))) continue;
+    if (taken.has(keyOf(at.q, at.r)) || !canOccupy(t, sq, at.q, at.r)) continue;
+    seat(sq, at.q, at.r);
   }
   for (const sq of placed) {
-    if (seated.indexOf(sq.id) !== -1) continue;
-    const hex = order.find((h) => canOccupy(t, sq, h.q, h.r));
-    if (!hex) return 'The deployment ground will not hold another section';
-    sq.q = hex.q; sq.r = hex.r;
+    if (seating.indexOf(sq) !== -1) continue;
+    const hex = order.find((h) => !taken.has(keyOf(h.q, h.r)) && canOccupy(t, sq, h.q, h.r));
+    if (!hex) {
+      t.nextId = firstId;
+      return 'The deployment ground will not hold another section';
+    }
+    seat(sq, hex.q, hex.r);
+  }
+  for (const sq of seating) {
+    delete sq.wanted;
     t.squads.push(sq);
   }
-  for (const sq of t.squads) delete sq.wanted;
 
   t.deployed[side] = true;
   t.log.push(`The ${side === 'attacker' ? 'assault' : 'defending'} staff files its order of battle — ${list.length} section${list.length === 1 ? '' : 's'} take the field.`);
@@ -692,8 +760,9 @@ function endRound(t) {
   for (let i = t.screens.length - 1; i >= 0; i--) {
     t.screens[i].turns--;
     if (t.screens[i].turns > 0) continue;
-    const tile = tileAt(t, t.screens[i].q, t.screens[i].r);
-    if (tile) tile.blocksLOS = t.screens[i].was;
+    // Not guarded: a screen is only ever laid on a tile that exists, and a
+    // screen whose ground has vanished is a corrupted battle, not a case.
+    t.field.tiles[keyOf(t.screens[i].q, t.screens[i].r)].blocksLOS = t.screens[i].was;
     t.screens.splice(i, 1);
   }
   for (const sq of t.squads) {
@@ -701,8 +770,7 @@ function endRound(t) {
     if (!b) continue;
     b.turnsLeft--;
     if (b.turnsLeft > 0) continue;
-    const tile = tileAt(t, sq.q, sq.r);
-    if (tile) tile.work = b.work;
+    standTile(t, sq).work = b.work;
     sq.status.building = null;
     t.log.push(`${sq.name} reports the ${DEPLOYABLES[b.work].label.toLowerCase()} complete.`);
   }
@@ -741,8 +809,7 @@ function moraleTest(t, sq, ctx) {
   let target = d.morale;
   target += MORALE_MODS.perCasualtyThisTurn * sq.lostThisRound;
   if (coverOf(t, sq) > 0) target += MORALE_MODS.inCover;
-  const tile = tileAt(t, sq.q, sq.r);
-  if (tile && tile.work) target += MORALE_MODS.inWork;
+  if (standTile(t, sq).work) target += MORALE_MODS.inWork;
   if (sq.status.guard >= SQUAD_ACTIONS.entrench.guard) target += MORALE_MODS.entrenched;
   if (sq.status.suppressed > 0) target += MORALE_MODS.alreadySuppressed;
   if (t.squads.filter((x) => x.side !== sq.side && adjacent(x, sq)).length >= 2) target += MORALE_MODS.flanked;
@@ -847,6 +914,56 @@ function strike(t, actor, act, victim, falloffMult) {
   return { figures: gone, effective, suppressOnly: hit.suppressOnly, facing };
 }
 
+/**
+ * THE SUPPRESSION RING — Lane A's `aoeSuppress`, applied where Lane A says.
+ *
+ * Lane A declares the mod as "hexes added to the SUPPRESS radius (Lane C)",
+ * and the heavy gunner's own blurb is "It kills little and makes a hex
+ * unusable". This engine was adding it to the DAMAGE radius instead, and the
+ * two are not the same rule in any respect:
+ *
+ *   * it widened the killing radius of a burst, which is the one thing the
+ *     mod is written not to do;
+ *   * because the shell weight is SHARED among the stands under it, widening
+ *     the burst DILUTED it — a heavy gunner attached to a bombing section
+ *     made its grenades weaker per stand, an upgrade with a penalty;
+ *   * and it did nothing at all for the section that actually carries the
+ *     mod, because `suppress` — the gunner's own order, the one the staff
+ *     issues him — has no `aoe` row for the radius to be added to. Measured
+ *     before the fix: every heavy gunner in an auto-carved order of battle
+ *     was attached to a section with no area order at all, so the whole mod
+ *     resolved to nothing on every stand that had it.
+ *
+ * The ring is the correct shape for both. Stands the order STRUCK are already
+ * suppressed by `afterHit`. `reach` is the SUPPRESS radius — the order's own
+ * burst radius plus `aoeSuppress` for an area order, and `aoeSuppress` alone
+ * measured from the target's hex for point fire — and every stand inside it
+ * that the order did not strike is pinned and tested WITHOUT losing a figure:
+ * the belt goes over their heads. Friendly stands are caught too, for the
+ * same reason the burst catches them: an automatic weapon does not read
+ * armbands, and a mod that denied ground at no cost to the side using it
+ * would be free area denial.
+ *
+ * Returns the stands it pinned, for the log.
+ */
+function suppressRing(t, actor, act, aimHex, struck, reach) {
+  if (reach <= 0 || !aimHex) return [];
+  const pinned = [];
+  for (const other of t.squads.slice()) {
+    if (other.figures <= 0 || struck.has(other.id)) continue;
+    if (hexDistance(other, aimHex) > reach) continue;
+    // `false`, not `true`: SUPPRESSION.onZeroEffect is the weight a hit that
+    // resolved to nothing still carries, and nothing was resolved against
+    // this stand at all. It takes the order's own weight and no more.
+    const turns = Math.floor(suppressWeightOf(t, actor, act, false) + COMBAT.suppressRound);
+    if (turns <= 0) continue;
+    other.status.suppressed = Math.max(other.status.suppressed, turns);
+    applyMorale(t, other, moraleTest(t, other, { moraleHit: act.moraleHit, unseen: !!act.indirect }));
+    pinned.push(other);
+  }
+  return pinned;
+}
+
 /** Suppression and the morale test that follow a hit, for one victim. */
 function afterHit(t, actor, act, victim, hit) {
   if (victim.figures <= 0) return null;
@@ -886,6 +1003,14 @@ function normaliseTarget(t, target) {
 export function resolveOrders(t, squadId, moveTo, action, target) {
   if (!t || t.status !== 'fighting') return 'No engagement is underway';
   if (t.round > t.roundLimit) return 'The engagement is called; no further orders are taken';
+  // A DECIDED ENGAGEMENT TAKES NO FURTHER ORDERS. Without this the last
+  // section standing keeps being handed activations after the other side has
+  // been swept off the board: it marches, digs and burns rounds against an
+  // empty field, and every one of those activations is a state change the
+  // platform has to persist for a battle whose result is already fixed. The
+  // platform seals `status` to 'done' in the same request that reads
+  // battleResult, so this is what holds the line inside the request.
+  if (battleResult(t)) return 'The engagement is decided; no further orders are taken';
   const sq = activeFormation(t);
   if (!sq || sq.id !== squadId) return "It is not that section's turn";
   // A malformed destination is REJECTED, never quietly ignored: reading
@@ -926,10 +1051,12 @@ export function resolveOrders(t, squadId, moveTo, action, target) {
   let path = null;
   if (wantsMove) {
     if (act.noMove) return 'That order requires the section to stand fast';
-    const tile = tileAt(t, moveTo.q, moveTo.r);
-    if (!tile) return 'That ground is off the field';
-    if (tile.moveCost === null) return 'That ground will not take a section';
-    if (!canOccupy(t, sq, moveTo.q, moveTo.r)) return 'That ground is already held';
+    // ONE question, asked once, answered with the true reason. This used to be
+    // three checks here and a fourth inside canOccupy whose answer was
+    // reported as 'That ground is already held' — so a hull refused a trench
+    // was told a section was standing in it. See `occupiable`.
+    const refusal = occupiable(t, sq, moveTo.q, moveTo.r);
+    if (refusal) return refusal;
     path = pathCost(t.field, { q: sq.q, r: sq.r }, moveTo, { blocked: occupiedKeys(t, sq.id) });
     if (!path) return 'No passable route to that ground';
     if (path.cost > speedOf(t, sq, d)) return "Beyond the section's march allowance";
@@ -942,8 +1069,9 @@ export function resolveOrders(t, squadId, moveTo, action, target) {
   let aimHex = null;
   if (act.builds) {
     const work = DEPLOYABLES[act.builds];
-    const tile = tileAt(t, at.q, at.r);
-    if (!tile) return 'That ground is off the field';
+    // `at` is either the hex the section is standing on or the destination
+    // `occupiable` has just passed, so the tile exists by construction.
+    const tile = t.field.tiles[keyOf(at.q, at.r)];
     if (tile.work) return 'The ground here is already worked';
     if (work.infantryOnly && !isFoot(sq.type)) return 'No crew raises that work';
   } else if (act.uses !== null || aoe) {
@@ -974,8 +1102,12 @@ export function resolveOrders(t, squadId, moveTo, action, target) {
     from: { q: sq.q, r: sq.r },
   };
   if (wantsMove) {
-    const step = path.path[path.path.length - 2] || path.path[0];
-    sq.facing = directionIndex(step, at);
+    // pathCost returns the whole route including both ends, and a march is
+    // only reached when the destination differs from the start, so the route
+    // is at least two hexes and the penultimate one always exists. The facing
+    // is the LAST STEP, not the whole displacement: a section that walks round
+    // a wood ends up looking the way it was walking.
+    sq.facing = directionIndex(path.path[path.path.length - 2], at);
     sq.q = at.q; sq.r = at.r;
   }
   // The order's own guard replaces whatever the section was holding from its
@@ -995,9 +1127,10 @@ export function resolveOrders(t, squadId, moveTo, action, target) {
   } else if (aoe && aimHex) {
     fx.at = { q: aimHex.q, r: aimHex.r };
     sq.facing = directionIndex({ q: sq.q, r: sq.r }, aimHex, sq.facing);
-    const radius = aoe.radius + staff.aoeSuppress;
+    // The DAMAGE radius is the order's own. `staff.aoeSuppress` widens the
+    // suppression ring below, never this — see suppressRing.
     const victims = t.squads
-      .filter((x) => hexDistance(x, aimHex) <= radius)
+      .filter((x) => hexDistance(x, aimHex) <= aoe.radius)
       .map((x) => ({ sq: x, dist: hexDistance(x, aimHex), fall: Math.max(0, 1 - aoe.falloff * hexDistance(x, aimHex)) }))
       .sort((a, b) => a.dist - b.dist || (a.sq.id < b.sq.id ? -1 : 1));
     // THE SHELL WEIGHT IS DIVIDED AMONG THE STANDS IT FINDS, in proportion to
@@ -1016,20 +1149,35 @@ export function resolveOrders(t, squadId, moveTo, action, target) {
     // each. What the engine must not do is invent a damage multiplier that
     // no content table declares.
     const share = victims.reduce((sum, v) => sum + (v.sq.figures > 0 ? v.fall : 0), 0);
+    // THE CREW AS IT WAS WHEN THE ORDER WAS GIVEN. A burst can catch its own
+    // firer — friendly stands under it are struck, and a stand at the impact
+    // hex is the nearest of them, so it is resolved first — and the resolved
+    // effect is drawn from the FIRER's derived output, which falls to nothing
+    // when its last figure goes. Without this snapshot a battery that killed
+    // itself with its own bombardment stopped the same shell dead for every
+    // other stand under it: measured, a mutual burst reported '0 figures
+    // down, 1 of our own with them'. The shell is already in the air.
+    const shooter = { ...sq };
     let primary = null;
     for (const v of victims) {
       if (v.sq.figures <= 0) continue;
       const falloff = share > 0 ? v.fall / share : 0;
-      const hit = strike(t, sq, act, v.sq, falloff);
+      const hit = strike(t, shooter, act, v.sq, falloff);
       if (v.sq.side === sq.side) fx.taken += hit.figures; else fx.dealt += hit.figures;
-      const result = afterHit(t, sq, act, v.sq, hit);
+      const result = afterHit(t, shooter, act, v.sq, hit);
       if (!primary && v.sq.side !== sq.side) {
         primary = v.sq;
         fx.targetId = v.sq.id;
         if (result) fx.moraleResult = result;
       }
     }
+    // The order's own burst radius PLUS the mod: `aoeSuppress` is hexes ADDED
+    // to the suppress radius, so for an area order the ring starts where the
+    // damage stops. Handing it the bare mod would have made the ring a subset
+    // of the stands the burst already struck, i.e. always empty.
+    const ring = suppressRing(t, shooter, act, aimHex, new Set(victims.map((v) => v.sq.id)), aoe.radius + staff.aoeSuppress);
     t.log.push(`${sq.name} — ${act.label.toLowerCase()} onto ${aimHex.q},${aimHex.r}: ${fx.dealt} figure${fx.dealt === 1 ? '' : 's'} down` + (fx.taken ? `, ${fx.taken} of our own with them.` : '.'));
+    if (ring.length) t.log.push(`The fall of shot pins ${ring.length} more section${ring.length === 1 ? '' : 's'} around ${aimHex.q},${aimHex.r}.`);
   } else if (act.uses !== null && aim.squad) {
     const victim = aim.squad;
     fx.targetId = victim.id;
@@ -1040,6 +1188,12 @@ export function resolveOrders(t, squadId, moveTo, action, target) {
     if (result) fx.moraleResult = result;
     const where = hit.facing ? ` on the ${hit.facing}` : '';
     t.log.push(`${sq.name} — ${act.label.toLowerCase()} on ${victim.name}${where}: ${hit.figures} figure${hit.figures === 1 ? '' : 's'} down.`);
+    // Point fire gets a ring too, and this is the case the mod was written
+    // for: an automatic rifle laid on one section makes the hexes beside it
+    // unusable as well. `victim` may have been wiped by the strike, so the
+    // ring is measured from the hex the order fell on, not from the stand.
+    const ring = suppressRing(t, sq, act, { q: aimHex.q, r: aimHex.r }, new Set([victim.id]), staff.aoeSuppress);
+    if (ring.length) t.log.push(`The belt walks on and pins ${ring.length} more section${ring.length === 1 ? '' : 's'}.`);
   } else if (action === 'rally') {
     const result = moraleTest(t, sq, { rallying: true });
     if (result === 'held') {
@@ -1126,8 +1280,9 @@ function fleeHex(t, sq, homeCol, budget) {
 
 /** Lay a temporary LOS screen, remembering the ground it stands on. */
 function layScreen(t, hex, turns) {
-  const tile = tileAt(t, hex.q, hex.r);
-  if (!tile) return;
+  // Unguarded on purpose: resolveOrders refuses an aim point off the field
+  // before it ever gets here, so a missing tile would be a corrupted battle.
+  const tile = t.field.tiles[keyOf(hex.q, hex.r)];
   const held = t.screens.find((s) => s.q === hex.q && s.r === hex.r);
   if (held) { held.turns = Math.max(held.turns, turns); return; }
   t.screens.push({ q: hex.q, r: hex.r, turns, was: tile.blocksLOS });
@@ -1216,7 +1371,12 @@ export function autoOrders(t, sq) {
   for (const k of damaging) {
     const act = SQUAD_ACTIONS[k];
     if (!act.aoe) continue;
-    const radius = act.aoe.radius + staff.aoeSuppress;
+    // The DAMAGE radius, not the suppression ring: the staff picks the hex
+    // that puts the most stands under the burst, and the ring is a bonus it
+    // does not aim for. (This read `+ staff.aoeSuppress` while the resolver
+    // did too, so the AI and the resolver were wrong in step — which is
+    // exactly why neither one showed it.)
+    const radius = act.aoe.radius;
     const reach = rangeOf(t, sq, d, act);
     for (const hx of hexRange(t.field, here, reach)) {
       if (!act.indirect && !lineOfSight(t.field, here, hx)) continue;
@@ -1233,7 +1393,8 @@ export function autoOrders(t, sq) {
   }
 
   // 4. shoot from where we stand
-  const shot = bestShot(t, sq, d, damaging, here, foes);
+  const seen = new Map();
+  const shot = bestShot(t, sq, d, damaging, here, foes, staff.aoeSuppress, seen);
   if (shot) return { moveTo: null, actionKey: shot.key, targetId: shot.foe.id, target: { squadId: shot.foe.id } };
 
   // 5. close, preferring cover
@@ -1247,7 +1408,7 @@ export function autoOrders(t, sq) {
       const p = pathCost(t.field, here, hx, { blocked });
       if (!p || p.cost > speed) continue;
       const from = { q: hx.q, r: hx.r };
-      const opening = bestShot(t, sq, d, damaging, from, foes);
+      const opening = bestShot(t, sq, d, damaging, from, foes, staff.aoeSuppress, seen, true);
       const tile = tileAt(t, hx.q, hx.r);
       const cover = tile.cover + (tile.work ? DEPLOYABLES[tile.work].cover : 0);
       const gap = hexDistance(from, foes[0]);
@@ -1262,19 +1423,117 @@ export function autoOrders(t, sq) {
   return hold;
 }
 
-/** The hardest order that reaches a foe from `from`, or null. */
-function bestShot(t, sq, d, damaging, from, foes) {
+/**
+ * WHAT AN ORDER IS WORTH, priced in ENEMY OUTPUT REMOVED THIS ACTIVATION.
+ *
+ * The staff used to rank an order by `source * act.dmg`, i.e. by raw damage
+ * alone, and that scoring had two consequences it is worth naming because
+ * both look like content bugs from the outside:
+ *
+ *   * SUPPRESSING FIRE WAS NEVER ISSUED. It is priced at dmg 0.5 against
+ *     aimed fire's 1.0 precisely BECAUSE its value is the pin rather than the
+ *     casualty, so a scorer that reads only `dmg` rejects it every single
+ *     time. Measured across forty auto battles before this change, the gunner
+ *     sections — the only sections in an auto-carved order of battle that
+ *     have the order at all — issued it zero times, which also left the heavy
+ *     gunner's suppression ring firing in 2 battles of 40.
+ *   * A RIFLE SECTION WOULD EMPTY ITSELF INTO A HULL. `dmg` knows nothing
+ *     about armour, so the staff rated a volley at a heavy crawler exactly as
+ *     it rated the same volley at the infantry beside it, and the mult:0 row
+ *     drift guard 12 insists on was invisible to every decision that mattered.
+ *
+ * Both are the same defect: the scorer read a number that TRAVELS WITH the
+ * thing it wanted rather than the thing itself. What the staff actually wants
+ * is the enemy output this activation takes off the board. That has two
+ * terms, and both are priced in the same unit — OUTPUT DENIED FOR THE REST OF
+ * THE ENGAGEMENT — because a model that priced them differently would need an
+ * exchange rate between them, and an invented constant is the one thing this
+ * file is not allowed to author:
+ *
+ *   KILL  the figures the order is expected to remove, times what a figure of
+ *         that stand is worth, TIMES THE ROUNDS LEFT ON THE CLOCK. A figure
+ *         taken off the board is denied for every round that follows, and
+ *         that is the whole difference between killing and pinning. Expected
+ *         figures come from Lane A's resolveSquadHit — the same pure,
+ *         seedless call the resolver makes — over the same per-figure
+ *         toughness `strike` divides by. Cover and guard are deliberately
+ *         left out: the staff estimates, it does not roll, and it does not
+ *         know the swing.
+ *   PIN   the output denied while the stand is suppressed: the ADDITIONAL
+ *         turns the order's weight buys over what the stand is already
+ *         carrying (suppression takes the longer of the two, so re-pinning a
+ *         pinned section buys nothing and is scored at nothing), times the
+ *         1 - COMBAT.suppressedOutput the stand loses, times its whole
+ *         output — and times the stands the suppression ring reaches beyond
+ *         it. Without the clock on the kill term this alone decided: a rifle
+ *         section beside a land fort it could not scratch preferred to pin
+ *         forty points of hull output for one round over killing a rifleman
+ *         for twenty, and walked past the infantry every time.
+ *
+ * A zero-effect hit therefore scores its PIN and nothing else, which is
+ * exactly the behaviour drift guard 12 describes: the rifle section cannot
+ * mark the hull, so it stops trying to kill it and starts pinning its crew —
+ * or turns to a target it can hurt, if one is in reach.
+ *
+ * THE PLATE IS THE ONE THE STAND CAN SEE FROM WHERE IT IS NOW, not the one it
+ * would strike after the march it is considering. That is an approximation
+ * and it is named as one: the staff appreciates a hull from where it stands,
+ * and does not plan a drive round the back of it. Making it exact would mean
+ * re-deriving the facing for every candidate hex, which is the sweep the memo
+ * below exists to avoid.
+ *
+ * `seen` is a per-decision memo. bestShot is asked about every reachable hex
+ * when the staff is choosing where to walk; with the plate fixed as above the
+ * answer for a given (foe, order) is the same from all of them, so the memo
+ * turns an O(hexes x foes x orders) sweep back into an O(foes x orders) one.
+ */
+function orderValue(t, sq, d, act, foe, extra, seen) {
+  const overhead = isOverhead(sq, act);
+  const armourKey = armourKeyOf(t, foe, { q: sq.q, r: sq.r }, overhead);
+  const memo = `${foe.id}|${act.key}|${armourKey}`;
+  if (seen.has(memo)) return seen.get(memo);
+  const fd = derivedOf(foe);
+  const hit = resolveSquadHit({ attacker: sq, action: act, targetArmour: armourKey, targetDerived: fd });
+  const output = fd.melee + fd.ranged;
+  const perFigure = COMBAT.toughnessBase + COMBAT.toughnessPerArmor * fd.armor;
+  const left = Math.max(1, t.roundLimit - t.round + 1);
+  const kill = (hit.effective / perFigure) * (output / Math.max(1, fd.figures)) * left;
+  const turns = Math.floor(suppressWeightOf(t, sq, act, hit.suppressOnly) + COMBAT.suppressRound);
+  const gained = Math.max(0, turns - foe.status.suppressed);
+  const ring = extra > 0 ? t.squads.filter((x) => x.id !== foe.id && hexDistance(x, foe) <= extra).length : 0;
+  const pin = gained * (1 - COMBAT.suppressedOutput) * output * (1 + ring);
+  const value = kill + pin;
+  seen.set(memo, value);
+  return value;
+}
+
+/**
+ * The most valuable order that reaches a foe from `from`, or null.
+ *
+ * `moving` means the shot would be taken AFTER a march, and it excludes every
+ * `noMove` order — an omission that was latent here until the scorer above
+ * started choosing suppressing fire. Step 5 would pair a destination with
+ * SQUAD_ACTIONS.suppress, resolveOrders would refuse it with 'that order
+ * requires the section to stand fast', and autoResolveRemainder would stop
+ * the whole battle on the rejection. Nothing showed it while `dmg` alone
+ * decided, because the only non-area noMove order in the table is the one
+ * that scoring could never pick. Step 4 has already tried standing and
+ * firing by the time step 5 runs, so nothing is lost by dropping them here.
+ */
+function bestShot(t, sq, d, damaging, from, foes, extra, seen, moving) {
   let best = null;
   for (const k of damaging) {
     const act = SQUAD_ACTIONS[k];
     if (act.aoe) continue;
+    if (moving && act.noMove) continue;
     const reach = rangeOf(t, sq, d, act);
-    const source = act.uses === 'melee' ? d.melee : d.ranged;
     for (const foe of foes) {
       const at = { q: foe.q, r: foe.r };
       if (hexDistance(from, at) > reach) continue;
       if (!act.indirect && !lineOfSight(t.field, from, at)) continue;
-      const score = source * act.dmg * 100 - hexDistance(from, at);
+      // The hex gap breaks ties without ever outweighing the value: two
+      // orders worth the same take the nearer target.
+      const score = orderValue(t, sq, d, act, foe, extra, seen) * 100 - hexDistance(from, at);
       if (!best || score > best.score) best = { score, key: k, foe };
     }
   }
@@ -1297,9 +1556,22 @@ export function autoResolveRemainder(t, side, maxTurns = 200) {
     const sq = activeFormation(t);
     if (!sq) break;
     if (side && sq.side !== side) break;
+    // ONE totality guard, and it is UNREACHABLE while the two properties
+    // beside it hold: autoOrders answers for every stand whose side still has
+    // an enemy on the board (and `battleResult` above has already stopped the
+    // loop if it does not), and resolveOrders accepts every order autoOrders
+    // issues. Both are asserted directly — section 17 walks six whole battles
+    // and fails on a null order or on a refused one — which is the honest way
+    // to keep a branch a test cannot drive: prove the property that makes it
+    // unreachable, rather than write a comment claiming it is.
+    //
+    // It is not decoration. When step 2's scorer first learned to value
+    // suppressing fire, autoOrders began pairing a march with a `noMove`
+    // order, resolveOrders refused it, and THIS BREAK is what turned an
+    // infinite loop of rejected orders into a battle that stopped in round 1
+    // — which is how the defect was found at all.
     const o = autoOrders(t, sq);
-    if (!o) break;
-    if (resolveOrders(t, sq.id, o.moveTo, o.actionKey, o.target)) break;
+    if (!o || resolveOrders(t, sq.id, o.moveTo, o.actionKey, o.target)) break;
     n++;
   }
   return n;
