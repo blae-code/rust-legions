@@ -44,6 +44,61 @@ export const LIFEPATH_CHAPTERS = [
       { id: "neutral", label: "Fortified and Watched", desc: "You sealed the passes, dug in deep, and let the world exhaust itself." },
     ],
   },
+  // ── LANE H: Chapter VI — The Standard (ADDITION ONLY) ────────────────────
+  // The four chapters above are frozen: `test/presets.test.js` deep-equals them
+  // against a fixture, so this chapter is proven to be an addition and not an
+  // edit. `availableOptions`, `DOCTRINES`, `PHILOSOPHIES` and `VALUES` are
+  // untouched, and no option carries a `requires` gate — a house may raise any
+  // of the four standards regardless of how it answered the first five
+  // chapters, which is the point: the standard is chosen last, on the march.
+  //
+  // Each option maps one-to-one onto a `std_*` plate that ALREADY EXISTS in the
+  // LIFEPATH & CHRONICLE block of src/lib/imageLibrary.js. No new plate is
+  // registered here, and each of the four is used exactly once.
+  //
+  // `effect` is the synthesizeFaction trait-effect schema — the same one every
+  // preset trait is validated and clamped against: type is one of
+  // income_flat | unit_discount | attack_bonus | defense_bonus; `unit` is
+  // required for all but income_flat and must be riflemen | crawler | gunboat |
+  // fighter; `value` is 1 or 2 and anything outside that is clamped silently,
+  // so all four ship the small effect the contract asks for, value 1.
+  // `unit_discount` is deliberately unused: the chapter is data, not a closed
+  // set, and a later Field Amendment may spend it without fighting a gate here.
+  {
+    id: "standard",
+    title: "VI — The Standard",
+    prompt: "Every keel raises one thing its people will re-form on when the line breaks. What flies over yours?",
+    options: [
+      {
+        id: "column",
+        label: "The Column of Honors",
+        desc: "A plain staff, and on it the name of every engagement the house has walked away from. Nothing sacred, nothing borrowed — the honors are the argument, and men who can read them advance faster than men who cannot.",
+        plate: "std_column",
+        effect: { type: "attack_bonus", unit: "riflemen", value: 1 },
+      },
+      {
+        id: "reliquary",
+        label: "The Reliquary Standard",
+        desc: "A shrine-banner with a housed Object sewn into its head, carried at the front of the muster and guarded like a keel. Ground it has been planted on does not get given up, and the parishes note who was standing on it.",
+        plate: "std_reliquary",
+        effect: { type: "defense_bonus", unit: "riflemen", value: 1 },
+      },
+      {
+        id: "black",
+        label: "The Black Standard",
+        desc: "Dark cloth, one blood-red mark, and a reputation the house has spent a generation earning. It rides with the armour because that is where it is read from, and hulls under it are closed with less enthusiasm than hulls without.",
+        plate: "std_black",
+        effect: { type: "defense_bonus", unit: "crawler", value: 1 },
+      },
+      {
+        id: "first_keel",
+        label: "The First Keel's Pennant",
+        desc: "The original pennant of 141 F.I., or a claim to it nobody has successfully disputed. Communes and parishes tithe to it out of long habit, and the tithe arrives whether or not the house is winning.",
+        plate: "std_first_keel",
+        effect: { type: "income_flat", value: 1 },
+      },
+    ],
+  },
 ];
 
 export const DOCTRINES = [

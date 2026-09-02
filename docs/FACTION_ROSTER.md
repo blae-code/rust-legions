@@ -290,3 +290,85 @@ are licensed ones — which is in character for a house that buys its tools and 
 - **`module` certification grants nothing** (orchestrator ruling 2, 2026-09-02). No preset's lore,
   trait or decree implies a house-wide bonus from unlocking a `kind: 'module'` row; a module's effects
   apply on fit, in its bay, and nowhere else.
+
+### 6.5 The nomad-keel requisitions, Chapter VI and the thirteen herald packs [Lane H, step 2]
+
+**Eight new point-buy perks** (`src/lib/pointBuy.js` + `base44/shared/perkMods.ts`) — four assets, four
+liabilities, all tied to the March itself rather than to a capital that sits: the graze, the swath, the
+draught columns and the boarding deck (`ECONOMY_DESIGN` §§2–5, `VISION` §3).
+
+| id | cat | `pts` | compiled effect | the shipped rows that price it |
+| --- | --- | --- | --- | --- |
+| `draught_columns` | asset | 1 | +1 Steel income, −1 Fuel income | `industrial_base` (+3), `fuel_shortage` (−2) |
+| `boarding_parties` | asset | 1 | riflemen attack +1, riflemen cost +1 Manpower | `veteran_corps` (+3), `rusting_arsenal` (−2) |
+| `field_refit_train` | asset | 2 | crawler cost −1 Steel | `conscription` (+2) |
+| `ranging_batteries` | asset | 3 | artillery attack +1 | `veteran_corps` (+3) |
+| `swath_bound` | liability | −2 | −1 Manpower income | `fuel_shortage` (−2) |
+| `stripped_escorts` | liability | −1 | crawler defense −1, crawler cost −1 Steel | `green_recruits` (−3), `conscription` (+2) |
+| `tribute_graze` | liability | −3 | −1 Fuel income, −10 disposition | `fuel_shortage` (−2), `pariah_state` (−1) |
+| `exposed_batteries` | liability | −3 | artillery defense −1 | `green_recruits` (−3) |
+
+**No `pts` above is an opinion.** Each is the sum of its own `PERK_MODS` steps under a schedule with one
+shipped anchor per step, and `test/presets.test.js` recomputes **all fifteen** shipped asset/liability
+rows *and* all eight of these from that schedule before asserting the published figure. A lever/sign
+combination no shipped row anchors — positive `disposition`, negative `capitalDefense` — has no entry and
+the pricer **throws** on it, so the schedule cannot be quietly extended by a row that needs an invented
+step. The five `cat: "upgrade"` rows are the one exemption and it is **measured, not explained**: kits
+depart from the schedule in *both* directions (`naval_rams` and `drop_tanks` a point under it,
+`flame_projectors` two points over), so the test pins all five deltas individually rather than calling
+it a discount.
+
+`ranging_batteries` and `exposed_batteries` name **`artillery`** — a legal `UNIT_TYPES` key that not one
+of the twenty shipped perks had ever touched. A lane that had read the shipped rows as the permitted set
+would have concluded it was off-limits; the suite asserts both that no shipped perk uses it and that
+this one does, so the next reader cannot make that mistake either.
+
+**Three arithmetic corrections, all against figures published in the Lane H brief.**
+
+1. **Check 14's `PERKS.length >= 29` ("21 shipped + 8 new") is unsatisfiable.** `main` ships **20**
+   perks, not 21. With "exactly 4 new assets and exactly 4 new liabilities" also binding, the catalog
+   can only reach **28**. Rather than pad it with a ninth perk to reach a false number, the count is
+   asserted from the two id lists it is actually made of — the twenty shipped ids by name, plus this
+   lane's eight by name — so a later Field Amendment may append a twenty-ninth without touching a line.
+2. **Work item 2's "register the 8 plates in the `POINT-BUY REQUISITIONS` block" is overridden by the
+   shared-file protocol**, which requires one contiguous tail block at the very end of the array. The
+   eight `perk_*` plates carry `category: "perks"`, which is what files them beside the shipped
+   requisition tokens; their position in the array does not.
+3. **`docs/TECH_DESIGN.md` §7 Q5 is NOT edited by this lane.** §3 does not assign that file to Lane H
+   and file ownership is absolute, so the ruling is encoded where this lane *does* own the surface —
+   Shared Rule 7 of `HERALD_VOICES.md`, and one intercept in each of the thirteen packs — and the §7 Q5
+   closure itself is reported to the orchestrator for the doc's owner to make. Recorded here rather than
+   made, on the same footing as LORE §2's Emberwright cell in §6.2.
+
+**Lifepath Chapter VI — The Standard.** Four options mapping one-to-one onto the four `std_*` plates that
+already exist; no new plate is registered. `column` → `attack_bonus`/riflemen, `reliquary` →
+`defense_bonus`/riflemen, `black` → `defense_bonus`/crawler, `first_keel` → `income_flat`; every effect
+`value: 1`, in the `synthesizeFaction` schema. **`unit_discount` is deliberately unused** — the chapter is
+data, not a closed set, and no gate here forbids a later amendment from spending it. The four shipped
+chapters are deep-equalled against a fixture in the suite, which is what proves this is an addition.
+
+**Thirteen herald packs.** `docs/HERALD_VOICES.md` goes from 3 packs to **13** — 3 moods × 3 samples =
+**117** intercepts, with the canon sample lines of the Reclamation, Combine and Synod redistributed
+across the moods and asserted still present by opening phrase, never deleted. Pack keys are the `house`
+stems of §6.1. The file is parsed by the suite with each pack bounded from its own `## ` heading to the
+**next** one rather than to end-of-file: Lane H is last today, Field Amendments append after it, and a
+slice that ran to EOF would swallow them.
+
+**The relic-project loss, in thirteen registers.** Operator ruling: on capture the captor loots the
+running project's unspent **materials**; the project, its progress and its housed-Object requirement are
+**lost**. It is written into Shared Rule 7 and into one intercept per pack, and the suite asserts both
+that every register reports it and that **no register reports a captured works as an inheritance** —
+because no house ever inherits one. The Reclamation concludes it, the Combine writes it off as a
+non-transferable total loss, the Synod enters it in the Roll as a housing that cannot travel, the
+Covenant is *glad* of the rule, the Court finds that it drafted the rule itself and dislikes reading it
+from this side, and the Compact says it warned the Compact.
+
+**One ledger correction and seven rewrites.** Content nothing picks is not shipped content, so seven of
+the ten authored houses now spend at least one new perk; every rewrite is a swap inside a still-legal
+ledger, because eight of the thirteen were already at the three-liability cap. The full list, with
+reasons, is in the header comment of `src/lib/presetFactions.js`. Two notes worth having here: the
+Reclamation's `fuel_shortage` + `pariah_state` became the single act `tribute_graze`, which **compiles
+identically** and frees a liability slot; and the Compact's `rusting_arsenal` → `stripped_escorts` moved
+that ledger from −1 to **0**. The three legacy ledgers are untouched and the suite asserts they pick no
+new perk. Three ledgers still ship at `netPoints === −1` — `charter_combine`, `commonweal_march` and the
+long-shipped `grauwall_marches` — which the contract permits (`<= 0`, not `=== 0`).

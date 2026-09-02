@@ -1661,6 +1661,29 @@ export const IMAGE_LIBRARY = [
     "March crest: a rampart of overlapping shields beneath a single watch-lantern, flat heraldic insignia"),
   P("keel_verdict_of_stone", "houses", "Keel — 'the Verdict of Stone'", "Warden Keel of the Marches",
     "Squat armoured fortress-keel like a rolling rampart, layered casemates and a lantern mast at its crown, dug-in siege lines worked around it", "4:3"),
+  //
+  // The EIGHT nomad-keel point-buy requisitions (src/lib/pointBuy.js tail block).
+  // Category `perks` files them beside the twenty shipped requisition tokens in
+  // the POINT-BUY REQUISITIONS block above; position in this array does not.
+  // Each `desc` restates the row's own numbers so the plate and the table cannot
+  // drift, and each prompt carries NO house style — HOUSE_STYLE is prepended at
+  // generation, so restating it here would double it.
+  P("perk_draught_columns", "perks", "Perk — Draught Column Circuit", "Point-buy asset (+1 Steel income, −1 Fuel income)",
+    "Requisition token: a train of heavy hold-wagons on a standing circuit, tarpaulined ore in the beds, fuel drums lashed to the running boards, worn stamped-token styling"),
+  P("perk_boarding_parties", "perks", "Perk — Boarding Parties", "Point-buy asset (+1 rifle atk, +1 MP rifle cost)",
+    "Requisition token: a storming section drilling on a mock deck with hooks, short guns and cut-down ladders, worn stamped-token styling"),
+  P("perk_field_refit_train", "perks", "Perk — Field Refit Train", "Point-buy asset (crawler −1 Steel cost)",
+    "Requisition token: a rolling workshop wagon opened out beside a halted crawler, gantry swung over, fitters at the running gear, worn stamped-token styling"),
+  P("perk_ranging_batteries", "perks", "Perk — Ranging Batteries", "Point-buy asset (+1 artillery atk)",
+    "Requisition token: a battery laid out on a plotting board with range stakes and a spotter mast, guns elevated behind, worn stamped-token styling"),
+  P("perk_swath_bound", "perks", "Perk — Swath-Bound", "Point-buy liability (−1 Manpower income)",
+    "Requisition token: a stripped depleted trail behind a keel, cropped ground and empty muster posts, one abandoned levy board, worn stamped-token styling"),
+  P("perk_stripped_escorts", "perks", "Perk — Stripped Escorts", "Point-buy liability (crawler −1 def, −1 Steel cost)",
+    "Requisition token: a crawler with its side plate unbolted and stacked on the ground, crew running it light, worn stamped-token styling"),
+  P("perk_tribute_graze", "perks", "Perk — Tribute Graze", "Point-buy liability (−1 Fuel income, −10 disposition)",
+    "Requisition token: harvest rights taken under guard — a signed writ held over a settlement seam while a fired derrick smokes behind, worn stamped-token styling"),
+  P("perk_exposed_batteries", "perks", "Perk — Exposed Batteries", "Point-buy liability (−1 artillery def)",
+    "Requisition token: guns mounted on an open outer deck with no casemate, crews shielded by nothing but a rail, worn stamped-token styling"),
 ];
 
 export const getImage = (key) => IMAGE_LIBRARY.find((i) => i.key === key)?.url || null;

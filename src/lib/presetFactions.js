@@ -38,6 +38,38 @@
 // twice"). `DEPARTURE_BY_CREED_SEED` is that derivation, written out over the
 // WHOLE legal domain of the axis rather than as a rule with a default, so there
 // is no seed value it silently fails to answer for.
+//
+// LEDGERS REWIRED FOR THE NOMAD-KEEL PERKS (Lane H, step 2). Eight new rows in
+// `src/lib/pointBuy.js` cover the March itself — the graze, the swath, the
+// draught columns and the boarding deck — and content nothing picks is not
+// shipped content, so seven of the TEN AUTHORED houses now spend at least one.
+// The THREE LEGACY LEDGERS ARE UNTOUCHED and stay byte-identical. Every rewrite
+// below is a swap inside a still-legal ledger, not an addition on top of one:
+// `MAX_LIABILITIES` is 3 and eight of the thirteen ledgers were already at the
+// cap, so a new liability had to displace an old one rather than join it.
+//
+//   iron_reclamation   fuel_shortage + pariah_state -> tribute_graze
+//                      COMPILES IDENTICALLY (-1 fuel income, -10 disposition):
+//                      two separate misfortunes restated as the one act that
+//                      causes both, and a liability slot freed doing it.
+//   charter_combine    home_guard -> draught_columns   (a house of circuits
+//                      insures its columns; it does not garrison a capital)
+//   covenant_of_locks  brittle_industry -> swath_bound (a house that fills in
+//                      the shafts behind it musters nobody from that ground)
+//   signal_ascendancy  conscription -> ranging_batteries,
+//                      fuel_shortage -> exposed_batteries (guns forward and
+//                      exposed: everything it fires on is out of its own sight)
+//   salvage_court      + boarding_parties, brittle_industry -> green_recruits
+//                      (ferocious, brittle and expensive boarders)
+//   emberwright_union  + field_refit_train, depleted_stockpiles ->
+//                      exposed_batteries (the yard mounted the guns where it
+//                      had room)
+//   outrider_compact   rusting_arsenal -> stripped_escorts (plate cut away to
+//                      keep the outrider ring fast — and net 0 rather than -1)
+//
+// `bastion_synod`, `commonweal_march` and `long_procession` keep the ledgers
+// they shipped with: each is already at the liability cap and in character, and
+// spending a perk on a house to satisfy a count is how a catalog gets padded.
 
 // The Creed axis of `docs/VISION.md` §6.1 runs -3 (Reclaimer) .. +3
 // (Restorationist), and `docs/LORE.md` §2 gives it four readings. Three sit ON
@@ -210,7 +242,7 @@ export const PRESET_FACTIONS = [
       { name: "Bulletin Discipline", description: "One order, read the same way in every column of the march.", effect: { type: "attack_bonus", unit: "riflemen", value: 1 } },
       { name: "Administered Ground", description: "Ground the Reclamation crosses is assessed before it is left.", effect: { type: "income_flat", value: 1 } },
     ],
-    pointBuy: { picks: ["conscription", "veteran_corps", "brittle_industry", "fuel_shortage", "pariah_state"] },
+    pointBuy: { picks: ["conscription", "veteran_corps", "brittle_industry", "tribute_graze"] },
     npcDispositions: { aggressive: 12, economic: -8, defensive: -6 },
     house: "reclamation",
     uniqueRoster: {
@@ -243,7 +275,7 @@ export const PRESET_FACTIONS = [
       { name: "Bought Hulls", description: "The Combine does not build crawlers; it takes delivery of them.", effect: { type: "unit_discount", unit: "crawler", value: 1 } },
       { name: "Escort Clause", description: "No cargo moves unaccompanied, and the escort is in the contract.", effect: { type: "defense_bonus", unit: "gunboat", value: 1 } },
     ],
-    pointBuy: { picks: ["oil_concessions", "war_chest", "home_guard", "war_weary", "green_recruits", "rusting_arsenal"] },
+    pointBuy: { picks: ["oil_concessions", "war_chest", "draught_columns", "war_weary", "green_recruits", "rusting_arsenal"] },
     npcDispositions: { aggressive: -14, economic: 14, defensive: 2 },
     house: "combine",
     uniqueRoster: {
@@ -309,7 +341,7 @@ export const PRESET_FACTIONS = [
       { name: "Warding Columns", description: "Hulls plated for the standing watch, not for the advance.", effect: { type: "defense_bonus", unit: "crawler", value: 1 } },
       { name: "Sworn to the Seal", description: "The Covenant never lacks volunteers; it lacks reasons to refuse them.", effect: { type: "unit_discount", unit: "riflemen", value: 1 } },
     ],
-    pointBuy: { picks: ["mobilization_doctrine", "conscription", "brittle_industry", "fuel_shortage", "pariah_state"] },
+    pointBuy: { picks: ["mobilization_doctrine", "conscription", "swath_bound", "fuel_shortage", "pariah_state"] },
     npcDispositions: { aggressive: 13, economic: -12, defensive: 6 },
     house: "covenant",
     uniqueRoster: {
@@ -342,7 +374,7 @@ export const PRESET_FACTIONS = [
       { name: "Testimony Tolls", description: "The Array sells listening time to houses that will not admit to buying it.", effect: { type: "income_flat", value: 2 } },
       { name: "Antenna Wings", description: "Aircraft flown as relay masts first and as fighters second.", effect: { type: "attack_bonus", unit: "fighter", value: 1 } },
     ],
-    pointBuy: { picks: ["industrial_base", "war_chest", "conscription", "green_recruits", "war_weary", "fuel_shortage"] },
+    pointBuy: { picks: ["industrial_base", "war_chest", "ranging_batteries", "green_recruits", "war_weary", "exposed_batteries"] },
     npcDispositions: { aggressive: -2, economic: 12, defensive: -4 },
     house: "ascendancy",
     uniqueRoster: {
@@ -408,7 +440,7 @@ export const PRESET_FACTIONS = [
       { name: "Boarding Rams", description: "Notice is served hull to hull, at a range where drums beat aim.", effect: { type: "attack_bonus", unit: "gunboat", value: 2 } },
       { name: "Adjudicated Hulls", description: "The Court's crawlers were all somebody else's crawlers first.", effect: { type: "unit_discount", unit: "crawler", value: 1 } },
     ],
-    pointBuy: { picks: ["veteran_corps", "naval_rams", "pariah_state", "brittle_industry", "rusting_arsenal"] },
+    pointBuy: { picks: ["veteran_corps", "naval_rams", "boarding_parties", "green_recruits", "rusting_arsenal", "pariah_state"] },
     npcDispositions: { aggressive: 16, economic: 8, defensive: -14 },
     house: "salvage",
     uniqueRoster: {
@@ -441,7 +473,7 @@ export const PRESET_FACTIONS = [
       { name: "Pattern Discipline", description: "One drawing, one tolerance, and a crawler that any yard can mend.", effect: { type: "unit_discount", unit: "crawler", value: 1 } },
       { name: "Cinder Plate", description: "Reclaimed plate, twice-fired, cut to a number rather than to a habit.", effect: { type: "defense_bonus", unit: "crawler", value: 1 } },
     ],
-    pointBuy: { picks: ["industrial_base", "oil_concessions", "green_recruits", "war_weary", "depleted_stockpiles"] },
+    pointBuy: { picks: ["industrial_base", "oil_concessions", "field_refit_train", "green_recruits", "war_weary", "exposed_batteries"] },
     npcDispositions: { aggressive: -6, economic: 16, defensive: 2 },
     house: "emberwright",
     uniqueRoster: {
@@ -507,7 +539,7 @@ export const PRESET_FACTIONS = [
       { name: "Long-Legged Wings", description: "Aircraft flown as couriers, and built to come home from further out.", effect: { type: "defense_bonus", unit: "fighter", value: 1 } },
       { name: "Saddle Guns", description: "Everything the Compact fields shoots from the move or does not shoot.", effect: { type: "attack_bonus", unit: "crawler", value: 1 } },
     ],
-    pointBuy: { picks: ["oil_concessions", "drop_tanks", "depleted_stockpiles", "brittle_industry", "rusting_arsenal"] },
+    pointBuy: { picks: ["oil_concessions", "drop_tanks", "depleted_stockpiles", "brittle_industry", "stripped_escorts"] },
     npcDispositions: { aggressive: -4, economic: 11, defensive: -8 },
     house: "outrider",
     uniqueRoster: {

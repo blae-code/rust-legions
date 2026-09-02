@@ -39,8 +39,8 @@ import {
   keelOf,
   presetToFactionRecord,
 } from "@/lib/presetFactions.js";
-import { PERK_BY_ID, MAX_LIABILITIES, netPoints, pickError } from "@/lib/pointBuy.js";
-import { PHILOSOPHIES, VALUES, DOCTRINES } from "@/lib/lifepath.js";
+import { PERKS, PERK_BY_ID, MAX_LIABILITIES, netPoints, pickError } from "@/lib/pointBuy.js";
+import { LIFEPATH_CHAPTERS, PHILOSOPHIES, VALUES, DOCTRINES, availableOptions } from "@/lib/lifepath.js";
 import { IMAGE_LIBRARY } from "@/lib/imageLibrary.js";
 
 // ── the live catalogs, lifted from the canonical .ts sources ───────────────
@@ -287,9 +287,18 @@ describe("point-buy — every preset is a legal ledger", () => {
   });
 
   it("goes red when a ledger grows a fourth liability", () => {
-    const base = byId("iron_reclamation").pointBuy.picks;
+    // Deliberately read off a ledger that is AT the cap rather than naming one
+    // by memory: `iron_reclamation` used to be the probe here and stopped
+    // being at the cap the moment it traded fuel_shortage + pariah_state for
+    // the single act `tribute_graze`. A probe that silently stops probing is
+    // the whole reason this suite asserts both directions of every gate.
+    const atCap = PRESET_FACTIONS.find(
+      (p) => p.pointBuy.picks.filter((id) => PERK_BY_ID[id].cat === "liability").length === MAX_LIABILITIES,
+    );
+    expect(atCap, "no preset sits at the liability cap").toBeTruthy();
+    const base = atCap.pointBuy.picks;
     expect(base.filter((id) => PERK_BY_ID[id].cat === "liability").length).toBe(3);
-    const fourth = [...base, "war_weary"];
+    const fourth = [...base, base.includes("war_weary") ? "swath_bound" : "war_weary"];
     expect(fourth.filter((id) => PERK_BY_ID[id].cat === "liability").length).toBe(4);
     expect(pickError(fourth)).toMatch(/liabilities/);
     expect(ledgerIsLegal(fourth)).toBe(false);
@@ -713,5 +722,533 @@ describe("voice and safety", () => {
     for (const f of ["src/lib/presetFactions.js", "test/presets.test.js"]) {
       expect(/#[0-9a-fA-F]{3,8}\b/.test(readRepoFile(f)), `hex colour in ${f}`).toBe(false);
     }
+  });
+});
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STEP 2 — the nomad-keel requisitions, Chapter VI, and the thirteen packs.
+// ═══════════════════════════════════════════════════════════════════════════
+
+const perkModsSrc = readRepoFile("base44/shared/perkMods.ts");
+const PERK_MODS = extractConst(perkModsSrc, "PERK_MODS");
+const heraldSrc = readRepoFile("docs/HERALD_VOICES.md");
+
+// The twenty rows `main` shipped, named so that this lane's additions can be
+// separated from them BY ID and not by position or by an absolute count. A
+// later Field Amendment may append a twenty-ninth perk without touching a
+// single assertion below.
+const SHIPPED_PERK_IDS = [
+  "veteran_corps", "industrial_base", "oil_concessions", "deep_reserves", "conscription",
+  "mobilization_doctrine", "war_chest", "home_guard",
+  "war_weary", "fuel_shortage", "rusting_arsenal", "green_recruits", "depleted_stockpiles",
+  "brittle_industry", "pariah_state",
+  "trench_gear", "flame_projectors", "heavy_plating", "naval_rams", "drop_tanks",
+];
+
+// This lane's eight, in the order they are declared. Hard-coded on purpose:
+// "every NEW perk is picked by a preset" cannot be satisfied for this lane by
+// a perk some other lane appends later.
+const LANE_H_PERK_IDS = [
+  "draught_columns", "boarding_parties", "field_refit_train", "ranging_batteries",
+  "swath_bound", "stripped_escorts", "tribute_graze", "exposed_batteries",
+];
+
+const MOD_KEYS = ["unitStat", "unitCost", "income", "armyCap", "startBonus", "capitalDefense", "disposition"];
+const INCOME_KEYS = ["manpower", "steel", "fuel"];
+const UNIT_KEYS = ["riflemen", "crawler", "gunboat", "fighter", "artillery"];
+
+// THE PRICING SCHEDULE, WITH ONE SHIPPED ANCHOR PER STEP.
+//
+// Nothing here is invented. Each entry is the cost of one step of one lever,
+// read off a shipped `cat: "asset"` / `cat: "liability"` row that carries that
+// lever and nothing else. A lever/sign combination with no shipped anchor
+// (positive `disposition`, negative `capitalDefense`) deliberately has NO
+// entry, and `priceOf` throws on it — so the schedule cannot be quietly
+// extended by a row that uses an unpriced step.
+const PRICE_ANCHORS = {
+  "unitStat+": { per: 1, pts: 3, anchor: "veteran_corps" },
+  "unitStat-": { per: 1, pts: -3, anchor: "green_recruits" },
+  "unitCost+": { per: 1, pts: -2, anchor: "rusting_arsenal" },
+  "unitCost-": { per: 1, pts: 2, anchor: "conscription" },
+  "income+": { per: 1, pts: 3, anchor: "industrial_base" },
+  "income-": { per: 1, pts: -2, anchor: "fuel_shortage" },
+  "armyCap+": { per: 15, pts: 3, anchor: "mobilization_doctrine" },
+  "armyCap-": { per: 15, pts: -2, anchor: "war_weary" },
+  "startBonus+": { per: 4, pts: 2, anchor: "war_chest" },
+  "startBonus-": { per: 4, pts: -2, anchor: "depleted_stockpiles" },
+  "capitalDefense+": { per: 1, pts: 2, anchor: "home_guard" },
+  "disposition-": { per: 10, pts: -1, anchor: "pariah_state" },
+};
+
+function stepPrice(lever, v) {
+  const key = `${lever}${v > 0 ? "+" : "-"}`;
+  const a = PRICE_ANCHORS[key];
+  if (!a) throw new Error(`no shipped anchor prices ${key} — do not invent one`);
+  return (Math.abs(v) / a.per) * a.pts;
+}
+
+function priceOf(mods) {
+  let pts = 0;
+  for (const stats of Object.values(mods.unitStat || {})) for (const v of Object.values(stats)) pts += stepPrice("unitStat", v);
+  for (const res of Object.values(mods.unitCost || {})) for (const v of Object.values(res)) pts += stepPrice("unitCost", v);
+  for (const v of Object.values(mods.income || {})) pts += stepPrice("income", v);
+  for (const lever of ["armyCap", "startBonus", "capitalDefense", "disposition"]) {
+    if (mods[lever]) pts += stepPrice(lever, mods[lever]);
+  }
+  return pts;
+}
+
+describe("the point-buy catalog — eight nomad-keel requisitions", () => {
+  const newPerks = PERKS.filter((p) => LANE_H_PERK_IDS.includes(p.id));
+
+  // The brief's check 14 reads `PERKS.length >= 29 (21 shipped + 8 new)`. The
+  // parenthetical is the derivation and the derivation is WRONG: `main` ships
+  // TWENTY perks, not 21, so with "exactly 4 new assets and exactly 4 new
+  // liabilities" also binding, 29 is unreachable by construction. Rather than
+  // pad the catalog with a ninth perk to satisfy a false figure, the count is
+  // asserted from the two id lists it is actually made of.
+  it("is exactly the twenty shipped rows plus this lane's eight", () => {
+    const ids = PERKS.map((p) => p.id);
+    expect(new Set(ids).size, "duplicate perk id").toBe(ids.length);
+    for (const id of SHIPPED_PERK_IDS) expect(ids, `shipped perk ${id} was removed`).toContain(id);
+    for (const id of LANE_H_PERK_IDS) expect(ids, `lane perk ${id} missing`).toContain(id);
+    expect(ids.length).toBe(SHIPPED_PERK_IDS.length + LANE_H_PERK_IDS.length);
+    expect(ids.slice(0, SHIPPED_PERK_IDS.length), "shipped rows moved or were reordered").toEqual(SHIPPED_PERK_IDS);
+  });
+
+  it("adds exactly four assets and exactly four liabilities, and no upgrade", () => {
+    expect(newPerks.filter((p) => p.cat === "asset").map((p) => p.id).length).toBe(4);
+    expect(newPerks.filter((p) => p.cat === "liability").map((p) => p.id).length).toBe(4);
+    expect(newPerks.filter((p) => p.cat === "upgrade")).toEqual([]);
+    // An eighth `upgrade` would be one-per-unit under pickError and would
+    // silently shrink the legal ledger space of every preset that already
+    // spends that unit's slot.
+    for (const p of newPerks) expect(p).not.toHaveProperty("unit");
+  });
+
+  it("keeps assets in 1..3 and liabilities in -3..-1", () => {
+    for (const p of newPerks) {
+      expect(Number.isInteger(p.pts), `${p.id} pts`).toBe(true);
+      if (p.cat === "asset") expect(p.pts, `${p.id} pts`).toBeGreaterThanOrEqual(1);
+      if (p.cat === "asset") expect(p.pts, `${p.id} pts`).toBeLessThanOrEqual(3);
+      if (p.cat === "liability") expect(p.pts, `${p.id} pts`).toBeGreaterThanOrEqual(-3);
+      if (p.cat === "liability") expect(p.pts, `${p.id} pts`).toBeLessThanOrEqual(-1);
+    }
+  });
+
+  it("gives every perk a label and a desc that states its own number", () => {
+    for (const p of newPerks) {
+      expect(p.label, `${p.id} label`).toBeTruthy();
+      expect(p.desc, `${p.id} desc`).toMatch(/\d/);
+    }
+  });
+});
+
+describe("PERK_MODS — the mirror, the vocabulary, and the price", () => {
+  it("declares exactly the same ids as PERKS, in the same set", () => {
+    // The same assertion test/rules-mirror.test.js makes, restated here so the
+    // lane fails on its own terms rather than in somebody else's file.
+    expect(Object.keys(PERK_MODS).sort()).toEqual(PERKS.map((p) => p.id).sort());
+  });
+
+  it("uses only keys compileMods actually reduces — no silently inert mod", () => {
+    for (const [id, mods] of Object.entries(PERK_MODS)) {
+      for (const k of Object.keys(mods)) expect(MOD_KEYS, `${id} uses ${k}`).toContain(k);
+      for (const u of Object.keys(mods.unitStat || {})) expect(UNIT_KEYS, `${id} unitStat ${u}`).toContain(u);
+      for (const u of Object.keys(mods.unitCost || {})) expect(UNIT_KEYS, `${id} unitCost ${u}`).toContain(u);
+      for (const r of Object.keys(mods.income || {})) expect(INCOME_KEYS, `${id} income ${r}`).toContain(r);
+      for (const res of Object.values(mods.unitCost || {})) {
+        for (const r of Object.keys(res)) expect(INCOME_KEYS, `${id} unitCost resource ${r}`).toContain(r);
+      }
+    }
+  });
+
+  it("goes red on a mod key compileMods would silently drop", () => {
+    // `supplyRange` is real — mergeMods handles it — and is exactly the shape
+    // of mistake this gate exists for: plausible, spelled correctly, and never
+    // reduced by compileMods.
+    const rogue = { supplyRange: 1 };
+    expect(Object.keys(rogue).every((k) => MOD_KEYS.includes(k))).toBe(false);
+  });
+
+  // ── the published `pts` is recomputed, never trusted ──────────────────────
+  it("prices all fifteen shipped asset/liability rows off the schedule", () => {
+    for (const p of PERKS) {
+      if (p.cat === "upgrade") continue;
+      if (!SHIPPED_PERK_IDS.includes(p.id)) continue;
+      expect(priceOf(PERK_MODS[p.id]), `${p.id} rubric`).toBe(p.pts);
+    }
+  });
+
+  it("prices all eight of this lane's rows off the same schedule", () => {
+    for (const id of LANE_H_PERK_IDS) {
+      expect(priceOf(PERK_MODS[id]), `${id} rubric`).toBe(PERKS.find((p) => p.id === id).pts);
+    }
+  });
+
+  it("pins each upgrade row's departure from the schedule, in both directions", () => {
+    // The five `cat: "upgrade"` rows are the ONE exemption, and it is measured
+    // rather than explained: kits are priced on their own schedule that runs
+    // both under it and over it. Naming the deltas means the exemption cannot
+    // widen to cover a sixth row without this line going red.
+    const delta = {};
+    for (const p of PERKS) if (p.cat === "upgrade") delta[p.id] = p.pts - priceOf(PERK_MODS[p.id]);
+    expect(delta).toEqual({
+      trench_gear: -1,
+      flame_projectors: 2,
+      heavy_plating: 0,
+      naval_rams: -1,
+      drop_tanks: -1,
+    });
+  });
+
+  it("refuses to price a step no shipped row anchors", () => {
+    expect(() => priceOf({ disposition: 10 })).toThrow(/no shipped anchor/);
+    expect(() => priceOf({ capitalDefense: -1 })).toThrow(/no shipped anchor/);
+    // …and the whole live catalog is free of both, which is the point of the throw.
+    for (const [id, mods] of Object.entries(PERK_MODS)) {
+      expect(() => priceOf(mods), `${id} uses an unanchored step`).not.toThrow();
+    }
+  });
+
+  it("spends every one of the eight on at least one preset", () => {
+    const picked = new Set(PRESET_FACTIONS.flatMap((p) => p.pointBuy.picks));
+    for (const id of LANE_H_PERK_IDS) expect(picked, `${id} is shipped but nothing picks it`).toContain(id);
+  });
+
+  it("leaves the three legacy ledgers alone", () => {
+    for (const id of ["kessel_pact", "iron_synod", "grauwall_marches"]) {
+      const picks = byId(id).pointBuy.picks;
+      for (const pick of picks) expect(LANE_H_PERK_IDS, `${id} picked a new perk`).not.toContain(pick);
+    }
+  });
+
+  it("names artillery — a legal UNIT_TYPES key no shipped perk had ever used", () => {
+    // Defect class 4, inverted: the shipped catalog touched four of the five
+    // unit keys, and a lane that read the shipped rows as the permitted set
+    // would have concluded artillery was off-limits. It is not.
+    const shippedUnits = new Set();
+    for (const id of SHIPPED_PERK_IDS) {
+      for (const u of Object.keys(PERK_MODS[id].unitStat || {})) shippedUnits.add(u);
+      for (const u of Object.keys(PERK_MODS[id].unitCost || {})) shippedUnits.add(u);
+    }
+    expect(shippedUnits.has("artillery")).toBe(false);
+    expect(Object.keys(PERK_MODS.ranging_batteries.unitStat)).toEqual(["artillery"]);
+    expect(UNIT_KEYS).toContain("artillery");
+  });
+});
+
+describe("plates — one requisition token per new perk", () => {
+  const byKey = new Map(IMAGE_LIBRARY.map((p) => [p.key, p]));
+  for (const id of LANE_H_PERK_IDS) {
+    it(`registers perk_${id}`, () => {
+      const plate = byKey.get(`perk_${id}`);
+      expect(plate, `perk_${id} plate missing`).toBeTruthy();
+      expect(plate.category).toBe("perks");
+      expect(plate.prompt, "a lane prompt must not restate HOUSE_STYLE").not.toMatch(/dieselpunk/i);
+    });
+  }
+});
+
+// ── LIFEPATH CHAPTER VI ─────────────────────────────────────────────────────
+
+const CHAPTERS_I_TO_V = [
+    {
+      "id": "era",
+      "title": "Founding Era",
+      "prompt": "How was your nation born?",
+      "options": [
+        {
+          "id": "revolt",
+          "label": "Workers' Revolt",
+          "desc": "Foundry laborers rose against the old barons, seizing the machines that had chained them."
+        },
+        {
+          "id": "collapse",
+          "label": "Collapse of the Old Empire",
+          "desc": "When the empire's diesel arteries ran dry, your people carved a state from its rusting bones."
+        },
+        {
+          "id": "frontier",
+          "label": "Frontier Colonization",
+          "desc": "Pioneers hauled boilers and rail into the wastes, founding a nation where no map dared draw borders."
+        }
+      ]
+    },
+    {
+      "id": "land",
+      "title": "Homeland",
+      "prompt": "What ground did your people claim?",
+      "options": [
+        {
+          "id": "forges",
+          "label": "The Highland Forges",
+          "desc": "Mountain valleys black with foundry smoke, rich in iron and coal."
+        },
+        {
+          "id": "deltas",
+          "label": "The River Deltas",
+          "desc": "Fertile floodplains and crowded ports, where trade and grain flow together."
+        },
+        {
+          "id": "steppes",
+          "label": "The Ashen Steppes",
+          "desc": "Endless windburnt plains — hard land that breeds hard soldiers."
+        }
+      ]
+    },
+    {
+      "id": "crisis",
+      "title": "First Crisis",
+      "prompt": "Every young nation is tested. What was your trial?",
+      "options": [
+        {
+          "id": "famine",
+          "label": "The Hunger Winter",
+          "desc": "Crops failed and the silos emptied. Your people learned rationing, and remembrance."
+        },
+        {
+          "id": "borderwar",
+          "label": "The Border War",
+          "desc": "A neighbor tested your frontier with crawlers and shells. You answered."
+        },
+        {
+          "id": "purge",
+          "label": "The Counter-Revolution",
+          "desc": "The old barons struck back from exile. The revolt had to be defended in blood.",
+          "requires": {
+            "era": "revolt"
+          }
+        },
+        {
+          "id": "succession",
+          "label": "The Succession Feud",
+          "desc": "Imperial pretenders fought over your provinces until you crowned your own order.",
+          "requires": {
+            "era": "collapse"
+          }
+        },
+        {
+          "id": "isolation",
+          "label": "The Cut Rail",
+          "desc": "The homeland severed your supply line. You survived a year alone in the wastes.",
+          "requires": {
+            "era": "frontier"
+          }
+        }
+      ]
+    },
+    {
+      "id": "event",
+      "title": "The Long War",
+      "prompt": "In the great war that reshaped the continent, your nation…",
+      "options": [
+        {
+          "id": "profiteer",
+          "label": "Armed Both Sides",
+          "desc": "Your foundries ran day and night, selling crawlers to anyone with coin."
+        },
+        {
+          "id": "bled",
+          "label": "Bled on the Front",
+          "desc": "A generation vanished into the mud, but the line held and legends were made."
+        },
+        {
+          "id": "neutral",
+          "label": "Fortified and Watched",
+          "desc": "You sealed the passes, dug in deep, and let the world exhaust itself."
+        }
+      ]
+    }
+  ];
+
+describe("lifepath — Chapter VI is an addition, not an edit", () => {
+  it("leaves the four shipped chapters byte-equal to their fixture", () => {
+    expect(LIFEPATH_CHAPTERS.slice(0, 4)).toEqual(CHAPTERS_I_TO_V);
+  });
+
+  it("appends exactly one chapter, at the end", () => {
+    expect(LIFEPATH_CHAPTERS.length).toBe(CHAPTERS_I_TO_V.length + 1);
+    const last = LIFEPATH_CHAPTERS[LIFEPATH_CHAPTERS.length - 1];
+    expect(last.id).toBe("standard");
+    expect(last.title).toBe("VI — The Standard");
+    expect(last.prompt).toBeTruthy();
+    expect(last.options.length).toBe(4);
+  });
+
+  it("maps its four options one-to-one onto the four shipped std_* plates", () => {
+    const last = LIFEPATH_CHAPTERS[LIFEPATH_CHAPTERS.length - 1];
+    const plates = last.options.map((o) => o.plate);
+    expect(new Set(plates)).toEqual(new Set(["std_column", "std_reliquary", "std_black", "std_first_keel"]));
+    expect(plates.length).toBe(4);
+    const keys = new Set(IMAGE_LIBRARY.map((p) => p.key));
+    for (const k of plates) expect(keys, `${k} is not a real plate`).toContain(k);
+  });
+
+  it("gives every option an id, a label, a desc and a schema-legal effect", () => {
+    const last = LIFEPATH_CHAPTERS[LIFEPATH_CHAPTERS.length - 1];
+    const ids = last.options.map((o) => o.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const o of last.options) {
+      expect(o.label, `${o.id} label`).toBeTruthy();
+      expect(o.desc, `${o.id} desc`).toBeTruthy();
+      expect(EFFECT_TYPES, `${o.id} effect type`).toContain(o.effect.type);
+      expect(Number.isInteger(o.effect.value)).toBe(true);
+      expect(o.effect.value).toBeGreaterThanOrEqual(1);
+      expect(o.effect.value).toBeLessThanOrEqual(2);
+      if (o.effect.type === "income_flat") expect(o.effect, `${o.id} income_flat takes no unit`).not.toHaveProperty("unit");
+      else expect(EFFECT_UNITS, `${o.id} effect unit`).toContain(o.effect.unit);
+    }
+  });
+
+  it("gates none of the four — the standard is chosen on the march", () => {
+    const last = LIFEPATH_CHAPTERS[LIFEPATH_CHAPTERS.length - 1];
+    for (const o of last.options) expect(o).not.toHaveProperty("requires");
+    expect(availableOptions(last, {}).length).toBe(4);
+    expect(availableOptions(last, { era: "revolt", land: "forges" }).length).toBe(4);
+  });
+
+  it("uses each shipped standard on at least one preset", () => {
+    const chosen = new Set(PRESET_FACTIONS.map((p) => p.lifepathChoices.standard));
+    expect(chosen).toEqual(new Set(["std_column", "std_reliquary", "std_black", "std_first_keel"]));
+  });
+});
+
+// ── HERALD VOICES ───────────────────────────────────────────────────────────
+
+// Bounded at BOTH ends: a pack runs from its own `## ` heading to the NEXT
+// `## ` heading, never to end-of-file. Lane H is last today; Field Amendments
+// append after it, and a slice that ran to EOF would swallow them.
+function heraldPacks(src) {
+  const lines = src.split("\n");
+  const heads = [];
+  lines.forEach((l, i) => { if (l.startsWith("## ")) heads.push(i); });
+  const out = new Map();
+  heads.forEach((start, i) => {
+    const end = i + 1 < heads.length ? heads[i + 1] : lines.length;
+    const m = /`([a-z_]+)`\s*$/.exec(lines[start]);
+    if (!m) return;                       // Shared Rules / Garble / Implementation Notes
+    const body = lines.slice(start, end);
+    const moods = {};
+    let cur = null;
+    for (const b of body) {
+      if (b.startsWith("### ")) { cur = b.slice(4).trim(); moods[cur] = []; }
+      else if (b.startsWith("> ") && cur) moods[cur].push(b.slice(2).trim());
+    }
+    out.set(m[1], { heading: lines[start], body, moods });
+  });
+  return out;
+}
+
+describe("HERALD_VOICES.md — thirteen packs", () => {
+  const packs = heraldPacks(heraldSrc);
+  const MOODS = ["Ascendant", "Pressed", "Dealing"];
+
+  it("carries exactly one pack per heraldVoice, and no orphan pack", () => {
+    const wanted = PRESET_FACTIONS.map((p) => p.heraldVoice);
+    expect(new Set(wanted).size, "two presets share a heraldVoice").toBe(wanted.length);
+    for (const key of wanted) expect([...packs.keys()], `no pack for ${key}`).toContain(key);
+    expect([...packs.keys()].sort()).toEqual([...wanted].sort());
+  });
+
+  it("gives every preset's `house` the pack its `heraldVoice` names", () => {
+    for (const p of PRESET_FACTIONS) expect(p.heraldVoice, `${p.id}`).toBe(p.house);
+  });
+
+  it("names the faction in the pack heading it belongs to", () => {
+    for (const p of PRESET_FACTIONS) {
+      expect(packs.get(p.heraldVoice).heading, `${p.id} heading`).toContain(p.factionName);
+    }
+  });
+
+  for (const key of [...new Set(PRESET_FACTIONS.map((p) => p.heraldVoice))]) {
+    it(`${key} carries a Voice, an Always, a Never and three samples per mood`, () => {
+      const pack = packs.get(key);
+      const text = pack.body.join("\n");
+      expect(text, `${key} Voice`).toContain("**Voice.**");
+      expect(text, `${key} Always`).toContain("**Always:**");
+      expect(text, `${key} Never`).toContain("**Never:**");
+      expect(Object.keys(pack.moods)).toEqual(MOODS);
+      for (const mood of MOODS) {
+        expect(pack.moods[mood].length, `${key} / ${mood}`).toBeGreaterThanOrEqual(3);
+        for (const s of pack.moods[mood]) expect(s.length, `${key} / ${mood} empty sample`).toBeGreaterThan(20);
+      }
+    });
+  }
+
+  it("holds at least 117 samples — thirteen packs, three moods, three each", () => {
+    let n = 0;
+    for (const pack of packs.values()) for (const mood of MOODS) n += pack.moods[mood].length;
+    expect(n).toBeGreaterThanOrEqual(117);
+  });
+
+  it("reports the loss of a running works in every single register", () => {
+    // Operator ruling: on capture the captor loots unspent MATERIALS only; the
+    // project, its progress and its housed Object are lost. Thirteen registers,
+    // thirteen ways of saying the same unwelcome thing — and none of them may
+    // say the winner inherited it.
+    for (const [key, pack] of packs) {
+      const samples = MOODS.flatMap((m) => pack.moods[m]);
+      const loss = samples.filter((s) => s.includes("{projectName}"));
+      expect(loss.length, `${key} never reports a lost works`).toBeGreaterThanOrEqual(1);
+      for (const s of loss) {
+        expect(/\b(inherit|inherited|inherits|transferred|transferable)\b/i.test(s) && !/not a transferable|does not inherit|not recoverable/i.test(s),
+          `${key} reports a captured works as an inheritance`).toBe(false);
+      }
+    }
+  });
+
+  it("keeps out-of-world mechanics vocabulary out of every sample", () => {
+    const banned = /\b(turn|tile|player|stat|modifier|hex|XP|buff|debuff)s?\b/i;
+    for (const [key, pack] of packs) {
+      for (const mood of MOODS) {
+        for (const s of pack.moods[mood]) expect(banned.test(s), `${key} / ${mood}: ${s.slice(0, 70)}`).toBe(false);
+      }
+    }
+  });
+
+  it("goes red on a sample that leaks a mechanics word", () => {
+    const banned = /\b(turn|tile|player|stat|modifier|hex|XP|buff|debuff)s?\b/i;
+    expect(banned.test("BULLETIN 12. The player holds the tile at first watch.")).toBe(true);
+    expect(banned.test("BULLETIN 12. The Reclamation holds the ground at first watch.")).toBe(false);
+  });
+
+  it("keeps the three structural blocks the herald function reads", () => {
+    for (const h of ["## Shared Rules (all houses)", "## Garble Template (confidence POOR)", "## Implementation Notes"]) {
+      expect(heraldSrc, `${h} was dropped`).toContain(h);
+    }
+  });
+
+  it("keeps the canon sample lines of the three packs that predate this lane", () => {
+    // Canon prose is redistributed across the three moods, never deleted.
+    const canon = [
+      ["reclamation", "BULLETIN 41."],
+      ["reclamation", "BULLETIN 44."],
+      ["reclamation", "BULLETIN 47."],
+      ["combine", "ADVISORY TO ALL FREIGHT."],
+      ["combine", "NOTICE OF ADJUSTMENT."],
+      ["combine", "The Combine confirms delivery of {resource}"],
+      ["synod", "Let it be entered in the Preservation Roll:"],
+      ["synod", "The Synod observes that {faction} has opened ground"],
+      ["synod", "Entered this day: the keel {baseName} was seen making south"],
+    ];
+    for (const [key, opening] of canon) {
+      const samples = MOODS.flatMap((m) => packs.get(key).moods[m]);
+      expect(samples.some((s) => s.includes(opening)), `${key} lost canon line: ${opening}`).toBe(true);
+    }
+  });
+
+  it("contains no PII and no real-world proper noun, anywhere in the file", () => {
+    for (const [re, what] of [
+      [/[\w.+-]+@[\w-]+\.[\w.]+/, "email address"],
+      [/https?:\/\//, "url"],
+      [/\+?\d[\d\s().-]{7,}\d/, "phone-shaped digit run"],
+      [/(^|\s)@\w+/, "@handle"],
+    ]) {
+      expect(re.test(heraldSrc), `${what} in HERALD_VOICES.md`).toBe(false);
+    }
+    const deny = /\b(America|American|Europe|European|Russia|Russian|German|Germany|Britain|British|France|French|China|Chinese|Japan|Japanese|Soviet|Nazi|Reich|USSR|NATO)\b/;
+    expect(deny.test(heraldSrc)).toBe(false);
   });
 });
