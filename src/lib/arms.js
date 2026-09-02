@@ -316,6 +316,58 @@ export const MANUFACTURERS = {
     access: { reclamation: 'licensed', combine: 'licensed', synod: 'captured', covenant: 'captured', ascendancy: 'licensed', commonweal: 'licensed', salvage: 'licensed', emberwright: 'native', procession: 'licensed', outrider: 'licensed' },
     lore: "The Burnworks grew out of a seam fire that has never been put out, and its trade has followed the flame ever since: thickened fuels, incendiary fillings and the projectors that deliver them. Tarpool sells to every house at once and considers that a moral position. Its patterns hit far harder than their weight suggests and are trusted by no quartermaster alive — pressure vessels sweat, valves stick, and the works' own proof-house has burned to the ground three times. Prices are posted daily, in chalk.",
   },
+  // ——— LANE J: motor works (mw_*) ———
+  // Appended by Lane J under the §3 grant: "Lane J appends motor-works to Lane
+  // I's MANUFACTURERS, keys mw_*, rather than duplicating the table." These
+  // five rows are the ONLY change this lane makes to this file. They conform
+  // to Lane I's Manufacturer shape exactly and add no field to it. They build
+  // hulls rather than weapons, so their `signature` leans are read by the
+  // Motor Pool; a weapon pattern may name one, and none does today.
+  mw_grimwold_treadworks: {
+    key: 'mw_grimwold_treadworks',
+    label: "The Grimwold Treadworks",
+    houseKey: 'covenant',
+    signature: { armorPen: 0.35, rateOfFire: -0.15, reliability: 0.04, weight: 0.7 },
+    nameStems: ["Grimwold", "Breaker", "Lockjaw", "Barhold", "Treadworks"],
+    access: { reclamation: 'captured', combine: 'licensed', synod: 'licensed', covenant: 'native', ascendancy: 'captured', commonweal: 'captured', salvage: 'captured', emberwright: 'licensed', procession: 'captured', outrider: 'captured' },
+    lore: "The Treadworks builds machines for closing things. Its drawings begin with the weight a hull must carry onto a shaft head and end with how long it must sit there while sappers work underneath; everything between is subordinate. Grimwold plate is thick, sloped past the point of politeness, and slow. The works licenses grudgingly and to nobody it suspects of digging, which has made it the only motor-works on the Ground whose order book is a statement of belief.",
+  },
+  mw_chandlery_carriageworks: {
+    key: 'mw_chandlery_carriageworks',
+    label: "The Chandlery Carriageworks",
+    culture: 'chandlery',
+    signature: { reliability: 0.09, weight: -0.35, damage: -0.15 },
+    nameStems: ["Chandler", "Drover", "Lamplighter", "Provender", "Carriageworks"],
+    access: { reclamation: 'licensed', combine: 'native', synod: 'licensed', covenant: 'licensed', ascendancy: 'licensed', commonweal: 'native', salvage: 'captured', emberwright: 'licensed', procession: 'licensed', outrider: 'native' },
+    lore: "A refit town's wagon shop, grown into the works that carries everybody else's war. The Carriageworks builds prime movers, carriers and gun tractors, and it builds them light, plain and serviceable by a crew who have read nothing. It arms almost nothing it makes, on the grounds that a wagon which fights is a wagon not delivering. Its ledgers are the closest thing the Ground has to a census, and it will sell to anyone whose credit it can verify.",
+  },
+  mw_kettleharrow_boneyard: {
+    key: 'mw_kettleharrow_boneyard',
+    label: "The Kettleharrow Boneyard",
+    culture: 'kettleharrow',
+    signature: { reliability: -0.16, damage: 0.25, weight: 0.3 },
+    nameStems: ["Kettle", "Harrow", "Rimjack", "Bonepick", "Boneyard"],
+    access: { reclamation: 'licensed', combine: 'licensed', synod: 'captured', covenant: 'captured', ascendancy: 'captured', commonweal: 'licensed', salvage: 'native', emberwright: 'licensed', procession: 'captured', outrider: 'licensed' },
+    lore: "Scavengers on the lip of a dead city, building fighting hulls out of what the city gives up. A Boneyard machine is four dead machines with the good parts kept, and the works is honest about which face got the plate and which got what was left. Nothing it sells is warranted, everything it sells is cheap, and its foremen are quietly the best diagnosticians on the Ground because they have taken more hulls apart than anyone alive.",
+  },
+  mw_longshadow_aeroworks: {
+    key: 'mw_longshadow_aeroworks',
+    label: "The Longshadow Aeroworks",
+    houseKey: 'combine',
+    signature: { accuracy: 0.05, range: 0.6, weight: -0.45, reliability: -0.05 },
+    nameStems: ["Longshadow", "Kestrel", "Span", "Lofter", "Aeroworks"],
+    access: { reclamation: 'licensed', combine: 'native', synod: 'captured', covenant: 'captured', ascendancy: 'licensed', commonweal: 'licensed', salvage: 'captured', emberwright: 'licensed', procession: 'captured', outrider: 'licensed' },
+    lore: "The Combine bought an airframe drawing, then the shop that drew it, then the crews to fly what came out. Longshadow works to weight above everything: mainplanes cut thin, structure calculated to the margin, protection argued about and usually declined. Its machines climb better than anything else on the register and are returned to the works in pieces at a rate the house prefers not to publish. Every warranty it issues expires on delivery, in writing, on the first page.",
+  },
+  mw_redwater_hullyards: {
+    key: 'mw_redwater_hullyards',
+    label: "The Redwater Hullyards",
+    culture: 'redwater_digs',
+    signature: { damage: 0.3, reliability: 0.02, weight: 0.5, accuracy: -0.04 },
+    nameStems: ["Redwater", "Punt", "Shoal", "Bittern", "Hullyards"],
+    access: { reclamation: 'licensed', combine: 'licensed', synod: 'licensed', covenant: 'captured', ascendancy: 'licensed', commonweal: 'native', salvage: 'native', emberwright: 'licensed', procession: 'licensed', outrider: 'licensed' },
+    lore: "Diggers who worked out that a gun on a shallow hull reaches ground no column can. The Hullyards builds by eye rather than by drawing, in a camp that moves when the site does, and its boats draw less water than a laden barge. They are heavy, wet, slow to answer the helm and very difficult to sink. The yard takes payment in fragments, tows salvage home on the same tide, and books both.",
+  },
 };
 
 // ---------------------------------------------------------------------------
