@@ -205,6 +205,51 @@ SquadTemplate = { name: string, type: SquadTypeKey, specialists: SpecialistKey[]
   los: [{ q, r }] /* hexes visible to the active squad, only when mine */,
   log: string[], fx: { seq, round, actorId, action, targetId?, at?: {q,r}, dealt, taken, moraleResult?: 'held'|'suppressed'|'routed', moved, from } | null
 }
+// AMENDMENT 2026-09-01 (Lane C, Amendment C1): four ADDED optional/derived keys. Nothing is removed
+// or renamed, so every consumer written against the list above still resolves.
+//   1. `field` gains `meta: FieldMeta` (the fifth key), because Lane B's lineOfSight() reads
+//      `meta.losCap` and THROWS without it — a client that renders sight lines or reports the weather
+//      cannot be handed a field with meta stripped, and a silent default would be an invisible rules
+//      change. Required by the Wave 3 addendum, item 3. `field` is therefore { w, h, tiles, deploy, meta }.
+//   2. each `squads[]` row gains `facing: 0..5` — an index into HEX_DIRECTIONS, the way the stand is
+//      pointed. It is set at deployment (toward the enemy line) and updated on every move and every
+//      shot. Present on EVERY row, not only mechanized ones, so the row's key set does not vary by
+//      stand; it is what selects front/side/rear on a stand that carries `facings`, and decoration on
+//      one that does not. Lane E draws it.
+//   3. each `squads[]` row gains `armour: ArmourClassKey` — the class a hit resolves against. §4 already
+//      said "Every stand row gains `armour: ArmourClassKey`" for the data model and the VIEW row did not
+//      carry it. For a mechanized stand this reports the FRONT facing; the other three are server state
+//      and are selected by struckFacing at resolution time.
+//   Rows are therefore 22 keys and `status` is unchanged at 3 + optional `building`.
+//   4. `orderAction` additionally accepts the ENGINE order `'march'` — an activation spent moving only.
+//      It is deliberately NOT a SQUAD_ACTIONS row: every order in Lane A's table either fires, builds,
+//      or carries noMove:true (`hold`, `rally`, `entrench` all stand fast), so a stand that only wants
+//      to close the ground has no content key to be given, and adding one would make Lane F price a
+//      verb that does nothing. A null or absent `orderAction` with a `moveTo` is read as a march.
+//      It is reported back on `fx.action` as the string 'march'.
+//
+// AMENDMENT 2026-09-01 (Lane C, Amendment C2): two further ADDED keys, both required by the operator's
+// step-3 instruction that `test/fixtures/tactical-state.json` "must carry field.meta and a relicProject
+// slot" and "must include a hit that selected a FACING", the second qualified as otherwise "untested and
+// UNRENDERABLE". Nothing is removed or renamed.
+//   5. the top level gains `relicProject: { attacker, defender }` — the per-faction slot the Wave 3
+//      addendum (item 7) requires be cut now so it is not re-cut later. **This SUPERSEDES Amendment C1's
+//      note, which put the slot on the engine state and out of the view.** The reason C1 gave — "nothing
+//      to render" — was answered by the wrong question. The fixture IS this payload byte for byte and is
+//      the only description of the battle Lanes D and E have, so a slot the server holds and the payload
+//      does not is one they must re-cut the day boarding assaults fill it; and a fixture carrying a key
+//      `tacticalView` does not emit would be a fixture that lies about the contract it exists to pin.
+//      It is `{ attacker: null, defender: null }` on every board today. Nothing reads or writes it until
+//      boarding assaults land as a Field Amendment. Operator ruling recorded with it: on capture the
+//      captor loots the project's unspent MATERIALS only; the project, its progress and its housed-Object
+//      requirement are lost with the keel. **The top level is therefore 14 keys.**
+//   6. `fx` gains optional `facing: 'front'|'side'|'rear'|'top'` — the plate the shot landed on, present
+//      only when the struck stand carried `facings`. The engine cannot resolve a hit on a hull WITHOUT
+//      selecting a plate (drift guard 12, and the Wave 3 addendum item 5), and before this the selection
+//      reached the client only as an English phrase inside a log line. Lane E draws the strike on the
+//      plate; an infantry stand has one armour class and no plate to name, so the key is absent on its
+//      hits. **`fx` is therefore 8 always-present keys + 4 optional (`targetId`, `at`, `moraleResult`,
+//      `facing`).**
 
 // battleResult (Lane C → platform, unchanged)
 { attackerWon: bool, attackerUnits: Regiments, defenderUnits: Regiments }

@@ -1,0 +1,2651 @@
+{
+  "status": "fighting",
+  "round": 2,
+  "roundLimit": 20,
+  "myRole": "attacker",
+  "deployed": {
+    "attacker": true,
+    "defender": true
+  },
+  "myPool": {
+    "riflemen": 120,
+    "crawler": 3,
+    "artillery": 2,
+    "fighter": 1
+  },
+  "relicProject": {
+    "attacker": null,
+    "defender": null
+  },
+  "field": {
+    "w": 15,
+    "h": 11,
+    "tiles": {
+      "0,0": {
+        "terrain": "field",
+        "cover": 1,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "0,1": {
+        "terrain": "hedgerow",
+        "cover": 2,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 2
+      },
+      "0,2": {
+        "terrain": "open",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "0,3": {
+        "terrain": "hedgerow",
+        "cover": 2,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 2
+      },
+      "0,4": {
+        "terrain": "field",
+        "cover": 1,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "0,5": {
+        "terrain": "road",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "0,6": {
+        "terrain": "open",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "0,7": {
+        "terrain": "hedgerow",
+        "cover": 2,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 2
+      },
+      "0,8": {
+        "terrain": "field",
+        "cover": 1,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "0,9": {
+        "terrain": "field",
+        "cover": 1,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "0,10": {
+        "terrain": "field",
+        "cover": 1,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "1,0": {
+        "terrain": "hill",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 2
+      },
+      "1,1": {
+        "terrain": "field",
+        "cover": 1,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "1,2": {
+        "terrain": "open",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "1,3": {
+        "terrain": "field",
+        "cover": 1,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "1,4": {
+        "terrain": "field",
+        "cover": 1,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "1,5": {
+        "terrain": "road",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "1,6": {
+        "terrain": "road",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "1,7": {
+        "terrain": "field",
+        "cover": 1,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "1,8": {
+        "terrain": "open",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "1,9": {
+        "terrain": "field",
+        "cover": 1,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "1,10": {
+        "terrain": "hedgerow",
+        "cover": 2,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 2
+      },
+      "2,0": {
+        "terrain": "open",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "2,1": {
+        "terrain": "open",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "2,2": {
+        "terrain": "hill",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 2
+      },
+      "2,3": {
+        "terrain": "open",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "2,4": {
+        "terrain": "open",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "2,5": {
+        "terrain": "open",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "2,6": {
+        "terrain": "road",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "2,7": {
+        "terrain": "road",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "2,8": {
+        "terrain": "open",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1,
+        "work": "foxhole"
+      },
+      "2,9": {
+        "terrain": "open",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "2,10": {
+        "terrain": "open",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "3,0": {
+        "terrain": "hedgerow",
+        "cover": 2,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 2
+      },
+      "3,1": {
+        "terrain": "hedgerow",
+        "cover": 2,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 2
+      },
+      "3,2": {
+        "terrain": "field",
+        "cover": 1,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "3,3": {
+        "terrain": "open",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "3,4": {
+        "terrain": "field",
+        "cover": 1,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "3,5": {
+        "terrain": "woods",
+        "cover": 2,
+        "elev": 0,
+        "blocksLOS": true,
+        "moveCost": 2
+      },
+      "3,6": {
+        "terrain": "hill",
+        "cover": 0,
+        "elev": 1,
+        "blocksLOS": false,
+        "moveCost": 2
+      },
+      "3,7": {
+        "terrain": "road",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "3,8": {
+        "terrain": "woods",
+        "cover": 2,
+        "elev": 0,
+        "blocksLOS": true,
+        "moveCost": 2
+      },
+      "3,9": {
+        "terrain": "open",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "3,10": {
+        "terrain": "hill",
+        "cover": 0,
+        "elev": 1,
+        "blocksLOS": false,
+        "moveCost": 2
+      },
+      "4,0": {
+        "terrain": "woods",
+        "cover": 2,
+        "elev": 0,
+        "blocksLOS": true,
+        "moveCost": 2
+      },
+      "4,1": {
+        "terrain": "road",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "4,2": {
+        "terrain": "open",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "4,3": {
+        "terrain": "hedgerow",
+        "cover": 2,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 2
+      },
+      "4,4": {
+        "terrain": "field",
+        "cover": 1,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "4,5": {
+        "terrain": "open",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "4,6": {
+        "terrain": "open",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "4,7": {
+        "terrain": "road",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "4,8": {
+        "terrain": "road",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "4,9": {
+        "terrain": "open",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "4,10": {
+        "terrain": "open",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "5,0": {
+        "terrain": "hedgerow",
+        "cover": 2,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 2
+      },
+      "5,1": {
+        "terrain": "woods",
+        "cover": 2,
+        "elev": 0,
+        "blocksLOS": true,
+        "moveCost": 2
+      },
+      "5,2": {
+        "terrain": "woods",
+        "cover": 2,
+        "elev": 0,
+        "blocksLOS": true,
+        "moveCost": 2
+      },
+      "5,3": {
+        "terrain": "field",
+        "cover": 1,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "5,4": {
+        "terrain": "marsh",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 3
+      },
+      "5,5": {
+        "terrain": "field",
+        "cover": 1,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "5,6": {
+        "terrain": "woods",
+        "cover": 2,
+        "elev": 0,
+        "blocksLOS": true,
+        "moveCost": 2
+      },
+      "5,7": {
+        "terrain": "road",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "5,8": {
+        "terrain": "open",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "5,9": {
+        "terrain": "field",
+        "cover": 1,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "5,10": {
+        "terrain": "field",
+        "cover": 1,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "6,0": {
+        "terrain": "field",
+        "cover": 1,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "6,1": {
+        "terrain": "woods",
+        "cover": 2,
+        "elev": 0,
+        "blocksLOS": true,
+        "moveCost": 2
+      },
+      "6,2": {
+        "terrain": "hill",
+        "cover": 0,
+        "elev": 1,
+        "blocksLOS": false,
+        "moveCost": 2
+      },
+      "6,3": {
+        "terrain": "open",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "6,4": {
+        "terrain": "field",
+        "cover": 1,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "6,5": {
+        "terrain": "open",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "6,6": {
+        "terrain": "road",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "6,7": {
+        "terrain": "woods",
+        "cover": 2,
+        "elev": 0,
+        "blocksLOS": true,
+        "moveCost": 2
+      },
+      "6,8": {
+        "terrain": "field",
+        "cover": 1,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "6,9": {
+        "terrain": "field",
+        "cover": 1,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "6,10": {
+        "terrain": "field",
+        "cover": 1,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "7,0": {
+        "terrain": "woods",
+        "cover": 2,
+        "elev": 0,
+        "blocksLOS": true,
+        "moveCost": 2
+      },
+      "7,1": {
+        "terrain": "open",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "7,2": {
+        "terrain": "field",
+        "cover": 1,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "7,3": {
+        "terrain": "woods",
+        "cover": 2,
+        "elev": 0,
+        "blocksLOS": true,
+        "moveCost": 2
+      },
+      "7,4": {
+        "terrain": "open",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "7,5": {
+        "terrain": "road",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "7,6": {
+        "terrain": "hedgerow",
+        "cover": 2,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 2
+      },
+      "7,7": {
+        "terrain": "open",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "7,8": {
+        "terrain": "field",
+        "cover": 1,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "7,9": {
+        "terrain": "field",
+        "cover": 1,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "7,10": {
+        "terrain": "open",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "8,0": {
+        "terrain": "woods",
+        "cover": 2,
+        "elev": 0,
+        "blocksLOS": true,
+        "moveCost": 2
+      },
+      "8,1": {
+        "terrain": "woods",
+        "cover": 2,
+        "elev": 0,
+        "blocksLOS": true,
+        "moveCost": 2
+      },
+      "8,2": {
+        "terrain": "woods",
+        "cover": 2,
+        "elev": 0,
+        "blocksLOS": true,
+        "moveCost": 2
+      },
+      "8,3": {
+        "terrain": "woods",
+        "cover": 2,
+        "elev": 1,
+        "blocksLOS": true,
+        "moveCost": 2
+      },
+      "8,4": {
+        "terrain": "hedgerow",
+        "cover": 2,
+        "elev": 1,
+        "blocksLOS": false,
+        "moveCost": 2
+      },
+      "8,5": {
+        "terrain": "road",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "8,6": {
+        "terrain": "road",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "8,7": {
+        "terrain": "open",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "8,8": {
+        "terrain": "woods",
+        "cover": 2,
+        "elev": 0,
+        "blocksLOS": true,
+        "moveCost": 2
+      },
+      "8,9": {
+        "terrain": "road",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "8,10": {
+        "terrain": "field",
+        "cover": 1,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "9,0": {
+        "terrain": "field",
+        "cover": 1,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "9,1": {
+        "terrain": "hill",
+        "cover": 0,
+        "elev": 1,
+        "blocksLOS": false,
+        "moveCost": 2
+      },
+      "9,2": {
+        "terrain": "woods",
+        "cover": 2,
+        "elev": 1,
+        "blocksLOS": true,
+        "moveCost": 2
+      },
+      "9,3": {
+        "terrain": "field",
+        "cover": 1,
+        "elev": 1,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "9,4": {
+        "terrain": "open",
+        "cover": 0,
+        "elev": 1,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "9,5": {
+        "terrain": "field",
+        "cover": 1,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "9,6": {
+        "terrain": "road",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "9,7": {
+        "terrain": "open",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "9,8": {
+        "terrain": "field",
+        "cover": 1,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "9,9": {
+        "terrain": "field",
+        "cover": 1,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "9,10": {
+        "terrain": "open",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "10,0": {
+        "terrain": "open",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "10,1": {
+        "terrain": "field",
+        "cover": 1,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "10,2": {
+        "terrain": "open",
+        "cover": 0,
+        "elev": 1,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "10,3": {
+        "terrain": "open",
+        "cover": 0,
+        "elev": 1,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "10,4": {
+        "terrain": "field",
+        "cover": 1,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "10,5": {
+        "terrain": "road",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "10,6": {
+        "terrain": "open",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "10,7": {
+        "terrain": "woods",
+        "cover": 2,
+        "elev": 0,
+        "blocksLOS": true,
+        "moveCost": 2
+      },
+      "10,8": {
+        "terrain": "open",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "10,9": {
+        "terrain": "field",
+        "cover": 1,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "10,10": {
+        "terrain": "marsh",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 3
+      },
+      "11,0": {
+        "terrain": "open",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "11,1": {
+        "terrain": "open",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "11,2": {
+        "terrain": "hedgerow",
+        "cover": 2,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 2
+      },
+      "11,3": {
+        "terrain": "hill",
+        "cover": 0,
+        "elev": 1,
+        "blocksLOS": false,
+        "moveCost": 2
+      },
+      "11,4": {
+        "terrain": "road",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "11,5": {
+        "terrain": "woods",
+        "cover": 2,
+        "elev": 0,
+        "blocksLOS": true,
+        "moveCost": 2
+      },
+      "11,6": {
+        "terrain": "marsh",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 3
+      },
+      "11,7": {
+        "terrain": "open",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "11,8": {
+        "terrain": "hill",
+        "cover": 0,
+        "elev": 1,
+        "blocksLOS": false,
+        "moveCost": 2
+      },
+      "11,9": {
+        "terrain": "hill",
+        "cover": 0,
+        "elev": 1,
+        "blocksLOS": false,
+        "moveCost": 2
+      },
+      "11,10": {
+        "terrain": "road",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "12,0": {
+        "terrain": "open",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "12,1": {
+        "terrain": "open",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "12,2": {
+        "terrain": "field",
+        "cover": 1,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1,
+        "work": "foxhole"
+      },
+      "12,3": {
+        "terrain": "road",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "12,4": {
+        "terrain": "open",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "12,5": {
+        "terrain": "field",
+        "cover": 1,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "12,6": {
+        "terrain": "open",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "12,7": {
+        "terrain": "open",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "12,8": {
+        "terrain": "field",
+        "cover": 1,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "12,9": {
+        "terrain": "open",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "12,10": {
+        "terrain": "open",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "13,0": {
+        "terrain": "open",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "13,1": {
+        "terrain": "open",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "13,2": {
+        "terrain": "hill",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 2
+      },
+      "13,3": {
+        "terrain": "road",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "13,4": {
+        "terrain": "road",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "13,5": {
+        "terrain": "field",
+        "cover": 1,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "13,6": {
+        "terrain": "field",
+        "cover": 1,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "13,7": {
+        "terrain": "open",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "13,8": {
+        "terrain": "road",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "13,9": {
+        "terrain": "open",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "13,10": {
+        "terrain": "open",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "14,0": {
+        "terrain": "open",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "14,1": {
+        "terrain": "open",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "14,2": {
+        "terrain": "field",
+        "cover": 1,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "14,3": {
+        "terrain": "road",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "14,4": {
+        "terrain": "hedgerow",
+        "cover": 2,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 2
+      },
+      "14,5": {
+        "terrain": "open",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "14,6": {
+        "terrain": "field",
+        "cover": 1,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "14,7": {
+        "terrain": "marsh",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 3
+      },
+      "14,8": {
+        "terrain": "field",
+        "cover": 1,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "14,9": {
+        "terrain": "open",
+        "cover": 0,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 1
+      },
+      "14,10": {
+        "terrain": "hedgerow",
+        "cover": 2,
+        "elev": 0,
+        "blocksLOS": false,
+        "moveCost": 2
+      }
+    },
+    "deploy": {
+      "attacker": [
+        {
+          "q": 0,
+          "r": 0
+        },
+        {
+          "q": 0,
+          "r": 1
+        },
+        {
+          "q": 0,
+          "r": 2
+        },
+        {
+          "q": 0,
+          "r": 3
+        },
+        {
+          "q": 0,
+          "r": 4
+        },
+        {
+          "q": 0,
+          "r": 5
+        },
+        {
+          "q": 0,
+          "r": 6
+        },
+        {
+          "q": 0,
+          "r": 7
+        },
+        {
+          "q": 0,
+          "r": 8
+        },
+        {
+          "q": 0,
+          "r": 9
+        },
+        {
+          "q": 0,
+          "r": 10
+        },
+        {
+          "q": 1,
+          "r": 0
+        },
+        {
+          "q": 1,
+          "r": 1
+        },
+        {
+          "q": 1,
+          "r": 2
+        },
+        {
+          "q": 1,
+          "r": 3
+        },
+        {
+          "q": 1,
+          "r": 4
+        },
+        {
+          "q": 1,
+          "r": 5
+        },
+        {
+          "q": 1,
+          "r": 6
+        },
+        {
+          "q": 1,
+          "r": 7
+        },
+        {
+          "q": 1,
+          "r": 8
+        },
+        {
+          "q": 1,
+          "r": 9
+        },
+        {
+          "q": 1,
+          "r": 10
+        },
+        {
+          "q": 2,
+          "r": 0
+        },
+        {
+          "q": 2,
+          "r": 1
+        },
+        {
+          "q": 2,
+          "r": 2
+        },
+        {
+          "q": 2,
+          "r": 3
+        },
+        {
+          "q": 2,
+          "r": 4
+        },
+        {
+          "q": 2,
+          "r": 5
+        },
+        {
+          "q": 2,
+          "r": 6
+        },
+        {
+          "q": 2,
+          "r": 7
+        },
+        {
+          "q": 2,
+          "r": 8
+        },
+        {
+          "q": 2,
+          "r": 9
+        },
+        {
+          "q": 2,
+          "r": 10
+        }
+      ],
+      "defender": [
+        {
+          "q": 12,
+          "r": 0
+        },
+        {
+          "q": 12,
+          "r": 1
+        },
+        {
+          "q": 12,
+          "r": 2
+        },
+        {
+          "q": 12,
+          "r": 3
+        },
+        {
+          "q": 12,
+          "r": 4
+        },
+        {
+          "q": 12,
+          "r": 5
+        },
+        {
+          "q": 12,
+          "r": 6
+        },
+        {
+          "q": 12,
+          "r": 7
+        },
+        {
+          "q": 12,
+          "r": 8
+        },
+        {
+          "q": 12,
+          "r": 9
+        },
+        {
+          "q": 12,
+          "r": 10
+        },
+        {
+          "q": 13,
+          "r": 0
+        },
+        {
+          "q": 13,
+          "r": 1
+        },
+        {
+          "q": 13,
+          "r": 2
+        },
+        {
+          "q": 13,
+          "r": 3
+        },
+        {
+          "q": 13,
+          "r": 4
+        },
+        {
+          "q": 13,
+          "r": 5
+        },
+        {
+          "q": 13,
+          "r": 6
+        },
+        {
+          "q": 13,
+          "r": 7
+        },
+        {
+          "q": 13,
+          "r": 8
+        },
+        {
+          "q": 13,
+          "r": 9
+        },
+        {
+          "q": 13,
+          "r": 10
+        },
+        {
+          "q": 14,
+          "r": 0
+        },
+        {
+          "q": 14,
+          "r": 1
+        },
+        {
+          "q": 14,
+          "r": 2
+        },
+        {
+          "q": 14,
+          "r": 3
+        },
+        {
+          "q": 14,
+          "r": 4
+        },
+        {
+          "q": 14,
+          "r": 5
+        },
+        {
+          "q": 14,
+          "r": 6
+        },
+        {
+          "q": 14,
+          "r": 7
+        },
+        {
+          "q": 14,
+          "r": 8
+        },
+        {
+          "q": 14,
+          "r": 9
+        },
+        {
+          "q": 14,
+          "r": 10
+        }
+      ]
+    },
+    "meta": {
+      "seed": 9,
+      "nodeKind": "crossroads",
+      "weather": "clear",
+      "fortBonus": 0,
+      "losCap": 99,
+      "groundsFighters": false
+    }
+  },
+  "activeId": "a11",
+  "queue": [
+    "a11",
+    "d23",
+    "d19",
+    "a6",
+    "d18",
+    "d20",
+    "a8",
+    "d14",
+    "a2",
+    "d22",
+    "d24",
+    "a10",
+    "d21",
+    "a4",
+    "d15",
+    "d16",
+    "a12",
+    "a9",
+    "a3",
+    "a5",
+    "d17",
+    "a1",
+    "d13"
+  ],
+  "squads": [
+    {
+      "id": "a1",
+      "side": "attacker",
+      "name": "Iron Breaker",
+      "type": "crawler",
+      "figures": 1,
+      "maxFigures": 1,
+      "specialists": [],
+      "q": 0,
+      "r": 4,
+      "facing": 3,
+      "armour": "heavy",
+      "status": {
+        "suppressed": 0,
+        "routed": true,
+        "guard": 1
+      },
+      "melee": 6,
+      "ranged": 12,
+      "range": 12,
+      "armor": 12,
+      "speed": 2,
+      "morale": 6,
+      "initiative": 8,
+      "pts": 29,
+      "actions": [
+        "fire",
+        "assault",
+        "hold",
+        "rally",
+        "entrench",
+        "overrun"
+      ],
+      "mine": true
+    },
+    {
+      "id": "a2",
+      "side": "attacker",
+      "name": "Iron 1st Line",
+      "type": "riflemen",
+      "figures": 10,
+      "maxFigures": 10,
+      "specialists": [
+        "commissar"
+      ],
+      "q": 4,
+      "r": 0,
+      "facing": 0,
+      "armour": "soft",
+      "status": {
+        "suppressed": 0,
+        "routed": false,
+        "guard": 1
+      },
+      "melee": 5,
+      "ranged": 14,
+      "range": 7,
+      "armor": 2,
+      "speed": 3,
+      "morale": 12,
+      "initiative": 10,
+      "pts": 114,
+      "actions": [
+        "fire",
+        "assault",
+        "hold",
+        "rally",
+        "entrench",
+        "grenade"
+      ],
+      "mine": true
+    },
+    {
+      "id": "a3",
+      "side": "attacker",
+      "name": "Iron 2nd Line",
+      "type": "riflemen",
+      "figures": 10,
+      "maxFigures": 10,
+      "specialists": [
+        "medic"
+      ],
+      "q": 0,
+      "r": 3,
+      "facing": 5,
+      "armour": "soft",
+      "status": {
+        "suppressed": 0,
+        "routed": false,
+        "guard": 1
+      },
+      "melee": 5,
+      "ranged": 14,
+      "range": 7,
+      "armor": 2,
+      "speed": 3,
+      "morale": 12,
+      "initiative": 10,
+      "pts": 112,
+      "actions": [
+        "fire",
+        "assault",
+        "hold",
+        "rally",
+        "entrench",
+        "grenade"
+      ],
+      "mine": true
+    },
+    {
+      "id": "a4",
+      "side": "attacker",
+      "name": "Iron 3rd Line",
+      "type": "riflemen",
+      "figures": 10,
+      "maxFigures": 10,
+      "specialists": [],
+      "q": 5,
+      "r": 1,
+      "facing": 0,
+      "armour": "soft",
+      "status": {
+        "suppressed": 0,
+        "routed": false,
+        "guard": 1
+      },
+      "melee": 5,
+      "ranged": 14,
+      "range": 7,
+      "armor": 2,
+      "speed": 3,
+      "morale": 11,
+      "initiative": 10,
+      "pts": 100,
+      "actions": [
+        "fire",
+        "assault",
+        "hold",
+        "rally",
+        "entrench",
+        "grenade"
+      ],
+      "mine": true
+    },
+    {
+      "id": "a5",
+      "side": "attacker",
+      "name": "Iron Gunners",
+      "type": "gunners",
+      "figures": 6,
+      "maxFigures": 6,
+      "specialists": [
+        "heavy_gunner"
+      ],
+      "q": 3,
+      "r": 4,
+      "facing": 0,
+      "armour": "soft",
+      "status": {
+        "suppressed": 1,
+        "routed": false,
+        "guard": 1
+      },
+      "melee": 2,
+      "ranged": 18,
+      "range": 9,
+      "armor": 2,
+      "speed": 2,
+      "morale": 11,
+      "initiative": 8,
+      "pts": 101,
+      "actions": [
+        "fire",
+        "assault",
+        "hold",
+        "rally",
+        "entrench",
+        "suppress"
+      ],
+      "mine": true
+    },
+    {
+      "id": "a6",
+      "side": "attacker",
+      "name": "Iron Storm",
+      "type": "assault",
+      "figures": 7,
+      "maxFigures": 8,
+      "specialists": [
+        "medic"
+      ],
+      "q": 5,
+      "r": 6,
+      "facing": 0,
+      "armour": "light",
+      "status": {
+        "suppressed": 0,
+        "routed": false,
+        "guard": 1
+      },
+      "melee": 10.64,
+      "ranged": 8.87,
+      "range": 3,
+      "armor": 3,
+      "speed": 4,
+      "morale": 13,
+      "initiative": 12,
+      "pts": 91,
+      "actions": [
+        "fire",
+        "assault",
+        "hold",
+        "rally",
+        "entrench",
+        "grenade"
+      ],
+      "mine": true
+    },
+    {
+      "id": "a8",
+      "side": "attacker",
+      "name": "Iron Mortars",
+      "type": "mortars",
+      "figures": 3,
+      "maxFigures": 4,
+      "specialists": [
+        "signaler"
+      ],
+      "q": 0,
+      "r": 8,
+      "facing": 3,
+      "armour": "none",
+      "status": {
+        "suppressed": 0,
+        "routed": true,
+        "guard": 1
+      },
+      "melee": 0.77,
+      "ranged": 9.26,
+      "range": 9,
+      "armor": 1,
+      "speed": 2,
+      "morale": 9,
+      "initiative": 11,
+      "pts": 51,
+      "actions": [
+        "fire",
+        "assault",
+        "hold",
+        "rally",
+        "entrench",
+        "smoke",
+        "mortar_barrage"
+      ],
+      "mine": true
+    },
+    {
+      "id": "a9",
+      "side": "attacker",
+      "name": "Iron Pioneers",
+      "type": "pioneers",
+      "figures": 8,
+      "maxFigures": 8,
+      "specialists": [
+        "sapper"
+      ],
+      "q": 2,
+      "r": 8,
+      "facing": 0,
+      "armour": "light",
+      "status": {
+        "suppressed": 1,
+        "routed": false,
+        "guard": 1
+      },
+      "melee": 8,
+      "ranged": 9,
+      "range": 5,
+      "armor": 3,
+      "speed": 3,
+      "morale": 11,
+      "initiative": 10,
+      "pts": 112,
+      "actions": [
+        "fire",
+        "assault",
+        "hold",
+        "rally",
+        "entrench",
+        "grenade",
+        "build_foxhole",
+        "build_trench",
+        "build_bunker",
+        "build_emplacement"
+      ],
+      "mine": true
+    },
+    {
+      "id": "a10",
+      "side": "attacker",
+      "name": "Iron Sappers",
+      "type": "pioneers",
+      "figures": 8,
+      "maxFigures": 8,
+      "specialists": [],
+      "q": 2,
+      "r": 9,
+      "facing": 0,
+      "armour": "light",
+      "status": {
+        "suppressed": 0,
+        "routed": false,
+        "guard": 1.45,
+        "building": {
+          "work": "bunker",
+          "turnsLeft": 1
+        }
+      },
+      "melee": 8,
+      "ranged": 9,
+      "range": 5,
+      "armor": 3,
+      "speed": 3,
+      "morale": 11,
+      "initiative": 10,
+      "pts": 100,
+      "actions": [
+        "fire",
+        "assault",
+        "hold",
+        "rally",
+        "entrench",
+        "grenade",
+        "build_foxhole",
+        "build_trench",
+        "build_bunker",
+        "build_emplacement"
+      ],
+      "mine": true
+    },
+    {
+      "id": "a11",
+      "side": "attacker",
+      "name": "Iron Battery",
+      "type": "artillery",
+      "figures": 1,
+      "maxFigures": 1,
+      "specialists": [],
+      "q": 2,
+      "r": 10,
+      "facing": 0,
+      "armour": "light",
+      "status": {
+        "suppressed": 0,
+        "routed": false,
+        "guard": 1
+      },
+      "melee": 1,
+      "ranged": 16,
+      "range": 18,
+      "armor": 3,
+      "speed": 1,
+      "morale": 9,
+      "initiative": 6,
+      "pts": 100,
+      "actions": [
+        "fire",
+        "assault",
+        "hold",
+        "rally",
+        "entrench",
+        "bombard"
+      ],
+      "mine": true
+    },
+    {
+      "id": "a12",
+      "side": "attacker",
+      "name": "Iron 4th Line",
+      "type": "riflemen",
+      "figures": 10,
+      "maxFigures": 10,
+      "specialists": [],
+      "q": 3,
+      "r": 1,
+      "facing": 0,
+      "armour": "soft",
+      "status": {
+        "suppressed": 0,
+        "routed": false,
+        "guard": 1
+      },
+      "melee": 5,
+      "ranged": 14,
+      "range": 7,
+      "armor": 2,
+      "speed": 3,
+      "morale": 11,
+      "initiative": 10,
+      "pts": 100,
+      "actions": [
+        "fire",
+        "assault",
+        "hold",
+        "rally",
+        "entrench",
+        "grenade"
+      ],
+      "mine": true
+    },
+    {
+      "id": "d13",
+      "side": "defender",
+      "name": "Ash Breaker",
+      "type": "crawler",
+      "figures": 1,
+      "maxFigures": 1,
+      "specialists": [],
+      "q": 12,
+      "r": 4,
+      "facing": 3,
+      "armour": "heavy",
+      "status": {
+        "suppressed": 0,
+        "routed": false,
+        "guard": 1
+      },
+      "melee": 6,
+      "ranged": 12,
+      "range": 12,
+      "armor": 12,
+      "speed": 2,
+      "morale": 6,
+      "initiative": 8,
+      "pts": 29,
+      "actions": [],
+      "mine": false
+    },
+    {
+      "id": "d14",
+      "side": "defender",
+      "name": "Ash 1st Line",
+      "type": "riflemen",
+      "figures": 10,
+      "maxFigures": 10,
+      "specialists": [
+        "commissar"
+      ],
+      "q": 12,
+      "r": 6,
+      "facing": 3,
+      "armour": "soft",
+      "status": {
+        "suppressed": 0,
+        "routed": false,
+        "guard": 1
+      },
+      "melee": 5,
+      "ranged": 14,
+      "range": 7,
+      "armor": 2,
+      "speed": 3,
+      "morale": 12,
+      "initiative": 10,
+      "pts": 114,
+      "actions": [],
+      "mine": false
+    },
+    {
+      "id": "d15",
+      "side": "defender",
+      "name": "Ash 2nd Line",
+      "type": "riflemen",
+      "figures": 10,
+      "maxFigures": 10,
+      "specialists": [
+        "medic"
+      ],
+      "q": 10,
+      "r": 9,
+      "facing": 3,
+      "armour": "soft",
+      "status": {
+        "suppressed": 1,
+        "routed": false,
+        "guard": 1
+      },
+      "melee": 5,
+      "ranged": 14,
+      "range": 7,
+      "armor": 2,
+      "speed": 3,
+      "morale": 12,
+      "initiative": 10,
+      "pts": 112,
+      "actions": [],
+      "mine": false
+    },
+    {
+      "id": "d16",
+      "side": "defender",
+      "name": "Ash 3rd Line",
+      "type": "riflemen",
+      "figures": 10,
+      "maxFigures": 10,
+      "specialists": [],
+      "q": 13,
+      "r": 5,
+      "facing": 2,
+      "armour": "soft",
+      "status": {
+        "suppressed": 1,
+        "routed": false,
+        "guard": 1
+      },
+      "melee": 5,
+      "ranged": 14,
+      "range": 7,
+      "armor": 2,
+      "speed": 3,
+      "morale": 11,
+      "initiative": 10,
+      "pts": 100,
+      "actions": [],
+      "mine": false
+    },
+    {
+      "id": "d17",
+      "side": "defender",
+      "name": "Ash Gunners",
+      "type": "gunners",
+      "figures": 5,
+      "maxFigures": 6,
+      "specialists": [
+        "heavy_gunner"
+      ],
+      "q": 12,
+      "r": 7,
+      "facing": 2,
+      "armour": "soft",
+      "status": {
+        "suppressed": 1,
+        "routed": false,
+        "guard": 1
+      },
+      "melee": 1.7,
+      "ranged": 15.28,
+      "range": 9,
+      "armor": 2,
+      "speed": 2,
+      "morale": 10,
+      "initiative": 8,
+      "pts": 87,
+      "actions": [],
+      "mine": false
+    },
+    {
+      "id": "d18",
+      "side": "defender",
+      "name": "Ash Storm",
+      "type": "assault",
+      "figures": 8,
+      "maxFigures": 8,
+      "specialists": [
+        "medic"
+      ],
+      "q": 10,
+      "r": 7,
+      "facing": 3,
+      "armour": "light",
+      "status": {
+        "suppressed": 1,
+        "routed": false,
+        "guard": 1
+      },
+      "melee": 12,
+      "ranged": 10,
+      "range": 3,
+      "armor": 3,
+      "speed": 4,
+      "morale": 13,
+      "initiative": 12,
+      "pts": 102,
+      "actions": [],
+      "mine": false
+    },
+    {
+      "id": "d19",
+      "side": "defender",
+      "name": "Ash Scouts",
+      "type": "scouts",
+      "figures": 1,
+      "maxFigures": 5,
+      "specialists": [
+        "signaler"
+      ],
+      "q": 14,
+      "r": 3,
+      "facing": 0,
+      "armour": "none",
+      "status": {
+        "suppressed": 0,
+        "routed": true,
+        "guard": 1
+      },
+      "melee": 0.47,
+      "ranged": 1.41,
+      "range": 5,
+      "armor": 1,
+      "speed": 6,
+      "morale": 7,
+      "initiative": 19,
+      "pts": 19,
+      "actions": [],
+      "mine": false
+    },
+    {
+      "id": "d20",
+      "side": "defender",
+      "name": "Ash Mortars",
+      "type": "mortars",
+      "figures": 3,
+      "maxFigures": 4,
+      "specialists": [
+        "signaler"
+      ],
+      "q": 14,
+      "r": 2,
+      "facing": 0,
+      "armour": "none",
+      "status": {
+        "suppressed": 1,
+        "routed": false,
+        "guard": 1
+      },
+      "melee": 0.77,
+      "ranged": 9.26,
+      "range": 9,
+      "armor": 1,
+      "speed": 2,
+      "morale": 9,
+      "initiative": 11,
+      "pts": 51,
+      "actions": [],
+      "mine": false
+    },
+    {
+      "id": "d21",
+      "side": "defender",
+      "name": "Ash Pioneers",
+      "type": "pioneers",
+      "figures": 8,
+      "maxFigures": 8,
+      "specialists": [
+        "sapper"
+      ],
+      "q": 10,
+      "r": 4,
+      "facing": 3,
+      "armour": "light",
+      "status": {
+        "suppressed": 0,
+        "routed": false,
+        "guard": 1
+      },
+      "melee": 8,
+      "ranged": 9,
+      "range": 5,
+      "armor": 3,
+      "speed": 3,
+      "morale": 11,
+      "initiative": 10,
+      "pts": 112,
+      "actions": [],
+      "mine": false
+    },
+    {
+      "id": "d22",
+      "side": "defender",
+      "name": "Ash Sappers",
+      "type": "pioneers",
+      "figures": 8,
+      "maxFigures": 8,
+      "specialists": [],
+      "q": 12,
+      "r": 1,
+      "facing": 3,
+      "armour": "light",
+      "status": {
+        "suppressed": 0,
+        "routed": false,
+        "guard": 1.45,
+        "building": {
+          "work": "bunker",
+          "turnsLeft": 1
+        }
+      },
+      "melee": 8,
+      "ranged": 9,
+      "range": 5,
+      "armor": 3,
+      "speed": 3,
+      "morale": 11,
+      "initiative": 10,
+      "pts": 100,
+      "actions": [],
+      "mine": false
+    },
+    {
+      "id": "d23",
+      "side": "defender",
+      "name": "Ash Battery",
+      "type": "artillery",
+      "figures": 1,
+      "maxFigures": 1,
+      "specialists": [],
+      "q": 12,
+      "r": 0,
+      "facing": 3,
+      "armour": "light",
+      "status": {
+        "suppressed": 0,
+        "routed": false,
+        "guard": 1
+      },
+      "melee": 1,
+      "ranged": 16,
+      "range": 18,
+      "armor": 3,
+      "speed": 1,
+      "morale": 9,
+      "initiative": 6,
+      "pts": 100,
+      "actions": [],
+      "mine": false
+    },
+    {
+      "id": "d24",
+      "side": "defender",
+      "name": "Ash 4th Line",
+      "type": "riflemen",
+      "figures": 10,
+      "maxFigures": 10,
+      "specialists": [],
+      "q": 14,
+      "r": 8,
+      "facing": 2,
+      "armour": "soft",
+      "status": {
+        "suppressed": 0,
+        "routed": false,
+        "guard": 1
+      },
+      "melee": 5,
+      "ranged": 14,
+      "range": 7,
+      "armor": 2,
+      "speed": 3,
+      "morale": 11,
+      "initiative": 10,
+      "pts": 100,
+      "actions": [],
+      "mine": false
+    }
+  ],
+  "los": [
+    {
+      "q": 0,
+      "r": 0
+    },
+    {
+      "q": 0,
+      "r": 1
+    },
+    {
+      "q": 0,
+      "r": 2
+    },
+    {
+      "q": 0,
+      "r": 3
+    },
+    {
+      "q": 0,
+      "r": 4
+    },
+    {
+      "q": 0,
+      "r": 5
+    },
+    {
+      "q": 0,
+      "r": 6
+    },
+    {
+      "q": 0,
+      "r": 7
+    },
+    {
+      "q": 0,
+      "r": 8
+    },
+    {
+      "q": 0,
+      "r": 9
+    },
+    {
+      "q": 0,
+      "r": 10
+    },
+    {
+      "q": 1,
+      "r": 0
+    },
+    {
+      "q": 1,
+      "r": 1
+    },
+    {
+      "q": 1,
+      "r": 2
+    },
+    {
+      "q": 1,
+      "r": 3
+    },
+    {
+      "q": 1,
+      "r": 4
+    },
+    {
+      "q": 1,
+      "r": 5
+    },
+    {
+      "q": 1,
+      "r": 6
+    },
+    {
+      "q": 1,
+      "r": 7
+    },
+    {
+      "q": 1,
+      "r": 8
+    },
+    {
+      "q": 1,
+      "r": 9
+    },
+    {
+      "q": 1,
+      "r": 10
+    },
+    {
+      "q": 2,
+      "r": 0
+    },
+    {
+      "q": 2,
+      "r": 1
+    },
+    {
+      "q": 2,
+      "r": 2
+    },
+    {
+      "q": 2,
+      "r": 3
+    },
+    {
+      "q": 2,
+      "r": 4
+    },
+    {
+      "q": 2,
+      "r": 5
+    },
+    {
+      "q": 2,
+      "r": 6
+    },
+    {
+      "q": 2,
+      "r": 7
+    },
+    {
+      "q": 2,
+      "r": 8
+    },
+    {
+      "q": 2,
+      "r": 9
+    },
+    {
+      "q": 2,
+      "r": 10
+    },
+    {
+      "q": 3,
+      "r": 5
+    },
+    {
+      "q": 3,
+      "r": 8
+    },
+    {
+      "q": 3,
+      "r": 9
+    },
+    {
+      "q": 3,
+      "r": 10
+    },
+    {
+      "q": 4,
+      "r": 8
+    },
+    {
+      "q": 4,
+      "r": 9
+    },
+    {
+      "q": 4,
+      "r": 10
+    },
+    {
+      "q": 5,
+      "r": 6
+    },
+    {
+      "q": 5,
+      "r": 7
+    },
+    {
+      "q": 5,
+      "r": 8
+    },
+    {
+      "q": 5,
+      "r": 9
+    },
+    {
+      "q": 5,
+      "r": 10
+    },
+    {
+      "q": 6,
+      "r": 6
+    },
+    {
+      "q": 6,
+      "r": 7
+    },
+    {
+      "q": 6,
+      "r": 8
+    },
+    {
+      "q": 6,
+      "r": 9
+    },
+    {
+      "q": 6,
+      "r": 10
+    },
+    {
+      "q": 7,
+      "r": 5
+    },
+    {
+      "q": 7,
+      "r": 7
+    },
+    {
+      "q": 7,
+      "r": 8
+    },
+    {
+      "q": 7,
+      "r": 9
+    },
+    {
+      "q": 7,
+      "r": 10
+    },
+    {
+      "q": 8,
+      "r": 4
+    },
+    {
+      "q": 8,
+      "r": 7
+    },
+    {
+      "q": 8,
+      "r": 8
+    },
+    {
+      "q": 8,
+      "r": 9
+    },
+    {
+      "q": 8,
+      "r": 10
+    },
+    {
+      "q": 9,
+      "r": 3
+    },
+    {
+      "q": 9,
+      "r": 6
+    },
+    {
+      "q": 9,
+      "r": 7
+    },
+    {
+      "q": 9,
+      "r": 9
+    },
+    {
+      "q": 9,
+      "r": 10
+    },
+    {
+      "q": 10,
+      "r": 2
+    },
+    {
+      "q": 10,
+      "r": 3
+    },
+    {
+      "q": 10,
+      "r": 6
+    },
+    {
+      "q": 10,
+      "r": 9
+    },
+    {
+      "q": 10,
+      "r": 10
+    },
+    {
+      "q": 11,
+      "r": 1
+    },
+    {
+      "q": 11,
+      "r": 2
+    },
+    {
+      "q": 11,
+      "r": 5
+    },
+    {
+      "q": 11,
+      "r": 6
+    },
+    {
+      "q": 11,
+      "r": 8
+    },
+    {
+      "q": 11,
+      "r": 9
+    },
+    {
+      "q": 11,
+      "r": 10
+    },
+    {
+      "q": 12,
+      "r": 0
+    },
+    {
+      "q": 12,
+      "r": 1
+    },
+    {
+      "q": 12,
+      "r": 8
+    },
+    {
+      "q": 12,
+      "r": 9
+    },
+    {
+      "q": 12,
+      "r": 10
+    },
+    {
+      "q": 13,
+      "r": 0
+    },
+    {
+      "q": 13,
+      "r": 5
+    },
+    {
+      "q": 13,
+      "r": 8
+    },
+    {
+      "q": 13,
+      "r": 9
+    },
+    {
+      "q": 13,
+      "r": 10
+    },
+    {
+      "q": 14,
+      "r": 8
+    },
+    {
+      "q": 14,
+      "r": 9
+    },
+    {
+      "q": 14,
+      "r": 10
+    }
+  ],
+  "log": [
+    "Ash Mortars is rallied on the spot and faces front.",
+    "Iron Mortars falls back on its own line and will not be halted.",
+    "Ash 1st Line — fire on Iron Storm: 1 figure down.",
+    "Iron 1st Line advances on the ground ahead.",
+    "Ash Sappers holds its ground.",
+    "Ash 4th Line advances on the ground ahead.",
+    "Iron Sappers holds its ground.",
+    "Ash Pioneers — fire on Iron Storm: 0 figures down.",
+    "Iron 3rd Line advances on the ground ahead.",
+    "Ash 2nd Line is rallied on the spot and faces front.",
+    "Ash 3rd Line is rallied on the spot and faces front.",
+    "Iron 4th Line advances on the ground ahead.",
+    "Iron Pioneers is rallied on the spot and faces front.",
+    "Iron 2nd Line advances on the ground ahead.",
+    "Iron Gunners is rallied on the spot and faces front.",
+    "Ash Gunners is rallied on the spot and faces front.",
+    "Iron Breaker falls back on its own line and will not be halted.",
+    "Ash Breaker — fire on Iron Breaker on the rear: 0 figures down."
+  ],
+  "fx": {
+    "seq": 45,
+    "round": 2,
+    "actorId": "d13",
+    "action": "fire",
+    "dealt": 0,
+    "taken": 0,
+    "moved": false,
+    "from": {
+      "q": 12,
+      "r": 4
+    },
+    "targetId": "a1",
+    "facing": "rear",
+    "moraleResult": "held"
+  }
+}
