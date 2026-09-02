@@ -69,4 +69,47 @@ Found by the brief critic, fixed in the briefs (details in the Wave 0 workflow t
 
 | Lane | PR | Branch | Tests added | Contract §§ touched | Merged (UTC) |
 | --- | --- | --- | --- | --- | --- |
-| *(pending)* | | | | | |
+| **I** Arms Catalogue | [#6](https://github.com/blae-code/rust-legions/pull/6) | `feat/tactical-i` | `arms-mirror` (189) + `arms-roll` (114) = 303 | §4 Arms block, §6.11/6.12, GAME_RULES §23 `[PROPOSED]` | 2026-09-01 |
+| **B** Field generator | [#5](https://github.com/blae-code/rust-legions/pull/5) | `feat/tactical-b` | `tactical-field` (96) | §4 field shape + `FieldMeta`, COMBAT_DESIGN | 2026-09-01 |
+| **G** Research/armory | [#4](https://github.com/blae-code/rust-legions/pull/4) | `feat/tactical-g` | `catalog-mirror` (105) | §4 Tech/ArmoryItem, GAME_RULES §24 `[PROPOSED]` | 2026-09-01 |
+
+### Wave 1 — platform sync, then merge
+
+`main` moved under the wave: the Base44 session lifted `commandVehicles.ts` and `macroGraph.ts` out of
+`gameEngine/entry.ts` and marked two P3 items APPLIED (`body.orderAction`, `tacticalAuto`). All three lane
+branches were rebased onto it. `npm install` was **not** run — `package.json`/`package-lock.json` were
+byte-identical across the sync, and this checkout's `node_modules` is a symlink into a shared store that
+npm deletes and reifies inside the vault.
+
+**Session limit interrupted the first wave-1 run** (13 of 23 agents finished). No work was lost: 24 audit
+findings were recovered from the workflow journal and fed to the fixers rather than re-run.
+
+**Ownership breaches caught and backed out before merge:**
+- Lane B had written an 86-line `## 13. The Field Generator` into `docs/COMBAT_DESIGN.md` — §3 assigns
+  that file to **Lane A**. Three independent auditors flagged it as a blocker. The instruction came from
+  the orchestrator's own build prompt and was wrong; §3 wins. Section preserved and handed to Lane A.
+- Lane G had appended 73 lines to `docs/prompts/ART_MANIFEST.md`, which is orchestrator-owned. Backed out;
+  the orchestrator folds each lane's plate rows in at merge time. Lanes now report plate keys in the PR body.
+
+**Defects the audits caught that tests could not:** Lane B's connectivity-repair pass was entirely dead
+code whose justification in the docs was factually false (now exported, live and directly tested against a
+deliberately broken field); its `losCap` boundary could be made exclusive with all 87 tests green. Lane G's
+published cost curve claimed 22 RP per branch and 110 for the tree against a real 28/28/22/28/32 and 138,
+restated in three places with nothing checking it — corrected, and a new test now parses the published
+table out of `TECH_DESIGN.md` and asserts it against the computed totals, so it cannot rot again.
+
+**Merge-time collisions, all resolved as "keep both, in lane order":** `PLATFORM_HANDOFF.md` (three times),
+`src/lib/imageLibrary.js`, `src/lib/wiki/entries.js`, and `docs/GAME_RULES.md` — where Lanes I and G had
+both taken `## 23.`, so G was renumbered to §24.
+
+**Two defects the orchestrator introduced in its own conflict resolution, and had to fix:**
+1. Taking the lane side wholesale on `PLATFORM_HANDOFF.md` reverted the platform's three APPLIED rows.
+   Caught on verification; the resolver was rewritten to union both sides rather than pick one.
+2. Unioning the two Codex tail blocks dropped the closing brace of Lane I's final entry, making
+   `src/lib/wiki/entries.js` invalid JS. Both mirror suites then failed **at collection time**, which
+   zeroes a whole file rather than one assertion — 601 tests silently reported as 308. The renumber also
+   left two of Lane G's own Codex entries tagged `Doctrine §23`, pointing at the Arms Catalogue; retagged.
+
+**Routed back to its owner rather than fixed in place:** Lane I's `§14 ↔ GAME_RULES` assertion sliced from
+its own heading **to end of file** on both sides — true only while Lane I was the last lane to append.
+Lane G's §24 broke it. That is a gate on a proxy, and it is Lane I's file, so Lane I fixed it.
