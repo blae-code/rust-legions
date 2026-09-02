@@ -57,6 +57,41 @@
 // exist in arms.ts and nowhere else. Both files are asserted to declare no
 // armour table of their own, and the only route from this layer into the
 // damage model is asserted to be a call inside resolveSquadHit.
+//
+// A GATE MUST FAIL ON DRIFT, NOT ON GROWTH — and ten assertions in this file
+// failed on growth. They pinned SQUAD_TYPES and SPECIALISTS to their CONTENTS
+// ("these are the only rows there are") when the fact worth protecting is
+// narrower and stronger ("these particular rows are correct and unchanged").
+// SQUAD_TYPES and SPECIALISTS are tables Lane F is CONTRACTED to append to,
+// so those ten forbade the change the contract mandates and blocked the lane
+// whose entire purpose is the append. Every one of them is now written the
+// other way round, and the pattern is uniform:
+//
+//   * the base nine and the founding five are pinned FIELD FOR FIELD against
+//     the frozen fixtures below, which is strictly stronger than the key-list
+//     caps they replace — a cap never noticed a re-tuned stat or a dropped
+//     field, and the pin does;
+//   * every rule that is true of EVERY row stays total over the whole table
+//     (all 21 fields present, `from` a real regiment column, `tier` in the §4
+//     vocabulary, no decorative `specials` tag, no orphaned gate, efficiency
+//     under POINTS_MODEL.efficiencyCap) — appended rows are held to those, not
+//     excused from them;
+//   * a claim that is only ever true of the base nine ("six are drawn from the
+//     rifle regiment", "tier I", "the widest of these nine sits inside 3%",
+//     13.11's two counts) is asserted about the base nine BY NAME, never by a
+//     count over the whole table, because a count passes after two of the six
+//     have been re-sourced and fails after one row is appended — wrong in both
+//     directions at once;
+//   * and the COMBAT_DESIGN.md tables are scoped to the core roster in the
+//     DOCUMENT, in a sentence this file reads back, so a lane appending a row
+//     knows from the document whether it owes an edit here. It does not: its
+//     rows are documented in docs/GEAR_LIBRARY.md.
+//
+// This is the third time this defect class has been repaired in this
+// repository (Lane I was barred from an exact MANUFACTURERS count; Lane J
+// shipped whole-table MANUFACTURERS assertions and its audit rescoped them the
+// same way). Before adding an assertion here, ask which lane is contracted to
+// extend the thing being asserted, and whether the assertion would survive it.
 import { describe, it, expect } from "vitest";
 import { readRepoFile, extractConst } from "./helpers/extract-const.js";
 import * as MIRROR from "@/lib/tactical/data.js";
@@ -81,6 +116,73 @@ const {
 
 // The five UI-only fields the mirror is allowed to add (plan section 3).
 const UI_ONLY = ["label", "short", "blurb", "desc", "icon"];
+
+// ---------------------------------------------------------------------------
+// THE CORE ROSTER — and why it is pinned here rather than counted.
+//
+// A GATE MUST FAIL ON DRIFT, NOT ON GROWTH. Content lanes are CONTRACTED to
+// append rows to SQUAD_TYPES, SPECIALISTS and UPGRADES (plan section 3, Lane F:
+// squads 9 -> 16+, specialists 5 -> 10). An assertion that says "these are the
+// only rows that exist" therefore forbids the very change the contract
+// mandates, while the fact actually worth protecting is narrower and stronger:
+// "these particular rows are correct and UNCHANGED".
+//
+// This is the third time this defect class has appeared in this repository.
+// Lane I was barred from asserting an exact MANUFACTURERS count because Lane J
+// appends `mw_*` rows. Lane J shipped whole-table assertions anyway and its
+// audit rescoped them to something STRONGER — every Lane I key still present
+// and correctly keyed, AND the appended subset checked by its own rule. The
+// gates below took the same repair: the base nine and the founding five are
+// pinned FIELD FOR FIELD against the frozen rows in this file, every row in
+// the table (base or appended) is held to the rules that apply to every row,
+// and nothing caps the table.
+//
+// The two fixtures below are the pin. They are a deliberate, hand-owned copy of
+// the rows as Lane A shipped them: changing a stat, renaming a key, reordering
+// two rows or dropping a field all go red here, and the only way to move one is
+// to edit this file on purpose. Do NOT "refresh" them from the live table —
+// that is the pin deleting itself.
+// ---------------------------------------------------------------------------
+
+// Plan section 3, Lane A: the nine types that ship with the layer, in plan
+// order. Appended rows follow them; none of them may displace one.
+const BASE_NINE = [
+  "riflemen", "assault", "gunners", "scouts", "mortars", "pioneers",
+  "crawler", "artillery", "fighter",
+];
+
+// Plan section 3, Lane A: the five staff attachments that ship with the layer.
+const FOUNDING_FIVE = ["medic", "signaler", "commissar", "heavy_gunner", "sapper"];
+
+// The six riflemen-derived types of the base nine (section 13.2's "six of them
+// are drawn from the rifle regiment"), named rather than counted so an appended
+// riflemen-derived row cannot make the claim true or false by arithmetic.
+const BASE_NINE_FROM_RIFLEMEN = ["riflemen", "assault", "gunners", "scouts", "mortars", "pioneers"];
+
+// Plan section 4, SquadType.tier. EVERY row must declare one of these; the base
+// nine specifically are all 'I'. Lane F's flame_team ('II:Eng') and
+// land_dreadnought ('III') are contracted rows, not drift.
+const TIER_VOCAB = ["I", "II:Cache", "II:Eng", "II:Ciph", "II:Wake", "III"];
+
+const BASE_NINE_ROWS = {
+  riflemen: { key: "riflemen", label: "Rifle Section", short: "Rifles", from: "riflemen", tier: "I", figures: 10, minFigures: 4, maxFigures: 12, melee: 5, ranged: 14, range: 7, armor: 2, speed: 3, morale: 11, pts: 100, specials: ["grenade"], armour: "soft", damageType: "kinetic", armorPen: 2.5, blurb: "Ten men, ten rifles, and the Ministry assumption that ground is taken by walking onto it.", doctrineNote: "The unit every other line is priced against. If a figure in the ledger looks generous, set it beside a rifle section and it will stop looking generous." },
+  assault: { key: "assault", label: "Assault Section", short: "Assault", from: "riflemen", tier: "I", figures: 8, minFigures: 3, maxFigures: 10, melee: 12, ranged: 10, range: 3, armor: 3, speed: 4, morale: 12, pts: 90, specials: ["grenade"], armour: "light", damageType: "kinetic", armorPen: 1.5, blurb: "Short guns, spades and a bag of bombs. They are issued the last forty yards and nothing else.", doctrineNote: "Fast into contact and expensive out of it. Bring them up behind a work or a screen; ground crossed in the open is paid for in figures." },
+  gunners: { key: "gunners", label: "Machine-Gun Crew", short: "Gunners", from: "riflemen", tier: "I", figures: 6, minFigures: 2, maxFigures: 8, melee: 2, ranged: 18, range: 9, armor: 2, speed: 2, morale: 11, pts: 85, specials: ["suppress"], armour: "soft", damageType: "kinetic", armorPen: 3, blurb: "A belt gun on a tripod, six men to feed it, and a sight line they will not give up while it still fires.", doctrineNote: "Site it once and let it hold the lane. The crew moves at a walk and is worth nothing at all caught in the open." },
+  scouts: { key: "scouts", label: "Scout Section", short: "Scouts", from: "riflemen", tier: "I", figures: 5, minFigures: 2, maxFigures: 6, melee: 2, ranged: 6, range: 5, armor: 1, speed: 6, morale: 10, pts: 45, specials: ["smoke"], armour: "none", damageType: "kinetic", armorPen: 2, blurb: "Runners, glass and a map case. They see first, and it is the only advantage they are issued.", doctrineNote: "Screen the flank, take the crest, and never let them be the section that has to hold anything." },
+  mortars: { key: "mortars", label: "Mortar Team", short: "Mortars", from: "riflemen", tier: "I", figures: 4, minFigures: 2, maxFigures: 6, melee: 1, ranged: 12, range: 9, armor: 1, speed: 2, morale: 10, pts: 55, specials: ["smoke","mortar_barrage"], armour: "none", damageType: "fragmentation", armorPen: 2, blurb: "A tube on a base plate and a case of bombs. It never sees what it kills, and it does not need to.", doctrineNote: "Indirect: it needs no sight line, only an observer and a hex. Keep it a lane behind the line and it will out-work anything of its price." },
+  pioneers: { key: "pioneers", label: "Pioneer Section", short: "Pioneers", from: "riflemen", tier: "I", figures: 8, minFigures: 3, maxFigures: 10, melee: 8, ranged: 9, range: 5, armor: 3, speed: 3, morale: 11, pts: 100, specials: ["grenade","build_foxhole","build_trench","build_bunker","build_emplacement"], armour: "light", damageType: "explosive", armorPen: 2.2, blurb: "Spades, wire, charges, and standing orders to make ground into works before the shooting reaches it.", doctrineNote: "The only line section that can raise all four works. Send them forward early or do not send them at all." },
+  crawler: { key: "crawler", label: "Diesel Crawler", short: "Crawler", from: "crawler", tier: "I", figures: 1, minFigures: 1, maxFigures: 1, melee: 6, ranged: 12, range: 10, armor: 12, speed: 4, morale: 12, pts: 100, specials: ["overrun"], armour: "medium", damageType: "kinetic", armorPen: 9.5, blurb: "Riveted plate on tracks, hot enough inside to cook on, and proof against every rifle on the field.", doctrineNote: "One figure: one loss removes it. Nothing short of a shaped charge or a gun will mark it, so never leave it where a shaped charge can walk up to it." },
+  artillery: { key: "artillery", label: "Siege Piece", short: "Guns", from: "artillery", tier: "I", figures: 1, minFigures: 1, maxFigures: 1, melee: 1, ranged: 16, range: 18, armor: 3, speed: 1, morale: 9, pts: 100, specials: ["bombard"], armour: "light", damageType: "explosive", armorPen: 7, blurb: "A gun the column drags, a crew that reads the ground on paper, and a reach no other section on the field can answer.", doctrineNote: "It covers the whole board and cannot defend a hex of it. Screen it, or lose it to the first section that walks the flank." },
+  fighter: { key: "fighter", label: "Prop Fighter", short: "Fighter", from: "fighter", tier: "I", figures: 1, minFigures: 1, maxFigures: 1, melee: 2, ranged: 13, range: 8, armor: 4, speed: 8, morale: 11, pts: 70, specials: ["strafe"], armour: "light", damageType: "kinetic", armorPen: 6, blurb: "One machine, one pass, and a pilot who will be somewhere else before the dust has settled.", doctrineNote: "Grounded outright by a thunderstorm. Spend it on crews, guns and columns in the open; against a heavy hull it is a nuisance and no more." },
+};
+
+const FOUNDING_FIVE_ROWS = {
+  medic: { key: "medic", label: "Field Medic", pts: 12, mods: {"morale":1,"recoverPerTurn":1}, blurb: "A satchel, a whistle, and the standing to use both. He does not stop casualties; he stops them being permanent." },
+  signaler: { key: "signaler", label: "Signaler", pts: 10, mods: {"initiative":3}, blurb: "Wire, a field set, and the column timetable held in his head. Orders arrive early, or they arrive as news." },
+  commissar: { key: "commissar", label: "Ministry Commissar", pts: 14, mods: {"morale":1,"moraleFloor":11,"executionToll":1}, blurb: "Sent out with a ledger and the authority to close it. The section does not run while he is standing in it." },
+  heavy_gunner: { key: "heavy_gunner", label: "Heavy Gunner", pts: 16, mods: {"aoeSuppress":1}, blurb: "An automatic rifle carried at the expense of everything else in his pack. It kills little and makes a hex unusable." },
+  sapper: { key: "sapper", label: "Sapper", pts: 12, mods: {"buildSpeed":1}, blurb: "Trained on wire, revetment and charge. Any section he is attached to can dig, and digs a turn faster." },
+};
 
 const stripUi = (v) => {
   if (Array.isArray(v)) return v.map(stripUi);
@@ -982,11 +1084,28 @@ describe("tactical mirror — row completeness (check 5)", () => {
     "armour", "damageType", "armorPen", "blurb", "doctrineNote",
   ];
 
-  it("the base nine are exactly the base nine, in plan order", () => {
-    expect(SQUAD_TYPE_KEYS).toEqual([
-      "riflemen", "assault", "gunners", "scouts", "mortars", "pioneers",
-      "crawler", "artillery", "fighter",
-    ]);
+  it("the base nine lead the table, in plan order, and nothing appended displaces them", () => {
+    // WAS: expect(SQUAD_TYPE_KEYS).toEqual([...the nine...]) — a cap, which is
+    // the drift-vs-growth defect: it forbade Lane F's contracted append while
+    // proving nothing about the nine that the pin below does not prove better.
+    expect(SQUAD_TYPE_KEYS.slice(0, BASE_NINE.length)).toEqual(BASE_NINE);
+    // Growth happens AFTER them, never among them, and never by re-keying one.
+    expect(SQUAD_TYPE_KEYS.length).toBeGreaterThanOrEqual(BASE_NINE.length);
+    expect(new Set(SQUAD_TYPE_KEYS).size, "a duplicate squad key").toBe(SQUAD_TYPE_KEYS.length);
+    for (const k of SQUAD_TYPE_KEYS.slice(BASE_NINE.length)) {
+      expect(BASE_NINE, `${k} appended over a base key`).not.toContain(k);
+    }
+  });
+
+  it("the base nine rows are UNCHANGED, field for field, against the frozen pin", () => {
+    // This is what replaces the cap, and it is strictly stronger than the cap
+    // ever was: the cap only ever asserted the KEY LIST. A stat re-tuned, a
+    // field dropped, a blurb rewritten or a row re-keyed all passed it. Every
+    // one of them goes red here.
+    expect(Object.keys(BASE_NINE_ROWS), "the fixture is the base nine, in order").toEqual(BASE_NINE);
+    for (const k of BASE_NINE) {
+      expect(SQUAD_TYPES[k], `${k} has drifted from the row Lane A shipped`).toEqual(BASE_NINE_ROWS[k]);
+    }
   });
 
   it("every squad row defines all 21 fields", () => {
@@ -996,19 +1115,46 @@ describe("tactical mirror — row completeness (check 5)", () => {
       expect(Object.keys(row).sort()).toEqual([...SQUAD_FIELDS].sort());
       for (const f of SQUAD_FIELDS) expect(row[f], `${k}.${f}`).toBeDefined();
       expect(row.key).toBe(k);
-      expect(row.tier).toBe("I");
+      // WAS: expect(row.tier).toBe("I") — a structural ban on the tiers section
+      // 4 defines and section 3 REQUIRES Lane F to use (flame_team is 'II:Eng',
+      // land_dreadnought is 'III'). The rule that is actually true of every row
+      // is membership of the tier vocabulary; 'I' remains pinned for the base
+      // nine by the frozen-row gate above.
+      expect(TIER_VOCAB, `${k}.tier`).toContain(row.tier);
+      expect(typeof row.from, `${k}.from`).toBe("string");
+      for (const f of ["figures", "minFigures", "maxFigures", "melee", "ranged", "range", "armor", "speed", "morale", "pts", "armorPen"]) {
+        expect(typeof row[f], `${k}.${f} must be a number`).toBe("number");
+        expect(Number.isFinite(row[f]), `${k}.${f}`).toBe(true);
+      }
+      expect(Array.isArray(row.specials), `${k}.specials`).toBe(true);
       expect(row.minFigures).toBeLessThanOrEqual(row.figures);
       expect(row.figures).toBeLessThanOrEqual(row.maxFigures);
+      expect(row.minFigures, `${k}.minFigures`).toBeGreaterThan(0);
       expect(String(row.blurb).length).toBeGreaterThan(30);
       expect(String(row.doctrineNote).length).toBeGreaterThan(30);
     }
+    // The base nine specifically are all tier I — the claim the old assertion
+    // was reaching for, said about the rows it is actually true of.
+    for (const k of BASE_NINE) expect(SQUAD_TYPES[k].tier, `${k}.tier`).toBe("I");
   });
 
-  it("five specialists, each with at least one numeric mod", () => {
-    expect(Object.keys(SPECIALISTS)).toEqual(["medic", "signaler", "commissar", "heavy_gunner", "sapper"]);
+  it("the founding five lead the table UNCHANGED, and every specialist carries a numeric mod", () => {
+    // WAS: expect(Object.keys(SPECIALISTS)).toEqual([...the five...]) — the same
+    // cap, against a table Lane F is contracted to take from five to ten.
+    expect(Object.keys(SPECIALISTS).slice(0, FOUNDING_FIVE.length)).toEqual(FOUNDING_FIVE);
+    expect(new Set(Object.keys(SPECIALISTS)).size).toBe(Object.keys(SPECIALISTS).length);
+    expect(Object.keys(FOUNDING_FIVE_ROWS)).toEqual(FOUNDING_FIVE);
+    for (const k of FOUNDING_FIVE) {
+      expect(SPECIALISTS[k], `${k} has drifted from the row Lane A shipped`).toEqual(FOUNDING_FIVE_ROWS[k]);
+    }
+    // ...and the vocabulary rule below binds EVERY specialist, appended ones
+    // included, which is the half of this gate that had to survive the append.
     const VOCAB = ["morale", "initiative", "recoverPerTurn", "moraleFloor", "aoeSuppress", "buildSpeed", "executionToll"];
     for (const k of Object.keys(SPECIALISTS)) {
       const s = SPECIALISTS[k];
+      expect(Object.keys(s).sort(), `${k} field set`).toEqual(["blurb", "key", "label", "mods", "pts"]);
+      expect(s.key, `${k}.key`).toBe(k);
+      expect(String(s.blurb).length, `${k}.blurb`).toBeGreaterThan(30);
       const mods = Object.keys(s.mods);
       expect(mods.length, `${k} has no numeric mod`).toBeGreaterThanOrEqual(1);
       for (const m of mods) {
@@ -1083,9 +1229,18 @@ describe("tactical mirror — row completeness (check 5)", () => {
 });
 
 describe("tactical mirror — regiment integrity (check 6)", () => {
-  it("every source regiment is a column key, and six of nine are riflemen", () => {
+  it("every source regiment is a column key, and the base nine's six are the named six", () => {
+    // The `from` rule binds EVERY row — an appended type drawn from a regiment
+    // that does not exist is exactly the drift this gate is for, and it is the
+    // half that had to survive Lane F's append.
     for (const k of SQUAD_TYPE_KEYS) expect(COLUMN_KEYS, `${k}.from`).toContain(SQUAD_TYPES[k].from);
-    expect(SQUAD_TYPE_KEYS.filter((k) => SQUAD_TYPES[k].from === "riflemen")).toHaveLength(6);
+    // WAS: .filter(from === "riflemen")).toHaveLength(6) over the WHOLE table —
+    // a count, which an appended riflemen-derived row falsifies without anything
+    // having drifted. Section 13.2's claim is about the base nine, so it is
+    // asserted about the base nine, and by NAME rather than by arithmetic: a
+    // count of six passes even after two of the six have been re-sourced.
+    expect(BASE_NINE.filter((k) => SQUAD_TYPES[k].from === "riflemen")).toEqual(BASE_NINE_FROM_RIFLEMEN);
+    expect(BASE_NINE.filter((k) => SQUAD_TYPES[k].from !== "riflemen")).toEqual(["crawler", "artillery", "fighter"]);
   });
 
   it("the hard figure values hold", () => {
@@ -1113,7 +1268,9 @@ describe("tactical mirror — regiment integrity (check 6)", () => {
 describe("tactical mirror — builds agree with the works (check 7)", () => {
   it("every build order names a real work and takes exactly its build time", () => {
     const builds = SQUAD_ACTION_KEYS.filter((k) => k.startsWith("build_"));
-    expect(builds).toHaveLength(4);
+    // Counted from DEPLOYABLES rather than typed as 4: one build order per work
+    // is the invariant, and a literal count is a fact that goes stale silently.
+    expect(builds).toHaveLength(DEPLOYABLE_KEYS.length);
     for (const k of builds) {
       const a = SQUAD_ACTIONS[k];
       expect(DEPLOYABLE_KEYS, `${k}.builds`).toContain(a.builds);
@@ -1398,13 +1555,44 @@ describe("tactical mirror — action gating (check 11)", () => {
     // Both directions, because one direction alone passes a table that has
     // drifted. A tag with no action, and an action gated to a type that does
     // not claim it, are both failures.
+    //
+    // WAS: strict equality of the two sets for EVERY row. That is true of the
+    // base nine and structurally false for an appended one: SQUAD_ACTIONS is
+    // Lane A's table and Lane F may not edit it, so a Lane F row is gated by
+    // rule (c) — the TYPE names the action in its own `specials` — and its
+    // `requires.types` side is legitimately empty. Requiring equality of every
+    // row therefore forbade the append the table's own header says it supports.
+    //
+    // The two rules that hold for EVERY row, base or appended:
     for (const k of SQUAD_TYPE_KEYS) {
+      // (1) no decorative tag — every tag names a real order.
+      for (const s of SQUAD_TYPES[k].specials) expect(SQUAD_ACTION_KEYS, `${k} tag ${s}`).toContain(s);
+      expect(new Set(SQUAD_TYPES[k].specials).size, `${k}.specials repeats a tag`).toBe(SQUAD_TYPES[k].specials.length);
+      // (2) no orphaned gate — an order gated to this type is claimed by it.
+      //     This direction is Lane A's own table talking about Lane A's own
+      //     table, so it stays total: it catches requires.types naming a type
+      //     that does not claim the order, for appended rows as well.
+      const gated = SQUAD_ACTION_KEYS
+        .filter((a) => SQUAD_ACTIONS[a].requires && (SQUAD_ACTIONS[a].requires.types || []).includes(k));
+      for (const a of gated) {
+        expect(SQUAD_TYPES[k].specials, `SQUAD_ACTIONS.${a} is gated to ${k}, which does not claim it`).toContain(a);
+      }
+      // (3) whatever the route, the tag must actually reach the squad — the
+      //     union rule (b)/(c) is asserted, not assumed.
+      const offered = squadActions(k, []);
+      for (const s of SQUAD_TYPES[k].specials) {
+        expect(offered, `${k} declares ${s} and is not offered it`).toContain(s);
+      }
+    }
+    // And for the base nine the two ends are the SAME statement written twice,
+    // which is what the table's header claims and what the old gate was really
+    // asserting. Held exactly, for the rows it is exactly true of.
+    for (const k of BASE_NINE) {
       const declared = [...SQUAD_TYPES[k].specials].sort();
       const gated = SQUAD_ACTION_KEYS
         .filter((a) => SQUAD_ACTIONS[a].requires && (SQUAD_ACTIONS[a].requires.types || []).includes(k))
         .sort();
       expect(declared, `${k}.specials disagrees with SQUAD_ACTIONS.requires.types`).toEqual(gated);
-      for (const s of SQUAD_TYPES[k].specials) expect(SQUAD_ACTION_KEYS, `${k} tag ${s}`).toContain(s);
     }
   });
 
@@ -1522,8 +1710,13 @@ describe("tactical mirror — the points anchor and the audit (check 13)", () =>
     expect(m, "13.7 no longer states the tight bound").toBeTruthy();
     const bound = Number(m[1]) / 100;
     expect(bound).toBeLessThan(POINTS_MODEL.efficiencyCap - 1);
+    // Scoped to the BASE NINE, because that is what the sentence says — "the
+    // widest of these nine". Sweeping the whole table would have made a Lane F
+    // row priced at 1.1 fail a claim it was never making, which is the
+    // drift-vs-growth defect wearing a different hat. The bound that binds an
+    // appended row is POINTS_MODEL.efficiencyCap, asserted over every row below.
     let widest = 0;
-    for (const k of SQUAD_TYPE_KEYS) widest = Math.max(widest, Math.abs(1 - typeEfficiency(k)));
+    for (const k of BASE_NINE) widest = Math.max(widest, Math.abs(1 - typeEfficiency(k)));
     expect(widest, `the widest base type is ${(widest * 100).toFixed(2)}% off, past the ${m[1]}% 13.7 claims`)
       .toBeLessThanOrEqual(bound);
     // The bound is TIGHT, not decorative: it must be within reach of the roster
@@ -1615,17 +1808,44 @@ describe("tactical mirror — the points anchor and the audit (check 13)", () =>
 });
 
 describe("tactical mirror — the design document is recomputed, not retyped (check 13b)", () => {
-  it("the squad stat table in COMBAT_DESIGN.md matches SQUAD_TYPES", () => {
+  // THE SCOPE DECISION, MADE EXPLICITLY AND THEN GATED.
+  //
+  // These tables used to be sized by SQUAD_TYPE_KEYS.length and SPECIALISTS —
+  // "the document prints every row there is". That is a cap on tables Lane F is
+  // contracted to append to, and worse, it was a cap Lane F could not clear:
+  // §13 of COMBAT_DESIGN.md is LANE A's file, so a lane appending a squad row
+  // would have had to reach into another lane's document to make this gate
+  // green, which §3 forbids outright.
+  //
+  // The decision is therefore that §13 documents the CORE ROSTER — the base
+  // nine and the founding five — and that appended rows are documented and
+  // priced in docs/GEAR_LIBRARY.md, which §3 assigns to Lane F together with
+  // its own Points Audit against the same anchor. That is not a silent
+  // convention: it is written above each table in the document, and the helper
+  // below reads the sentence back, so a later lane cannot discover the boundary
+  // by failing a test, and cannot quietly widen a table without moving the
+  // sentence first.
+  const expectCoreRosterScope = (section, label) => {
+    expect(section, `${label} no longer declares its scope`).toMatch(/\*Scope: the core roster only\./);
+    expect(section, `${label}'s scope does not say where appended rows go`).toContain("docs/GEAR_LIBRARY.md");
+  };
+
+  it("the squad stat table in COMBAT_DESIGN.md prints the core roster, cell for cell", () => {
+    expectCoreRosterScope(docSection(DESIGN_DOC, /^### 13\.2 /), "13.2");
     const { header, body } = parseMdTable(DESIGN_DOC, /^### 13\.2 The base nine/);
     expect(header[0]).toBe("Type");
-    expect(body).toHaveLength(SQUAD_TYPE_KEYS.length);
+    // Scoped to the base nine, in both directions: the table prints all nine
+    // and prints nothing else, so a row dropped from the document and a row
+    // documented for a type that no longer exists both go red.
+    expect(body).toHaveLength(BASE_NINE.length);
     const col = (name) => {
       const i = header.indexOf(name);
       expect(i, `column ${name}`).toBeGreaterThan(-1);
       return i;
     };
     body.forEach((row, i) => {
-      const k = SQUAD_TYPE_KEYS[i];
+      const k = BASE_NINE[i];
+      expect(SQUAD_TYPES, `13.2 documents ${k}, which is not a squad type`).toHaveProperty(k);
       const t = SQUAD_TYPES[k];
       expect(row[0], `row ${i}`).toBe(`\`${k}\``);
       expect(row[col("From")]).toBe(`\`${t.from}\``);
@@ -1637,16 +1857,18 @@ describe("tactical mirror — the design document is recomputed, not retyped (ch
     });
   });
 
-  it("the points audit in COMBAT_DESIGN.md is recomputed cell by cell", () => {
+  it("the points audit in COMBAT_DESIGN.md is recomputed cell by cell, over the core roster", () => {
+    expectCoreRosterScope(docSection(DESIGN_DOC, /^### 13\.7 /), "13.7");
     const { header, body } = parseMdTable(DESIGN_DOC, /^### 13\.7 The Points Audit/);
-    expect(body).toHaveLength(SQUAD_TYPE_KEYS.length);
+    expect(body).toHaveLength(BASE_NINE.length);
     const iValue = header.indexOf("Combat value");
     const iFair = header.indexOf("Fair pts");
     const iPts = header.indexOf("Asked pts");
     const iEff = header.indexOf("Efficiency");
     expect(Math.min(iValue, iFair, iPts, iEff)).toBeGreaterThan(-1);
     body.forEach((row, i) => {
-      const k = SQUAD_TYPE_KEYS[i];
+      const k = BASE_NINE[i];
+      expect(SQUAD_TYPES, `13.7 audits ${k}, which is not a squad type`).toHaveProperty(k);
       expect(row[0]).toBe(`\`${k}\``);
       expect(num(row[iValue]), `${k} combat value`).toBeCloseTo(combatValue(k), 1);
       expect(num(row[iFair]), `${k} fair pts`).toBeCloseTo(fairPts(k), 1);
@@ -1699,14 +1921,16 @@ describe("tactical mirror — the design document is recomputed, not retyped (ch
     expect(Math.abs(SQUAD_TYPES.riflemen.ranged - ten)).toBeLessThanOrEqual(1);
   });
 
-  it("the specialist table in COMBAT_DESIGN.md matches SPECIALISTS", () => {
+  it("the specialist table in COMBAT_DESIGN.md prints the founding five, cell for cell", () => {
+    expectCoreRosterScope(docSection(DESIGN_DOC, /^### 13\.3 /), "13.3");
     const { header, body } = parseMdTable(DESIGN_DOC, /^### 13\.3 The five specialists/);
-    expect(body).toHaveLength(Object.keys(SPECIALISTS).length);
+    expect(body).toHaveLength(FOUNDING_FIVE.length);
     const iPts = header.indexOf("pts");
     const iMods = header.indexOf("Numeric mods");
     expect(Math.min(iPts, iMods)).toBeGreaterThan(-1);
     body.forEach((row, i) => {
-      const k = Object.keys(SPECIALISTS)[i];
+      const k = FOUNDING_FIVE[i];
+      expect(SPECIALISTS, `13.3 documents ${k}, which is not a specialist`).toHaveProperty(k);
       expect(row[0]).toBe(`\`${k}\``);
       expect(num(row[iPts]), `${k} pts`).toBe(SPECIALISTS[k].pts);
       for (const m of Object.keys(SPECIALISTS[k].mods)) {
@@ -2162,17 +2386,29 @@ describe("tactical mirror — the worked example is worked, not written (13.11)"
     }
   });
 
-  it("the three types the roster table leaves out really would add nothing to it", () => {
+  it("the three of the base nine the roster table leaves out really would add nothing to it", () => {
     // The prose gives a reason for six rows where there are nine types. If a
     // later lane gave one of the three a damaging verb of its own, the reason
     // would stop being true and the table would quietly be incomplete.
+    //
+    // WAS: omitted = SQUAD_TYPE_KEYS.filter(...) over the WHOLE table, so every
+    // row Lane F appends landed in `omitted` and the sort() equality went red on
+    // growth — while the claim being checked is 13.11's, and 13.11 is scoped to
+    // the base nine (the sentence above the table says so, and this gate reads
+    // it back). The reason-giving loop below is unchanged and still total over
+    // the three: it is the half that catches a real regression.
     const [, hits, roster] = parseMdTables(DESIGN_DOC, SECTION);
+    expect(docSection(DESIGN_DOC, SECTION), "13.11 no longer declares its scope")
+      .toMatch(/\*Scope: the core roster only\./);
     const shownTypes = new Set(roster.body.map((r) => bare(r[0])));
     const shownActions = new Set(
       roster.body.map((r) => bare(r[1])).concat(hits.body.map((r) => bare(r[0]))),
     );
     const universal = SQUAD_ACTION_KEYS.filter((k) => !SQUAD_ACTIONS[k].requires);
-    const omitted = SQUAD_TYPE_KEYS.filter((k) => !shownTypes.has(k));
+    // The table is the base nine's, so nothing outside the base nine may appear
+    // in it either — that direction survives the append and is worth keeping.
+    for (const t of shownTypes) expect(BASE_NINE, `13.11 shows ${t}, which is not one of the base nine`).toContain(t);
+    const omitted = BASE_NINE.filter((k) => !shownTypes.has(k));
     expect(omitted.sort()).toEqual(["assault", "pioneers", "scouts"]);
     for (const k of omitted) {
       for (const action of squadActions(k, []).filter((a) => !universal.includes(a))) {
@@ -2194,13 +2430,22 @@ describe("tactical mirror — the worked example is worked, not written (13.11)"
       .reduce((m, action) => Math.max(m, resolveSquadHit({
         attacker: { type: typeKey, figures: SQUAD_TYPES[typeKey].figures }, action, targetArmour: armour,
       }).effective), 0);
-    const canHurt = (armour) => SQUAD_TYPE_KEYS.filter((k) => best(k, armour) > 0);
+    // Enumerated over the BASE NINE, which is what both sentences are about —
+    // the document says so above the table and the assertion below reads it
+    // back. WAS: SQUAD_TYPE_KEYS, i.e. the whole table, which turned "these six
+    // of the nine cannot scratch a bunker" into "no squad type may ever be able
+    // to", and would have gone red the day Lane F merged the relic land
+    // dreadnought §3 requires it to add. The counts still have teeth: they are
+    // enumerated, not asserted in prose, and re-tuning any base row's kit until
+    // it can crack a bunker still fails them.
+    const canHurt = (armour) => BASE_NINE.filter((k) => best(k, armour) > 0);
     // "the three that can are the gun, the aeroplane and the tracks"
     expect(canHurt("fortified").sort()).toEqual(["artillery", "crawler", "fighter"]);
-    // "exactly one order in the roster puts a number on it — the crawler"
+    // "exactly one order in the base nine puts a number on it — the crawler"
     expect(canHurt("superheavy")).toEqual(["crawler"]);
     const section = docSection(DESIGN_DOC, SECTION);
     expect(section).toMatch(/gun, the aeroplane and the tracks/);
+    expect(section, "13.11 no longer scopes those counts to the base nine").toMatch(/base nine/);
   });
 });
 
