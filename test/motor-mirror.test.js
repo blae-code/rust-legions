@@ -19,7 +19,9 @@ import { readRepoFile, extractConst } from "./helpers/extract-const.js";
 import * as MIRROR from "@/lib/motorPool.js";
 import {
   MANUFACTURERS, WEAPON_PATTERNS, ARMOUR_CLASSES, WEAPON_CLASSES, QUALITY_GRADES,
+  HOUSE_KEYS, apValue, aaValue,
 } from "@/lib/arms.js";
+import { UNIT_TYPES } from "@/lib/units.js";
 import { IMAGE_LIBRARY, IMAGE_CATEGORIES, HOUSE_STYLE } from "@/lib/imageLibrary.js";
 import { ENTRIES } from "@/lib/wiki/entries.js";
 
@@ -68,6 +70,22 @@ const REGIMENT_KEYS = ["riflemen", "crawler", "artillery", "fighter", "gunboat"]
 const words = (s) => s.trim().split(/\s+/).length;
 const av = (k) => ARMOUR_CLASSES[k].armourValue;
 const round4 = (n) => Math.round(n * 10000) / 10000;
+// The heading suffix every content lane's draft rules section carries, and
+// the Codex ids this lane ships — both derived, so neither can drift from the
+// tables they are built out of.
+// Spelled-out counts are used in the prose on purpose: they read better and
+// they are just as checkable, because every test below BUILDS the expected
+// phrase from the table rather than reading a digit out of the document.
+const WORD = {
+  3: "three", 4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight", 9: "nine",
+  10: "ten", 11: "eleven", 12: "twelve", 13: "thirteen", 14: "fourteen",
+  16: "sixteen", 20: "twenty", 24: "twenty-four", 34: "thirty-four",
+};
+const PROPOSED = "[PROPOSED — awaiting platform wiring]";
+const MOTOR_ENTRY_IDS = new Set([
+  ...MOTOR_WORKS_KEYS.map((k) => `maker-${k.replace(/_/g, "-")}`),
+  ...VEHICLE_CLASSES.map((c) => `vehicle-class-${c.replace(/_/g, "-")}`),
+]);
 
 // ---------------------------------------------------------------------------
 // §1 THE MIRROR INVARIANT
@@ -630,11 +648,6 @@ describe("docs/MOTOR_POOL.md", () => {
     // numbers are used deliberately — they read better and they are just as
     // checkable, because this test builds the expected phrase rather than
     // reading a digit.
-    const WORD = {
-      4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight", 9: "nine", 10: "ten",
-      11: "eleven", 12: "twelve", 13: "thirteen", 16: "sixteen", 20: "twenty",
-      24: "twenty-four", 34: "thirty-four",
-    };
     const doc = DOC.toLowerCase();
     const has = (phrase) => expect(doc, `the document's prose has drifted: expected "${phrase}"`).toContain(phrase.toLowerCase());
 
@@ -648,11 +661,7 @@ describe("docs/MOTOR_POOL.md", () => {
     const motorPlates = IMAGE_LIBRARY.filter((p) => p.category === "motor").length;
     has(`**${motorPlates} placeholder plates**`);
 
-    const MOTOR_IDS = new Set([
-      ...MOTOR_WORKS_KEYS.map((k) => `maker-${k.replace(/_/g, "-")}`),
-      ...VEHICLE_CLASSES.map((c) => `vehicle-class-${c.replace(/_/g, "-")}`),
-    ]);
-    const mine = ENTRIES.filter((e) => MOTOR_IDS.has(e.id));
+    const mine = ENTRIES.filter((e) => MOTOR_ENTRY_IDS.has(e.id));
     has(`${WORD[mine.length]} entries — one per motor-works`);
     has(`${WORD[mine.filter((e) => e.status === "thin").length]} of the ${WORD[mine.length]} are \`status: 'thin'\``);
   });
@@ -661,7 +670,7 @@ describe("docs/MOTOR_POOL.md", () => {
     // BOUNDED AT BOTH ENDS, on both sides. Slicing to end of file would hold
     // only while this lane happened to be the last to append to GAME_RULES.md,
     // and Lane G's section already sits between Lane I's and this one.
-    const TITLE = "The Motor Pool [PROPOSED — awaiting platform wiring]";
+    const TITLE = `The Motor Pool ${PROPOSED}`;
     const heading = () => new RegExp(`^## \\d+\\. ${TITLE.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "gm");
     const section = (src, where) => {
       const hits = [...src.matchAll(heading())];
@@ -679,16 +688,418 @@ describe("docs/MOTOR_POOL.md", () => {
     expect(inDoc, "the two copies of the proposed rules section have drifted").toBe(inRules);
   });
 
-  it("docs/GAME_RULES.md keeps every pre-existing numbered section, unrenumbered", () => {
-    const rules = readRepoFile("docs/GAME_RULES.md");
-    const numbers = [...rules.matchAll(/^## (\d+)\. (.+)$/gm)].map((m) => Number(m[1]));
-    // 1..24 were there before this lane; 25 is this lane's.
-    for (let n = 1; n <= 24; n++) expect(numbers, `§${n} went missing`).toContain(n);
-    expect(numbers).toContain(25);
+  // The 22 sections that predate this whole wave, in order, by number AND by
+  // wording. Lane I's and Lane G's [PROPOSED] sections sit after them and are
+  // deliberately NOT pinned to a number here: the orchestrator renumbers
+  // appended sections at merge when two lanes claim the same one, and a test
+  // that hard-codes 25 turns that mechanical fix into someone else's red
+  // build. Nothing below reads a literal section number — this lane's is
+  // DERIVED from its title, which is the one thing a renumber does not touch.
+  const PRE_WAVE = [
+    "Victory Conditions",
+    "Resources & Economy",
+    "Buildings",
+    "Units",
+    "Garrison Combat (tile-vs-tile Attack action)",
+    "Terrain & Elevation",
+    "Supply & Logistics",
+    "Weather",
+    "Field Armies & Generals (Mass Combat)",
+    "Artillery Bombardment",
+    "Army Designs (Design Bureau)",
+    "Reconnaissance Probe",
+    "Faction Point-Buy Perks",
+    "NPC AI (per turn)",
+    "Game Setup",
+    "Fog of War & Intel",
+    'Diplomacy — The Envoy Desk (v1.1.0 "The Envoy Accords")',
+    "Mobile Fortress-Bases (vanilla-era slice)",
+    "Doctrine Research (Directorate of War Sciences)",
+    "The State Armory (off-turn unlocks)",
+    "Command Vehicles & Refit Logistics",
+    "Macro Operations (experimental world model — slices M1–M3a)",
+  ];
+  const rulesHeadings = () => [...readRepoFile("docs/GAME_RULES.md")
+    .matchAll(/^## (\d+)\. (.+)$/gm)]
+    .map((m) => ({ n: Number(m[1]), title: m[2], at: m.index }));
+  const mySection = () => {
+    const mine = rulesHeadings().filter((h) => h.title === `The Motor Pool ${PROPOSED}`);
+    expect(mine.length, "expected exactly one Motor Pool section in docs/GAME_RULES.md").toBe(1);
+    return mine[0];
+  };
+
+  it("docs/GAME_RULES.md keeps every pre-existing section, unrenumbered and unreworded", () => {
+    const headings = rulesHeadings();
+    PRE_WAVE.forEach((title, i) => {
+      const h = headings.find((x) => x.n === i + 1);
+      expect(h, `§${i + 1} went missing`).toBeDefined();
+      expect(h.title, `§${i + 1} was reworded`).toBe(title);
+    });
+    const numbers = headings.map((h) => h.n);
     expect(new Set(numbers).size, "a section number is duplicated").toBe(numbers.length);
-    expect(Math.max(...numbers)).toBe(25);
-    // the new section is the LAST one in the file
-    expect(rules.lastIndexOf("\n## ")).toBe(rules.lastIndexOf("\n## 25. "));
+    // headings are matched in file order, so this also proves nothing was
+    // inserted out of sequence — and it survives a later lane appending.
+    expect(numbers, "section numbers are not 1..N in file order")
+      .toEqual(numbers.map((_, i) => i + 1));
+
+    const mine = mySection();
+    expect(mine.n, "this lane's section must be appended after the pre-wave rules")
+      .toBeGreaterThan(PRE_WAVE.length);
+    const lastPreWave = Math.max(...headings.filter((h) => h.n <= PRE_WAVE.length).map((h) => h.at));
+    expect(mine.at, "this lane's section must sit after every pre-existing one")
+      .toBeGreaterThan(lastPreWave);
+  });
+
+  it("every section number this lane quotes is the number GAME_RULES.md actually uses", () => {
+    // Three places name the number, and a renumber must move all three. This
+    // is what makes that renumber mechanical instead of a silent falsehood:
+    // §14's prose, §14's embedded copy of the heading, and nothing else.
+    const n = mySection().n;
+    const quoted = DOC.match(/is numbered \*\*§(\d+)\*\*/);
+    expect(quoted, "§14 must state the GAME_RULES number it was appended as").not.toBeNull();
+    expect(Number(quoted[1]), "§14's prose quotes a number GAME_RULES.md does not use").toBe(n);
+    expect(DOC, "§14's embedded copy carries a different number")
+      .toContain(`\n## ${n}. The Motor Pool ${PROPOSED}`);
+    // and no OTHER number is claimed anywhere in this lane's prose
+    const claims = new Set([...DOC.matchAll(/GAME_RULES(?:\.md)? §(\d+)/g)].map((m) => Number(m[1])));
+    for (const c of claims) expect(c, "docs/MOTOR_POOL.md cites a stale GAME_RULES section").toBe(n);
+  });
+
+  it("no shipped Codex entry hard-codes a GAME_RULES section number", () => {
+    // The Codex block is appended to a file Lane H owns and merges AFTER this
+    // lane, so a number inside it is the one place a renumber could not be
+    // fixed by editing this lane's own files. The entries name the section by
+    // title instead; this asserts they keep doing so.
+    const block = JSON.stringify(ENTRIES.filter((e) => MOTOR_ENTRY_IDS.has(e.id)));
+    expect(block.match(/GAME_RULES(?:\.md)? ?§ ?\d+/), "a Codex entry pins a section number").toBeNull();
+    expect(block, "the Codex must still point at the draft section by title")
+      .toContain("Motor Pool section of docs/GAME_RULES.md");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// §3b THE DOCUMENT RESTATES THE CATALOGUE — AND EVERY RESTATEMENT IS PARSED
+// ---------------------------------------------------------------------------
+//
+// §3 to §8 repeat six catalogue tables in markdown, and §13 quotes a dozen
+// figures derived from Lane I's. Wave 1's audit caught a cost curve that was
+// arithmetically false against its own tree, restated in three places and
+// checked by nothing; §9 and §10 were already parsed row for row above, and
+// this block is the other six tables plus the derived prose. Nothing here is
+// proof-read: every number is recomputed from the table it claims to describe.
+describe("docs/MOTOR_POOL.md restates the catalogue, and the restatements are parsed", () => {
+  const cells = (l) => l.slice(1, l.lastIndexOf("|")).split(" | ").map((c) => c.trim());
+  const tablesIn = (heading) => {
+    const start = DOC.indexOf(`\n## ${heading}`);
+    expect(start, `${heading} is missing`).toBeGreaterThan(-1);
+    const next = DOC.indexOf("\n## ", start + 1);
+    const lines = DOC.slice(start, next === -1 ? DOC.length : next).split("\n");
+    const runs = [];
+    let run = null;
+    for (const l of lines) {
+      if (l.startsWith("|")) { (run ||= []).push(l); continue; }
+      if (run) { runs.push(run); run = null; }
+    }
+    if (run) runs.push(run);
+    return runs.map((r) => {
+      expect(r.length, `${heading}: a table needs a header, a rule and rows`).toBeGreaterThan(2);
+      expect(r[1].replace(/[|\-\s]/g, ""), `${heading}: line 2 must be the rule`).toBe("");
+      return { header: cells(r[0]), rows: r.slice(2).map(cells) };
+    });
+  };
+  const table = (heading, firstColumn) => {
+    const hit = tablesIn(heading).filter((t) => t.header[0] === firstColumn);
+    expect(hit.length, `expected one table headed "${firstColumn}" in ${heading}`).toBe(1);
+    return hit[0];
+  };
+  const plain = (c) => c.replace(/`/g, "").replace(/\*\*/g, "").replace(/−/g, "-").replace(/°/g, "").trim();
+  const num = (c) => {
+    const n = Number(plain(c));
+    expect(Number.isFinite(n), `"${c}" is not a number`).toBe(true);
+    return n;
+  };
+  // "`armorPen +0.35`, `rateOfFire −0.15`" → { armorPen: 0.35, rateOfFire: -0.15 }
+  const pairs = (cell, sep) => {
+    const out = {};
+    for (const part of cell.split(sep).map(plain).filter(Boolean)) {
+      const m = part.match(/^([A-Za-z_]+)\s+([+-]?[\d.]+)$/);
+      expect(m, `unparseable "${part}"`).not.toBeNull();
+      out[m[1]] = Number(m[2]);
+    }
+    return out;
+  };
+  const FLAT = DOC.replace(/\s+/g, " ");
+
+  it("§3's motor-works table matches the MANUFACTURERS rows this lane appended", () => {
+    const { rows } = table("3. The Motor Works", "Key");
+    expect(rows.length, "§3 must list every mw_* works").toBe(MOTOR_WORKS_KEYS.length);
+    for (const [keyCell, label, tie, lean] of rows) {
+      const key = plain(keyCell);
+      expect(MOTOR_WORKS_KEYS, `${key} is not in MOTOR_WORKS_KEYS`).toContain(key);
+      const m = MANUFACTURERS[key];
+      expect(m, `${key} is not in MANUFACTURERS`).toBeDefined();
+      expect(m.label, `${key} label`).toBe(label);
+      const [kind, value] = tie.split(/\s+/);
+      expect(["house", "culture"], `${key} tie kind`).toContain(kind);
+      expect(kind === "house" ? m.houseKey : m.culture, `${key} tie`).toBe(plain(value));
+      expect(pairs(lean, ","), `${key} signature`).toEqual(m.signature);
+    }
+  });
+
+  it("§4's chassis table matches CHASSIS_PATTERNS row for row", () => {
+    const { rows } = table("4. Chassis patterns", "Pattern");
+    expect(rows.length, "§4 must list every hull").toBe(CHASSIS_KEYS.length);
+    const byLabel = new Map(CHASSIS_KEYS.map((k) => [CHASSIS_PATTERNS[k].label, CHASSIS_PATTERNS[k]]));
+    for (const [label, cls, tier, works, t, crew, facings, hardpoints, pts] of rows) {
+      const c = byLabel.get(label);
+      expect(c, `§4 names "${label}", which is not in CHASSIS_PATTERNS`).toBeDefined();
+      expect(c.class, `${label} class`).toBe(plain(cls));
+      expect(c.tier, `${label} tier`).toBe(plain(tier));
+      // §4's column drops the works' definite article; §3 keeps it.
+      expect(MANUFACTURERS[c.maker].label.replace(/^The /, ""), `${label} works`)
+        .toBe(works.replace(/^The /, ""));
+      expect(c.hull.tonnage, `${label} tonnage`).toBe(num(t));
+      expect(c.hull.crew, `${label} crew`).toBe(num(crew));
+      expect(facings.split("/").map((x) => plain(x)), `${label} facings`)
+        .toEqual([c.hull.baseArmour.front, c.hull.baseArmour.side, c.hull.baseArmour.rear, c.hull.baseArmour.top]);
+      expect(c.pts, `${label} pts`).toBe(num(pts));
+      // Hardpoints are compared as MECHANICS, not as spelling: "sponson ×2
+      // (hmg)" is two positions that take an hmg, wherever the catalogue keys
+      // them. What must not drift is the count and the allowed lists.
+      const declared = [];
+      for (const part of hardpoints.split(";").map((x) => x.trim())) {
+        const m = part.match(/^(.+?)(?: ×(\d+))? \(([^)]+)\)$/);
+        expect(m, `${label}: unparseable hardpoint "${part}"`).not.toBeNull();
+        const allowed = m[3].split(",").map((x) => plain(x)).join("+");
+        for (let i = 0; i < Number(m[2] || 1); i++) declared.push(allowed);
+      }
+      expect(declared.sort(), `${label} hardpoints`)
+        .toEqual(c.hull.hardpoints.map((h) => h.allowed.join("+")).sort());
+    }
+    expect(new Set(rows.map((r) => r[0])).size, "§4 lists a hull twice").toBe(rows.length);
+  });
+
+  it("§5's powerplant table matches POWERPLANTS row for row", () => {
+    const { rows } = table("5. Powerplants & the speed curve", "Plant");
+    expect(rows.length, "§5 must list every plant").toBe(Object.keys(POWERPLANTS).length);
+    const byLabel = new Map(Object.values(POWERPLANTS).map((p) => [p.label, p]));
+    for (const [label, hp, t, rel, fuel, heat] of rows) {
+      const p = byLabel.get(label);
+      expect(p, `§5 names "${label}", which is not in POWERPLANTS`).toBeDefined();
+      expect(p.hp, `${label} hp`).toBe(num(hp));
+      expect(p.weight, `${label} weight`).toBe(num(t));
+      expect(p.reliability, `${label} reliability`).toBe(num(rel));
+      expect(p.fuelClass, `${label} fuelClass`).toBe(plain(fuel));
+      expect(p.heat, `${label} heat`).toBe(num(heat));
+    }
+  });
+
+  it("§5's published curve is SPEED_CURVE, and the samples straddle every step", () => {
+    const { rows } = table("5. Powerplants & the speed curve", "`minRatio` (hp per tonne)");
+    expect(rows.map(([r, s]) => ({ minRatio: num(r), speed: num(s) })), "§5's curve has drifted")
+      .toEqual(MIRROR.SPEED_CURVE);
+    // Every step of the curve is exercised by a documented sample, so a row
+    // could not be deleted and leave the sample table still passing.
+    const samples = extractConst(DOC, "SPEED_CURVE_SAMPLES");
+    MIRROR.SPEED_CURVE.forEach((step, i) => {
+      const upper = MIRROR.SPEED_CURVE[i + 1] ? MIRROR.SPEED_CURVE[i + 1].minRatio : Infinity;
+      expect(samples.some((s) => s.hp / s.tonnage >= step.minRatio && s.hp / s.tonnage < upper),
+        `no documented sample lands on the ${step.minRatio} hp/t step`).toBe(true);
+    });
+  });
+
+  it("§6's armour-package table matches ARMOUR_PACKAGES row for row", () => {
+    const { rows } = table("6. Armour packages & facings", "Package");
+    expect(rows.length, "§6 must list every package").toBe(Object.keys(ARMOUR_PACKAGES).length);
+    const byLabel = new Map(Object.values(ARMOUR_PACKAGES).map((p) => [p.label, p]));
+    for (const [label, facings, t, cost, rel] of rows) {
+      const p = byLabel.get(label);
+      expect(p, `§6 names "${label}", which is not in ARMOUR_PACKAGES`).toBeDefined();
+      const declared = {};
+      ["front", "side", "rear", "top"].forEach((face, i) => {
+        const v = plain(facings.split("/")[i] || "");
+        if (v && v !== "—" && v !== "-") declared[face] = v;
+      });
+      expect(declared, `${label} facings`).toEqual(p.facings);
+      expect(p.weight, `${label} weight`).toBe(num(t));
+      expect(p.cost, `${label} cost`).toBe(num(cost));
+      expect(p.reliability, `${label} reliability delta`).toBe(num(rel));
+    }
+  });
+
+  it("§7's terrain matrix matches SUSPENSIONS cell for cell", () => {
+    const { header, rows } = table("7. Suspension & terrain", "Drive");
+    expect(header.slice(1, -2), "§7's columns are not the terrain vocabulary, in order")
+      .toEqual(TERRAIN_KEYS);
+    expect(header.slice(-2)).toEqual(["+t", "rel"]);
+    expect(rows.length, "§7 must list every drive").toBe(Object.keys(SUSPENSIONS).length);
+    const byLabel = new Map(Object.values(SUSPENSIONS).map((s) => [s.label, s]));
+    for (const row of rows) {
+      const s = byLabel.get(row[0]);
+      expect(s, `§7 names "${row[0]}", which is not in SUSPENSIONS`).toBeDefined();
+      TERRAIN_KEYS.forEach((t, i) => {
+        expect(s.terrain[t], `${row[0]} × ${t}`).toBe(num(row[i + 1]));
+      });
+      expect(s.weight, `${row[0]} weight`).toBe(num(row[row.length - 2]));
+      expect(s.reliability, `${row[0]} reliability`).toBe(num(row[row.length - 1]));
+    }
+    // §7's prose counts the drives that claim to cross an impassable hex.
+    const TERRAIN = extractConst(readRepoFile("base44/shared/tacticalField.ts"), "TERRAIN");
+    const impassable = Object.keys(TERRAIN).filter((t) => TERRAIN[t].moveCost === null);
+    const crossers = Object.values(SUSPENSIONS).filter((s) => impassable.some((t) => s.terrain[t] > 0));
+    const said = FLAT.match(/only ([\w-]+) drives make it/);
+    expect(said, "§7 must count the drives that cross an impassable hex").not.toBeNull();
+    expect(said[1].toLowerCase(), `§7 says "${said[1]}"; ${crossers.length} drives do`)
+      .toBe(WORD[crossers.length]);
+  });
+
+  it("§8's mount table matches MOUNTS row for row, crew-exposure column included", () => {
+    const { rows } = table("8. Turrets & mounts", "Mount");
+    expect(rows.length, "§8 must list every mount").toBe(Object.keys(MOUNTS).length);
+    const byLabel = new Map(Object.values(MOUNTS).map((m) => [m.label, m]));
+    for (const [label, hardpoints, arc, crewArmour, morale] of rows) {
+      const m = byLabel.get(label);
+      expect(m, `§8 names "${label}", which is not in MOUNTS`).toBeDefined();
+      expect(m.hardpoints, `${label} hardpoints`).toBe(num(hardpoints));
+      expect(m.arc, `${label} arc`).toBe(num(arc));
+      expect(m.crewArmour, `${label} crewArmour`).toBe(plain(crewArmour));
+      // the morale column is not a fourth authored figure — it is the lookup
+      expect(CREW_EXPOSURE_MORALE[m.crewArmour], `${label} crew morale`).toBe(num(morale));
+    }
+    // and §8's prose spells the whole lookup out, so parse that too
+    const quoted = pairs(FLAT.match(/`none [^.]+?fortified [+-]?\d+`/)[0], "`, `");
+    expect(quoted, "§8's crew-exposure prose has drifted from CREW_EXPOSURE_MORALE")
+      .toEqual(CREW_EXPOSURE_MORALE);
+  });
+
+  // -- the derived figures §13 and §6 publish ------------------------------
+  const meanOf = (cls, f) => {
+    const rows = Object.values(WEAPON_PATTERNS).filter((p) => p.class === cls);
+    expect(rows.length, `${cls} has no patterns`).toBeGreaterThan(0);
+    return rows.reduce((t, p) => t + f(p), 0) / rows.length;
+  };
+
+  it("§13's class means are recomputed from WEAPON_PATTERNS, not typed", () => {
+    const quoted = pairs(FLAT.match(/`meanPts` is `([^`]+)`/)[1], "·");
+    expect(Object.keys(quoted).sort(), "§13 must quote every vehicle-capable class")
+      .toEqual([...VEHICLE_CAPABLE].sort());
+    for (const [cls, n] of Object.entries(quoted)) {
+      expect(round4(meanOf(cls, (p) => p.pts)), `§13's meanPts for ${cls}`).toBe(n);
+    }
+  });
+
+  it("§13's anti-armour / anti-personnel split is recomputed from arms.ts", () => {
+    const round2 = (n) => Math.round(n * 100) / 100;
+    const hits = [...FLAT.matchAll(/`(\w+)`[^`]{0,14}`AP ([\d.]+) \/ AA ([\d.]+)`/g)];
+    expect(hits.length, "§13 must quote the split for at least three classes").toBeGreaterThanOrEqual(3);
+    for (const [, cls, ap, aa] of hits) {
+      expect(VEHICLE_CAPABLE, `${cls} is not a vehicle-capable class`).toContain(cls);
+      expect(round2(meanOf(cls, apValue)), `§13's AP mean for ${cls}`).toBe(Number(ap));
+      expect(round2(meanOf(cls, aaValue)), `§13's AA mean for ${cls}`).toBe(Number(aa));
+    }
+    // "`flame` and `mortar` both `AA 0.00`"
+    const both = FLAT.match(/`(\w+)` and `(\w+)` both `AA ([\d.]+)`/);
+    expect(both, "§13 must name the classes with no anti-personnel value").not.toBeNull();
+    for (const cls of [both[1], both[2]]) {
+      expect(round2(meanOf(cls, aaValue)), `${cls} AA`).toBe(Number(both[3]));
+    }
+  });
+
+  it("§13's reference efficiency and the spread of the audit are recomputed", () => {
+    const audit = extractConst(DOC, "POINTS_AUDIT");
+    const ref = audit.find((r) => r.key === "hundredweight_141_line_crawler");
+    const eff = FLAT.match(/`refEff = ([\d.]+) \/ (\d+) = ([\d.]+)`/);
+    expect(eff, "§13 must publish the reference efficiency").not.toBeNull();
+    expect(Number(eff[1]), "§13's reference value").toBe(ref.value);
+    expect(Number(eff[2]), "§13's reference pts").toBe(ref.pts);
+    expect(round4(ref.value / ref.pts), "§13's refEff").toBe(Number(eff[3]));
+
+    const ratios = audit.map((r) => r.ratio).sort((a, b) => a - b);
+    const band = FLAT.match(/widest spread below is `([\d.]+) … ([\d.]+)`/);
+    expect(band, "§13 must publish the spread it claims").not.toBeNull();
+    expect(Number(band[1]), "§13's lowest ratio").toBe(ratios[0]);
+    expect(Number(band[2]), "§13's highest ratio").toBe(ratios[ratios.length - 1]);
+
+    // the four rows §13 calls out by name quote their own audit ratio
+    const called = [...FLAT.matchAll(/\*\*([A-Z][^*]+?)\*\* \((\d\.\d+)\)/g)];
+    expect(called.length, "§13's blind-spot list has changed shape").toBeGreaterThanOrEqual(4);
+    for (const [, name, ratio] of called) {
+      const key = CHASSIS_KEYS.find((k) => CHASSIS_PATTERNS[k].label.startsWith(name));
+      expect(key, `§13 calls out "${name}", which is not a chassis`).toBeDefined();
+      expect(audit.find((r) => r.key === key).ratio, `${name}'s quoted ratio`).toBe(Number(ratio));
+    }
+  });
+
+  it("§6's worked armour example is what the curve actually returns", () => {
+    // "14 t → 17.6 t … from 10.00 to 7.95 and the speed from 4 to 3", and the
+    // carapace at "5.96 hp/t and speed 2". Three tables meet in that sentence.
+    const ref = CHASSIS_PATTERNS.hundredweight_141_line_crawler;
+    const hp = 140;
+    const r2 = (n) => (Math.round(n * 100) / 100).toFixed(2);
+    const glacis = Object.values(ARMOUR_PACKAGES).find((p) => p.label === "Cast Glacis & Nose");
+    const carapace = Object.values(ARMOUR_PACKAGES).find((p) => p.label === "Breakthrough Carapace");
+    expect(glacis, "§6's named case is missing from ARMOUR_PACKAGES").toBeDefined();
+    const loaded = ref.hull.tonnage + glacis.weight;
+    expect(FLAT).toContain(`${ref.hull.tonnage} t → ${loaded} t`);
+    expect(FLAT).toContain(`from ${r2(hp / ref.hull.tonnage)} to ${r2(hp / loaded)}`);
+    expect(speedFromPowerWeight(hp, ref.hull.tonnage), "the unloaded speed").toBe(4);
+    expect(speedFromPowerWeight(hp, loaded), "the loaded speed").toBe(3);
+    expect(FLAT).toContain("the speed from **4 to 3**");
+    const heavy = ref.hull.tonnage + carapace.weight;
+    expect(FLAT).toContain(`${r2(hp / heavy)} hp/t and speed **${speedFromPowerWeight(hp, heavy)}**`);
+    const minus = (n) => String(n).replace("-", "−");
+    expect(FLAT, "§6's stated cost for the named case has drifted")
+      .toContain(`**+${glacis.weight} t** and **${minus(glacis.reliability)}**`);
+  });
+
+  it("the counts §3-§8 state in prose are the counts the tables hold", () => {
+    // Captures the count WORD rather than asserting a phrase is present: a
+    // containment check passes when the same phrase happens to appear
+    // somewhere else in the document, which is how a mutated "Twenty hulls"
+    // survived the first cut of this test untouched.
+    const states = (re, n, what) => {
+      const m = FLAT.match(re);
+      expect(m, `${what}: the document no longer states this count`).not.toBeNull();
+      expect(m[1].toLowerCase(), `${what}: prose says "${m[1]}", the table holds ${n}`).toBe(WORD[n]);
+    };
+    states(/([\w-]+) works are appended/i, MOTOR_WORKS_KEYS.length, "§3 motor works");
+    states(/for all ([\w-]+) house keys/i, HOUSE_KEYS.length, "§3 house access");
+    states(/([\w-]+) hulls, at least one per/i, CHASSIS_KEYS.length, "§4 chassis");
+    states(/spread across all ([\w-]+) tiers/i,
+      new Set(CHASSIS_KEYS.map((k) => CHASSIS_PATTERNS[k].tier)).size, "§4 tiers");
+    states(/and all ([\w-]+) makers/i, Object.keys(MANUFACTURERS).length, "§4 makers");
+    states(/([\w-]+) plants\./i, Object.keys(POWERPLANTS).length, "§5 powerplants");
+    states(/([\w-]+) packages\./i, Object.keys(ARMOUR_PACKAGES).length, "§6 armour packages");
+    states(/([\w-]+) drives\./i, Object.keys(SUSPENSIONS).length, "§7 suspensions");
+    states(/([\w-]+) mounts\./i, Object.keys(MOUNTS).length, "§8 mounts");
+    const singles = CHASSIS_KEYS.filter((k) => CHASSIS_PATTERNS[k].hull.hardpoints.length === 1).length;
+    const multi = Object.values(MOUNTS).filter((m) => m.hardpoints >= 2).length;
+    states(/([\w-]+) of the [\w-]+ hulls declare a single hardpoint/i, singles, "§8 single-hardpoint hulls");
+    states(/of the ([\w-]+) hulls declare a single hardpoint/i, CHASSIS_KEYS.length, "§8 hull total");
+    states(/the ([\w-]+) two-gun and three-gun mounts/i, multi, "§8 multi-gun mounts");
+    // and the claims those counts stand on
+    expect(new Set(CHASSIS_KEYS.map((k) => CHASSIS_PATTERNS[k].maker)).size,
+      "§4 claims every works builds a hull").toBe(Object.keys(MANUFACTURERS).length);
+    const offered = new Set(CHASSIS_KEYS.flatMap((k) => CHASSIS_PATTERNS[k].slots));
+    expect([...offered].sort(), "§4 claims every slot is offered by some hull")
+      .toEqual([...VEHICLE_SLOTS].sort());
+  });
+
+  it("§4's cross-check against the live macro table still holds", () => {
+    // §4 quotes four macro unit costs it was NOT fitted to. If the platform
+    // lane reprices a regiment, this sentence becomes false, and this is the
+    // only thing that would say so.
+    const points = (key) => {
+      expect(UNIT_TYPES[key], `${key} is not a macro unit`).toBeDefined();
+      return UNIT_TYPES[key].points;
+    };
+    for (const [label, key] of [["line crawler", "crawler"], ["tractor gun", "artillery"],
+      ["Shoalcutter", "gunboat"], ["Lofter", "fighter"]]) {
+      const quoted = FLAT.match(new RegExp(`${label} (\\d+) ↔ (?:\\w+ )?(\\d+)`));
+      expect(quoted, `§4 must cross-check ${label}`).not.toBeNull();
+      expect(Number(quoted[2]), `§4's macro figure for ${key}`).toBe(points(key));
+    }
+    expect(points("crawler"), "the whole audit anchors on this").toBe(12);
   });
 });
 
@@ -759,10 +1170,7 @@ describe("the plate register", () => {
 });
 
 describe("the Codex append", () => {
-  const MOTOR_IDS = [
-    ...MOTOR_WORKS_KEYS.map((k) => `maker-${k.replace(/_/g, "-")}`),
-    ...VEHICLE_CLASSES.map((c) => `vehicle-class-${c.replace(/_/g, "-")}`),
-  ];
+  const MOTOR_IDS = [...MOTOR_ENTRY_IDS];
 
   it("the codex appendix covers every motor-works and every VehicleClass", () => {
     const ids = new Set(ENTRIES.map((e) => e.id));

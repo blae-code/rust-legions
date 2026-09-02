@@ -1892,7 +1892,7 @@ export const ENTRIES = [
     blocks: [
       { lead: "The ordnance boards separate crawlers by tonnage and role, never by fuel, and the lightest division is the one that is not expected to fight." },
       { p: "A scout crawler carries two, is plated against small arms at the front and against weather everywhere else, and takes one gun position. Its value is what its commander learns, and the boards accept a low price on the understanding that the machine will be replaced." },
-      { note: "Sub-dividing the live Diesel Crawler into scout, line, heavy and land-fort classes is this lane's proposal, not a rule the engine yet enforces. GAME_RULES §25 is the draft." },
+      { note: "Sub-dividing the live Diesel Crawler into scout, line, heavy and land-fort classes is this lane's proposal, not a rule the engine yet enforces. the Motor Pool section of docs/GAME_RULES.md is the draft." },
     ],
     see: ["vehicle-class-line-crawler", "vehicle-class-armoured-car", "order-of-battle"],
   },
@@ -1922,7 +1922,7 @@ export const ENTRIES = [
     blocks: [
       { lead: "A heavy crawler is bought to make an entrance in a line and to still be standing in the gap afterwards." },
       { p: "Heavy plate on three faces, a main gun and two or three secondary positions, and a plant that drinks at a rate the supply column plans its whole day around. The class is where armour packages start to matter more than pace, and where a thrown track becomes a recovery operation rather than an hour's work." },
-      { note: "Sub-dividing the live Diesel Crawler by tonnage is this lane's proposal. GAME_RULES §25 is the draft." },
+      { note: "Sub-dividing the live Diesel Crawler by tonnage is this lane's proposal. the Motor Pool section of docs/GAME_RULES.md is the draft." },
     ],
     see: ["vehicle-class-line-crawler", "vehicle-class-land-fort", "maker-mw-grimwold-treadworks"],
   },
@@ -1937,7 +1937,7 @@ export const ENTRIES = [
     blocks: [
       { lead: "Ninety-six tonnes, fourteen crew, six fighting positions and a tiered barbette that only a hull with the tonnage for a belt could carry." },
       { p: "The boards price a land fort above what its guns and plate are worth, deliberately. It is a scenario centrepiece: slow, thirsty, ponderous, and the only thing on the register that makes its own ground and then sits in it." },
-      { note: "No land fort exists in the live rules. The class is proposed in GAME_RULES §25 and priced in docs/MOTOR_POOL.md §13 at a rate that is knowingly unfavourable." },
+      { note: "No land fort exists in the live rules. The class is proposed in the Motor Pool section of docs/GAME_RULES.md and priced in docs/MOTOR_POOL.md §13 at a rate that is knowingly unfavourable." },
     ],
     see: ["vehicle-class-heavy-crawler", "maker-mw-grimwold-treadworks", "order-of-battle"],
   },
@@ -1952,7 +1952,7 @@ export const ENTRIES = [
     blocks: [
       { lead: "The half-track is the class that arrives with its own infantry and arrives later than it would have." },
       { p: "It is plated at the front, open at the top, and carries one or two light positions. Its whole argument is that a section which rides is a section which is still fresh, and its whole cost is that everybody aboard is visible from above." },
-      { note: "Carriers do not appear in the live unit table. GAME_RULES §25 is the draft." },
+      { note: "Carriers do not appear in the live unit table. the Motor Pool section of docs/GAME_RULES.md is the draft." },
     ],
     see: ["vehicle-class-armoured-car", "maker-mw-chandlery-carriageworks", "order-of-battle"],
   },
@@ -1967,7 +1967,7 @@ export const ENTRIES = [
     blocks: [
       { lead: "An armoured car is a road vehicle that has been given plate and told to look at things." },
       { p: "Thin protection, a small turret or a ring, and a drive that treats a metalled lane as an advantage and a marsh as a wall. The class also carries the signals hulls, where two thirds of the fighting compartment is a transmitter and the Ascendancy regards that as the armament." },
-      { note: "Wheeled reconnaissance does not appear in the live unit table. GAME_RULES §25 is the draft." },
+      { note: "Wheeled reconnaissance does not appear in the live unit table. the Motor Pool section of docs/GAME_RULES.md is the draft." },
     ],
     see: ["vehicle-class-scout-crawler", "maker-ascendancy-signal-works", "maker-outrider-wheelwrights"],
   },
@@ -1982,7 +1982,7 @@ export const ENTRIES = [
     blocks: [
       { lead: "Take the turret off and build a box around the breech instead, and the hull will carry a gun a size larger than it had any right to." },
       { p: "The trade is arc: the machine is aimed by aiming the hull, and its flanks and roof are usually the thinnest on the register. Many are open-topped, which is the reason a mortar landing anywhere near one is a casualty return rather than a repair." },
-      { note: "Self-propelled artillery is not separated from towed artillery in the live rules. GAME_RULES §25 is the draft." },
+      { note: "Self-propelled artillery is not separated from towed artillery in the live rules. the Motor Pool section of docs/GAME_RULES.md is the draft." },
     ],
     see: ["vehicle-class-tractor-gun", "maker-mw-kettleharrow-boneyard", "maker-hundredweight-works"],
   },
@@ -2042,7 +2042,7 @@ export const ENTRIES = [
     blocks: [
       { lead: "The bomber is the only class on the register whose main armament is not aimed by the machine carrying it." },
       { p: "It is drawn light, carries five, and puts its weight where the bay is. The dorsal and ventral positions are defensive and everyone aboard knows the arithmetic; the structure is the lightest the stress office would sign, and the crew have read the same drawings the office did." },
-      { note: "No bomber exists in the live unit table. GAME_RULES §25 is the draft, and the Air expansion is the place it lands." },
+      { note: "No bomber exists in the live unit table. the Motor Pool section of docs/GAME_RULES.md is the draft, and the Air expansion is the place it lands." },
     ],
     see: ["vehicle-class-fighter", "maker-mw-longshadow-aeroworks"],
   },
