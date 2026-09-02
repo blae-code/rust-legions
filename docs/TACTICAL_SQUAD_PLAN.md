@@ -205,6 +205,37 @@ SquadTemplate = { name: string, type: SquadTypeKey, specialists: SpecialistKey[]
   los: [{ q, r }] /* hexes visible to the active squad, only when mine */,
   log: string[], fx: { seq, round, actorId, action, targetId?, at?: {q,r}, dealt, taken, moraleResult?: 'held'|'suppressed'|'routed', moved, from } | null
 }
+// AMENDMENT 2026-09-01 (Lane C, Amendment C1): four ADDED optional/derived keys. Nothing is removed
+// or renamed, so every consumer written against the list above still resolves.
+//   1. `field` gains `meta: FieldMeta` (the fifth key), because Lane B's lineOfSight() reads
+//      `meta.losCap` and THROWS without it — a client that renders sight lines or reports the weather
+//      cannot be handed a field with meta stripped, and a silent default would be an invisible rules
+//      change. Required by the Wave 3 addendum, item 3. `field` is therefore { w, h, tiles, deploy, meta }.
+//   2. each `squads[]` row gains `facing: 0..5` — an index into HEX_DIRECTIONS, the way the stand is
+//      pointed. It is set at deployment (toward the enemy line) and updated on every move and every
+//      shot. Present on EVERY row, not only mechanized ones, so the row's key set does not vary by
+//      stand; it is what selects front/side/rear on a stand that carries `facings`, and decoration on
+//      one that does not. Lane E draws it.
+//   3. each `squads[]` row gains `armour: ArmourClassKey` — the class a hit resolves against. §4 already
+//      said "Every stand row gains `armour: ArmourClassKey`" for the data model and the VIEW row did not
+//      carry it. For a mechanized stand this reports the FRONT facing; the other three are server state
+//      and are selected by struckFacing at resolution time.
+//   Rows are therefore 22 keys, `status` is unchanged at 3 + optional `building`, and the top level is
+//   unchanged at 13 keys.
+//   4. `orderAction` additionally accepts the ENGINE order `'march'` — an activation spent moving only.
+//      It is deliberately NOT a SQUAD_ACTIONS row: every order in Lane A's table either fires, builds,
+//      or carries noMove:true (`hold`, `rally`, `entrench` all stand fast), so a stand that only wants
+//      to close the ground has no content key to be given, and adding one would make Lane F price a
+//      verb that does nothing. A null or absent `orderAction` with a `moveTo` is read as a march.
+//      It is reported back on `fx.action` as the string 'march'.
+//
+// ENGINE STATE, NOT VIEW (Lane C, Amendment C1, cont.): the tactical state object carries
+// `relicProject: { attacker: null, defender: null }` — the per-faction slot the Wave 3 addendum (item 7)
+// requires be cut now so it is not re-cut later. It is deliberately NOT in the getState payload above:
+// the top level is fixed at 13 keys, nothing reads or writes the slot until boarding assaults land as a
+// Field Amendment, and a fourteenth key would be shipped to Lanes D and E with nothing to render.
+// Operator ruling recorded with it: on capture the captor loots the project's unspent MATERIALS only;
+// the project, its progress and its housed-Object requirement are lost with the keel.
 
 // battleResult (Lane C → platform, unchanged)
 { attackerWon: bool, attackerUnits: Regiments, defenderUnits: Regiments }
