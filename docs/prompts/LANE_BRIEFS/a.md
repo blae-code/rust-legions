@@ -593,3 +593,51 @@ pre-existing and unrelated to this plan). It was repaired first — `main` is gr
 before your lane begins. Do not record an absolute test count as your success gate; other lanes add
 tests. Your gate is **0 failed** plus your own lane's named tests passing.
 
+
+---
+
+## WAVE 2 ADDENDUM — 2026-09-01 (orchestrator, AUTHORITATIVE)
+
+Wave 1 is merged. `main` is green at **601 tests**. Three things are now true that your brief was
+written before, plus two jobs that are yours and are not in the brief above.
+
+### 1. Lane I has merged — import its damage model, never re-implement it
+`base44/shared/arms.ts` exists on `main`. Import `resolveHit`, `ARMOUR_CLASSES`, `PEN_TABLE` and
+`TYPE_MATRIX` from it. **Drift guard 12: you author NO armour or penetration arithmetic of your own.**
+Verified live: `resolveHit` with an issue rifle against `heavy` returns `{ effective: 0,
+suppressOnly: true }`; an anti-armour pattern returns `2.64`. `deriveLoadout` returns only
+`{ melee, ranged, range, speed, pts }`, a strict subset of the SquadType value keys — `deriveSquad`
+consumes that object and must never inspect a weapon instance.
+
+### 2. Lane B has merged — the hex-helper handover is now YOURS to complete
+`src/lib/tactical/field.js` exists and authors `hexPixel` and `hexCorners`. Per the protocol both
+briefs carry, you now replace `data.js`'s own copies with a re-export:
+`export { hexPixel, hexCorners } from "@/lib/tactical/field";` — so **no consumer's import path
+breaks.** `hexDistance`, `dominantTroop` and `formationSize` stay with you. Lane B's `TERRAIN` is
+the published 16-key vocabulary; do not invent a seventeenth and do not rename one.
+
+### 3. A REAL PRE-EXISTING MIRROR GAP, FOUND BY THE ORCHESTRATOR — it is yours to close
+`base44/shared/tactical.ts:18` exports `CASUALTY_ORDER`. **`src/lib/tactical/data.js` has no mirror
+of it, and there is no `test/tactical-mirror.test.js` yet to notice.** It has been unmirrored since
+before this plan started. Your §3 deliverable is exactly the test that catches this, so:
+- add the `CASUALTY_ORDER` mirror to `data.js`, and
+- make sure your mirror test is written so it would have FAILED on today's `main` — i.e. it enumerates
+  every `export const` in `tactical.ts` and demands a mirror for each, rather than checking a
+  hand-written list of table names. A hand-written list is a gate on a proxy: it passes for exactly the
+  tables someone remembered, which is how this gap survived. Prove it by temporarily deleting a mirror
+  and showing the test goes red.
+
+### 4. docs/COMBAT_DESIGN.md — you own it, and there is drafted material waiting for you
+Lane B wrote an 83-line `## 13. The Field Generator` section for that file. §3 assigns
+`docs/COMBAT_DESIGN.md` to **you**, so it was backed out of Lane B's branch and preserved at:
+`/tmp/claude-1000/-home-blae/0c9df46a-c792-45d5-809c-7f39ac8905f1/scratchpad/laneB-COMBAT_DESIGN-s13-for-laneA.md`
+Read it, judge it, and fold what survives into the file alongside your own `§ Tactical squads`
+material. You are the editor here, not a courier — it was written before Lane B's own audit, and that
+audit found the section stated things about the generator that were **factually false** (it described
+the arterial as a connected spine when a +1 drift can leave consecutive lane hexes two apart). Check
+every claim against the merged `base44/shared/tacticalField.ts` before you keep it. Do not paste it in
+unread.
+
+### 5. GAME_RULES.md section numbers are taken
+`## 23.` is Lane I's Arms Catalogue, `## 24.` is Lane G's doctrine section. Take the next free number
+and name it in your PR body.

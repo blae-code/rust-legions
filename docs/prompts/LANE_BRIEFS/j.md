@@ -834,3 +834,51 @@ pre-existing and unrelated to this plan). It was repaired first — `main` is gr
 before your lane begins. Do not record an absolute test count as your success gate; other lanes add
 tests. Your gate is **0 failed** plus your own lane's named tests passing.
 
+
+---
+
+## WAVE 2 ADDENDUM — 2026-09-01 (orchestrator, AUTHORITATIVE)
+
+Wave 1 is merged. `main` is green at **601 tests**. Lane I has landed, so your gate is open.
+
+### 1. Lane I's tables are on `main` — draw from them, never duplicate them
+`base44/shared/arms.ts` exports `MANUFACTURERS` (9 rows), `CALIBRES` (16), `WEAPON_PATTERNS` (49),
+`QUALITY_GRADES` (5), `MODIFICATIONS` (47), `QUIRKS` (33), `ARMOUR_CLASSES` (7), `PEN_TABLE`,
+`TYPE_MATRIX`, `resolveHit`, `rollWeapon`, `deriveLoadout`.
+- Your hardpoint weapons are drawn **by key** from `WEAPON_PATTERNS`. Every key you name must exist —
+  assert it mechanically in your tests. The vehicle-capable classes are `crawler_gun`, `hmg`, `flame`,
+  `mortar`, `artillery`, `aircraft_gun`.
+- Append your motor-works to `MANUFACTURERS` with keys `mw_*`, in **both** `arms.ts` and
+  `src/lib/arms.js`, as a flat one-row-per-block append. Lane I was barred from asserting an exact
+  manufacturer count precisely so your append cannot turn `main` red — do not undo that by asserting
+  one yourself.
+- **ABSOLUTE, drift guard 12: no armour or penetration arithmetic anywhere in `motorPool.ts`.** You
+  declare `ArmourClass` KEYS per facing and nothing more. All the math lives in `arms.ts`.
+
+### 2. A NEW platform module you must NOT duplicate
+The Base44 session lifted `base44/shared/commandVehicles.ts` out of the engine — it holds
+`COMMAND_VEHICLES`, `SUPREME_VEHICLE`, `VEHICLE_MODS` and `vehicleOf()`. **A general's command vehicle
+is a general modifier, not a Motor Pool stand.** Read that module so your chassis catalogue does not
+re-invent it, keep your keys distinct from its keys, and import it if you need it — never edit it, never
+copy its rows into `motorPool.ts`. Say in your PR body how you kept the two apart.
+
+### 3. What Wave 1's audits caught, so you do not repeat it
+Three defect classes were found in sister lanes by adversarial review, not by tests:
+- **Dead code with a false justification.** Lane B shipped a whole connectivity-repair pass that nothing
+  reached, and the doc explaining it was factually wrong. If you write a repair/fallback path, write a
+  test that actually drives it.
+- **A published number that was arithmetically false against its own table** (a cost curve claiming 110
+  when the tree summed to 138), restated in three places, checked by nothing. Your Points Audit must be
+  computed from `CHASSIS_PATTERNS`, and add a test that recomputes it from the table rather than trusting
+  the prose.
+- **A gate bounded by "everything to end of file"**, which held only while that lane was the last to
+  append. You will append to `docs/GAME_RULES.md`, `src/lib/imageLibrary.js` and `src/lib/wiki/entries.js`
+  after two other lanes and before two more. Any region your tests locate in a shared file must be bounded
+  at both ends, and must survive later lanes appending after you.
+
+### 4. Shared-file state as of now
+`GAME_RULES.md` `## 23.` is Lane I's, `## 24.` is Lane G's — take the next free number and name it in your
+PR body. `IMAGE_CATEGORIES` already has `arms`; you add `motor`. `IMAGE_LIBRARY` has 586 plates and two
+banner-commented tail blocks (Lane I, Lane G) — append ONE more at the very end. Same for
+`src/lib/wiki/entries.js`. Do NOT edit `docs/prompts/ART_MANIFEST.md`; list your plate keys in the PR body
+and the orchestrator folds them in.
