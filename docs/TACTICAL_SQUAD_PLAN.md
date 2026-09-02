@@ -302,8 +302,15 @@ Deployable  = { key, label, cover: number /* ADDED to the tile's terrain cover *
 //   MORALE_MODS          the roll (dice/dieSides), the situational modifiers (added to the target;
 //                        negative is harder) and the outcome thresholds (routMargin, autoPass/autoFail)
 //   SCALING              every figure-scaling and derivation constant; no scaling number lives outside it
-//   POINTS_MODEL         the six combat-value weights, the anchor row and the efficiency cap
+//   POINTS_MODEL         (tactical.ts) the six combat-value weights, the anchor row and the efficiency
+//                        cap. NAME COLLISION, and it is deliberate on both sides: arms.ts exports its
+//                        own POINTS_MODEL (AP_RATE / AA_RATE / rangeFactorDivisor / the two reference
+//                        keys / efficiencyCap) which prices WEAPON PATTERNS. Two currencies, two
+//                        tables. Import the one whose module you mean, never both unaliased.
 //   WORK_ARMOUR_APPLIES_TO  the ArmourClass keys a work may re-class
+//   INFANTRY_REGIMENTS   the RegimentKeys that are men on foot. squadActions refuses a build order
+//                        whose work is `infantryOnly` to any type from a regiment outside this list;
+//                        OCCUPYING such a work is Lane C's half of the same flag
 //   HEX_DIRECTIONS       the six axial directions, in the SAME ORDER as Lane B's neighbors()
 //   FACING_ARCS          { front: [5,0,1], side: [2,4], rear: [3] } — offsets from a stand's facing
 // Lane-A derivations:
@@ -315,10 +322,18 @@ Deployable  = { key, label, cover: number /* ADDED to the tile's terrain cover *
 //   poolCost(squads) -> { [RegimentKey]: figures }   all four keys, always, zero by default
 //   toRegiments(squads) -> { [RegimentKey]: companies }   Math.floor, all four keys
 //   combatValue/fairPts/typeEfficiency(typeKey) -> the Points Audit, as code
+//     fairPts here is tactical.ts's fairPts(typeKey: SquadTypeKey) -> pts in the riflemen=100 currency.
+//     SECOND NAME COLLISION: arms.ts exports fairPts(pattern: WeaponPattern) -> the cost of ONE weapon
+//     in the levy-rifle=1 currency. Different argument, different scale, both correct; §12 of arms.ts
+//     declares the join between the two. Qualify the module whenever you name either.
 //   resolveSquadHit({ attacker, action, targetArmour, targetDerived? }) -> { effective, suppressOnly }
 //     THE TACTICAL LAYER'S ONLY ROUTE TO arms.ts resolveHit. A thin adapter with no armour arithmetic
-//     of its own. `attacker` may carry `profile` (Lane I loadoutProfile output) to override the type's
-//     armorPen/damageType/aoe. Returns the inert result rather than throwing on any unknown input.
+//     of its own. PENETRATION FOLLOWS THE KIT: when `attacker.loadout.primary` is present the adapter
+//     calls Lane I loadoutProfile for armorPen/damageType, the same way deriveSquad calls deriveLoadout
+//     for melee/ranged. An explicit `attacker.profile` overrides that; the type's declared defaults are
+//     the last resort; an order's own `damageType` overrides both. It resolves ONE stand and never a
+//     burst — AoE falloff is Lane C's, via arms.ts resolveAoe. Returns the inert result rather than
+//     throwing on any unknown input.
 //   struckFacing({ from, at, facing, overhead? }) -> 'front'|'side'|'rear'|'top'
 //     Pure axial geometry; `facing` indexes HEX_DIRECTIONS. 'top' for an overhead attack or an
 //     attacker in the target's own hex. It picks WHICH facing a hit lands on and never what is behind it.

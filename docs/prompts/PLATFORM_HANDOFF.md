@@ -426,6 +426,18 @@ could make: every item is either a platform-owned file or a persisted shape.
       so the derivation is invariant under the order the player attached them. That is the right
       behaviour for a derivation and the wrong behaviour for a muster screen: the server should
       *refuse* a third attachment at muster rather than let the player buy one that does nothing.
+- [ ] **Occupying an `infantryOnly` work is Lane C's half of that flag.** `squadActions` now refuses
+      to *raise* a work marked `infantryOnly` to any type drawn from a regiment outside
+      `INFANTRY_REGIMENTS` (a sapper aboard a crawler is offered the bunker and the emplacement and
+      never a foxhole), and the mirror test asserts it for every type. `DEPLOYABLES` says "no vehicle
+      may **occupy** or raise it" — the occupying half is a movement/stacking rule and lives in the
+      resolver. Until it does, a crawler can still drive into a foxhole somebody else dug.
+- [ ] **AoE falloff is Lane C's, through `arms.ts` `resolveAoe`.** `resolveSquadHit` answers for ONE
+      stand and deliberately builds no burst: `resolveHit` reads exactly `damage`, `armorPen` and
+      `damageType`, so an `aoe` field handed to it changed no number anywhere. The burst pattern is
+      declared on the order row (`SQUAD_ACTIONS[k].aoe`) and the resolver is the layer that knows
+      which hexes have anyone standing in them — call `resolveAoe({ weapon, victims })` with each
+      victim's own armour class and its distance from the burst centre.
 - [ ] **A work re-classes a man, never a hull.** `DEPLOYABLES[k].armourClass` replaces the stand's own
       armour class while it occupies the work, **and only if** the stand's own class is in
       `WORK_ARMOUR_APPLIES_TO`. Applying it unconditionally would make a bunker upgrade a crawler.

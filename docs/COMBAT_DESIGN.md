@@ -263,8 +263,13 @@ mortars, 3 to 10 pioneers, and exactly 1 of each vehicle.
 `ranged` and `melee` are **whole-squad** values at full strength, not per-figure ones, and they are
 calibrated against the Arms Catalogue rather than invented: an issue-grade line rifle in one pair of
 hands is worth about 1.3 of `ranged`, so ten of them are worth about 13 and the rifle section is
-written at 14. Ranges are read off the same catalogue — a line rifle reaches 6 to 9 hexes, a belt
-gun 8 to 11, a mortar 8 to 13, a field piece 16 to 23.
+written at 14. Ranges are read off the same catalogue, by weapon CLASS at issue grade, from the
+shortest pattern in the class to the longest — a line rifle reaches 5.2 to 11 hexes, a belt gun 8
+to 11, a mortar 8 to 13, a field piece 16 to 23. The rifle band is the wide one on purpose: the
+class runs from a stubby field pattern to a long rifle, and the section is written at 7 because it
+is issued the middle of it, not the top. All four bands are recomputed from `WEAPON_PATTERNS` by
+the mirror test; the rifle band read 6 to 9 here until that test was written, and was wrong at both
+ends.
 
 ### 13.3 The five specialists
 
@@ -328,7 +333,12 @@ to the engine and is deliberately absent here.
 
 ### 13.5 The four works
 
-Raised by a pioneer section, or by any section with a sapper attached.
+Raised by a pioneer section, or by any section with a sapper attached — subject to `infantryOnly`,
+which is a rule and not a caption. A work marked `infantryOnly` may only be raised by a squad drawn
+from a regiment in `INFANTRY_REGIMENTS`, so a sapper riding a crawler is offered the bunker and the
+emplacement and is never offered a foxhole to lie in. `squadActions` applies that filter and the
+mirror test asserts it for every type; OCCUPYING a work is the other half of the same flag and is
+Lane C's (§13.12).
 
 | Work | Label | cover | blocksLOS | moveCost | buildTurns | infantryOnly | armourClass | mods |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -392,8 +402,19 @@ stored calibration constant to go stale when a stat is re-tuned.
 | `fighter` | 67.55 | 70.11 | 70 | 1.0016 |
 
 Efficiency is fair over asked. The gate is `POINTS_MODEL.efficiencyCap` (1.6) and the widest of
-these nine sits inside 3% of exactly priced, which is the point: nothing in the base roster is a
+these nine sits inside **3%** of exactly priced, which is the point: nothing in the base roster is a
 bargain, so a later type that IS one will be visible against them.
+
+That 3% is the bound that actually describes the roster, and it is **the one the mirror test
+enforces** — it parses the percentage out of this paragraph and requires every base type's
+efficiency to sit inside it. The 1.6 cap has sixty points of slack and has never been within reach
+of firing; a gate that cannot fire is not a gate, so the tight bound is now mechanical too and this
+sentence rots loudly rather than quietly. Raise the number here deliberately, or not at all.
+
+**The specialists are priced by hand and are outside this audit.** `combatValue` reads only
+`SQUAD_TYPES` columns, and a medic's ledger value is not in any of them; the five are set at 10 to
+16 points against the sections they attach to, and the only mechanical bound on them is
+`POINTS_MODEL.specialistPtsCap`.
 
 ### 13.8 The derivations
 
@@ -435,6 +456,19 @@ for, looks the target class up by key, and returns what it is told. The mirror t
 mechanically in both files, and proves the consequence rather than restating it: a rifle section
 firing on a heavy hull resolves to **zero**, and may still pin the crew.
 
+**Penetration comes from the kit, not only from the row.** `deriveSquad` already takes a squad's
+melee and ranged from `deriveLoadout`; `resolveSquadHit` takes its `armorPen` and `damageType` from
+`loadoutProfile`, the other half of the same reduction, whenever the squad carries a
+`loadout.primary`. Before it did, a section handed the catalogue's one shaped-charge lance fired at
+the lance's damage and the rifle's penetration and resolved **zero** against a hull. A caller may
+still pass an explicit `profile` and it wins; the type's declared defaults are the last resort; and
+an order that declares its own `damageType` — a grenade is fragmentation whatever is slung on the
+shoulder — overrides both.
+
+**AoE is not resolved here.** `resolveSquadHit` answers for one stand. The burst pattern on the
+order row is handed to Lane I's `resolveAoe` by Lane C, which is the layer that knows which hexes
+have anyone standing in them.
+
 A hit on a vehicle resolves against the **struck facing**. `struckFacing` is pure hex geometry: it
 reads the bearing from attacker to target, compares it with the stand's facing, and names the arc.
 `HEX_DIRECTIONS` is asserted equal to the field generator's neighbour order, so the two lanes cannot
@@ -444,9 +478,11 @@ coming down — lands on the top plate whatever the hull is facing.
 ### 13.10 The morale test — the numbers Lane C rolls and does not own
 
 The engine rolls the test; **it authors none of these numbers** (drift guard 7). Three six-sided
-dice, **roll under** the squad's derived morale plus the situation. A modifier is **added to the
-target**, so a negative entry makes the test harder to pass — one convention, stated once, because
-two lanes reading the sign differently is a bug nobody can see. Fail by `routMargin` or more and the
+dice; the squad **passes on the target or under** — that is, on `3d6 <= morale + the situation`, and
+the comparison is written as an operator here precisely because "roll under" is ambiguous by one
+outcome and one outcome is 12.5% of this test. A modifier is **added to the target**, so a negative
+entry makes the test harder to pass — one convention, stated once, because two lanes reading the
+sign differently is a bug nobody can see. Fail by `routMargin` or more and the
 squad **routs**; fail by less and it is **suppressed** for `suppressedTurns`. A commissar converts a
 rout into `SPECIALISTS.commissar.mods.executionToll` figures and the line holds.
 
@@ -469,8 +505,10 @@ rout into `SPECIALISTS.commissar.mods.executionToll` figures and the line holds.
 | `rallying` | 2 | Under a rally order this turn. |
 | `commandAdjacent` | 1 | An officer or a signaler within a hex. |
 
-**Why the band is what it is.** A steady rifle section tests at 11 on 3d6 and holds five times in
-eight. Stack the worst of it — flanked, already down, two figures gone, a neighbour destroyed, fire
+**Why the band is what it is.** A steady rifle section tests at 11 on 3d6 and holds **five times in
+eight** — 135 of the 216 outcomes, which is the figure the `<=` above produces and not the one a
+strict "under" would (that is 108, one in two). The mirror test recomputes it by enumerating all
+216 rolls under the stated operator, so the sentence and the rule cannot drift apart again. Stack the worst of it — flanked, already down, two figures gone, a neighbour destroyed, fire
 from somewhere they cannot see — and the target falls to the floor, which is why `autoPassRoll`
 exists at all: without it a squad in that state could not hold on any roll, and a rule that cannot
 be passed is not a test. Stack the best of it and the target runs past 18, which is why
@@ -559,6 +597,7 @@ feature.
 | --- | --- | --- |
 | Terrain, cover of the ground, elevation, sight lines, paths, the board itself | Lane B | `tacticalField.ts` (§14) |
 | The rolls: the morale test, hit resolution order, initiative ties, movement, stacking, status gating (suppressed / routed / entrenched / already building) | Lane C | `tacticalEngine.ts` |
+| OCCUPYING an `infantryOnly` work, and AoE falloff over the hexes a burst covers (`resolveAoe`) | Lane C | `tacticalEngine.ts` |
 | Weapon stats, penetration, damage-type matrices, armour classes, `deriveLoadout` | Lane I | `arms.ts` (`docs/ARMS_CATALOGUE.md`) |
 | Vehicle chassis, powerplants, armour packages, per-facing `Facings` | Lane J | `motorPool.ts` |
 | Roster growth — tiers `II:*` and `III`, the further specialists, upgrades | Lane F | appended to the tables here |
@@ -614,7 +653,7 @@ painted as ragged radius-1 clusters.
 | --- | --- | --- | --- |
 | `city` | Dense and vertical, well over half of it wreckage. The fight is for window-lines; `wall` is the only hard stop the palette paints. | `building` clusters | `road` |
 | `town` | Open farmland cut by hedge banks — the hedgerow is the only thing this palette gathers into clusters, so buildings arrive singly rather than as a village. Nothing in the palette is impassable: the town board has no hard stops at all. | `hedgerow` banks | `road` |
-| `depot` | Rail, hardstanding and fuel drums. Thin cover on the ground you can stand on, and the cover you can *see* — drums and dividing walls — is impassable, so it screens you and shelters nobody. The only board whose lane is metalled with `rail`. | `fuel_tank` farms | `rail` |
+| `depot` | Rail, hardstanding and fuel drums. Thin cover on most of the ground you can stand on, and the two things that screen the yard outright — the drums and the dividing walls — are impassable, so they hide you and shelter nobody; the scattered sheds are the only shelter on the board that both stops a sight line and takes a man inside it. The only board whose lane is metalled with `rail`. | `fuel_tank` farms | `rail` |
 | `ruin` | Precursor ground: cratered, waterlogged, slow underfoot, with uncuttable masonry standing where nothing else does — and the only palette that paints standing water. It never paints `road`, so the lane is the only metalled ground on the board. | `precursor_wall` | `road` |
 | `crossroads` | Rolling country and the most open board in the set: the thinnest cover in the palettes and, like `town`, nothing impassable in it at all. The armour board, and woods are the only screen there is. | `woods` | `road` |
 

@@ -11,7 +11,7 @@
 // Armour and penetration arithmetic is imported from @/lib/arms and exists
 // nowhere in this file (drift guard 12).
 
-import { resolveHit, deriveLoadout, ARMOUR_CLASSES } from "@/lib/arms";
+import { resolveHit, deriveLoadout, loadoutProfile, ARMOUR_CLASSES } from "@/lib/arms";
 
 // Pointy-top hex geometry now lives with the field generator (Lane B). It is
 // RE-EXPORTED, not deleted: src/lib/tactical/arena and the deployment preview
@@ -86,8 +86,11 @@ export function deriveFormation(troops = {}) {
 //               figure. Calibrated against the Arms Catalogue: a figure with
 //               an issue-grade line rifle is worth about 1.3 of this, so ten
 //               of them are worth about 13.
-//   range       hexes. Also calibrated against arms.ts (line rifle 6-9,
-//               belt gun 8-11, mortar 8-13, field piece 16-23).
+//   range       hexes. Also calibrated against arms.ts, at issue grade and by
+//               weapon CLASS min to max (line rifle 5.2-11, belt gun 8-11,
+//               mortar 8-13, field piece 16-23). The rifle band is the wide
+//               one: the class runs from a stubby field pattern to a long
+//               rifle, and a squad row sits inside its class, not at its top.
 //   armor       the numeric resilience the melee/ranged contest pairs
 //               against. Scale: 0 an unarmoured scout, 2 a rifle section in
 //               greatcoats, 12 a riveted crawler hull. It is the lineage of
@@ -237,6 +240,15 @@ export const DEPLOYABLE_KEYS = Object.keys(DEPLOYABLES);
 // A work is an infantry position. It re-classes a stand that has nothing
 // better; it never re-classes a hull. Membership, not arithmetic.
 export const WORK_ARMOUR_APPLIES_TO = ['none', 'soft', 'light'];
+
+// WHICH REGIMENTS ARE MEN ON FOOT. `infantryOnly` on a work is a rule, not a
+// label, and this is the table that gives it teeth: squadActions refuses a
+// build order whose work is infantryOnly to any type drawn from a regiment
+// that is not in this list, so a crawler with a sapper aboard is offered the
+// bunker and the emplacement and is never offered a foxhole to lie in.
+// OCCUPYING a work is the other half of the same rule and belongs to Lane C
+// (see 13.12); RAISING one is decided here, because the order list is.
+export const INFANTRY_REGIMENTS = ['riflemen'];
 
 // Figures to companies, KEYED BY REGIMENT and never by squad type (plan
 // section 4, orchestrator ruling Q5). A squad type default size is its own
@@ -396,6 +408,25 @@ function loadoutOf(squad) {
 }
 
 /**
+ * The same defensive call, for the OTHER half of Lane I's squad reduction:
+ * loadoutProfile turns the primary weapon into the armorPen and damageType
+ * resolveHit needs. deriveLoadout deliberately cannot return those — its keys
+ * are a strict subset of the SquadType value columns — so a squad whose kit
+ * reached its damage but not its penetration was the state this returns to
+ * close. Null, never a zeroed profile: an inert profile would read as
+ * "penetrates nothing" and silently disarm a squad with an unreadable
+ * loadout, where null falls back to the type's declared values.
+ */
+function profileOf(squad) {
+  if (!squad || !squad.loadout || !squad.loadout.primary) return null;
+  try {
+    return loadoutProfile(squad, squad.ctx || {}) || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Stack up to SCALING.maxSpecialists staff attachments and return every mod
  * in the section 4 vocabulary, summed, plus their combined pts.
  *
@@ -439,15 +470,29 @@ export function squadStaffMods(specialists) {
  * given. TYPE AND STAFF ONLY — suppressed, routed, entrenched and
  * already-building are Lane C state gates and are deliberately not applied
  * here. Returned in SQUAD_ACTIONS declaration order.
+ *
+ * THE STAFF ARGUMENT IS PUT THROUGH squadStaffMods FIRST, and that is not a
+ * tidy-up: this function and deriveSquad are two published entry points to
+ * the same question, and before the cap was applied here a squad handed three
+ * attachments got a DIFFERENT order list depending on which one the caller
+ * reached for. Both now run the same selection, and a test asserts they agree
+ * for every type and every staff array up to length three.
+ *
+ * A work marked `infantryOnly` may not be RAISED by a squad drawn from a
+ * regiment outside INFANTRY_REGIMENTS. That flag is mirrored, printed in
+ * 13.5 and gate-checked; before this line it was read by nothing, and a
+ * sapper aboard a crawler was offered a foxhole to dig.
  */
 export function squadActions(typeKey, specialists) {
   const t = SQUAD_TYPES[typeKey];
-  const staff = Array.isArray(specialists) ? specialists : [];
+  const staff = squadStaffMods(specialists).keys;
+  const foot = !!t && INFANTRY_REGIMENTS.indexOf(t.from) !== -1;
   const out = [];
   for (const k of Object.keys(SQUAD_ACTIONS)) {
     const a = SQUAD_ACTIONS[k];
     if (!a.requires) { out.push(k); continue; }
     if (!t) continue;
+    if (a.builds && DEPLOYABLES[a.builds].infantryOnly && !foot) continue;
     const byType = !!(a.requires.types && a.requires.types.indexOf(typeKey) !== -1);
     const bySpecial = t.specials.indexOf(k) !== -1;
     const byStaff = !!(a.requires.specialists && a.requires.specialists.some((s) => staff.indexOf(s) !== -1));
@@ -647,9 +692,23 @@ export function struckFacing({ from, at, facing, overhead } = {}) {
  * damage-type matrix lookup, no local multiplier and no fallback constant. If this
  * function ever grows one, drift guard 12 has been broken.
  *
- *   attacker      a squad row. May carry `profile` — the output of Lane I
- *                 loadoutProfile — which overrides the type damage type,
- *                 penetration and burst.
+ *   attacker      a squad row. Its PENETRATION comes from its kit: if the
+ *                 squad carries a `loadout.primary`, Lane I loadoutProfile
+ *                 reduces it to the armorPen and damageType this hit
+ *                 resolves with, exactly as deriveSquad already takes its
+ *                 melee and ranged from deriveLoadout. Without that, a
+ *                 section handed the one shaped-charge lance in the
+ *                 catalogue fired at the LANCE's damage and the RIFLE's
+ *                 penetration, and resolved zero against a hull. A caller
+ *                 may still pass `profile` explicitly and it wins; the type
+ *                 defaults are the last resort. An order that declares its
+ *                 own `damageType` (a grenade is fragmentation whatever is
+ *                 slung on the shoulder) still overrides both.
+ *
+ *                 AoE IS NOT RESOLVED HERE. This function answers for ONE
+ *                 stand; the burst pattern on the order row is handed to
+ *                 Lane I resolveAoe by Lane C, which is the layer that knows
+ *                 which hexes have anyone in them.
  *   action        a SQUAD_ACTIONS key or row.
  *   targetArmour  an ArmourClassKey. For a vehicle, the class of the facing
  *                 struckFacing picked.
@@ -668,12 +727,11 @@ export function resolveSquadHit({ attacker, action, targetArmour, targetDerived 
   const source = row.uses === 'melee' ? derived.melee : row.uses === 'ranged' ? derived.ranged : 0;
   if (source <= 0) return inert;
 
-  const profile = attacker.profile || null;
+  const profile = attacker.profile || profileOf(attacker);
   const weapon = {
     damage: round2(source * row.dmg),
     armorPen: profile && profile.armorPen !== undefined ? profile.armorPen : type.armorPen,
     damageType: row.damageType || (profile && profile.damageType) || type.damageType,
-    aoe: row.aoe || (profile ? profile.aoe : null),
   };
   return resolveHit({ weapon, target });
 }
