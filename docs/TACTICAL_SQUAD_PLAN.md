@@ -259,6 +259,20 @@ VehicleInstance = { chassisKey, quality: QualityKey, powerplant: PowerplantKey, 
 // Engine rule (Lane A/C): a hit resolves via resolveHit against the struck facing — rear if the attacker occupies a hex behind the stand's facing
 // tacticalDeploy squads may carry `loadout`; platform validates instances against the caller's arsenal
 Plate      = P(key, category, title, desc, prompt /* no house style — prepended at generation */, aspect?)  // url always null from a lane
+// ---- Field generator (Lane B) ----
+TerrainKey  = 'open'|'road'|'rail'|'field'|'rubble'|'ruins'|'building'|'wall'|'woods'|'hedgerow'|'crater'|'water'|'marsh'|'hill'|'fuel_tank'|'precursor_wall'
+WorkKey     = 'foxhole'|'trench'|'bunker'|'emplacement'   // Lane A owns DEPLOYABLES; Lane B only ever emits 'trench' | 'bunker'
+TerrainMeta = { key: TerrainKey, cover: number, moveCost: number | null /* null = impassable */, blocksLOS: boolean, baseElev: 0|1|2 }
+Tile        = { terrain: TerrainKey, cover: number, elev: 0|1|2, blocksLOS: boolean, moveCost: number | null, work?: WorkKey }
+FieldMeta   = { seed: number, nodeKind: NodeKind, weather: WeatherKey, fortBonus: number, losCap: number, groundsFighters: boolean }
+Field       = { w, h, tiles: { "q,r": Tile }, deploy: { attacker: [{q,r}], defender: [{q,r}] }, meta: FieldMeta }
+NodeKind    = 'city'|'town'|'depot'|'ruin'|'crossroads'
+WeatherKey  = 'clear'|'rain'|'fog'|'storm'|'snow'
+// generateField({ seed, nodeKind, weather, fortBonus, w=15, h=11 }) → Field   (pure, seeded, no Math.random)
+// neighbors(q, r) → [{q,r}] (6, unfiltered)   ·   hexRange(field, centre, n) → [{q,r}] in-field, hexDistance ≤ n
+// hexLine(a, b) → [{q,r}] inclusive of both endpoints; hexLine(a,b) === hexLine(b,a).reverse()
+// lineOfSight(field, a, b) → boolean          ·   pathCost(field, from, to, opts?) → { cost, path: [{q,r}] } | null
+// repairConnectivity(field) → { passes, carved, forced }   (pipeline step 10; exported so it can be driven against a hand-broken board — a no-op on any board generateField produces)
 ```
 
 Effect `key` vocabulary (the engine applies these; add new keys here before using them): `unit.<type>.attack|defense|melee|ranged|armor|speed|morale`, `income.<steel|fuel|manpower>`, `armyCap`, `supplyRange`, `capitalDefense`, `initiative`, `losRange`, `digSpeed`, `fragmentYield`, `moraleTest`, `buildTurns`.
