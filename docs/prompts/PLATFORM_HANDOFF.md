@@ -449,3 +449,212 @@ could make: every item is either a platform-owned file or a persisted shape.
 `tacticalEngine.ts` on `main` still passes formations to them. Merge order is A → C and Lane C
 rewrites both call sites in P2; no test on `main` covers the intermediate state. It is not a defect
 to be "fixed" by restoring a dual code path that sniffs its argument.
+
+### Lane J — the Motor Pool
+
+Data is complete, tested and mirrored (`base44/shared/motorPool.ts` ↔ `src/lib/motorPool.js`).
+Nothing below is wired; each item is a decision the platform lane owns. **No armour or penetration
+arithmetic exists in this lane** (drift guard 12) — `motorPool.ts` declares `ArmourClass` *keys* per
+facing and passes `armorPen` through untouched, and the mirror test asserts the four forbidden
+identifiers appear in neither file.
+
+#### J1 — where `rollVehicle` fires, and the seed rule
+
+`rollVehicle({ seed, class, maker, tierCap = 'III', luck = 0 })` is pure and seeded and returns a
+`VehicleInstance`. The lane supplies the function; the platform decides the trigger — motor-pool
+issue, salvage recovery and prize capture are the three the catalogue was written for. **The seed
+must be stable and reproducible from the game record**, because a serial is *reproduced from its
+seed and never stored*: derive it from `(gameId, turn, sourceKey, index)`, never from `Date.now()`
+or a request-time random, or the same hull acquires a new serial on every replay, refresh and
+rollback.
+
+A derivation that comes up short **fails rather than degrades**: `rollVehicle` throws
+`rollVehicle: seed must be a finite number` on `undefined`, `null`, `NaN`, `Infinity` or a numeric
+string. Seed `0` is a perfectly good seed — the guard is finiteness, not truthiness. `class` and
+`maker` filters that empty the pool **throw a descriptive `Error` naming the filter**; they never
+fall back to an unfiltered draw.
+
+Hardpoint weapons are built by Lane I's `rollWeapon` with the sub-seed
+`(seed ^ Math.imul(0x9e3779b9, i + 1)) | 0` for hardpoint index `i`. Serials are
+`MW-<uppercase maker stem>-<4 uppercase hex>`, asserted by regex.
+
+**Against the 2026-09-01 operator rulings.** *Module effects apply on fit, never on unlock* — a
+refit kit is a `VehicleMod` row named in `VehicleInstance.mods`, and **every one of its `mods` and
+`tradeoff` deltas is read only through that instance**, by `totalTonnage`, `hardpointStats`,
+`breakdownChance` and `deriveMechanized`. Nothing in this lane applies a kit's numbers to a faction,
+a house or a certification, and no Motor Pool kit is modelled as an armory `module`: if the platform
+later gates a kit behind State Armory certification, the certification must stay inert and the
+numbers must keep arriving from the fitted stand. *Relic projects die with the keel* — this lane
+models no project and no progress; `fs_reliquary_cell_800` and `ap_relic_alloy_skin` are catalogue
+rows gated by `tierCap`, not by a project, so a captured hull carries them because it carries them.
+
+#### J2 — validating a `VehicleInstance` that arrives from a client
+
+A `VehicleInstance` reaching `tacticalDeploy` is untrusted, and the engine must reject it unless:
+`chassisKey ∈ CHASSIS_PATTERNS`; `quality ∈ QUALITY_GRADES`; `powerplant ∈ POWERPLANTS`;
+`suspension ∈ SUSPENSIONS`; `mount ∈ MOUNTS` **with `MOUNTS[mount].hardpoints <=
+CHASSIS_PATTERNS[chassisKey].hull.hardpoints.length`**; `armourPackage` either `null` or a key in
+**`ROLL_ODDS.packagePool[chassisKey]`** (see below — `ARMOUR_PACKAGES` membership alone is **not**
+enough); every `mods[k] ∈ VEHICLE_MODS` with `slot` in the chassis's own `slots`, the chassis class
+in `appliesTo`, and **no two mods sharing a slot**; every `hardpoints[i]` a valid Lane I
+`WeaponInstance`, with the array **assignable in hull order** (see below); every
+`quirks[k] ∈ VEHICLE_QUIRKS`; and `serial` matching `/^MW-[A-Z]{2,4}-[0-9A-F]{4}$/`. Most of those
+are invariants `test/motor-roll.test.js` asserts over the rolled corpus — but the rolled corpus only
+ever draws LEGAL combinations, so it cannot show you what an illegal one looks like, and the two
+rules below are the ones it therefore cannot be read off. Without them a client can hand itself a
+relic-grade land fort with a fortress course on a two-tonne airframe.
+
+**The armour package must come from the HULL's pool, not from the table.**
+`ROLL_ODDS.packagePool[chassisKey]` is the cache of {every declared facing raises or holds this
+hull's} ∩ {weight ≤ `MOTOR_MODEL.packageWeightCap` × stamped tonnage}, recomputed and asserted by
+`test/motor-mirror.test.js`. `deriveMechanized` applies `{ ...hull.baseArmour, ...pkg.facings }`
+**unconditionally** — it has to, because comparing two facings needs armour *values* and drift guard
+12 puts those in `arms.ts` — so "a package never lowers a facing" is an invariant of the *pairing*
+and this gate is the only thing that holds it. Measured over the full cross product: **51 (chassis,
+package) pairs lower at least one facing, and every one of them is outside that hull's pool** (zero
+inside it). `ap_sandbag_stowage` on `grimwold_156_lockjaw_mk1` is the worked case — front
+`superheavy → light`, side `superheavy → soft` — and it is a perfectly legal package on a lighter
+hull. This is the one work-item-6 invariant a hand-fitted Refit Yard swap (Lane D) can break, and it
+breaks it silently: the stand comes back with a complete, valid-looking `facings`.
+
+**Weapons are assigned in HULL ORDER, and cannot be indexed by position.**
+`vehicle.hardpoints.length` may be **less** than `hull.hardpoints.length`: a hardpoint with nothing
+it can legally carry at the requested `tierCap` goes to the field empty rather than being filled
+with something illegal — the Reliquary Monitor's casemate at `tierCap: 'II:Wake'` is the worked
+case, and the hull is still legal. A `WeaponInstance` carries `{ patternKey, quality, mods, quirks,
+serial }` and **no hardpoint key**, so once a position is skipped the association is not recoverable
+positionally. The check that *is* implementable, and the one this lane's tests now use:
+
+```js
+let at = 0;
+for (const w of vehicle.hardpoints) {
+  const cls = WEAPON_PATTERNS[w.patternKey].class;
+  while (at < hull.hardpoints.length && !hull.hardpoints[at].allowed.includes(cls)) at += 1;
+  if (at >= hull.hardpoints.length) return false;   // no hull position can take this gun
+  at += 1;                                          // a position is never reused
+}
+```
+
+`rollVehicle` fills positions left to right and omits the ones it cannot fill, so the greedy
+in-order walk accepts exactly what the roll can produce and rejects a gun the hull has no position
+for. **Never index weapons by hull hardpoint position** — `hardpoints[1]` is not
+`hull.hardpoints[1]`, and at `tierCap: 'II:Wake'` on the Reliquary Monitor it demonstrably is not.
+If the platform later wants the association back, that is a §4 amendment (a `hardpointKey` on each
+entry, or a parallel `hardpointKeys` array) and this lane flagged it rather than taking it.
+
+#### J3 — what the tactical engine consumes
+
+Only `deriveMechanized(stand, ctx?)`, which returns **exactly**
+`{ figures, melee, ranged, range, speed, morale, pts, specials, facings }` and no other key — a
+subset of §4's `SquadType` value keys ∪ `{ facings }`. `figures` is always `1` (vehicles are
+single-figure squads). It deliberately does **not** return `armor`: a numeric armour rating would
+require reading an armour value, so the engine derives it from `facings` through `arms.ts`.
+
+The two numeric escape hatches are **separate exported functions**, never smuggled into that object:
+`breakdownChance(vehicle, ctx?)` → a number in `[0, 0.5]`, and `hardpointWeapons(vehicle)` → the
+`WeaponInstance[]` verbatim, so Lane C can hand each instance to `resolveHit` itself.
+`totalTonnage`, `hardpointStats`, `speedFromPowerWeight`, `terrainMultiplier`, `tierRank` and
+`evaluateVehicleQuirk` are exported for the same reason.
+
+**The export surface is a SUPERSET of §4's Motor Pool block, and it is awaiting a ruling.** Beyond
+the twenty §4 contracts this module also exports `MOTOR_MODEL` (the tuning constants every formula
+reads, mirrored and mirror-tested, so no number in this lane lives only in a function body)
+and `evaluateVehicleQuirk` (without it "a quirk whose effect exists only in prose is a lane failure"
+is unenforceable), and it gives `hardpointStats(vehicle, ctx?)` and `deriveMechanized(stand, ctx?)`
+an **optional** second parameter. Everything is additive — every contracted call shape still works,
+asserted — and `docs/MOTOR_POOL.md` §1 carries the reasoning. **Either bless the superset or add
+these four lines to `docs/TACTICAL_SQUAD_PLAN.md` §4's Motor Pool block**, so Lanes A, C and D code
+against one list; this lane did not file the amendment itself because the choice is the
+orchestrator's, and `test/motor-mirror.test.js` pins the exact surface meanwhile so it cannot grow
+while the question is open.
+
+**Terrain is not applied by this lane.** `speed` is the power-to-weight step, clamped `[1, 8]`;
+Lane C calls `terrainMultiplier(suspensionKey, terrainKey)` per hex. That function **throws** on an
+unknown suspension or terrain key rather than returning `undefined`, because an `undefined`
+multiplier reads downstream as "unaffected" and would quietly make a river passable to a tread.
+
+#### J4 — the quirk context the engine must supply
+
+Every vehicle quirk carries a machine-evaluable `condition` whose `key` is in
+`VEHICLE_QUIRK_CONDITIONS` (twelve keys; seven are Lane I's own, reused rather than re-spelled).
+**Three are filled in from the instance by this lane** — `quality_at_least`, `crew_at_least`,
+`tonnage_at_least` — so those quirks are live today with no engine work at all. The remaining nine
+need a turn, and `ctx` is where the engine supplies it:
+
+| `condition.key` | ctx field | shape |
+| --- | --- | --- |
+| `always` | — | fires unconditionally |
+| `weather` | `weather` | the weather key |
+| `terrain` | `terrain` | the terrain key of the occupied hex |
+| `night` | `night` | boolean |
+| `vs_house` | `vsHouse`, `nativeHouses` | the opposing house key; the hull's native houses |
+| `round_at_least` | `round` | number |
+| `below_full_pace` | `atFullPace` | boolean — the quirk fires when this is `false` |
+| `stationary` | `moved` | hexes moved this turn; the quirk fires on `0` |
+| `hull_down` | `hullDown` | boolean |
+
+`ctx` is **optional everywhere**. Omitted, only `always` and the three instance-fact conditions
+fire; the returned key set never changes, so a caller that has no turn context yet is safe.
+
+**`ctx` cannot overwrite the three instance facts.** `quality`, `crew` and `tonnage` are read off
+the instance *after* the caller's `ctx` is spread, so a client that supplies `{ crew: 99 }` changes
+nothing — asserted, because the opposite spread order was a one-token edit that no test saw. The
+engine may pass a turn's context through from an untrusted request without laundering those three.
+
+#### J5 — the one decision this lane declined to make: the points scale
+
+The Points Audit anchors on the **macro** scale — `src/lib/units.js` `crawler.points === 12`, which
+the plan pins and which `docs/MOTOR_POOL.md` §13 recomputes against — while a tactical `SquadType`
+prices a whole squad (`SQUAD_TYPES.riflemen.pts === 100`). `deriveMechanized().pts` is therefore on
+the **chassis** scale. Reconciling the two is one documented multiplier and it belongs with whoever
+owns `SQUAD_TYPES`; inventing a number here would have put a third scale in the repository rather
+than removing one. **This is the item to settle before a mechanized stand and a rifle section are
+costed in the same army list.**
+
+#### J6 — flags for other lanes
+
+- **`arms.ts`'s `LOGISTICS_CLASSES` has four entries and no `gunboat`.** That table prices calibres,
+  not powerplants, so this lane uses the five-key regiment vocabulary the contract specifies for
+  `Powerplant.fuelClass` rather than narrowing a marine diesel into an inland column. No amendment
+  filed; Lane I owns the table.
+- **`base44/shared/commandVehicles.ts` is untouched and unduplicated.** A general's command vehicle
+  is a *general modifier* — priced in `steel`/`fuel`/`manpower`, expressed as
+  `dmgOut`/`dmgIn`/`skill`/`moraleIn` on a macro battle. A Motor Pool chassis is a *stand on the
+  tactical field*, priced in points and resolved hex by hex. The two tables share no key; that
+  module was read, not imported, and never edited.
+- **`ROLL_ODDS.packagePool` is a cache of a derivation, not a judgement**: `{raises-or-holds every
+  facing}` ∩ `{package weight ≤ `MOTOR_MODEL.packageWeightCap` of stamped tonnage}`. It has to be a
+  cache because the first half needs armour values, which this lane may not read. The mirror test
+  recomputes both halves from `ARMOUR_CLASSES` + `CHASSIS_PATTERNS` and asserts exact equality — so
+  **if any chassis or package changes, the table regenerates or the test goes red.**
+- **Five `VEHICLE_STAT_KEYS` are declarative** — `arc`, `losRange`, `initiative`, `hardpoints` and
+  `fuelUse` are carried, mirrored and tested, and spent by nothing in this lane because each belongs
+  to a layer that is not this one; `weight` and `pts` are in the vocabulary but used by no kit or
+  quirk at all. `docs/MOTOR_POOL.md` §12 tabulates which is which and why. Wiring them is a platform
+  decision, not a gap.
+
+#### J7 — promote the rules section
+
+**Two ownership questions this lane could not settle itself, both flagged rather than assumed.**
+(a) **This file is the eleventh path.** Lane J's Definition of done enumerates ten permitted paths
+and calls anything else drift; the `### Lane J` section you are reading is outside them. It is a
+pure append in the shape Lanes I, G and A already set here, it is platform-handoff material by
+definition, and moving it into `docs/MOTOR_POOL.md` would put the platform's own instructions in a
+lane's design record — so it was written here and reported. **Bless `PLATFORM_HANDOFF.md` as an
+append surface for content lanes, or move this section**; do not leave gate 7 quietly contradicted.
+(b) **`docs/GAME_RULES.md` `## 25`.** This lane took it as the next free number, `## 23` being Lane
+I's and `## 24` Lane G's. Lane A's section above *reserves* `## 25` for the tactical squad layer —
+but Lane A is barred from writing to `GAME_RULES.md` at all (drift guard 9 makes it platform-owned
+for that lane) and its commits touch no line of it, whereas §3's content-lane preamble *requires*
+this append. The reservation is therefore a note about a section nobody has written; the number is
+in use. **Renumbering is a mechanical three-line edit inside this lane's own files** and a red test
+if any one of them is missed — see the paragraph below.
+
+`docs/GAME_RULES.md` **The Motor Pool** is appended and marked `[PROPOSED — awaiting platform
+wiring]`; it is on the C3 promotion list. **Its section number is deliberately not quoted here.**
+Two content lanes were appending sections concurrently, so the number may be reassigned at merge —
+`docs/MOTOR_POOL.md` §14 states the number it was written as, and `test/motor-mirror.test.js` ties
+that statement, the embedded copy and the live heading together, so a renumber is a mechanical
+three-line edit inside this lane's own files and a red test if any one of them is missed. **No
+shipped Codex entry names a section number**, asserted, because the Codex block lands in a file
+Lane H owns and merges after this lane.

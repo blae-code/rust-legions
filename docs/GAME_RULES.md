@@ -460,3 +460,71 @@ none is gated behind a creed-locked doctrine. Construction runs on the **map's c
 visible to enemy probes and intercepts while it runs, and **dies with the keel** — a relic project is a
 race that can be interrupted, not a quiet unlock. The Beacon and the New Ignition are the two creed forks
 of the Exodus Works and cost the same forty days.
+
+## 25. The Motor Pool [PROPOSED — awaiting platform wiring]
+
+*Drafted by the Motor Pool lane. Data: `base44/shared/motorPool.ts` (mirror `src/lib/motorPool.js`).
+Design record: `docs/MOTOR_POOL.md`. Nothing in this section is enforced by the engine yet.*
+
+**A crawler is not a unit type — it is a chassis class.** A mechanized stand is a named **chassis
+pattern** from a named motor-works, fitted with a **powerplant**, an optional **armour package**, a
+**suspension**, a **mount**, **hardpoint weapons** drawn from the Arms Catalogue (§23), **refit kits**
+and **quirks**. The engine never reads that assembly directly: it reads what `deriveMechanized(stand)`
+returns, which is `{ figures, melee, ranged, range, speed, morale, pts, specials, facings }` and
+nothing else.
+
+**The eleven classes.** `scout_crawler`, `line_crawler`, `heavy_crawler`, `land_fort`, `half_track`,
+`armoured_car`, `sp_gun`, `tractor_gun`, `gunboat`, `fighter`, `bomber`. Three of them describe units
+the rules already field — `tractor_gun` is Siege Artillery, `gunboat` is the Ironclad Gunboat,
+`fighter` is the Prop Fighter — and the crawler is divided by tonnage and role rather than by fuel.
+
+**Figures.** A vehicle is a **single-figure squad**. `deriveMechanized` always returns `figures: 1`.
+
+**The four facings.** Every chassis declares an armour class for `front`, `side`, `rear` and `top`.
+There is no default facing and no armour *number* anywhere in the Motor Pool: a facing is a key out of
+the Arms Catalogue's `ARMOUR_CLASSES`, and §23's Universal Damage Model is the only place a key becomes
+a value. A hit resolves against the **struck** facing — rear when the attacker occupies a hex behind
+the stand's facing, top for indirect fire — and the resolution is §23's, unchanged.
+
+**Armour packages are key substitution, never addition.** A package declares the class a facing *ends
+at*, and fitting one is `{ ...baseArmour, ...package.facings }`. A package may never lower a facing,
+and a hull is only ever offered a package whose weight is at most **30 %** of its stamped tonnage —
+which is why a two-tonne airframe cannot wear a fortress course.
+
+**The refit vocabulary.** Nine slots: `engine`, `armour`, `suspension`, `turret`, `hardpoint`,
+`optics`, `radio`, `stowage`, `crew_kit`. A hull carries **one kit per slot**, and only in a slot it
+declares. **Every kit has a numeric cost as well as a numeric benefit** — extra plate slows, the
+long-barrel gun cuts turret traverse, smoke dischargers cost a hardpoint, a spall liner costs a crew
+position — and the two are recorded in different fields with no key in common. A pure-upside kit is a
+defect, not a bargain.
+
+**Speed is `hp ÷ tonnage`, and nothing else.** No chassis declares a speed. Power over all-up weight is
+looked up on a step curve and clamped to **1–8** hexes per turn, so fitting a bigger plant is the only
+way to go faster and bolting on plate is the only way to slow down. Terrain is applied separately, per
+hex, from the suspension's own modifier for that terrain — `0` means impassable, `1` unaffected — and
+never folded into the stand's speed.
+
+**Breakdowns.** Each mechanized stand carries a breakdown chance in **[0, 0.5]**, composed from the
+plant's and the drive's reliability, the armour package, live quirks, the plant's cooling burden, and
+**drive strain** — a plant and running gear heavier than the share of the hull's tonnage its class
+allots to them. It never rises as reliability rises. The platform decides when the roll is made.
+
+**Quirks are machine-evaluable.** Every quirk carries a condition — `always`, a weather, a terrain, a
+night, an enemy house, a grade, a round number, being below full pace, being stationary, a crew size, a
+tonnage, or being hull down — and a numeric effect. A quirk whose effect exists only in prose is a
+defect. Three of those conditions are read off the machine itself and need no turn context at all.
+
+**The roll is pure and seeded.** `rollVehicle({ seed, class, maker, tierCap, luck })` returns the same
+machine for the same arguments, for ever, in any order. Quality is drawn from §23's five grades on
+§23's weights. A serial is reproduced from the seed rather than stored.
+
+**The points anchor is the `Hundredweight 141 Line Crawler` at 12 points**, which is the cost the macro
+rules already put on a Diesel Crawler. Every other chassis is priced against it, and the audit in
+`docs/MOTOR_POOL.md` §13 recomputes each figure from the catalogue rather than quoting it. A stand's
+final cost is chassis + powerplant + package + kits + carried guns, the whole multiplied by the hull's
+quality grade.
+
+> **Open for the platform lane.** The chassis anchor is the **macro** 12-point scale
+> (`src/lib/units.js` `crawler.points === 12`), while a tactical `SquadType` prices a whole squad
+> (`riflemen.pts === 100`). Reconciling the two scales is one documented multiplier and it is not this
+> section's to choose.
