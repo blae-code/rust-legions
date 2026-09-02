@@ -36,9 +36,13 @@ Two things this lane deliberately does **not** own:
 - **Visuals.** This is a content lane (drift guard 10): data and prose only. Art is *requested* as
   `imageLibrary.js` placeholders with `url: null`.
 
-**Two additions to the export surface the lane brief lists, declared rather than smuggled.** Neither
-changes a §4 shape, so neither is a §4 amendment; both are mirrored and mirror-tested like everything
-else here.
+**Three additions to the export surface the lane brief lists, declared rather than smuggled.** None
+changes a §4 *shape* — no field is renamed, none is missing, `deriveMechanized`'s return key set is
+exactly the contracted nine, and every contracted call shape still works — so none is a §4 amendment
+this lane could make alone; all are mirrored and mirror-tested like everything else here, and
+`test/motor-mirror.test.js` pins the exact surface so it cannot grow quietly.
+**Whether §4's Motor Pool block is amended to list them, or the superset is simply blessed, is an
+orchestrator decision, flagged in `docs/prompts/PLATFORM_HANDOFF.md` J3 rather than taken here.**
 
 - **`MOTOR_MODEL`** — the constants `deriveMechanized`, `breakdownChance` and `totalTonnage` spend,
   plus the six specials sources, in one table. The alternative was a dozen bare numbers inside
@@ -47,6 +51,10 @@ else here.
 - **`evaluateVehicleQuirk(quirk, ctx)`** — the vehicle-side twin of `arms.ts`'s `evaluateQuirk`. Drift
   guard 11 says every quirk carries a machine-evaluable condition; that is only true if something
   evaluates it, and three functions here do.
+- **an OPTIONAL second parameter on `hardpointStats(vehicle, ctx?)` and `deriveMechanized(stand, ctx?)`**
+  — the turn context a conditional quirk needs. Purely additive: called with the contracted one
+  argument both return exactly what they always did, which is asserted rather than assumed, and the
+  returned key set never varies with `ctx`.
 
 **One flag for the platform lane, and it is a question this lane declines to answer by inventing a
 number.** The Points Audit anchors on the **macro** scale — `src/lib/units.js` `crawler.points === 12`,
@@ -105,7 +113,9 @@ turn `main` red; this lane returns the courtesy by asserting no manufacturer **c
 
 ## 4. Chassis patterns
 
-Twenty hulls, at least one per `VehicleClass`, spread across all six tiers and all fourteen makers.
+Twenty hulls, at least one per `VehicleClass`, spread across all six tiers and fourteen distinct
+works. The count is of the works that **build a hull** — a fact about this table — and not of the rows
+in `MANUFACTURERS`, which is Lane I's and which a later lane may append to at any time.
 
 **`hull.tonnage` is the all-up combat weight the ordnance boards stamp on the hull** — armour,
 running gear and the works' nominal plant, ready to fight and before any refit. It is the tonnage
@@ -193,8 +203,19 @@ blurb says so, and no works on the Ground can build a second.
 
 **The curve.** Speed is a step lookup on power-to-weight and never a stat a chassis declares.
 `speedFromPowerWeight(hp, tonnage)` divides `hp` by `totalTonnage(vehicle)`, walks `SPEED_CURVE`
-ascending, takes the `speed` of the **last** row whose `minRatio <= ratio`, and clamps to `[1, 8]`
-hexes per turn. The first row's `minRatio` is `0`, so the lookup always resolves.
+ascending, takes the `speed` of the **last** row whose `minRatio <= ratio`, and clamps to
+`MOTOR_MODEL.speedClamp` — `[1, 8]` hexes per turn. The first row's `minRatio` is `0`, so the lookup
+always resolves.
+
+**That clamp is DEFENSIVE, and unreachable at the shipped curve**: `SPEED_CURVE`'s own speeds already
+span exactly `[1, 8]`, so every ratio is answered by the curve before the clamp is consulted. It is
+written as `MOTOR_MODEL.speedClamp[0], MOTOR_MODEL.speedClamp[1]` rather than as two literals so the
+two cannot drift apart, and the mirror test asserts three things instead of probing the endpoints:
+that the curve's floor and ceiling **are** the clamp, that the function's source names the constant,
+and only then that the endpoints return it. Probing `speedFromPowerWeight(0.0001, 1000)` alone tests
+the curve, not the clamp, and passes over a clamp widened to `[1, 99]` — which is what it used to do.
+`deriveMechanized` applies the same clamp a second time, after the kit `speed` deltas, and *there* it
+is genuinely live.
 
 | `minRatio` (hp per tonne) | speed |
 | --- | --- |
@@ -320,10 +341,18 @@ weight (§4); it is read as drive strain by `breakdownChance`.
 
 ## 8. Turrets & mounts
 
-Ten mounts. A mount governs three things: how many of the hull's hardpoints it can actually serve,
-the arc in degrees through which it can be laid, and the `ArmourClass` the **gun crew themselves**
-are behind — which is a different question from what the hull is behind, and the reason an open ring
-on a heavy crawler is still an open ring.
+Ten mounts. A mount governs three things: how many hardpoints a hull must **have** before the
+mounting can be fitted over them, the arc in degrees through which it can be laid, and the
+`ArmourClass` the **gun crew themselves** are behind — which is a different question from what the
+hull is behind, and the reason an open ring on a heavy crawler is still an open ring.
+
+**`Mount.hardpoints` is a fitting-legality figure, not a firing limit.** It is read in exactly one
+direction — `mount.hardpoints <= chassis.hull.hardpoints.length` — and it is the only direction
+anything reads it in. It does **not** cap how many guns a hull carries or how many fire: step 7 of
+the roll fills one weapon per *hull* hardpoint and never consults the mount, so a four-hardpoint
+monitor on a one-hardpoint casemate carries four guns and `deriveMechanized().ranged` counts all
+four. That is the brief's roll order and it is deliberate; the number a *platform* rule might spend
+here is listed with the other declarative fields in §12.
 
 | Mount | hardpoints | arc | crewArmour | morale |
 | --- | --- | --- | --- | --- |
@@ -338,11 +367,14 @@ on a heavy crawler is still an open ring.
 | Enclosed Turret | 1 | 360° | medium | +1 |
 | Tiered Barbette | 3 | 360° | superheavy | +2 |
 
-The arc/protection trade is the point of the table and it is monotone at both ends: the two mounts
-with the narrowest arcs are the two best-protected single-gun positions, and the two with no
-protection at all are a full-traverse ring and an open cradle. The exception is deliberate — the
-Tiered Barbette is 360° **and** superheavy, because it can only be carried by a hull with the
-tonnage for a belt, and only a land fort has ever been given one.
+The arc/protection trade is the point of the table, and it is monotone **among the six single-gun
+positions**: the two narrowest of those are the two best protected — Fixed Bow Plate 30°/`medium`
+and Casemate Box 45°/`heavy` — and the two with no protection at all are a full-traverse ring and an
+open cradle. The Wing Battery is narrower still, at 20°, and protects almost nothing, because on an
+airframe the mounting is the wing and there is no crew position in it to armour; it is a two-gun
+mount and stands outside the single-gun comparison. The other exception is deliberate — the Tiered
+Barbette is 360° **and** superheavy, because it can only be carried by a hull with the tonnage for a
+belt, and only a land fort has ever been given one.
 
 **A mount is legal on a chassis only when `mount.hardpoints <= chassis.hull.hardpoints.length`.**
 `rollVehicle` enforces it and the mirror test asserts that every chassis has at least one legal
@@ -355,6 +387,12 @@ the one place in `motorPool.ts` where an `ArmourClass` key indexes arithmetic, a
 is a hand-authored morale figure, never an armour value; nothing here is derived from
 `ARMOUR_CLASSES` and nothing here may be. `fortified` scores below `superheavy` on purpose: poured
 works are thicker and *unsealed*, and a crew that must go on breathing knows it.
+
+**No shipped mount is `fortified`-crewed**, so that row is never indexed today. It is carried because
+the map is keyed by the whole `ArmourClassKey` vocabulary — the mirror test asserts the key sets are
+equal, so a missing row would be a hole rather than an economy — and because a poured emplacement is
+the obvious next mount. Its value is a considered figure held ready, not a live trade-off; read the
+paragraph above as the reasoning for the day one is fitted.
 
 ## 9. Refit kits (vehicle modifications)
 
@@ -510,7 +548,13 @@ Every pool is **sorted by key** before it is drawn from, which is what makes the
 object insertion order: a row appended by a later lane cannot silently renumber the whole history.
 
 **Quality and luck.** `w = rollWeight × (1 + luck × luckSlope[grade])`, clamped at zero, then
-normalised. At `luck === 0` the distribution is *exactly* the normalised `rollWeight`s, which is what
+normalised. **The zero clamp is unreachable at the shipped slopes and is written down as such**:
+`luck` is bounded to `[-1, 1]` and the largest slope magnitude is `0.9` (relic), so the smallest
+factor any grade can reach is `0.1` and no weight can go negative. The mirror test enumerates that
+minimum over all five grades at both extremes, so the claim goes red rather than stale the day a
+slope passes 1 — at which point the clamp becomes live and needs a test that drives it. The same
+arithmetic is why `pickWeighted`'s total is always positive and its terminal fallback is likewise
+unreachable today. At `luck === 0` the distribution is *exactly* the normalised `rollWeight`s, which is what
 the ten-thousand-roll test asserts to within two percentage points. `luck` is clamped to `[-1, 1]`, and
 a non-finite luck is treated as zero — `clampTo(NaN)` is `NaN`, which would make every weight `NaN`,
 never satisfy `ticket < 0`, and drop the loop through to its initialiser: the rarest grade, on every
@@ -548,9 +592,19 @@ The mirror test recomputes both halves from `ARMOUR_CLASSES` and `CHASSIS_PATTER
 equality, so it cannot drift into a judgement. It has to be a cache: the raises-or-holds half needs
 armour *values*, and drift guard 12 puts those in `arms.ts` and nowhere else.
 
-**Serial format:** `MW-<maker stem>-<4 uppercase hex>`, e.g. `MW-HUND-3A9F`. The stem is the first four
-letters of the maker's first `nameStem`; the hex is four characters off the same stream. Asserted by
-regex `/^MW-[A-Z]{2,4}-[0-9A-F]{4}$/` and by reproducing two hundred serials from their seeds.
+**Serial format:** `MW-<works stem>-<4 uppercase hex>`, e.g. `MW-HUND-3A9F`. The stem is the first
+four letters of the works' **key**, less any `mw_` prefix; the hex is four characters off the same
+stream. Asserted by regex `/^MW-[A-Z]{2,4}-[0-9A-F]{4}$/`, by reproducing two hundred serials from
+their seeds, and by recomputing every works' stem from its key and requiring the fourteen to be
+distinct.
+
+It is taken from the key and **not** from `nameStems[0]`, for the reason this section opens with. The
+stems are Lane I's data and reordering them is a free edit as far as that lane is concerned — but a
+serial is reproduced from its seed and never stored, so a reorder there would silently renumber every
+machine this lane has ever issued. The key cannot move without moving the chassis rows that name it.
+It also fixes a shipped wart: `ascendancy_signal_works` leads with the stem *Testimony*, so every
+Copperline car came off the line stamped `MW-TEST-####`, which reads as placeholder data on a record
+the player is meant to take as issued.
 
 ## 12. `deriveMechanized` — the roll-up formulas
 
@@ -582,6 +636,19 @@ than smuggled into the return object.
 | `specials` | the six `MOTOR_MODEL.specials` sources, deduplicated, in `MECHANIZED_SPECIALS` order |
 | `facings` | `{ ...hull.baseArmour, ...(package?.facings ?? {}) }` — key substitution, nothing else |
 
+**`facings` substitutes whatever package it is handed, and that is why the LEGALITY of the pairing is
+a gate the caller owes.** The substitution is unconditional by design — comparing the two facings
+would need armour *values*, and drift guard 12 puts those in `arms.ts` — so "a package never lowers a
+facing" is an invariant of the *pairing*, not of this function. `ROLL_ODDS.packagePool[chassisKey]`
+is where that invariant lives: it is the cache of {raises-or-holds every facing} ∩ {weight ≤
+`packageWeightCap` × stamped tonnage}, recomputed and asserted by the mirror test (§11). A hull
+rolled by `rollVehicle` can only ever hold a package from its own pool. **A hand-fitted one — a
+Refit Yard swap, a captured hull re-plated, anything a client composes — must be checked against
+`ROLL_ODDS.packagePool[chassisKey]` before it is accepted**, or a package legal on some other hull
+will quietly *lower* a facing on this one: measured over the full cross product, 51 (chassis,
+package) pairs lower at least one facing, and every one of them is outside that hull's pool.
+`docs/prompts/PLATFORM_HANDOFF.md` J2 carries the same sentence as a validator rule.
+
 **`totalTonnage` is hull + package + kit `tonnage` deltas.** The plant's and the drive's own `weight`
 are deliberately *not* added: a hull's stamped tonnage is its all-up combat weight, running gear and
 the works' nominal plant included. Those two weights are spent in `breakdownChance` instead, as drive
@@ -606,6 +673,17 @@ only the `crew_kit` slot would leave five shipped rows with a number nothing rea
 
 **Specials come off the declared quirks, not the live ones.** A token is a capability of the machine,
 not a conditional effect on a turn: an open fighting compartment is open in fine weather too.
+
+**Running gear is the DRIVE's, and only the drive's.** `tracked`, `wheeled` and `walker` are emitted
+by `MOTOR_MODEL.specials.byDrive` and by no other source — asserted structurally, and again over
+eight hundred rolled stands. The six maps are *unioned*, so a class that also named a running-gear
+token produced contradictions rather than emphasis: a land fort on walker legs came back both
+`tracked` and `walker`, and an armoured car on a hover skirt came back `wheeled` with no wheel on it,
+about one rolled stand in nine. A class says what a machine is **for**; the suspension says how it
+moves. The only stand that legitimately carries two is a half-track, because
+`sus_half_track_bogie` declares both — and it is asserted to be the only source that does.
+`naval`, `air` and `towed` stay class facts: they name the theatre a hull fights in rather than its
+running gear, they agree with every drive their class can roll, and none can contradict another.
 
 **Quirk context.** `ctx` is optional. With none, `always` fires and so do the three instance-fact
 conditions; with a turn's context the other nine become live. The returned key set never changes.
@@ -635,7 +713,8 @@ at least one row; these are the ones a function here actually reads:
 | `arc` | the engine owns firing arcs; this lane only prices the trade |
 | `losRange` | spotting is Lane C's, not the Motor Pool's |
 | `initiative` | order sequencing is Lane A/C's |
-| `hardpoints` | a kit that costs a position is a builder-time constraint, not a roll-up number |
+| `hardpoints` (stat key) | a kit that costs a position is a builder-time constraint, not a roll-up number |
+| `Mount.hardpoints` | a fitting-legality figure (§8): read only as `<= hull.hardpoints.length`, never as a cap on guns carried or guns fired |
 | `fuelUse` | supply is the macro layer's question |
 
 Lane I made the same split for its quirks' morale keys, and stating it plainly is the difference

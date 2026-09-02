@@ -13,19 +13,44 @@ import { describe, it, expect } from "vitest";
 import {
   CHASSIS_PATTERNS, POWERPLANTS, ARMOUR_PACKAGES, SUSPENSIONS, MOUNTS,
   VEHICLE_MODS, VEHICLE_QUIRKS, VEHICLE_QUIRK_CONDITIONS, MECHANIZED_SPECIALS,
-  MOTOR_MODEL, ROLL_ODDS, TIER_RANK, MELEE_CURVE, CREW_MORALE_CURVE,
-  CREW_EXPOSURE_MORALE, tierRank, speedFromPowerWeight, totalTonnage,
+  MOTOR_MODEL, ROLL_ODDS, TIER_RANK, TERRAIN_KEYS, MELEE_CURVE, CREW_MORALE_CURVE,
+  CREW_EXPOSURE_MORALE, tierRank, speedFromPowerWeight, terrainMultiplier, totalTonnage,
   hardpointStats, hardpointWeapons, breakdownChance, rollVehicle,
   deriveMechanized, evaluateVehicleQuirk,
 } from "@/lib/motorPool.js";
 import {
   WEAPON_PATTERNS, QUALITY_GRADES, QUALITY_ORDER, SQUAD_VALUE_KEYS, ARMOUR_CLASSES,
-  resolveWeapon,
+  resolveWeapon, rollWeapon,
 } from "@/lib/arms.js";
 
 const CHASSIS_KEYS = Object.keys(CHASSIS_PATTERNS);
 const CAPS = Object.keys(TIER_RANK);
 const withinCap = (tier, cap) => TIER_RANK[tier] < TIER_RANK[cap] || tier === cap;
+
+// Every gun on the instance is accepted by a DISTINCT hull position, taken in
+// hull order and never reused — the only association a VehicleInstance still
+// supports once a position has been skipped, and therefore the rule
+// PLATFORM_HANDOFF J2 gives the validator. Returns false if the walk runs out
+// of positions, which is what an illegal instance looks like.
+const assignInHullOrder = (vehicle, hull) => {
+  let at = 0;
+  for (const w of vehicle.hardpoints) {
+    const cls = WEAPON_PATTERNS[w.patternKey].class;
+    while (at < hull.length && !hull[at].allowed.includes(cls)) at += 1;
+    if (at >= hull.length) return false;
+    at += 1;
+  }
+  return true;
+};
+
+// The caps at which a weapon class has no eligible pattern at all. DERIVED
+// from WEAPON_PATTERNS rather than asserted about it: a negative existence
+// claim over Lane I's table goes red the day that lane adds a low-tier row,
+// which is the same cross-lane failure this lane's manufacturer assertions
+// were re-scoped to avoid.
+const capsWithNoPattern = (weaponClass) => CAPS.filter(
+  (cap) => !Object.values(WEAPON_PATTERNS).some((p) => p.class === weaponClass && withinCap(p.tier, cap)),
+);
 
 // ---------------------------------------------------------------------------
 // §1 PURITY AND DETERMINISM
@@ -233,26 +258,48 @@ describe("rollVehicle — filters", () => {
         expect(VEHICLE_CAPABLE.has(pattern.class)).toBe(true);
         rolled += 1;
       }
-      // Each position took a class its own hardpoint allows.
-      v.hardpoints.forEach((w, i) => {
-        expect(hull[i].allowed, `hardpoint ${hull[i].key} on ${v.chassisKey}`).toContain(WEAPON_PATTERNS[w.patternKey].class);
-      });
+      // Each gun is accepted by a hull position, walked in HULL ORDER.
+      //
+      // NOT `hull[i]`. A WeaponInstance carries no hardpoint key, and step 7
+      // of the roll OMITS a position it cannot fill, so instance index i is
+      // not hull position i the moment anything is skipped — the positional
+      // form is green only while the default cap happens never to skip. The
+      // greedy in-order walk is the reading the data actually supports, and it
+      // is the one PLATFORM_HANDOFF J2 hands to the validator.
+      expect(assignInHullOrder(v, hull), `no hull-order assignment on ${v.chassisKey}`).toBe(true);
     }
     expect(rolled).toBeGreaterThan(400);
   });
 
   it("a hardpoint with nothing it can carry at the cap goes to the field empty", () => {
-    // The documented branch, driven rather than asserted in prose: at cap
-    // 'II:Wake' no crawler_gun pattern qualifies, and the Reliquary Monitor's
-    // casemate is a crawler_gun-only position on an otherwise legal hull.
+    // The documented branch, DRIVEN — and the cap that drives it is derived at
+    // runtime, never asserted about Lane I's table. The Reliquary Monitor's
+    // casemate is a crawler_gun-only position on an otherwise legal hull, so
+    // any cap at which the crawler_gun pool is empty exercises the skip.
     const casemate = CHASSIS_PATTERNS.reliquary_124_monitor_mk2.hull.hardpoints;
     expect(casemate[1].allowed).toEqual(["crawler_gun"]);
-    expect(Object.values(WEAPON_PATTERNS).some((p) => p.class === "crawler_gun" && withinCap(p.tier, "II:Wake"))).toBe(false);
-    const v = rollVehicle({ seed: 5, class: "gunboat", maker: "ferrymen_shrine_armoury", tierCap: "II:Wake" });
-    expect(v.chassisKey).toBe("reliquary_124_monitor_mk2");
-    expect(v.hardpoints.length).toBe(casemate.length - 1);
-    // and the hull is still a usable stand
-    expect(deriveMechanized({ vehicle: v }).ranged).toBeGreaterThan(0);
+    // …at a cap that also admits the hull itself, or the filter throws first.
+    const monitorTier = CHASSIS_PATTERNS.reliquary_124_monitor_mk2.tier;
+    const empties = capsWithNoPattern("crawler_gun").filter((cap) => withinCap(monitorTier, cap));
+    if (empties.length === 0) {
+      // Every cap now has a crawler_gun pattern, so the branch is unreachable
+      // from this hull. Say so rather than fail on another lane's data — but
+      // the branch itself must still exist, or the hull would be unrollable.
+      expect(CHASSIS_PATTERNS.reliquary_124_monitor_mk2, "the worked case is gone").toBeDefined();
+      return;
+    }
+    for (const cap of empties) {
+      const v = rollVehicle({ seed: 5, class: "gunboat", maker: "ferrymen_shrine_armoury", tierCap: cap });
+      expect(v.chassisKey).toBe("reliquary_124_monitor_mk2");
+      expect(v.hardpoints.length, `at cap ${cap}`).toBe(casemate.length - 1);
+      // the hull is still a usable stand …
+      expect(deriveMechanized({ vehicle: v }).ranged).toBeGreaterThan(0);
+      // … and the skipped position is exactly why index i is NOT hull i: the
+      // positional reading fails here, the hull-order walk holds.
+      expect(assignInHullOrder(v, casemate), `hull-order walk at cap ${cap}`).toBe(true);
+      const positional = v.hardpoints.every((w, i) => casemate[i].allowed.includes(WEAPON_PATTERNS[w.patternKey].class));
+      expect(positional, "index i must NOT read as hull position i once a position is skipped").toBe(false);
+    }
   });
 
   it("the rolled mount never carries more hardpoints than the hull provides", () => {
@@ -285,9 +332,19 @@ describe("rollVehicle — filters", () => {
       expect(v.serial, `serial for seed ${s}`).toMatch(FORMAT);
       expect(rollVehicle({ seed: s }).serial).toBe(v.serial);
     }
-    // and the stem is the maker's, not the roll's
-    const v = rollVehicle({ seed: 3, maker: "hundredweight_works" });
-    expect(v.serial.split("-")[1]).toBe("HUND");
+    // and the stem is the WORKS KEY's — recomputed for every works that builds
+    // a hull, and required to be distinct, so no two registers collide and no
+    // stem is inherited from Lane I's nameStems (where the Ascendancy's first
+    // stem "Testimony" stamped every Copperline car MW-TEST-####).
+    const stemOf = (maker) => maker.replace(/^mw_/, "").replace(/[^A-Za-z]/g, "").toUpperCase().slice(0, 4);
+    const makers = [...new Set(CHASSIS_KEYS.map((k) => CHASSIS_PATTERNS[k].maker))];
+    expect(new Set(makers.map(stemOf)).size, "two works share a serial stem").toBe(makers.length);
+    for (const maker of makers) {
+      const v = rollVehicle({ seed: 3, maker });
+      expect(v.serial.split("-")[1], `serial stem for ${maker}`).toBe(stemOf(maker));
+    }
+    expect(stemOf("hundredweight_works")).toBe("HUND");
+    expect(stemOf("mw_grimwold_treadworks")).toBe("GRIM");
   });
 });
 
@@ -489,6 +546,107 @@ describe("breakdownChance, hardpointStats and hardpointWeapons", () => {
     expect(heavy).toBeGreaterThan(light);
   });
 
+  it("every refit kit's tonnage delta is what totalTonnage actually adds", () => {
+    // The kit term was the only untested half of totalTonnage: deleting it
+    // left the whole suite green, because the recompute test sources its
+    // expected tonnage from totalTonnage itself and the weight test pins
+    // `mods: []` on both sides. Walked over EVERY kit, and over both records,
+    // so neither half can be dropped and a kit that starts declaring tonnage
+    // on the other side is covered the day it lands.
+    const base = { ...rollVehicle({ seed: 44, class: "line_crawler", tierCap: "I" }), mods: [], armourPackage: null };
+    const bare = totalTonnage(base);
+    let moved = 0;
+    for (const [k, mod] of Object.entries(VEHICLE_MODS)) {
+      const delta = (mod.mods.tonnage || 0) + (mod.tradeoff.tonnage || 0);
+      const fitted = totalTonnage({ ...base, mods: [k] });
+      expect(Math.round((fitted - bare) * 100) / 100, `${k} tonnage delta`).toBe(delta);
+      if (delta !== 0) moved += 1;
+    }
+    expect(moved, "no kit moves tonnage at all — the term would be dead").toBeGreaterThanOrEqual(10);
+
+    // and the tonnage it adds is SPENT: melee reads it, speed reads it.
+    const blade = VEHICLE_MODS.vm_dozer_blade;
+    expect(blade.tradeoff.tonnage).toBeGreaterThan(0);
+    const heavy = { ...base, mods: ["vm_dozer_blade"] };
+    expect(totalTonnage(heavy)).toBe(Math.round((bare + blade.tradeoff.tonnage) * 100) / 100);
+    expect(speedFromPowerWeight(1000, totalTonnage(heavy)))
+      .toBeLessThanOrEqual(speedFromPowerWeight(1000, bare));
+  });
+
+  it("hardpointStats' range is the longest gun, not the sum of them", () => {
+    // Replacing `max` with `+=` left the suite green: the only assertion over
+    // stats.range was >= 0, and a six-hardpoint land fort would have reported
+    // roughly six times its true reach to the tactical engine.
+    let multi = 0;
+    for (let s = 0; s < 300; s++) {
+      const v = rollVehicle({ seed: s, mods: [] });
+      if (v.hardpoints.length === 0) continue;
+      const bare = { ...v, mods: [] };
+      const ranges = bare.hardpoints.map((w) => resolveWeapon(w, undefined).range);
+      expect(hardpointStats(bare).range, `range for seed ${s}`)
+        .toBe(Math.round(Math.max(...ranges) * 100) / 100);
+      if (bare.hardpoints.length > 1) multi += 1;
+    }
+    expect(multi, "no multi-gun hull was drawn — max and sum would agree").toBeGreaterThan(50);
+  });
+
+  it("the plant's cooling burden is spent in breakdownChance", () => {
+    // Deleting the heat term left the suite green, because the monotonicity
+    // walk is relative and a term that shifts every vehicle equally is
+    // invisible to it. Two-point, against the published constant.
+    const v = { ...rollVehicle({ seed: 63, class: "line_crawler", tierCap: "I" }), mods: [], quirks: [], armourPackage: null };
+
+    // The whole formula, recomputed from the tables — the heat term included,
+    // and this is the assertion that goes red when it is removed. Quirks are
+    // stripped so the only live deltas are the kit's.
+    const expected = (veh) => {
+      const chassis = CHASSIS_PATTERNS[veh.chassisKey];
+      const plant = POWERPLANTS[veh.powerplant];
+      const drive = SUSPENSIONS[veh.suspension];
+      let rel = plant.reliability * drive.reliability;
+      if (veh.armourPackage) rel += ARMOUR_PACKAGES[veh.armourPackage].reliability;
+      let heat = plant.heat;
+      for (const k of veh.mods) {
+        const mod = VEHICLE_MODS[k];
+        rel += (mod.mods.reliability || 0) + (mod.tradeoff.reliability || 0);
+        heat += (mod.mods.heat || 0) + (mod.tradeoff.heat || 0);
+      }
+      // the hull's INNATE quirks are carried whatever `vehicle.quirks` says
+      for (const k of chassis.quirks || []) {
+        const q = VEHICLE_QUIRKS[k];
+        if (q.condition.key !== "always") continue;
+        rel += q.mods.reliability || 0;
+        heat += q.mods.heat || 0;
+      }
+      if (heat > 0) rel -= MOTOR_MODEL.heatPenaltyPerUnit * heat;
+      const allowed = chassis.hull.tonnage * MOTOR_MODEL.gearAllowanceByClass[chassis.class];
+      const gear = plant.weight + drive.weight;
+      if (gear > allowed) rel -= MOTOR_MODEL.strainPerTonne * (gear - allowed);
+      const raw = Math.min(MOTOR_MODEL.breakdownMax, Math.max(0, MOTOR_MODEL.breakdownScale * (1 - rel)));
+      return Math.round(raw * Math.pow(10, MOTOR_MODEL.decimals)) / Math.pow(10, MOTOR_MODEL.decimals);
+    };
+
+    const gallery = VEHICLE_MODS.vm_radiator_gallery;
+    expect(gallery.mods.heat).toBeLessThan(0);
+    const cooledV = { ...v, mods: ["vm_radiator_gallery"] };
+    expect(breakdownChance(v)).toBe(expected(v));
+    expect(breakdownChance(cooledV)).toBe(expected(cooledV));
+    expect(breakdownChance(cooledV), "a cooler, cleaner plant must break down less")
+      .toBeLessThan(breakdownChance(v));
+    // and the heat term is doing real work at this hull's numbers
+    expect(POWERPLANTS[v.powerplant].heat).toBeGreaterThan(0);
+    expect(MOTOR_MODEL.breakdownScale * MOTOR_MODEL.heatPenaltyPerUnit * POWERPLANTS[v.powerplant].heat)
+      .toBeGreaterThan(0.005);
+
+    // and a hotter plant on the same hull is worse for the heat reason alone
+    const hot = { ...v, powerplant: "as_beacon_turbine_540" };
+    const cool = { ...v, powerplant: "ls_lofter_radial_620" };
+    expect(POWERPLANTS.as_beacon_turbine_540.heat).toBeGreaterThan(POWERPLANTS.ls_lofter_radial_620.heat);
+    expect(breakdownChance(hot)).toBe(expected(hot));
+    expect(breakdownChance(cool)).toBe(expected(cool));
+    expect(breakdownChance(hot)).toBeGreaterThan(breakdownChance(cool));
+  });
+
   it("hardpointStats passes armorPen through and never flattens the instances", () => {
     for (let s = 0; s < 200; s++) {
       const v = rollVehicle({ seed: s });
@@ -595,11 +753,266 @@ describe("evaluateVehicleQuirk", () => {
     expect(master.ranged).toBeLessThan(masterPlain.ranged);
   });
 
+  it("terrainMultiplier is the matrix, and it fails loudly on either key", () => {
+    // The sole consumer Lane C has for the 9x16 terrain matrix, and it had no
+    // test at all: replacing the whole lookup body with `const mult = 1` left
+    // the suite green, which would have made 144 authored numbers dead data,
+    // and replacing the throw with `return 1` is precisely the silent
+    // "unaffected" that §7 argues a river must never read as.
+    for (const k of Object.keys(SUSPENSIONS)) {
+      for (const t of TERRAIN_KEYS) {
+        expect(terrainMultiplier(k, t), `${k} on ${t}`).toBe(SUSPENSIONS[k].terrain[t]);
+      }
+    }
+    // the matrix is not constant, in either direction
+    const flat = Object.keys(SUSPENSIONS).flatMap((k) => TERRAIN_KEYS.map((t) => terrainMultiplier(k, t)));
+    expect(new Set(flat).size, "the terrain matrix reads as one number").toBeGreaterThan(3);
+    expect(terrainMultiplier("sus_road_wheels", "road")).toBe(SUSPENSIONS.sus_road_wheels.terrain.road);
+    expect(terrainMultiplier("sus_road_wheels", "road")).toBeGreaterThan(1);
+    expect(terrainMultiplier("sus_line_tread", "water")).toBe(0);
+    // and both keys fail loudly
+    expect(() => terrainMultiplier("sus_hoverboard", "road")).toThrow(/unknown suspension/);
+    expect(() => terrainMultiplier("sus_line_tread", "lava")).toThrow(/unknown terrain/);
+    expect(() => terrainMultiplier("sus_line_tread", undefined)).toThrow(/unknown terrain/);
+  });
+
   it("an unknown key fails loudly rather than reading as a zero", () => {
     expect(() => tierRank("IV")).toThrow(/unknown tier/);
     expect(() => rollVehicle({ seed: 1, class: "no_such_class" })).toThrow(/no chassis matches/);
     expect(() => totalTonnage({ chassisKey: "no_such_hull" })).toThrow(/unknown chassis/);
     expect(() => totalTonnage({ chassisKey: "hundredweight_141_line_crawler", armourPackage: "ap_nope" })).toThrow(/unknown armour package/);
     expect(() => totalTonnage({ chassisKey: "hundredweight_141_line_crawler", mods: ["vm_nope"] })).toThrow(/unknown vehicle mod/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// §7 THE ROLL ORDER, PINNED
+// ---------------------------------------------------------------------------
+
+describe("the roll order and the sub-seed are the contract", () => {
+  // §11 says in prose that "the roll order is the contract" and that "every
+  // pool is sorted by key before it is drawn from". Nothing held either of
+  // them: swapping the suspension and mount steps, and dropping the chassis
+  // pool's .sort() so the draw follows object insertion order, both left the
+  // suite green — and both change every machine ever issued, because the
+  // determinism tests only compare a roll to itself and move with the change.
+  //
+  // WHAT IS PINNED, AND WHAT DELIBERATELY IS NOT. The fields below are the
+  // ones drawn from THIS lane's tables off the shared stream. The hardpoint
+  // WEAPONS are not among them: they come out of Lane I's WEAPON_PATTERNS, and
+  // a fixture naming pattern keys would go red the day a later lane appends a
+  // vehicle-capable pattern — the cross-lane red this lane's manufacturer
+  // assertions were re-scoped to avoid. The stream position is still safe to
+  // pin, because step 7 consumes exactly one draw per FILLED position and
+  // every case below fills every position it has; that is asserted, not
+  // assumed. The sub-seed formula gets its own test, recomputed through Lane
+  // I's own rollWeapon rather than against a key.
+  const GOLDEN = [
+  {
+    args: { seed: 0 },
+    want: {
+      chassisKey: "adjudicated_142_writhawk", quality: "scrap",
+      powerplant: "as_beacon_turbine_540", suspension: "sus_flight_gear",
+      mount: "mnt_fixed_bow", armourPackage: null,
+      hardpoints: ["as272_antenna_wing_cannon_mk2", "em233_anvilgate_heavy_gun_mk1"],
+      mods: [],
+      quirks: ["vq_pieced_together", "vq_deck_gang", "vq_bogs_the_soft_going"],
+      serial: "MW-SALV-E747",
+    },
+  },
+  {
+    args: { seed: 137 },
+    want: {
+      chassisKey: "grimwold_138_breaker_mk3", quality: "proofed",
+      powerplant: "cl_knotwork_diesel_140", suspension: "sus_line_tread",
+      mount: "mnt_sponson_pair", armourPackage: "ap_overhead_grillage",
+      hardpoints: ["em291_forgeworks_breakthrough_gun_mk1", "rs299_state_pintle_gun_mk4", "cl206_tollgate_sustained_gun_mk2"],
+      mods: ["vm_mantlet_collar", "vm_turret_basket", "vm_forced_induction"],
+      quirks: ["vq_thirsty"],
+      serial: "MW-GRIM-B759",
+    },
+  },
+  {
+    args: { seed: 4242, luck: 0.75 },
+    want: {
+      chassisKey: "forgeworks_152_cinderhead", quality: "issue",
+      powerplant: "tp_seamfire_flash_boiler_180", suspension: "sus_walker_legs",
+      mount: "mnt_sponson_pair", armourPackage: "ap_cast_glacis",
+      hardpoints: ["sy277_prizeyard_turret_gun_mk3", "tp305_slagline_hull_projector_mk1", "cl206_tollgate_sustained_gun_mk2", "rs299_state_pintle_gun_mk4"],
+      mods: ["vm_ready_racks", "vm_wide_grousers"],
+      quirks: ["vq_thirsty", "vq_cramped_fighting_room", "vq_re_bored_barrel"],
+      serial: "MW-EMBE-DC20",
+    },
+  },
+  {
+    args: { seed: -8, class: "land_fort" },
+    want: {
+      chassisKey: "grimwold_156_lockjaw_mk1", quality: "proofed",
+      powerplant: "fs_reliquary_cell_800", suspension: "sus_wide_girder_tread",
+      mount: "mnt_sponson_pair", armourPackage: "ap_fortress_courses",
+      hardpoints: ["sy277_prizeyard_turret_gun_mk3", "sy277_prizeyard_turret_gun_mk3", "sy277_prizeyard_turret_gun_mk3", "rs299_state_pintle_gun_mk4", "cl206_tollgate_sustained_gun_mk2", "em239_forgeworks_battalion_mortar_mk1"],
+      mods: ["vm_stereo_rangefinder", "vm_low_compression_rebuild"],
+      quirks: ["vq_thirsty", "vq_ponderous", "vq_settled_bearings", "vq_deck_gang"],
+      serial: "MW-GRIM-A709",
+    },
+  },
+  {
+    args: { seed: 91, class: "gunboat", tierCap: "II:Cache" },
+    want: {
+      chassisKey: "punt_137_shoalcutter", quality: "issue",
+      powerplant: "rw_shoal_marine_diesel_310", suspension: "sus_twin_screw",
+      mount: "mnt_enclosed_turret", armourPackage: null,
+      hardpoints: ["sy277_prizeyard_turret_gun_mk3", "cl206_tollgate_sustained_gun_mk2"],
+      mods: ["vm_forced_induction"],
+      quirks: ["vq_shallow_draught", "vq_deck_gang", "vq_low_silhouette"],
+      serial: "MW-REDW-130E",
+    },
+  },
+  ];
+
+  it("five fixed seeds still produce the machines they were issued as", () => {
+    for (const { args, want } of GOLDEN) {
+      const v = rollVehicle(args);
+      const hull = CHASSIS_PATTERNS[v.chassisKey].hull.hardpoints;
+      expect(v.hardpoints.length, `${JSON.stringify(args)} skips a position — the stream position is no longer stable`)
+        .toBe(hull.length);
+      expect({
+        chassisKey: v.chassisKey, quality: v.quality, powerplant: v.powerplant,
+        suspension: v.suspension, mount: v.mount, armourPackage: v.armourPackage,
+        mods: v.mods, quirks: v.quirks, serial: v.serial,
+      }, `the roll for ${JSON.stringify(args)} has changed`).toEqual({
+        chassisKey: want.chassisKey, quality: want.quality, powerplant: want.powerplant,
+        suspension: want.suspension, mount: want.mount, armourPackage: want.armourPackage,
+        mods: want.mods, quirks: want.quirks, serial: want.serial,
+      });
+    }
+    // and the corpus is worth having: it spans classes, drives and grades
+    const rolled = GOLDEN.map(({ args }) => rollVehicle(args));
+    expect(new Set(rolled.map((v) => CHASSIS_PATTERNS[v.chassisKey].class)).size).toBeGreaterThanOrEqual(4);
+    expect(new Set(rolled.map((v) => v.suspension)).size).toBeGreaterThanOrEqual(4);
+    expect(rolled.some((v) => v.armourPackage === null)).toBe(true);
+    expect(rolled.some((v) => v.armourPackage !== null)).toBe(true);
+  });
+
+  it("every gun is the one the documented sub-seed produces", () => {
+    // hpSeed = (seed ^ Math.imul(0x9e3779b9, i + 1)) | 0, for HULL index i.
+    // Recomputed through Lane I's rollWeapon, so it pins the formula without
+    // naming a pattern key: changing `i + 1` to `i + 2` goes red here.
+    let checked = 0;
+    for (const seed of [0, 3, 17, 137, 4242]) {
+      const v = rollVehicle({ seed });
+      const hull = CHASSIS_PATTERNS[v.chassisKey].hull.hardpoints;
+      if (v.hardpoints.length !== hull.length) continue;
+      v.hardpoints.forEach((w, i) => {
+        const hpSeed = (seed ^ Math.imul(0x9e3779b9, i + 1)) | 0;
+        const again = rollWeapon({
+          seed: hpSeed, class: WEAPON_PATTERNS[w.patternKey].class, tierCap: "III", luck: 0,
+        });
+        expect(again, `hardpoint ${i} of seed ${seed}`).toEqual(w);
+        checked += 1;
+      });
+    }
+    expect(checked, "no hardpoint was checked").toBeGreaterThan(5);
+  });
+
+  it("every pool is drawn sorted, so a later append cannot renumber history", () => {
+    // The property the .sort() calls exist for, asserted directly: the draw
+    // must not follow declaration order. Rebuilding each pool in declaration
+    // order and asserting it DIFFERS from the sorted one proves the sort is
+    // observable rather than cosmetic on this catalogue.
+    const declared = Object.keys(CHASSIS_PATTERNS);
+    expect(declared, "CHASSIS_PATTERNS happens to be declared in key order — the sort would be unobservable")
+      .not.toEqual([...declared].sort());
+    const unsorted = Object.values(ROLL_ODDS.mountPool).concat(Object.values(ROLL_ODDS.drivePool))
+      .filter((pool) => pool.length > 1 && String(pool) !== String([...pool].sort()));
+    expect(unsorted.length, "every roll pool is already in key order — the sorts are unobservable")
+      .toBeGreaterThan(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// §8 THE THREE DOCUMENTED BEHAVIOURS THAT HAD NO GATE
+// ---------------------------------------------------------------------------
+
+describe("specials, quirk context and plant pricing", () => {
+  it("a stand's running gear is its DRIVE's, and never two of them at once", () => {
+    // byClass used to emit `tracked` and `wheeled` alongside byDrive's, and
+    // because the six maps are unioned that shipped contradictions: a land
+    // fort on walker legs came back BOTH tracked and walker, a hover-skirted
+    // armoured car came back `wheeled`. Roughly one rolled stand in nine, and
+    // these are exactly the tokens Lane A and Lane C branch on.
+    const GROUND = ["tracked", "wheeled", "walker"];
+    let sawTwo = 0;
+    for (let s = 0; s < 800; s++) {
+      const v = rollVehicle({ seed: s });
+      const out = deriveMechanized({ vehicle: v });
+      const carried = out.specials.filter((t) => GROUND.includes(t));
+      const fromDrive = (MOTOR_MODEL.specials.byDrive[v.suspension] || []).filter((t) => GROUND.includes(t));
+      expect(carried.sort(), `seed ${s} on ${v.suspension}`).toEqual([...fromDrive].sort());
+      if (carried.length > 1) sawTwo += 1;
+    }
+    // the half-track bogie is genuinely both, and is the only source that is
+    expect(sawTwo, "no stand carried two running-gear tokens — the half-track case is unreached")
+      .toBeGreaterThan(0);
+    const both = Object.entries(MOTOR_MODEL.specials.byDrive)
+      .filter(([, list]) => list.filter((t) => GROUND.includes(t)).length > 1);
+    expect(both.map(([k]) => k)).toEqual(["sus_half_track_bogie"]);
+  });
+
+  it("specials come off the declared quirks, not the live ones", () => {
+    // §12: "a token is a capability of the machine, not a conditional effect
+    // on a turn — an open fighting compartment is open in fine weather too."
+    // Reading activeQuirkKeys instead left the suite green, because the two
+    // drives that also emit `amphibious` masked the loss.
+    const base = { ...rollVehicle({ seed: 19, class: "line_crawler", tierCap: "I" }), mods: [], armourPackage: null };
+    expect(MOTOR_MODEL.specials.byDrive[base.suspension] || []).not.toContain("amphibious");
+    const q = VEHICLE_QUIRKS.vq_shallow_draught;
+    expect(q.condition.key, "the worked quirk must be conditional, or this proves nothing").not.toBe("always");
+    expect(MOTOR_MODEL.specials.byQuirk.vq_shallow_draught).toContain("amphibious");
+    const fitted = { ...base, quirks: ["vq_shallow_draught"] };
+    // no ctx at all: the condition is NOT live, and the token is there anyway
+    expect(deriveMechanized({ vehicle: fitted }).specials).toContain("amphibious");
+    expect(evaluateVehicleQuirk(q, {})).toBe(false);
+    // and it does not change when the condition does become live
+    expect(deriveMechanized({ vehicle: fitted }, { terrain: q.condition.value }).specials)
+      .toEqual(deriveMechanized({ vehicle: fitted }).specials);
+  });
+
+  it("the caller's ctx cannot overwrite the three instance facts", () => {
+    // quirkContext fills quality, crew and tonnage from the INSTANCE and
+    // spreads the caller's ctx underneath. Reordering the spread — so a
+    // caller could claim any crew it liked — left the suite green.
+    const v = { ...rollVehicle({ seed: 26, class: "gunboat", tierCap: "I" }), mods: [] };
+    const honest = deriveMechanized({ vehicle: v });
+    for (const lie of [{ crew: 99 }, { tonnage: 999 }, { quality: "relic" }, { crew: 0, tonnage: 0, quality: "scrap" }]) {
+      expect(deriveMechanized({ vehicle: v }, lie), `ctx ${JSON.stringify(lie)} changed the roll-up`).toEqual(honest);
+      expect(breakdownChance(v, lie), `ctx ${JSON.stringify(lie)} changed the breakdown`).toBe(breakdownChance(v));
+    }
+    // and a condition the caller DOES own still works, or this would pass on
+    // a ctx that is ignored entirely
+    const rainy = { ...rollVehicle({ seed: 4, class: "half_track", maker: "tarpool_burnworks" }) };
+    expect(breakdownChance(rainy, { weather: "rain" })).toBeGreaterThan(breakdownChance(rainy));
+  });
+
+  it("a plant is priced at MOTOR_MODEL.plantPtsPerHp per horsepower", () => {
+    // The constant's own comment publishes two worked figures. Changing it
+    // 0.02 -> 0.05 left the suite green, because the recompute test sources
+    // the same constant; these are the literals the comment and §13 state.
+    expect(MOTOR_MODEL.plantPtsPerHp * POWERPLANTS.rs_levy_diesel_95.hp).toBeCloseTo(1.9, 10);
+    expect(MOTOR_MODEL.plantPtsPerHp * POWERPLANTS.fs_reliquary_cell_800.hp).toBeCloseTo(16, 10);
+    expect(POWERPLANTS.rs_levy_diesel_95.hp).toBe(95);
+    expect(POWERPLANTS.fs_reliquary_cell_800.hp).toBe(800);
+
+    // and the figure is what deriveMechanized actually charges: two plants on
+    // one hull differ by exactly the hp difference times the rate, times the
+    // hull's grade.
+    const v = { ...rollVehicle({ seed: 55, class: "line_crawler", tierCap: "I" }), mods: [], armourPackage: null, quality: "issue" };
+    const a = deriveMechanized({ vehicle: { ...v, powerplant: "hw_flatbed_diesel_60" } }).pts;
+    const b = deriveMechanized({ vehicle: { ...v, powerplant: "em_forgeworks_diesel_460" } }).pts;
+    const rate = MOTOR_MODEL.plantPtsPerHp * QUALITY_GRADES.issue.ptsMult;
+    const gap = (POWERPLANTS.em_forgeworks_diesel_460.hp - POWERPLANTS.hw_flatbed_diesel_60.hp) * rate;
+    expect(b - a).toBeCloseTo(gap, 1);
+    expect(POWERPLANTS.hw_flatbed_diesel_60.hp * MOTOR_MODEL.plantPtsPerHp,
+      "the floor must not be in play, or this measures plantPtsMin").toBeGreaterThan(MOTOR_MODEL.plantPtsMin);
   });
 });

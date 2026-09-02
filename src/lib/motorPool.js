@@ -18,13 +18,13 @@
 // Design record: docs/MOTOR_POOL.md
 // ---------------------------------------------------------------------------
 
-// Lane I's catalogue. The four tables and two functions this lane draws on,
+// Lane I's catalogue. The three tables and two functions this lane draws on,
 // and nothing else. The hit resolver, the penetration rows, the damage-type
 // matrix and the armour values are deliberately NOT imported, and the four
 // identifiers that name them do not appear in this file's source text at all —
 // which is exactly what the acceptance grep looks for, so this comment cannot
 // spell them out either.
-import { MANUFACTURERS, WEAPON_PATTERNS, QUALITY_GRADES, QUALITY_ORDER, resolveWeapon, rollWeapon } from '@/lib/arms.js';
+import { WEAPON_PATTERNS, QUALITY_GRADES, QUALITY_ORDER, resolveWeapon, rollWeapon } from '@/lib/arms.js';
 
 // ---------------------------------------------------------------------------
 // 1. Vocabularies
@@ -1796,14 +1796,30 @@ export const MOTOR_MODEL = {
   // Six maps, every value a subset of MECHANIZED_SPECIALS. The union of all
   // six is asserted EQUAL to MECHANIZED_SPECIALS — no token without a source
   // and no source emitting a token the vocabulary does not carry.
+  //
+  // RUNNING GEAR IS byDrive's ALONE. The three tokens that name how a hull
+  // puts its weight on the ground — `tracked`, `wheeled`, `walker` — are
+  // emitted by the SUSPENSION and by nothing else, and the mirror test
+  // asserts that no other source map names one. byClass used to carry them
+  // too, and because the two are unioned that shipped contradictions: a land
+  // fort on walker legs came back BOTH `tracked` and `walker`, and an
+  // armoured car on a hover skirt came back `wheeled` with no wheel on it.
+  // Roughly one rolled stand in nine. A class is a ROLE — what the machine is
+  // for — and the drive is how it moves; conflating them made a stand's means
+  // of locomotion a fact about neither.
+  //
+  // `naval`, `air` and `towed` stay class facts on purpose: they are the
+  // theatre a hull fights in rather than its running gear, they agree with
+  // every drive their class can roll, and none of the three can contradict
+  // another (a gunboat on a plenum skirt is still a naval hull).
   specials: {
     byClass: {
-      scout_crawler: ['tracked', 'recon'],
-      line_crawler: ['tracked', 'direct_fire'],
-      heavy_crawler: ['tracked', 'direct_fire', 'crush'],
-      land_fort: ['tracked', 'direct_fire', 'crush', 'command'],
+      scout_crawler: ['recon'],
+      line_crawler: ['direct_fire'],
+      heavy_crawler: ['direct_fire', 'crush'],
+      land_fort: ['direct_fire', 'crush', 'command'],
       half_track: ['direct_fire'],
-      armoured_car: ['wheeled', 'recon'],
+      armoured_car: ['recon'],
       sp_gun: ['direct_fire'],
       tractor_gun: ['towed', 'indirect'],
       gunboat: ['naval', 'direct_fire'],
@@ -1856,6 +1872,17 @@ export const ROLL_ODDS = {
   // Quality is drawn from Lane I's QUALITY_GRADES rollWeights, re-weighted by
   // luck as w = rollWeight x (1 + luck x luckSlope), clamped at zero. At
   // luck 0 the distribution is EXACTLY the normalised rollWeights, which is
+  //
+  // THE ZERO CLAMP IS UNREACHABLE AT THESE SLOPES, and that is asserted
+  // rather than assumed: luck is clamped to [-1, 1] and the largest slope
+  // magnitude here is 0.9, so the smallest (1 + luck x slope) any grade can
+  // reach is 0.1 and no weight can go negative. The mirror test enumerates
+  // that minimum over all five grades at both luck extremes. The clamp stays
+  // as the guard on a future slope past 1 — where it would become live and
+  // would then need a test that drives it — and it is written down here as
+  // unreachable so nobody reads it as a live behaviour. It is also why
+  // pickWeighted's total is always positive and its terminal return is
+  // likewise unreachable today.
   // what the 10,000-roll test asserts. The slopes are Lane I's LUCK_SLOPE
   // values, restated here rather than imported so that the odds table is one
   // readable object and the mirror test can lift it.
@@ -2035,9 +2062,17 @@ export const tierRank = (tier) => {
   return rank;
 };
 
-// Step lookup over SPEED_CURVE on hp / tonnage, clamped to [1, 8].
+// Step lookup over SPEED_CURVE on hp / tonnage, clamped to MOTOR_MODEL.speedClamp.
 // Monotonic non-decreasing in hp and non-increasing in tonnage, because the
 // curve ascends and the clamp is applied last.
+//
+// The clamp is DEFENSIVE and, at the shipped curve, unreachable: SPEED_CURVE's
+// own speeds already span exactly [1, 8], so every probe is answered by the
+// curve before the clamp is consulted. It reads MOTOR_MODEL.speedClamp rather
+// than two literals so that the two cannot drift apart silently — the mirror
+// test asserts the curve's endpoints ARE the clamp, and that this function's
+// source names the constant, because a test that probes the endpoints is
+// probing the curve and would pass over a clamp widened to [1, 99].
 export const speedFromPowerWeight = (hp, tonnage) => {
   if (!(tonnage > 0)) throw new Error(`motorPool: tonnage must be > 0, got ${tonnage}`);
   const ratio = hp / tonnage;
@@ -2046,7 +2081,7 @@ export const speedFromPowerWeight = (hp, tonnage) => {
     if (ratio >= row.minRatio) speed = row.speed;
     else break;
   }
-  return Math.max(1, Math.min(8, speed));
+  return clampTo(speed, MOTOR_MODEL.speedClamp[0], MOTOR_MODEL.speedClamp[1]);
 };
 
 // SUSPENSIONS[k].terrain[t], failing loudly on either key. A silent undefined
@@ -2259,6 +2294,14 @@ const statDeltas = (vehicle, ctx) => {
 // ---------------------------------------------------------------------------
 
 // Hull tonnage + package weight + every fitted kit's tonnage delta.
+//
+// The kit term reads BOTH `mods` and `tradeoff`: the split is framing, not
+// sign — both records are signed deltas the engine reads the same way, and a
+// kit that SHEDS weight would declare a negative tonnage under `mods`. Every
+// shipped kit that moves tonnage happens to declare it under `tradeoff`
+// today; the mirror test walks all of VEHICLE_MODS and asserts the delta this
+// function applies for each one, so neither half can be dropped unnoticed and
+// the day a kit declares it on the other side is not the day the term breaks.
 //
 // The plant's and the drive's own `weight` are deliberately NOT added: a
 // hull's stamped tonnage is its ALL-UP combat weight, running gear and the
@@ -2506,8 +2549,18 @@ export const rollVehicle = ({ seed, class: vehicleClass, maker, tierCap = 'III',
     quirks.push(free[Math.floor(rnd() * free.length)]);
   }
 
-  // 10. serial — MW-<maker stem>-<4 hex>, reproduced from the seed, not stored
-  const stem = MANUFACTURERS[chassis.maker].nameStems[0].replace(/[^A-Za-z]/g, '').toUpperCase().slice(0, 4);
+  // 10. serial — MW-<works stem>-<4 hex>, reproduced from the seed, not stored.
+  //
+  // The stem is the first four letters of the WORKS KEY, less any `mw_`
+  // prefix — not of `nameStems[0]`. Two reasons, and the second is the one
+  // that matters. (a) The stems are Lane I's data: a reorder there, which is
+  // a free edit as far as that lane is concerned, would retroactively
+  // renumber every serial this lane has ever issued, and §11 says the roll is
+  // the contract precisely because a serial is reproduced from its seed and
+  // never stored. (b) `ascendancy_signal_works` leads with the stem
+  // "Testimony", so every Copperline car came off the line stamped
+  // `MW-TEST-####` — a shipped record that reads as placeholder data.
+  const stem = chassis.maker.replace(/^mw_/, '').replace(/[^A-Za-z]/g, '').toUpperCase().slice(0, 4);
   const hex = Math.floor(rnd() * 65536).toString(16).toUpperCase();
   const serial = 'MW-' + stem + '-' + ('0000' + hex).slice(-4);
 

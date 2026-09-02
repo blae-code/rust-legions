@@ -23,6 +23,7 @@ import {
 } from "@/lib/arms.js";
 import { UNIT_TYPES } from "@/lib/units.js";
 import { IMAGE_LIBRARY, IMAGE_CATEGORIES, HOUSE_STYLE } from "@/lib/imageLibrary.js";
+import { PLATE_URLS } from "@/lib/imagePlates";
 import { ENTRIES } from "@/lib/wiki/entries.js";
 
 const CANON_SRC = readRepoFile("base44/shared/motorPool.ts");
@@ -60,7 +61,7 @@ const {
   CHASSIS_PATTERNS, POWERPLANTS, ARMOUR_PACKAGES, SUSPENSIONS, MOUNTS,
   CREW_EXPOSURE_MORALE, VEHICLE_STAT_KEYS, MECHANIZED_SPECIALS,
   VEHICLE_QUIRK_CONDITIONS, VEHICLE_MODS, VEHICLE_QUIRKS, MOTOR_MODEL, ROLL_ODDS,
-  speedFromPowerWeight,
+  SPEED_CURVE, speedFromPowerWeight,
 } = MIRROR;
 
 const CHASSIS_KEYS = Object.keys(CHASSIS_PATTERNS);
@@ -99,8 +100,15 @@ describe("motorPool.ts and src/lib/motorPool.js are one catalogue", () => {
   }
 
   it("every export const data literal in motorPool.ts is covered by the mirror list", () => {
-    const declared = [...CANON_SRC.matchAll(/^export const ([A-Z][A-Z0-9_]*)\s*=\s*[[{]/gm)].map((m) => m[1]);
+    // Keyed on "the declaration is a data literal", NOT on SCREAMING_CASE: an
+    // `export const MotorIndex = {` matched neither side of the old pattern and
+    // so was absent from both, and the gate passed over a table with no mirror
+    // row. The precondition of a gate is part of the gate.
+    const declared = [...CANON_SRC.matchAll(/^export const ([A-Za-z_$][\w$]*)\s*=\s*[[{]/gm)].map((m) => m[1]);
     expect(declared.sort()).toEqual([...TABLES].sort());
+    // and the widened pattern is itself pinned: it must see a mixed-case name.
+    expect([...("export const MotorIndex = {\n").matchAll(/^export const ([A-Za-z_$][\w$]*)\s*=\s*[[{]/gm)].map((m) => m[1]))
+      .toEqual(["MotorIndex"]);
   });
 
   it("the two files export the same identifiers", () => {
@@ -332,6 +340,44 @@ describe("the catalogue is complete", () => {
         .filter((m) => MOUNTS[m].hardpoints <= CHASSIS_PATTERNS[k].hull.hardpoints.length);
       expect(legal.length, `${k} has no legal mount`).toBeGreaterThanOrEqual(1);
     }
+    // §8's arc/protection claim, scoped to the SINGLE-GUN positions it is
+    // about — the Wing Battery is narrower than either and protects nothing,
+    // which is why the unscoped "monotone at both ends" reading was false.
+    const singles = Object.values(MOUNTS).filter((m) => m.hardpoints === 1);
+    expect(singles.length).toBeGreaterThanOrEqual(4);
+    const byArc = [...singles].sort((a, b) => a.arc - b.arc);
+    const rank = (k) => ARMOUR_KEYS.indexOf(k);
+    const best = [...singles].sort((a, b) => rank(b.crewArmour) - rank(a.crewArmour));
+    expect(new Set(byArc.slice(0, 2).map((m) => m.key)), "§8: the two narrowest single-gun mounts")
+      .toEqual(new Set(best.slice(0, 2).map((m) => m.key)));
+    const narrowest = Object.values(MOUNTS).sort((a, b) => a.arc - b.arc)[0];
+    expect(narrowest.hardpoints, "§8 names the Wing Battery as the multi-gun exception")
+      .toBeGreaterThan(1);
+    // §8 also states that no shipped mount is fortified-crewed, which is why
+    // that CREW_EXPOSURE_MORALE row reads as vocabulary and not as a live trade
+    expect(Object.values(MOUNTS).map((m) => m.crewArmour)).not.toContain("fortified");
+    expect(CREW_EXPOSURE_MORALE.fortified, "the row must still exist — the key sets are equal").toBeDefined();
+  });
+
+  it("Mount.hardpoints is read as fitting legality only, never as a gun cap", () => {
+    // §8 used to say a mount "serves" a number of hardpoints, and §12's
+    // declarative table did not list the field, so a reader was told it was
+    // live. Nothing implements a serving limit: step 7 rolls one weapon per
+    // HULL hardpoint and never consults the mount. Asserted in both
+    // directions so the doc and the code cannot part company again.
+    let overServed = 0;
+    for (const k of CHASSIS_KEYS) {
+      const hull = CHASSIS_PATTERNS[k].hull.hardpoints.length;
+      for (const m of ROLL_ODDS.mountPool[CHASSIS_PATTERNS[k].class] || []) {
+        if (MOUNTS[m].hardpoints > hull) continue;      // illegal, never rolled
+        if (hull > MOUNTS[m].hardpoints) overServed += 1;
+      }
+    }
+    expect(overServed, "no legal pairing carries more guns than its mount 'serves'")
+      .toBeGreaterThan(0);
+    // and the field is declared as such in §12
+    expect(DOC, "§12 must list Mount.hardpoints among the declarative fields")
+      .toContain("| `Mount.hardpoints` |");
   });
 
   it("vehicle mods: at least 25, at least 2 per slot, with non-empty disjoint mods/tradeoff from the stat vocabulary", () => {
@@ -436,15 +482,26 @@ describe("the catalogue is complete", () => {
       "ferrymen_shrine_armoury", "salvage_court_prize_yard", "crossloom_pattern_house",
       "ascendancy_signal_works", "outrider_wheelwrights", "tarpool_burnworks",
     ];
-    expect(Object.keys(MANUFACTURERS).sort()).toEqual([...LANE_I, ...MOTOR_WORKS_KEYS].sort());
+    // Scoped in BOTH directions, and to this lane's own keys only. A whole-set
+    // equality here would go red the day any later lane appends a manufacturer
+    // row — the exact failure Lane I was barred from creating so that THIS
+    // lane's append could land, and the courtesy runs both ways.
+    //   (a) every Lane I row is still present and none of them is mw_-prefixed
+    for (const k of LANE_I) {
+      expect(MANUFACTURERS[k], `${k} was removed from MANUFACTURERS`).toBeDefined();
+      expect(MANUFACTURERS[k].key, `${k} no longer keys itself`).toBe(k);
+      expect(k.startsWith("mw_"), `${k} is a Lane I row and cannot be mw_-prefixed`).toBe(false);
+    }
+    //   (b) the mw_* namespace is exactly what this lane declares — no more,
+    //       no fewer, so an appended row that skipped MOTOR_WORKS_KEYS is red
+    expect(Object.keys(MANUFACTURERS).filter((k) => k.startsWith("mw_")).sort())
+      .toEqual([...MOTOR_WORKS_KEYS].sort());
     // and the appended rows come last, in one block, so the diff is an append
     const src = readRepoFile("src/lib/arms.js");
     const first = Math.min(...MOTOR_WORKS_KEYS.map((k) => src.indexOf(`\n  ${k}: {`)));
     const lastLaneI = Math.max(...LANE_I.map((k) => src.indexOf(`\n  ${k}: {`)));
     expect(first, "an mw_* row was inserted above a Lane I row").toBeGreaterThan(lastLaneI);
-    // never assert an exact manufacturer count — Lane I was barred from it so
-    // that this lane's append could not turn main red, and the courtesy runs
-    // both ways for whoever appends next.
+    // never assert an exact manufacturer count, for the same reason.
     expect(Object.keys(MANUFACTURERS).length).toBeGreaterThanOrEqual(8);
   });
 
@@ -517,8 +574,61 @@ describe("the catalogue is complete", () => {
 
   it("MOTOR_MODEL.speedClamp is the clamp speedFromPowerWeight actually applies", () => {
     const [lo, hi] = MOTOR_MODEL.speedClamp;
+    // Probing the endpoints proves nothing about the CLAMP: SPEED_CURVE's own
+    // speeds already span [1, 8], so both probes are answered by the curve
+    // before the clamp is consulted, and a clamp widened to [1, 99] passes
+    // them. Three assertions instead — the curve's endpoints ARE the clamp,
+    // the function names the constant rather than two literals, and the
+    // endpoints still return what the clamp says.
+    const speeds = SPEED_CURVE.map((r) => r.speed);
+    expect(Math.min(...speeds), "SPEED_CURVE's floor has left the clamp").toBe(lo);
+    expect(Math.max(...speeds), "SPEED_CURVE's ceiling has left the clamp").toBe(hi);
+    const body = CANON_SRC.slice(
+      CANON_SRC.indexOf("export const speedFromPowerWeight"),
+      CANON_SRC.indexOf("export const terrainMultiplier"),
+    );
+    expect(body, "the clamp was inlined as literals and can now drift from MOTOR_MODEL")
+      .toContain("MOTOR_MODEL.speedClamp[0], MOTOR_MODEL.speedClamp[1]");
     expect(speedFromPowerWeight(0.0001, 1000)).toBe(lo);
     expect(speedFromPowerWeight(1e6, 0.1)).toBe(hi);
+  });
+
+  it("the quality-weight zero clamp is unreachable at the shipped luck slopes", () => {
+    // ROLL_ODDS' comment and §11 both call the clamp defensive. That is only
+    // true while every (1 + luck x slope) stays positive over luck in [-1, 1],
+    // which is a property of the SLOPES and therefore rots when one is edited.
+    // Enumerated rather than asserted in prose; the day a slope passes 1 this
+    // goes red and the clamp needs a test that drives it.
+    let worst = Infinity;
+    for (const g of Object.keys(ROLL_ODDS.luckSlope)) {
+      for (const luck of [-1, 1]) {
+        const factor = 1 + luck * ROLL_ODDS.luckSlope[g];
+        if (factor < worst) worst = factor;
+        expect(QUALITY_GRADES[g], `luckSlope names ${g}, which is not a grade`).toBeDefined();
+      }
+    }
+    expect(worst, "a luck slope now exceeds 1: the zero clamp is live and untested").toBeGreaterThan(0);
+    expect(Math.max(...Object.values(ROLL_ODDS.luckSlope).map(Math.abs))).toBeLessThan(1);
+  });
+
+  it("no source but byDrive emits a running-gear token", () => {
+    // The three tokens that name how a hull puts its weight on the ground are
+    // the SUSPENSION's alone. byClass used to carry them too and, because the
+    // six maps are unioned, shipped stands tagged both `tracked` and `walker`.
+    // Structural half of the guard; motor-roll.test.js drives the rolled half.
+    const GROUND = ["tracked", "wheeled", "walker"];
+    const src = MOTOR_MODEL.specials;
+    for (const group of ["byClass", "byMount", "byPackage", "byQuirk", "byMod"]) {
+      for (const [k, tokens] of Object.entries(src[group])) {
+        for (const t of tokens) {
+          expect(GROUND.includes(t), `specials.${group}.${k} emits the running-gear token ${t}`).toBe(false);
+        }
+      }
+    }
+    // and every one of the three still has a source, or the vocabulary lies
+    for (const t of GROUND) {
+      expect(Object.values(src.byDrive).some((list) => list.includes(t)), `no drive emits ${t}`).toBe(true);
+    }
   });
 });
 
@@ -1030,6 +1140,48 @@ describe("docs/MOTOR_POOL.md restates the catalogue, and the restatements are pa
     }
   });
 
+  it("§12's count of facing-lowering pairings is recomputed from the tables", () => {
+    // §12 tells the platform that a HAND-FITTED package must be checked
+    // against ROLL_ODDS.packagePool, and quotes a measured number as the
+    // reason. Both halves are recomputed here: the number, and the claim it
+    // stands on — that no lowering pair is inside a hull's own pool.
+    let lowering = 0;
+    let loweringInPool = 0;
+    for (const ck of CHASSIS_KEYS) {
+      const base = CHASSIS_PATTERNS[ck].hull.baseArmour;
+      for (const pk of Object.keys(ARMOUR_PACKAGES)) {
+        const lowers = Object.entries(ARMOUR_PACKAGES[pk].facings)
+          .some(([face, cls]) => av(cls) < av(base[face]));
+        if (!lowers) continue;
+        lowering += 1;
+        if ((ROLL_ODDS.packagePool[ck] || []).includes(pk)) loweringInPool += 1;
+      }
+    }
+    expect(loweringInPool, "a hull's own package pool offers it a facing DOWNGRADE").toBe(0);
+    expect(lowering, "there is nothing for the hand-fitting gate to catch").toBeGreaterThan(0);
+    const quoted = FLAT.match(/(\d+) \(chassis,\s*package\) pairs lower at least one facing/);
+    expect(quoted, "§12 no longer states the count the gate exists for").not.toBeNull();
+    expect(Number(quoted[1]), "§12's measured count has gone stale").toBe(lowering);
+
+    // and PLATFORM_HANDOFF J2's named worked case is still a worked case
+    const handoff = readRepoFile("docs/prompts/PLATFORM_HANDOFF.md").replace(/\s+/g, " ");
+    const named = handoff.match(/`(ap_\w+)` on `(\w+)` is the worked case/);
+    expect(named, "J2 no longer names a worked case for the hand-fitting gate").not.toBeNull();
+    const [, pkg, hull] = named;
+    expect(ARMOUR_PACKAGES[pkg], `J2 names ${pkg}, which is not a package`).toBeDefined();
+    expect(CHASSIS_PATTERNS[hull], `J2 names ${hull}, which is not a hull`).toBeDefined();
+    expect((ROLL_ODDS.packagePool[hull] || []).includes(pkg),
+      `J2's worked case ${pkg}/${hull} is inside the pool and proves nothing`).toBe(false);
+    const hullBase = CHASSIS_PATTERNS[hull].hull.baseArmour;
+    const dropped = Object.entries(ARMOUR_PACKAGES[pkg].facings)
+      .filter(([face, cls]) => av(cls) < av(hullBase[face]));
+    expect(dropped.length, `J2's worked case ${pkg}/${hull} no longer lowers a facing`).toBeGreaterThan(0);
+    for (const [face, cls] of dropped) {
+      expect(handoff, `J2 misstates the ${face} substitution`)
+        .toContain(`${face} \`${hullBase[face]} → ${cls}\``);
+    }
+  });
+
   it("§6's worked armour example is what the curve actually returns", () => {
     // "14 t → 17.6 t … from 10.00 to 7.95 and the speed from 4 to 3", and the
     // carapace at "5.96 hp/t and speed 2". Three tables meet in that sentence.
@@ -1067,7 +1219,11 @@ describe("docs/MOTOR_POOL.md restates the catalogue, and the restatements are pa
     states(/([\w-]+) hulls, at least one per/i, CHASSIS_KEYS.length, "§4 chassis");
     states(/spread across all ([\w-]+) tiers/i,
       new Set(CHASSIS_KEYS.map((k) => CHASSIS_PATTERNS[k].tier)).size, "§4 tiers");
-    states(/and all ([\w-]+) makers/i, Object.keys(MANUFACTURERS).length, "§4 makers");
+    // Counted off CHASSIS_PATTERNS, never off MANUFACTURERS: "how many works
+    // build a hull" is this lane's own fact and cannot be falsified by a later
+    // lane appending a manufacturer row.
+    states(/and ([\w-]+) distinct works/i,
+      new Set(CHASSIS_KEYS.map((k) => CHASSIS_PATTERNS[k].maker)).size, "§4 works");
     states(/([\w-]+) plants\./i, Object.keys(POWERPLANTS).length, "§5 powerplants");
     states(/([\w-]+) packages\./i, Object.keys(ARMOUR_PACKAGES).length, "§6 armour packages");
     states(/([\w-]+) drives\./i, Object.keys(SUSPENSIONS).length, "§7 suspensions");
@@ -1077,9 +1233,16 @@ describe("docs/MOTOR_POOL.md restates the catalogue, and the restatements are pa
     states(/([\w-]+) of the [\w-]+ hulls declare a single hardpoint/i, singles, "§8 single-hardpoint hulls");
     states(/of the ([\w-]+) hulls declare a single hardpoint/i, CHASSIS_KEYS.length, "§8 hull total");
     states(/the ([\w-]+) two-gun and three-gun mounts/i, multi, "§8 multi-gun mounts");
-    // and the claims those counts stand on
-    expect(new Set(CHASSIS_KEYS.map((k) => CHASSIS_PATTERNS[k].maker)).size,
-      "§4 claims every works builds a hull").toBe(Object.keys(MANUFACTURERS).length);
+    // and the claims those counts stand on. Every hull's works resolves, and
+    // every works THIS LANE APPENDED builds at least one hull — a subset and a
+    // coverage claim, not an equality against a table this lane does not own.
+    for (const k of CHASSIS_KEYS) {
+      expect(MANUFACTURERS[CHASSIS_PATTERNS[k].maker], `${k} names an unknown works`).toBeDefined();
+    }
+    for (const w of MOTOR_WORKS_KEYS) {
+      expect(CHASSIS_KEYS.some((k) => CHASSIS_PATTERNS[k].maker === w),
+        `${w} was appended to MANUFACTURERS and builds no hull`).toBe(true);
+    }
     const offered = new Set(CHASSIS_KEYS.flatMap((k) => CHASSIS_PATTERNS[k].slots));
     expect([...offered].sort(), "§4 claims every slot is offered by some hull")
       .toEqual([...VEHICLE_SLOTS].sort());
@@ -1142,7 +1305,14 @@ describe("the plate register", () => {
     const STYLE = /\b(dieselpunk|painterly|concept art|film grain|wartime aesthetic|industrial wartime|foxhole|iron harvest)\b/i;
     const COLOURS = /\b(red|green|blue|amber|brass|olive|rust|umber|gold|golden|silver|crimson|scarlet|azure|violet|magenta|cyan|teal|ochre|sepia)\b/i;
     for (const p of mine) {
-      expect(p.url, `${p.key} must ship url: null`).toBe(null);
+      // A plate starts life as a REQUEST (url null) and the Base44 session
+      // DELIVERS it by adding the key to PLATE_URLS. "url is null" is a proxy
+      // that is true only until the pipeline works — it went red on Lane I the
+      // day nine maker plates were delivered. The real rule is that the LANE
+      // ships no visual: a non-null url must have arrived through PLATE_URLS
+      // and never from a literal written into imageLibrary.js.
+      expect(p.url === null || PLATE_URLS[p.key] === p.url,
+        `${p.key} has a url that did not come from PLATE_URLS`).toBe(true);
       expect(p.aspect, `${p.key} aspect`).toMatch(/^\d+:\d+$/);
       expect(words(p.prompt), `${p.key} prompt word count is ${words(p.prompt)}`).toBeGreaterThanOrEqual(15);
       expect(words(p.prompt), `${p.key} prompt word count is ${words(p.prompt)}`).toBeLessThanOrEqual(35);
@@ -1254,8 +1424,42 @@ describe("drift guards", () => {
     const imported = CANON_SRC.match(/^import \{([^}]*)\} from '\.\/arms\.ts';$/m);
     expect(imported, "the arms import moved or changed shape").not.toBeNull();
     expect(imported[1].split(",").map((s) => s.trim()).sort()).toEqual(
-      ["MANUFACTURERS", "QUALITY_GRADES", "QUALITY_ORDER", "WEAPON_PATTERNS", "resolveWeapon", "rollWeapon"].sort(),
+      ["QUALITY_GRADES", "QUALITY_ORDER", "WEAPON_PATTERNS", "resolveWeapon", "rollWeapon"].sort(),
     );
+  });
+
+  it("the export surface is the §4 contract plus exactly the documented extras", () => {
+    // §4's Motor Pool block contracts twenty exports. This lane ships two
+    // more and gives two contracted functions an OPTIONAL second parameter —
+    // all additive, all mirrored, all justified in docs/MOTOR_POOL.md §1, and
+    // all still awaiting an orchestrator ruling on whether §4 is amended or
+    // the superset is blessed. Pinned here so the superset cannot grow while
+    // that ruling is outstanding, and so the ruling has a list to act on.
+    const CONTRACTED = [
+      "VEHICLE_CLASSES", "VEHICLE_SLOTS", "TERRAIN_KEYS", "TIER_RANK", "VEHICLE_STAT_KEYS",
+      "MECHANIZED_SPECIALS", "VEHICLE_QUIRK_CONDITIONS", "MOTOR_WORKS_KEYS", "SPEED_CURVE",
+      "MELEE_CURVE", "CREW_MORALE_CURVE", "CREW_EXPOSURE_MORALE", "ROLL_ODDS",
+      "CHASSIS_PATTERNS", "POWERPLANTS", "ARMOUR_PACKAGES", "SUSPENSIONS", "MOUNTS",
+      "VEHICLE_MODS", "VEHICLE_QUIRKS",
+      "tierRank", "speedFromPowerWeight", "terrainMultiplier", "totalTonnage",
+      "hardpointStats", "hardpointWeapons", "breakdownChance", "rollVehicle", "deriveMechanized",
+    ];
+    const EXTRAS = ["MOTOR_MODEL", "evaluateVehicleQuirk"];
+    const exported = [...CANON_SRC.matchAll(/^export const ([A-Za-z_$][\w$]*)/gm)].map((m) => m[1]);
+    expect(exported.sort()).toEqual([...CONTRACTED, ...EXTRAS].sort());
+    for (const name of EXTRAS) expect(MIRROR[name], `${name} is not mirrored`).toBeDefined();
+
+    // the two optional ctx parameters, and the fact that they ARE optional —
+    // a contracted call shape must keep working
+    for (const fn of ["hardpointStats", "deriveMechanized"]) {
+      expect(CANON_SRC, `${fn} no longer takes the documented optional ctx`)
+        .toContain(`export const ${fn} = (`);
+    }
+    const v = MIRROR.rollVehicle({ seed: 2 });
+    expect(MIRROR.hardpointStats(v)).toEqual(MIRROR.hardpointStats(v, undefined));
+    expect(MIRROR.deriveMechanized({ vehicle: v })).toEqual(MIRROR.deriveMechanized({ vehicle: v }, undefined));
+    // and both extras are documented where §1 says they are
+    for (const name of EXTRAS) expect(DOC, `§1 does not account for ${name}`).toContain(name);
   });
 
   it("motorPool.ts and its mirror contain no Math.random", () => {
