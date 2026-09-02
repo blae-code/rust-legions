@@ -72,6 +72,7 @@ Found by the brief critic, fixed in the briefs (details in the Wave 0 workflow t
 | **I** Arms Catalogue | [#6](https://github.com/blae-code/rust-legions/pull/6) | `feat/tactical-i` | `arms-mirror` (189) + `arms-roll` (114) = 303 | §4 Arms block, §6.11/6.12, GAME_RULES §23 `[PROPOSED]` | 2026-09-01 |
 | **B** Field generator | [#5](https://github.com/blae-code/rust-legions/pull/5) | `feat/tactical-b` | `tactical-field` (96) | §4 field shape + `FieldMeta`, COMBAT_DESIGN | 2026-09-01 |
 | **G** Research/armory | [#4](https://github.com/blae-code/rust-legions/pull/4) | `feat/tactical-g` | `catalog-mirror` (105) | §4 Tech/ArmoryItem, GAME_RULES §24 `[PROPOSED]` | 2026-09-01 |
+| **A** Rules core | [#7](https://github.com/blae-code/rust-legions/pull/7) | `feat/tactical-a` | `tactical-mirror` (200) | §4 SquadType/Specialist, §4 Q5 regiment-keyed ratio, §6.1, §6.12 | 2026-09-01 |
 
 ### Wave 1 — platform sync, then merge
 
@@ -113,3 +114,44 @@ both taken `## 23.`, so G was renumbered to §24.
 **Routed back to its owner rather than fixed in place:** Lane I's `§14 ↔ GAME_RULES` assertion sliced from
 its own heading **to end of file** on both sides — true only while Lane I was the last lane to append.
 Lane G's §24 broke it. That is a gate on a proxy, and it is Lane I's file, so Lane I fixed it.
+
+
+### Wave 2 — Lane A merged, Lane J in audit
+
+**A second session limit** interrupted the wave: Lane A completed through its fixer, Lane J finished
+building but its three audit lenses were cut. Lane A was verified by the orchestrator and shipped by hand;
+Lane J's audits were re-launched rather than skipped.
+
+**Operator rulings arrived mid-wave** (in `PLATFORM_HANDOFF.md` as `RULED 2026-09-01 (operator)`) and are
+now enforced in every review: **module effects apply on FIT, never on unlock** — a `kind: 'module'` row's
+certification is inert and its `effects[]` live on the fitted stand, not the faction; and **relic projects
+die with the keel** — on capture the captor loots unspent materials only, the project and its progress are
+lost. Lane H closes `TECH_DESIGN.md` §7 Q5 on the second.
+
+**Lane A's mirror test is now what pins `tactical.ts`.** It DISCOVERS rather than remembers: it parses
+every top-level `export const` out of the canonical file and demands a mirror for each, classifying by
+right-hand side so a table that becomes computed (`export const SQUAD_TYPES = buildTypes()`) is caught too.
+A hand-written list of table names is a gate on a proxy — it passes for exactly the tables someone
+remembered, which is precisely how `CASUALTY_ORDER` stayed unmirrored since before this plan began.
+Verified after the merge: `tactical.ts` ↔ `data.js` 21 exports, `arms.ts` ↔ `arms.js` 28 exports, zero drift.
+
+**The `COMBAT_DESIGN.md` handover worked as intended.** Lane B's draft was edited, not pasted — 34 of its
+83 lines rewritten or cut, and the false claim its own audit had found (the arterial described as a
+connected spine, when a one-row drift leaves consecutive hexes two apart) is corrected against the merged
+generator and replaced with the bridging-hex mechanism.
+
+### A red the orchestrator caused, and a red the platform caused
+
+1. **Pushed a red `main` for ~3 minutes.** A verification chain ended in `grep`, whose exit code masked
+   `npm test`'s failure, so `&&` let the push proceed. Exit codes are now checked with `set -e` and a
+   separate assertion rather than inferred from a pipeline's tail.
+2. **The red itself was NOT a lane defect.** The Base44 session delivered nine of Lane I's maker plates
+   into `PLATE_URLS`, and Lane I asserted `url === null` for every arms plate under the banner "content
+   lanes never ship visuals". But `P()` resolves `url` from `PLATE_URLS`, so that assertion forbids the
+   delivery step the pipeline exists to perform — it encoded *"no art exists yet"* as if it were *"the lane
+   shipped no art"*. Another gate on a proxy, and this one went red the first time the platform did its
+   job. Corrected to the invariant that is actually meant: a plate's `url` is null **or** equals
+   `PLATE_URLS[key]`, so any visual arrived through the platform's channel and never from a literal in
+   `imageLibrary.js`. Fixed by the orchestrator rather than routed back, because the red came from the
+   platform's commit and invalidated already-merged work; Lane G's and Lane J's plate guards were checked
+   for the same shape and are clean (51 of Lane G's plates are already delivered without incident).
