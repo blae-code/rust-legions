@@ -65,6 +65,14 @@ reproduced from its seed rather than stored: derive it from `(gameId, turn, sour
 never from `Date.now()` or a request-time random. A re-derivable seed means the same dig produces the
 same rifle on a replay, a refresh and a rollback.
 
+**And a derivation that comes up short now FAILS rather than degrades.** `mulberry32` coerces its
+argument with `a |= 0`, so an `undefined` or `null` seed used to become seed 0 and every caller that
+failed to derive one got the same weapon, silently and permanently. `rollWeapon` throws
+`rollWeapon: seed must be a finite number` on anything non-finite (`undefined`, `null`, `NaN`,
+`Infinity`, a numeric string). Seed `0` itself is a perfectly good seed — the guard is on finiteness,
+not on truthiness. Likewise a non-finite `luck` is now treated as neutral `0`; it previously poisoned
+every adjusted weight and returned the RAREST grade on every roll.
+
 **2. Arsenal validation of any instance reaching `tacticalDeploy`.** A `WeaponInstance` arriving from
 a client is untrusted. Before it is stored on a squad's `loadout`, the engine must reject it unless:
 `patternKey ∈ WEAPON_PATTERNS`; `quality ∈ QUALITY_GRADES`; every `mods[k] ∈ MODIFICATIONS` with
@@ -80,6 +88,24 @@ not exist yet. The engine consumes only `deriveLoadout(squad)` and `loadoutProfi
 raw instance (drift guard 11) — so the storage decision is free as long as those two are what the
 tactical path reads.
 
+**Two rules `deriveSquad` must not guess at, both now asserted in `test/arms-roll.test.js` and
+written up in `docs/ARMS_CATALOGUE.md` §10.2:**
+
+- **An absent `loadout` must not be reduced, and the function makes that safe for you.**
+  `deriveLoadout`'s `melee`, `ranged` and `range` are `absolute` in `LOADOUT_KEYS` — they *replace*
+  the `SquadType` base value. Since no squad row carries a `loadout` yet, a `deriveSquad` that
+  applied the result unconditionally would zero every authored `melee`/`ranged`/`range` in the game.
+  So a squad with **no `loadout` at all returns `{}`** (contributes nothing, overrides nothing),
+  while a squad with a `loadout` that is **present and empty** returns the full set of zeroes —
+  an unarmed stand, where zero is the right answer. Calling it unconditionally is safe.
+- **The values are PER FIGURE, not per squad.** `SquadType.pts` is the cost of a squad
+  (`riflemen` = 100, ten figures); `WeaponPattern.pts` is the cost of one weapon (the 141 Levy Rifle
+  = 1). `deriveLoadout` never reads `squad.figures` — a one-figure team and a ten-figure section
+  carrying the same weapons reduce identically. `deriveSquad` multiplies `melee`, `ranged` and `pts`
+  by `figures` before applying them; `range` and `speed` describe what one figure carries and are
+  never scaled. A ten-figure section with 1-point rifles adds **10** to its 100-point squad, and
+  `deriveLoadout` returns the **1**.
+
 **4. Where a stand's `armour` class is stored.** §4 says every stand row gains
 `armour: ArmourClassKey`, infantry `none/soft/light` via upgrade kits, vehicles **per facing**. Lane J
 keys its `Facings` off `ARMOUR_CLASSES`; `resolveHit` takes the armour-class **row**, not the key, so
@@ -94,6 +120,18 @@ zero-effect hit still suppresses, and that number belongs in the table, not in t
 **6. `docs/GAME_RULES.md` section 23** is appended as
 `[PROPOSED — awaiting platform wiring]` and is on the C3 promotion list.
 
-**7. Not a request, a warning:** `POINTS_MODEL.AP_RATE` is calibrated to
+**7. A decision the lane could not make: the morale/initiative quirks are DECLARATIVE.** §4 declares
+`Quirk.mods` as `Partial<WeaponBase> | { morale?, initiative? }` — a **union**, and no row mixes the
+two branches (asserted, because `applyDelta` copies only `WeaponBase` keys and would silently discard
+half of a mixed row). The morale/initiative branch holds `ferrymans_blessing`, `prize_taken`,
+`synod_proscribed`, `ledger_kept` and `hair_trigger` — including the two §3 names it calls for by hand — `ferrymans_blessing` and `prize_taken`. **Nothing in this lane spends them:**
+`deriveLoadout`'s keys are fixed by `LOADOUT_KEYS`, which has no `morale`, and `loadoutProfile`
+returns exactly `{ armorPen, damageType, aoe, misfire }` because §22.9 asserts those four and nothing
+else. Their conditions evaluate and their numbers are authored and mirrored; whether squad morale or
+initiative reads them is a platform decision. `morale` is already inside `SQUAD_VALUE_KEYS`, so the
+smallest wiring is to add it to `LOADOUT_KEYS` as a `delta` and sum the active morale quirks in
+`deriveLoadout` — which changes a published contract and is therefore not Lane I's to make.
+
+**8. Not a request, a warning:** `POINTS_MODEL.AP_RATE` is calibrated to
 `apValue('hw141_levy_rifle_mk2')` so the reference prices itself at exactly 1. Re-tuning that
 pattern's `base` moves the whole audit. The test will say so.

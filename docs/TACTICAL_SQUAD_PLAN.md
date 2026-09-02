@@ -238,7 +238,6 @@ WeaponInstance = { patternKey, quality: QualityKey, mods: ModKey[], quirks: Quir
 Loadout        = { primary: WeaponInstance, support?: WeaponInstance, sidearm?: WeaponInstance }
 // Squad rows gain `loadout?: Loadout`; deriveLoadout(squad) → Partial<SquadType values>, consumed by deriveSquad
 // Every stand row gains `armour: ArmourClassKey` (infantry: none/soft/light via upgrade kits; vehicles: per facing, see below)
-// AMENDMENT 2026-09-01 (Lane I, Work item 20): four exports the acceptance criteria force but §4 did not name.
 // resolveAoe({ weapon: WeaponBase, victims: [{ target: ArmourClass, dist }] }) → [{ effective, suppressOnly }] — calls resolveHit per victim, per-hex falloff
 // resolveWeapon(instance: WeaponInstance, ctx) → WeaponBase — pattern → maker signature → quality → mods → active quirks → clamp
 // loadoutProfile(squad) → { armorPen, damageType, aoe, misfire } — the squad's damage profile; Lane A/C feeds this to resolveHit

@@ -1564,7 +1564,7 @@ export const QUIRKS = {
   },
   synod_proscribed: {
     key: 'synod_proscribed', label: "Synod-Proscribed",
-    mods: { morale: 1, accuracy: 0.03 },
+    mods: { morale: 1 },
     condition: { key: 'vs_house', value: 'synod' },
     blurb: "Named in a Bastion Synod proscription list, which the men who carry it have had read to them and have chosen to take as a testimonial.",
   },
@@ -1703,6 +1703,16 @@ export const evaluateQuirk = (quirk, ctx) => {
 // A quirk's morale/initiative keys are deliberately dropped here: they are not
 // WeaponBase fields, they never touch a shot, and §4 gives them no consumer in
 // this lane. They survive on the instance for the platform lane to read.
+//
+// AND THEY REACH NOTHING ELSE EITHER, WHICH IS WORTH STATING PLAINLY RATHER
+// THAN LEAVING A READER TO GREP FOR IT. deriveLoadout's keys are fixed by
+// LOADOUT_KEYS and morale is not among them; loadoutProfile returns exactly
+// four fields and none of them is morale. So every quirk in that branch of the
+// union is DECLARATIVE: their conditions evaluate, their numbers
+// are authored and mirrored, and no function in this lane spends them. Wiring
+// them is a platform decision (PLATFORM_HANDOFF.md, Lane I) — §4's Quirk.mods
+// is a UNION, and a row that mixes a WeaponBase key with a morale/initiative
+// key would have half of itself silently discarded here, so no row does.
 // ---------------------------------------------------------------------------
 
 // The nine WeaponBase keys, in the order §4 declares them. Every delta is
@@ -1847,6 +1857,12 @@ export const MOD_COUNT_BY_QUALITY = { scrap: [0, 1], issue: [0, 1], proofed: [1,
 const SERIAL_ALPHABET = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
 export const rollWeapon = ({ seed, class: weaponClass, maker, calibre, tierCap, luck }) => {
+  // mulberry32 coerces its argument with `a |= 0`, so an undefined or null seed
+  // silently BECOMES seed 0 and every caller that failed to derive one gets the
+  // same weapon. The platform derives seeds from (gameId, turn, sourceKey,
+  // index); a derivation that comes up short must fail loudly here rather than
+  // hand out the seed-0 mortar forever.
+  if (!Number.isFinite(seed)) throw new Error('rollWeapon: seed must be a finite number, got ' + String(seed));
   const rnd = mulberry32(seed);
   const cap = tierCap || 'III';
   const capRank = TIER_RANK[cap];
@@ -1865,7 +1881,11 @@ export const rollWeapon = ({ seed, class: weaponClass, maker, calibre, tierCap, 
   const patternKey = pool[Math.floor(rnd() * pool.length)];
   const pattern = WEAPON_PATTERNS[patternKey];
 
-  const l = clampTo(typeof luck === 'number' ? luck : 0, -1, 1);
+  // NaN is `typeof 'number'`, and clampTo(NaN) is NaN, which makes every
+  // adjusted weight NaN, makes `ticket < 0` never true, and drops the loop
+  // through to its initialiser — the RAREST grade, on every seed. Only a finite
+  // luck is luck; anything else is neutral.
+  const l = clampTo(Number.isFinite(luck) ? luck : 0, -1, 1);
   const weights = QUALITY_ORDER.map((g) => {
     const w = QUALITY_GRADES[g].rollWeight * (1 + l * LUCK_SLOPE[g]);
     return w < 0 ? 0 : w;
@@ -1957,7 +1977,19 @@ export const rollWeapon = ({ seed, class: weaponClass, maker, calibre, tierCap, 
 //
 // `figures` is deliberately not consumed. Scaling a squad's output by how many
 // men are left is deriveSquad's job (Lane A); this function answers only the
-// question "what are these weapons worth, per stand".
+// question "what is ONE figure's weapon worth". `melee`, `ranged` and `pts`
+// come back PER FIGURE and Lane A multiplies them by `figures`; `range` and
+// `speed` describe what a figure carries and are never scaled by headcount.
+//
+// AN ABSENT `loadout` AND AN EMPTY ONE ARE DIFFERENT STATES, and the
+// difference is not cosmetic: melee, ranged and range are ABSOLUTE, meaning
+// they REPLACE the SquadType base value. §4 makes `loadout?: Loadout`
+// optional and no squad row carries one yet, so a deriveSquad that called this
+// unconditionally would replace every authored melee/ranged/range with a zero.
+// A squad with no `loadout` at all therefore returns {} — it contributes
+// nothing and overrides nothing. A squad that HAS a `loadout` holding no
+// weapons is an unarmed stand, which is a legal state on the field, and it
+// reduces to zeroes because zero is what an unarmed stand does.
 // ---------------------------------------------------------------------------
 
 // The §4 SquadType value keys — the allowlist deriveLoadout's output must sit
@@ -1980,7 +2012,8 @@ const withoutBlades = (instance) => {
 };
 
 export const deriveLoadout = (squad, ctx) => {
-  const carried = (squad && squad.loadout) || {};
+  if (!squad || !squad.loadout) return {};
+  const carried = squad.loadout;
   const order = ['primary', 'support', 'sidearm'];
   let ranged = 0;
   let melee = 0;
@@ -2053,11 +2086,20 @@ export const loadoutProfile = (squad, ctx) => {
 // THE ANCHOR, and it is not the number the brief's prose reaches for first.
 // SquadType.pts is the cost of a SQUAD, not of a figure: SQUAD_TYPES.riflemen
 // is 100 points for ten figures. WeaponPattern.pts is the cost of ONE weapon —
-// the 141 Levy Rifle is 1 point per figure. A ten-figure rifle section
-// therefore carries 10 points of weapon inside a 100-point squad, and the arms
-// layer is a tenth of what the squad costs. deriveLoadout returns its pts as a
-// DELTA for exactly that reason (LOADOUT_KEYS.pts === 'delta'): the weapons
-// adjust the squad's price, they do not set it.
+// the 141 Levy Rifle is 1 point per figure.
+//
+// THOSE ARE TWO DIFFERENT SCALES, AND THE JOIN BETWEEN THEM IS DECLARED HERE
+// RATHER THAN LEFT FOR deriveSquad TO INFER. deriveLoadout is PER FIGURE: it
+// never reads squad.figures, and a one-figure squad and a ten-figure squad
+// carrying the same weapons reduce to identical numbers (asserted, so it
+// cannot quietly stop being true). Its `melee`, `ranged` and `pts` are
+// therefore per-figure values that Lane A multiplies by `figures` before
+// applying them; `range` and `speed` describe what one figure CARRIES and are
+// never scaled by headcount. A ten-figure rifle section carrying 1-point
+// rifles adds 10 points to its 100-point squad — the arms layer really is a
+// tenth of what the squad costs — but deriveLoadout returns the 1, not the 10.
+// LOADOUT_KEYS.pts === 'delta' says where the number LANDS; this paragraph
+// says what SCALE it is in, and both are needed.
 // ---------------------------------------------------------------------------
 
 export const POINTS_MODEL = {

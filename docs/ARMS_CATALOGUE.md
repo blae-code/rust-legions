@@ -823,6 +823,24 @@ never surfaces it, because `morale` is a squad value the tactical engine owns.
 
 ---
 
+### 8.4 The morale/initiative branch is **declarative**
+
+§4 declares `Quirk.mods` as `Partial<WeaponBase> | { morale?, initiative? }` — a **union**. A row
+sits in one branch or the other, never both, and that is asserted: `applyDelta` copies only the nine
+`WeaponBase` keys, so a row carrying `{ morale: 1, accuracy: 0.03 }` would have half of itself
+silently discarded inside `resolveWeapon` while the other half applied.
+
+The rows in the morale/initiative branch are `ferrymans_blessing`, `prize_taken`,
+`synod_proscribed`, `ledger_kept` and `hair_trigger` — the last being this catalogue's one
+`initiative` row. **Nothing in this lane spends them.** `deriveLoadout`'s output keys are fixed by `LOADOUT_KEYS`, which has no `morale`;
+`loadoutProfile` returns exactly `{ armorPen, damageType, aoe, misfire }`. Their conditions evaluate,
+their numbers are authored and mirrored, and they wait: wiring them into squad morale or initiative
+is a platform decision, filed under Lane I in `docs/prompts/PLATFORM_HANDOFF.md`. They are recorded
+here as **declarative** rather than described as live, because a rule the engine cannot read is not
+a rule yet.
+
+---
+
 ## 9. `rollWeapon` — the draw order and the odds
 
 ```
@@ -936,19 +954,34 @@ as on a `master` one — the kit does not care what it is bolted to.
 export const LOADOUT_SHARES = { primary: 1, support: 0.15, sidearm: 0.1 };
 ```
 
-```
-for each present instance w:  b = resolveWeapon(w, ctx)
-  shots(w)   = b.rateOfFire × b.accuracy × b.reliability
-  fire(w)    = b.damage × shots(w)
-  bayonet(w) = the damage a fitted bayonet-slot kit contributes, 0 if none
+THE REDUCTION FORMULA — this is the implemented one
 
-ranged = round2( Σ share_w × fire(w) )
-range  = max over instances of b.range          // the longest reach sets the squad's reach
-melee  = round2( Σ share_w × bayonet(w) )
-weight = Σ share_w × b.weight
-speed  = −floor( weight / 12 )                  // a DELTA, always ≤ 0
-pts    = round2( Σ share_w × pattern.pts × QUALITY_GRADES[quality].ptsMult )
 ```
+  shares:    primary 1.00 · support 0.15 · sidearm 0.10
+  b(w)       = resolveWeapon(w, ctx)                    — the weapon as carried
+  bare(w)    = resolveWeapon(w minus its bayonet-slot mods, ctx)
+  shots(w)   = b.rateOfFire x b.accuracy x b.reliability
+  fire(w)    = bare.damage x shots(w)
+  blade(w)   = max(0, b.damage - bare.damage)
+
+  ranged = round2( SUM share_w x fire(w) )
+  range  = max over instances of b.range               — the longest reach sets the reach
+  melee  = round2( SUM share_w x blade(w) )
+  weight = SUM share_w x b.weight
+  speed  = -floor( weight / WEIGHT_PER_SPEED_STEP )    — a delta, always <= 0
+  pts    = round2( SUM share_w x pattern.pts x grade.ptsMult )
+```
+
+**The weapon is resolved twice, and that is the point.** A bayonet's value is its blade, and a blade
+must never make a weapon shoot harder. `bare(w)` is the same instance with every `bayonet`-slot kit
+taken off it; `fire(w)` is computed from the **bladeless** damage and `blade(w)` is the difference,
+so the same number is never spent twice. The blade's *accuracy* cost stays inside `shots(w)`, because
+a fixed bayonet genuinely does spoil the aim — fitting one moves `melee` up and `ranged` down.
+
+*(An earlier draft of this section printed `fire(w) = b.damage × shots(w)` and a `bayonet(w)` term,
+which double-counted a blade's damage into `ranged` — a 68 % divergence from the module on every
+bladed weapon. The block above is now lifted from `arms.ts`'s own comment and compared against it by
+`test/arms-mirror.test.js`, so the two copies cannot say different things again.)*
 
 **Output keys are a strict subset of the §4 `SquadType` value keys**, and `LOADOUT_KEYS` tells Lane A
 what each one *means* so `deriveSquad` cannot guess wrong:
@@ -960,6 +993,35 @@ what each one *means* so `deriveSquad` cannot guess wrong:
 | `range` | **absolute** — replaces the `SquadType` base value |
 | `speed` | **delta** — added to the `SquadType` base value |
 | `pts` | **delta** — added to the `SquadType` base value |
+
+**`absolute`/`delta` says where a number LANDS. This says what SCALE it is in, and both are needed.**
+`SquadType.pts` is the cost of a **squad** — `SQUAD_TYPES.riflemen.pts` is 100, for ten figures —
+while `WeaponPattern.pts` is the cost of **one weapon**, and the 141 Levy Rifle is 1. Those are two
+scales. `deriveLoadout` returns the **per-figure** one: it never reads `squad.figures`, and a
+one-figure team and a ten-figure section carrying the same weapons reduce to identical numbers
+(asserted in `test/arms-roll.test.js`, so it cannot quietly stop being true).
+
+| key | scale | what `deriveSquad` does with it |
+| --- | --- | --- |
+| `melee` | per figure | × `figures`, then replaces the `SquadType` value |
+| `ranged` | per figure | × `figures`, then replaces the `SquadType` value |
+| `pts` | per figure | × `figures`, then added to the `SquadType` value |
+| `range` | per figure's weapon | never scaled — reach is not a headcount |
+| `speed` | per figure's load | never scaled — a man carries what a man carries |
+
+A ten-figure rifle section carrying 1-point rifles therefore adds **10** points to its 100-point
+squad — the arms layer really is a tenth of what the squad costs — but `deriveLoadout` returns the
+**1**, not the 10.
+
+**AN ABSENT `loadout` AND AN EMPTY ONE ARE DIFFERENT STATES.** `melee`, `ranged` and `range` are
+`absolute`: they **replace** the `SquadType` base value. §4 makes `loadout?: Loadout` optional and no
+squad row carries one yet, so a `deriveSquad` that called this unconditionally would wipe every
+authored `melee`/`ranged`/`range` in the game the moment it was wired up. So:
+
+- **no `loadout` at all** → `deriveLoadout` returns `{}`. It contributes nothing and overrides
+  nothing, which is what makes "call it unconditionally" safe.
+- **a `loadout` present but empty** → the full set of zeroes. That is an unarmed stand, which is a
+  legal state on the field, and zero is the correct thing for it to replace with.
 
 
 One detail worth the sentence: **`speed` is normalised away from `-0`.** `−Math.floor(weight/12)` is

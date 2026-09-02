@@ -15,7 +15,7 @@ import { readRepoFile } from "./helpers/extract-const.js";
 import {
   ARMOUR_CLASSES, CALIBRES, MANUFACTURERS, QUALITY_GRADES, PEN_TABLE,
   WEAPON_PATTERNS, SUPPRESSION, DAMAGE_TYPES, TYPE_MATRIX,
-  MODIFICATIONS, QUIRKS, QUALITY_ORDER, MOD_COUNT_BY_QUALITY, LUCK_SLOPE,
+  MODIFICATIONS, QUIRKS, QUIRK_CONDITION_KEYS, QUALITY_ORDER, MOD_COUNT_BY_QUALITY, LUCK_SLOPE,
   TIER_RANK, LOADOUT_KEYS, LOADOUT_SHARES, SQUAD_VALUE_KEYS, WEAPON_BASE_KEYS, WEAPON_CLASSES,
   mulberry32, penMultFor, resolveHit, resolveAoe,
   resolveWeapon, rollWeapon, deriveLoadout, loadoutProfile, evaluateQuirk,
@@ -31,6 +31,18 @@ const SOURCES = [
 const SMALL_ARM_CLASSES = ["sidearm", "carbine", "rifle", "smg", "lmg", "hmg", "shotgun", "marksman", "flame"];
 // Weapons bought specifically to open a hull.
 const ARMOUR_KILLING_CLASSES = ["anti_armor", "crawler_gun", "artillery"];
+
+// THE NINE KEYS THIS LANE AUTHORS. §3 sanctions Lane J appending motor-works
+// rows keyed `mw_*` to MANUFACTURERS after this lane merges, in someone else's
+// PR — so every assertion here that reasons about "the makers" reasons about
+// THESE nine and never about `Object.keys(MANUFACTURERS)`. The same hard-coded
+// list is used for the plate and Codex checks in test/arms-mirror.test.js, and
+// for the same reason.
+const LANE_I_MAKERS = [
+  "hundredweight_works", "reclamation_state_arsenal", "emberwright_foundries",
+  "ferrymen_shrine_armoury", "salvage_court_prize_yard", "crossloom_pattern_house",
+  "ascendancy_signal_works", "outrider_wheelwrights", "tarpool_burnworks",
+];
 
 // A WeaponBase built at a calibre's reference numbers. QUALITY_GRADES.issue is
 // the neutral grade (every multiplier exactly 1), so an issue-grade, un-modded
@@ -138,7 +150,14 @@ describe("THE ACCEPTANCE TEST — a rifle cannot scratch a heavy crawler", () =>
     expect(penMultFor(3.9 - heavy)).toBe(0);
     expect(penMultFor(4 - heavy)).toBeGreaterThan(0);
 
-    const worstLean = Math.max(0, ...Object.values(MANUFACTURERS).map((m) => m.signature.armorPen || 0));
+    // Scoped to Lane I's nine makers, NOT to the whole table. A motor-works
+    // appended by Lane J with a signature armorPen above the 0.5 of headroom
+    // this leaves would turn a Lane I test red on main, in Lane J's PR, for a
+    // budget only small-arms makers were ever told about — and §3's documented
+    // fallback for Lane J is to abandon the MANUFACTURERS append entirely when
+    // that happens. These nine are the makers that actually build small arms.
+    for (const k of LANE_I_MAKERS) expect(MANUFACTURERS[k], `${k} is not in MANUFACTURERS`).toBeDefined();
+    const worstLean = Math.max(0, ...LANE_I_MAKERS.map((k) => MANUFACTURERS[k].signature.armorPen || 0));
     for (const [key, c] of Object.entries(CALIBRES)) {
       if (!SMALL_ARM_CLASSES.includes(c.class)) continue;
       expect(c.armorPen + worstLean, `${key} + the heaviest maker lean (+${worstLean})`).toBeLessThan(4);
@@ -449,6 +468,23 @@ describe("rollWeapon — determinism", () => {
       quirks: [],
       serial: "TES-294-45SE4",
     });
+  });
+
+  it("SNAPSHOT — seed 1 draws EXTRA QUIRKS, which the seed-1234 snapshot never does", () => {
+    // The seed-1234 snapshot pins the pattern pool (draw 1) and the mod pool
+    // (draw 4) because that seed reaches both. It draws ZERO extra quirks, so
+    // draws 5 and 6 — and the sort that makes the quirk pool order independent
+    // of table insertion order — went unobserved by the whole suite. §9 claims
+    // EVERY pool is sorted by key; this is the third of the three.
+    const r = rollWeapon({ seed: 1, tierCap: "III", luck: 0 });
+    expect(r).toEqual({
+      patternKey: "ow197_courier_dust_carbine_mk2",
+      quality: "scrap",
+      mods: ["stock_recoil_pad"],
+      quirks: ["ferrymans_blessing", "prize_taken"],
+      serial: "OUT-197-PFZGH",
+    });
+    expect(r.quirks.length, "seed 1 stopped drawing extra quirks — pick another seed that does").toBeGreaterThan(0);
   });
 
   it("the roll is a pure function of its arguments — it mutates no table", () => {
@@ -850,8 +886,80 @@ describe("deriveLoadout — the reduction to squad numbers", () => {
   });
 
   it("an unarmed stand is a legal state and reduces to zeroes rather than throwing", () => {
+    // A loadout that is PRESENT and empty is a stand that has been modelled and
+    // is carrying nothing. Zero is the right answer, and it is allowed to
+    // replace what melee/ranged/range would otherwise have been.
     expect(deriveLoadout({ figures: 4, loadout: {} }, {})).toEqual({ melee: 0, ranged: 0, range: 0, speed: 0, pts: 0 });
-    expect(deriveLoadout({ figures: 4 }, {})).toEqual({ melee: 0, ranged: 0, range: 0, speed: 0, pts: 0 });
+  });
+
+  it("A SQUAD WITH NO LOADOUT AT ALL CONTRIBUTES NOTHING — it does not zero what it never described", () => {
+    // The distinction this asserts is the whole reason the two cases are
+    // written separately. melee, ranged and range are ABSOLUTE in
+    // LOADOUT_KEYS: deriveSquad REPLACES the SquadType base value with them.
+    // §4 makes `loadout?: Loadout` optional and no squad row carries one yet,
+    // so a deriveSquad calling this unconditionally would wipe every authored
+    // melee/ranged/range in the game the moment it was wired up. Returning {}
+    // is what makes "call it unconditionally" safe.
+    expect(deriveLoadout({ figures: 4 }, {})).toEqual({});
+    expect(deriveLoadout({ figures: 4, loadout: null }, {})).toEqual({});
+    expect(deriveLoadout(undefined, {})).toEqual({});
+    // and the empty result is still inside the published allowlist
+    for (const k of Object.keys(deriveLoadout({ figures: 4 }, {}))) {
+      expect(Object.keys(LOADOUT_KEYS)).toContain(k);
+    }
+  });
+
+  it("IS PER FIGURE, NOT PER SQUAD — headcount is deriveSquad's multiplier, not this function's", () => {
+    // The pts anchor: SQUAD_TYPES.riflemen.pts is 100 for ten figures, while
+    // WEAPON_PATTERNS.hw141_levy_rifle_mk2.pts is 1 for one rifle. Those are
+    // two scales, and which one deriveLoadout returns is the thing Lane A
+    // cannot afford to guess. It returns the PER-FIGURE one: `figures` is read
+    // nowhere in the function, so a one-man team and a ten-man section
+    // carrying the same weapons reduce identically, and Lane A multiplies
+    // melee/ranged/pts by `figures` before applying them. `range` and `speed`
+    // describe what one figure carries and are never scaled.
+    const one = { patternKey: "hw141_levy_rifle_mk2", quality: "issue", mods: [], quirks: [] };
+    const solo = deriveLoadout({ figures: 1, loadout: { primary: one } }, {});
+    const section = deriveLoadout({ figures: 10, loadout: { primary: one } }, {});
+    expect(section).toEqual(solo);
+    expect(solo.pts).toBe(1);
+    expect(deriveLoadout({ loadout: { primary: one } }, {})).toEqual(solo);
+  });
+
+  it("THE PUBLISHED REDUCTION IS THE IMPLEMENTED ONE — fire is computed off the BLADELESS damage", () => {
+    // docs/ARMS_CATALOGUE.md §10.2 publishes `fire(w) = bare.damage × shots(w)`
+    // and `blade(w) = max(0, b.damage − bare.damage)`, and the two-resolve
+    // shape is the whole reason a bayonet cannot make a rifle shoot harder.
+    // This recomputes the published formula from the exported parts and checks
+    // the function agrees, so the document and the code cannot say two things.
+    const bladed = { patternKey: "hw141_levy_rifle_mk2", quality: "issue", mods: ["bayonet_sword_pattern"], quirks: [] };
+    const b = resolveWeapon(bladed, {});
+    const bare = resolveWeapon({ ...bladed, mods: [] }, {});
+    const shots = b.rateOfFire * b.accuracy * b.reliability;
+    const out = deriveLoadout({ figures: 10, loadout: { primary: bladed } }, {});
+    expect(out.ranged).toBeCloseTo(Math.round(bare.damage * shots * 100) / 100, 6);
+    expect(out.melee).toBeCloseTo(Math.round(Math.max(0, b.damage - bare.damage) * 100) / 100, 6);
+    // and the formula the document USED to carry — b.damage × shots — is a
+    // measurably different number, so this is not a distinction without one.
+    expect(out.ranged).not.toBeCloseTo(b.damage * shots, 2);
+  });
+
+  it("WEIGHT_PER_SPEED_STEP IS 12, AND THESE TWO LOADOUTS STRADDLE IT", () => {
+    // speed = −floor(share-weighted weight / 12), and the constant is
+    // module-private, so the document-snippet evaluator in arms-mirror cannot
+    // see it. Two loadouts pin it from both sides: 11.29 kg must not drag
+    // (which it would at any step ≤ 11) and 12.535 kg must drag exactly one
+    // step (which it would not at any step ≥ 13).
+    const w = (k) => ({ patternKey: k, quality: "issue", mods: [], quirks: [] });
+    const under = { figures: 10, loadout: { primary: w("hw166_bottoms_pit_revolver_mk1"), sidearm: w("em247_emberwright_hull_gun_mk2") } };
+    const over = { figures: 10, loadout: { primary: w("hw203_sledge_short_rifle_mk1"), support: w("em239_forgeworks_battalion_mortar_mk1") } };
+    const weightOf = (squad) => Object.entries(squad.loadout).reduce((a, [slot, i]) => a + LOADOUT_SHARES[slot] * resolveWeapon(i, {}).weight, 0);
+    expect(weightOf(under), "the under-case no longer sits in [11, 12)").toBeGreaterThanOrEqual(11);
+    expect(weightOf(under), "the under-case no longer sits in [11, 12)").toBeLessThan(12);
+    expect(weightOf(over), "the over-case no longer sits in [12, 13)").toBeGreaterThanOrEqual(12);
+    expect(weightOf(over), "the over-case no longer sits in [12, 13)").toBeLessThan(13);
+    expect(deriveLoadout(under, {}).speed).toBe(0);
+    expect(deriveLoadout(over, {}).speed).toBe(-1);
   });
 
   it("context reaches the weapons: a quirk that fires changes the squad's numbers", () => {
@@ -905,5 +1013,275 @@ describe("loadoutProfile — what the engine feeds to resolveHit", () => {
   it("an unarmed stand profiles as inert — it penetrates nothing and never fires", () => {
     expect(loadoutProfile({ figures: 4, loadout: {} }, {})).toEqual({ armorPen: 0, damageType: "kinetic", aoe: null, misfire: 0.5 });
     expect(resolveHit({ weapon: { ...loadoutProfile({ figures: 4 }, {}), damage: 0 }, target: ARMOUR_CLASSES.none }).effective).toBe(0);
+  });
+});
+
+
+// ---------------------------------------------------------------------------
+// THE PARTS THE SUITE COULD NOT SEE.
+//
+// Everything below was added after a mutation sweep found assertions that
+// survived a change to the thing they were named for: the application order
+// between steps 2 and 3, six of the seven step-6 clamps, every threshold
+// comparator in evaluateQuirk, the two replacement fields, and two unreachable
+// guards. A test that cannot go red for the defect it is named after is a test
+// pointed at a proxy, and each one below is written against the real thing.
+// ---------------------------------------------------------------------------
+
+// An INDEPENDENT re-computation of resolveWeapon's arithmetic for one field,
+// written out long-hand here rather than imported, and deliberately WITHOUT
+// step 6's clamps. Two jobs: it proves a clamp case genuinely drives a field
+// past its bound (so a clamp assertion cannot go quietly vacuous when a table
+// moves), and it states the application order a second time, in a second file,
+// from the tables — signature ADDS, then quality MULTIPLIES.
+const unclamped = (instance, ctx, field) => {
+  const p = WEAPON_PATTERNS[instance.patternKey];
+  const maker = MANUFACTURERS[p.maker];
+  const mult = QUALITY_GRADES[instance.quality].mult;
+  let v = p.base[field] + (maker.signature[field] || 0);
+  if (typeof mult[field] === "number") v *= mult[field];
+  for (const k of instance.mods || []) {
+    const mod = MODIFICATIONS[k];
+    v += (mod.mods[field] || 0) + (mod.tradeoff[field] || 0);
+  }
+  const natives = Object.keys(maker.access).filter((h) => maker.access[h] === "native");
+  const enriched = { ...ctx, quality: instance.quality, nativeHouses: natives };
+  const seen = [];
+  for (const k of (p.quirks || []).concat(instance.quirks || [])) {
+    if (seen.includes(k) || !QUIRKS[k]) continue;
+    seen.push(k);
+    if (evaluateQuirk(QUIRKS[k], enriched)) v += QUIRKS[k].mods[field] || 0;
+  }
+  return v;
+};
+
+describe("resolveWeapon — the application order is not commutative, and here is the number that proves it", () => {
+  it("SIGNATURE ADDS BEFORE QUALITY MULTIPLIES — swapping steps 2 and 3 changes these two digits", () => {
+    // Every other assertion about the signature in this suite runs at `issue`,
+    // where QUALITY_GRADES.issue.mult is exactly 1 and the two orders are
+    // arithmetically identical — so the whole suite stayed green with steps 2
+    // and 3 swapped. This fires both layers at once, on a maker whose
+    // signature carries three non-zero numeric keys, at a grade whose
+    // multipliers are not 1.
+    //
+    //   as268 base damage 2.3, Ascendancy signature damage −0.35, relic ×1.35
+    //   implemented:  (2.3 − 0.35) × 1.35 = 2.6325
+    //   swapped:       2.3 × 1.35 − 0.35  = 2.755
+    //   accuracy: (0.58 + 0.07) × 1.4 = 0.91   vs   0.58 × 1.4 + 0.07 = 0.882
+    const b = resolveWeapon({ patternKey: "as268_copperline_long_rifle_mk2", quality: "relic", mods: [], quirks: [] }, {});
+    expect(b.damage).toBe(2.6325);
+    expect(b.accuracy).toBe(0.91);
+    expect(MANUFACTURERS.ascendancy_signal_works.signature.damage).toBe(-0.35);
+    expect(QUALITY_GRADES.relic.mult.damage).toBe(1.35);
+  });
+
+  it("and the same order, recomputed independently from the tables, agrees on every pattern at every grade", () => {
+    for (const k of Object.keys(WEAPON_PATTERNS)) {
+      for (const q of Object.keys(QUALITY_GRADES)) {
+        const instance = { patternKey: k, quality: q, mods: [], quirks: [] };
+        const b = resolveWeapon(instance, {});
+        for (const f of ["accuracy", "rateOfFire", "damage", "armorPen", "range", "reliability", "weight"]) {
+          const raw = unclamped(instance, {}, f);
+          const lo = { accuracy: 0.05, reliability: 0.05, rateOfFire: 0.1, weight: 0.1 }[f] ?? 0;
+          const hi = { accuracy: 1.5, reliability: 1, rateOfFire: 12 }[f] ?? Infinity;
+          expect(b[f], `${k} ${q} ${f}`).toBeCloseTo(Math.min(Math.max(raw, lo), hi), 4);
+        }
+      }
+    }
+  });
+});
+
+describe("resolveWeapon — step 6 clamps, every bound driven past on purpose", () => {
+  // A hand-built instance, not a rolled one. rollWeapon can never produce these
+  // (it fits at most three mods, one per slot), which is exactly why the clamps
+  // matter: PLATFORM_HANDOFF item 2 says a WeaponInstance arriving from a
+  // client is untrusted, and step 6 is the last thing standing between a
+  // malformed instance and a nonsense weapon. Six of these seven expressions
+  // survived deletion with the whole suite green before this block existed.
+  const FULL = {
+    weather: "snow", terrain: "rubble", night: true,
+    adjacentSpecialists: ["relic_bearer", "signaler", "heavy_gunner"],
+    consecutiveFire: 9, vsHouse: "synod", vsArmourClass: "heavy",
+    range: 0, figures: 12, round: 12,
+  };
+  const net = (k, f) => (MODIFICATIONS[k].mods[f] || 0) + (MODIFICATIONS[k].tradeoff[f] || 0);
+  const modsMoving = (f, dir) => Object.keys(MODIFICATIONS).filter((k) => (dir < 0 ? net(k, f) < 0 : net(k, f) > 0));
+  const quirksMoving = (f, dir) => Object.keys(QUIRKS).filter((k) => (dir < 0 ? (QUIRKS[k].mods[f] || 0) < 0 : (QUIRKS[k].mods[f] || 0) > 0));
+
+  // field, direction, bound, the pattern and grade that reach furthest, and
+  // whether the mod list is applied twice (a duplicate-slot instance, which is
+  // precisely the malformation the handoff asks the platform to reject).
+  const CASES = [
+    ["accuracy", -1, 0.05, "hw166_bottoms_pit_revolver_mk1", "scrap", 1],
+    ["accuracy", 1, 1.5, "as294_longear_ranging_rifle_mk1", "relic", 1],
+    ["reliability", -1, 0.05, "hw166_bottoms_pit_revolver_mk1", "scrap", 1],
+    ["reliability", 1, 1, "fs198_reliquary_keel_gun_mk1", "relic", 1],
+    ["rateOfFire", -1, 0.1, "hw166_bottoms_pit_revolver_mk1", "scrap", 1],
+    ["rateOfFire", 1, 12, "sy296_adjudicated_nose_battery_mk1", "relic", 2],
+    ["damage", -1, 0, "hw166_bottoms_pit_revolver_mk1", "scrap", 1],
+    ["armorPen", -1, 0, "hw166_bottoms_pit_revolver_mk1", "scrap", 1],
+    ["range", -1, 0, "hw166_bottoms_pit_revolver_mk1", "scrap", 1],
+    ["weight", -1, 0.1, "hw166_bottoms_pit_revolver_mk1", "scrap", 1],
+  ];
+
+  for (const [field, dir, bound, patternKey, quality, copies] of CASES) {
+    const label = dir < 0 ? "floor" : "ceiling";
+    it(`the ${field} ${label} of ${bound} is a live clamp, not a comment`, () => {
+      let mods = modsMoving(field, dir);
+      for (let i = 1; i < copies; i++) mods = mods.concat(modsMoving(field, dir));
+      const instance = { patternKey, quality, mods, quirks: quirksMoving(field, dir) };
+      const raw = unclamped(instance, FULL, field);
+      // If this fails the case has gone vacuous — the pile no longer drives the
+      // field past the bound, and the assertion below would pass without the
+      // clamp doing anything. Re-pick the pattern, do not relax the bound.
+      if (dir < 0) expect(raw, `${field}: the clamp case no longer reaches the floor (raw ${raw})`).toBeLessThan(bound);
+      else expect(raw, `${field}: the clamp case no longer reaches the ceiling (raw ${raw})`).toBeGreaterThan(bound);
+      expect(resolveWeapon(instance, FULL)[field], `${field} was not clamped to ${bound}`).toBe(bound);
+    });
+  }
+});
+
+describe("evaluateQuirk — the thresholds are inclusive, and the boundary is where that is proved", () => {
+  // The suite tested evaluateQuirk against an EMPTY context (everything false)
+  // and a SATURATED one (everything true by a wide margin), which proves only
+  // that the function is total. Every one of these five comparators could be
+  // made exclusive with all 361 tests green — proof_stamped would stop firing
+  // on a proofed weapon, crew_drilled on a four-figure crew. A threshold is
+  // only pinned at its own value.
+  const AT_LEAST = ["consecutive_fire", "figures_at_least", "round_at_least"];
+  const CTX_FIELD = { consecutive_fire: "consecutiveFire", figures_at_least: "figures", round_at_least: "round", range_at_most: "range" };
+
+  it("every numeric condition key in the published vocabulary is covered below", () => {
+    const numeric = Object.keys(QUIRK_CONDITION_KEYS).filter((k) => QUIRK_CONDITION_KEYS[k].valueType === "number");
+    expect(numeric.sort()).toEqual([...AT_LEAST, "range_at_most"].sort());
+    expect(QUIRK_CONDITION_KEYS.quality_at_least.valueType, "quality_at_least is the one ORDINAL string key").toBe("string");
+  });
+
+  let covered = 0;
+  for (const [key, q] of Object.entries(QUIRKS)) {
+    const ck = q.condition.key;
+    if (AT_LEAST.includes(ck)) {
+      covered++;
+      it(`${key} fires AT ${ck} ${q.condition.value} and not one short of it`, () => {
+        const f = CTX_FIELD[ck];
+        expect(evaluateQuirk(q, { [f]: q.condition.value }), `${key} at exactly ${q.condition.value}`).toBe(true);
+        expect(evaluateQuirk(q, { [f]: q.condition.value - 1 }), `${key} one below ${q.condition.value}`).toBe(false);
+      });
+    } else if (ck === "range_at_most") {
+      covered++;
+      it(`${key} fires AT range ${q.condition.value} and not one beyond it`, () => {
+        expect(evaluateQuirk(q, { range: q.condition.value }), `${key} at exactly ${q.condition.value}`).toBe(true);
+        expect(evaluateQuirk(q, { range: q.condition.value + 1 }), `${key} one beyond ${q.condition.value}`).toBe(false);
+      });
+    } else if (ck === "quality_at_least") {
+      covered++;
+      it(`${key} fires AT grade ${q.condition.value} and not at the grade below it`, () => {
+        const i = QUALITY_ORDER.indexOf(q.condition.value);
+        expect(i, `${key} names a grade that is not in QUALITY_ORDER`).toBeGreaterThan(0);
+        expect(evaluateQuirk(q, { quality: QUALITY_ORDER[i] }), `${key} at ${QUALITY_ORDER[i]}`).toBe(true);
+        expect(evaluateQuirk(q, { quality: QUALITY_ORDER[i - 1] }), `${key} at ${QUALITY_ORDER[i - 1]}`).toBe(false);
+      });
+    }
+  }
+
+  it("the boundary sweep above actually covered the threshold quirks", () => {
+    const expected = Object.values(QUIRKS).filter((q) => AT_LEAST.concat(["range_at_most", "quality_at_least"]).includes(q.condition.key)).length;
+    expect(covered, "a threshold quirk slipped past the boundary sweep").toBe(expected);
+    expect(covered, "the catalogue lost its threshold quirks").toBeGreaterThanOrEqual(11);
+  });
+});
+
+describe("the two replacement fields — a mod that changes what a weapon IS", () => {
+  // §14.1 step 7: damageType and aoe pass through from the pattern UNLESS a
+  // mod or quirk sets them. The table test asserts the setters EXIST and are
+  // legal; nothing asserted that resolveWeapon applies them, so the whole
+  // non-numeric branch of applyDelta could be disabled with the suite green —
+  // silently neutering the five kits that change what a weapon is rather than
+  // what it scores.
+  it("a chemical filling makes a mortar a chemical weapon, and a sealed hull then stops it dead", () => {
+    const plain = resolveWeapon({ patternKey: "cl221_crossloom_light_mortar_mk2", quality: "issue", mods: [], quirks: [] }, {});
+    const fumed = resolveWeapon({ patternKey: "cl221_crossloom_light_mortar_mk2", quality: "issue", mods: ["ammo_fume_filling"], quirks: [] }, {});
+    expect(MODIFICATIONS.ammo_fume_filling.mods.damageType, "the kit stopped being a setter").toBe("chemical");
+    expect(plain.damageType).not.toBe("chemical");
+    expect(fumed.damageType).toBe("chemical");
+    // and the replacement reaches the damage model, which is the point of it
+    expect(resolveHit({ weapon: fumed, target: ARMOUR_CLASSES.medium }).effective).toBe(0);
+    expect(resolveHit({ weapon: fumed, target: ARMOUR_CLASSES.medium }).suppressOnly).toBe(true);
+    expect(resolveHit({ weapon: fumed, target: ARMOUR_CLASSES.soft }).effective).toBeGreaterThan(0);
+  });
+
+  it("a grenade cup gives a point-fire rifle an area of effect it did not have", () => {
+    const bare = resolveWeapon({ patternKey: "rs229_verdict_service_rifle_mk3", quality: "issue", mods: [], quirks: [] }, {});
+    const cupped = resolveWeapon({ patternKey: "rs229_verdict_service_rifle_mk3", quality: "issue", mods: ["muzzle_grenade_cup"], quirks: [] }, {});
+    expect(bare.aoe, "the reference rifle stopped being point fire").toBe(null);
+    expect(cupped.aoe).toEqual(MODIFICATIONS.muzzle_grenade_cup.mods.aoe);
+    // and resolveAoe now has something to work with, where before it had none
+    expect(resolveAoe({ weapon: bare, victims: [{ target: ARMOUR_CLASSES.none, dist: 0 }] })).toEqual([]);
+    expect(resolveAoe({ weapon: cupped, victims: [{ target: ARMOUR_CLASSES.none, dist: 0 }] }).length).toBe(1);
+  });
+});
+
+describe("the guards nothing in the catalogue happens to reach", () => {
+  it("resolveAoe floors the falloff at zero rather than handing back negative damage", () => {
+    // The largest falloff × radius any pattern in the catalogue can produce is
+    // 0.8, so Math.max(0, …) is unreachable from the table and could be deleted
+    // with the suite green. A synthetic weapon reaches it: at falloff 0.5 a
+    // victim three hexes out is at 1 − 1.5 = −0.5.
+    const weapon = { accuracy: 1, rateOfFire: 1, damage: 10, armorPen: 9, range: 5, reliability: 1, weight: 1, damageType: "explosive", aoe: { radius: 5, falloff: 0.5 } };
+    const out = resolveAoe({ weapon, victims: [{ target: ARMOUR_CLASSES.none, dist: 0 }, { target: ARMOUR_CLASSES.none, dist: 3 }, { target: ARMOUR_CLASSES.none, dist: 4 }] });
+    expect(out.length).toBe(3);
+    expect(out[0].effective).toBeGreaterThan(0);
+    for (const r of out.slice(1)) {
+      expect(r.effective, "a burst past its own falloff HEALED the victim").toBe(0);
+      expect(r.suppressOnly).toBe(true);
+    }
+  });
+
+  it("a quirk named twice is applied once — an instance cannot double a quirk its pattern already has", () => {
+    // rollWeapon guarantees the instance's extra quirks are disjoint from the
+    // pattern's, so the dedup in activeQuirkKeys is unreachable through the
+    // roller and could be removed with the suite green. A hand-built instance
+    // reaches it, and a hand-built instance is exactly what the platform is
+    // warned to validate.
+    const withQuirks = Object.entries(WEAPON_PATTERNS).find(([, p]) => (p.quirks || []).length > 0);
+    expect(withQuirks, "no pattern carries an authored quirk any more").toBeTruthy();
+    const [patternKey, pattern] = withQuirks;
+    const dup = pattern.quirks[0];
+    const ctx = { weather: "snow", terrain: "rubble", night: true, adjacentSpecialists: ["relic_bearer", "signaler", "heavy_gunner"], consecutiveFire: 9, vsHouse: "synod", vsArmourClass: "heavy", range: 0, figures: 12, round: 12 };
+    const once = resolveWeapon({ patternKey, quality: "issue", mods: [], quirks: [] }, ctx);
+    const twice = resolveWeapon({ patternKey, quality: "issue", mods: [], quirks: [dup] }, ctx);
+    expect(twice, `${dup} was applied twice`).toEqual(once);
+  });
+});
+
+describe("rollWeapon — a malformed argument fails loudly instead of quietly", () => {
+  it("A MISSING SEED THROWS — mulberry32 would otherwise coerce it to seed 0 forever", () => {
+    // The handoff asks the platform to derive a seed from
+    // (gameId, turn, sourceKey, index). A derivation that comes up short used
+    // to hand back the seed-0 weapon, identically, for every caller that got it
+    // wrong — a silent, permanent, indistinguishable-from-correct failure.
+    expect(() => rollWeapon({ tierCap: "III" })).toThrow(/seed must be a finite number/);
+    expect(() => rollWeapon({ seed: null, tierCap: "III" })).toThrow(/seed must be a finite number/);
+    expect(() => rollWeapon({ seed: NaN, tierCap: "III" })).toThrow(/seed must be a finite number/);
+    expect(() => rollWeapon({ seed: "1234", tierCap: "III" })).toThrow(/seed must be a finite number/);
+    expect(() => rollWeapon({ seed: Infinity, tierCap: "III" })).toThrow(/seed must be a finite number/);
+    // and seed 0 itself is a perfectly good seed, so the guard is on finiteness
+    expect(rollWeapon({ seed: 0, tierCap: "III" }).patternKey).toBeTruthy();
+  });
+
+  it("A NON-FINITE LUCK IS NEUTRAL, NOT LUCKY — NaN used to return relic on every seed", () => {
+    // NaN is typeof 'number'. clampTo(NaN) is NaN, every adjusted weight became
+    // NaN, `ticket < 0` was never true, and the loop fell through to its
+    // initialiser: QUALITY_ORDER[length − 1], the RAREST grade, on every roll.
+    const neutral = [];
+    const nan = [];
+    for (let s = 1; s <= 200; s++) {
+      neutral.push(rollWeapon({ seed: s, tierCap: "III", luck: 0 }).quality);
+      nan.push(rollWeapon({ seed: s, tierCap: "III", luck: NaN }).quality);
+    }
+    expect(nan).toEqual(neutral);
+    expect(new Set(nan).size, "a non-finite luck collapsed the distribution").toBeGreaterThan(1);
+    expect(rollWeapon({ seed: 7, tierCap: "III", luck: undefined })).toEqual(rollWeapon({ seed: 7, tierCap: "III", luck: 0 }));
+    expect(rollWeapon({ seed: 7, tierCap: "III", luck: "1" })).toEqual(rollWeapon({ seed: 7, tierCap: "III", luck: 0 }));
   });
 });

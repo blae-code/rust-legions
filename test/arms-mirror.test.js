@@ -25,6 +25,21 @@ const MIRROR_SRC = readRepoFile("src/lib/arms.js");
 
 const CANON = (name) => extractConst(CANON_SRC, name);
 
+// THE NINE MAKER KEYS THIS LANE AUTHORS, and the single reason they are written
+// out rather than read off the table. §3 sanctions Lane J appending motor-works
+// rows keyed `mw_*` to MANUFACTURERS after this lane merges. Every assertion in
+// this file that imposes LANE I's AUTHORING STANDARD — a two-key signature with
+// a real cost, four name-stems, a ten-house access map with a native, 60–100
+// words of lore, a plate, a Codex entry, a pattern that actually uses the maker
+// — is scoped to these nine, because a sweep over the whole table would go red
+// on `main`, in someone else's PR, for obligations Lane J was never given. The
+// gate on the TABLE stays `>= 8` and is never an exact count.
+const LANE_I_MAKERS = [
+  "hundredweight_works", "reclamation_state_arsenal", "emberwright_foundries",
+  "ferrymen_shrine_armoury", "salvage_court_prize_yard", "crossloom_pattern_house",
+  "ascendancy_signal_works", "outrider_wheelwrights", "tarpool_burnworks",
+];
+
 // Every pure-data table the two files must agree on, in declaration order.
 // Later steps of this lane append to this list as they append tables.
 const TABLES = [
@@ -446,7 +461,15 @@ describe("manufacturers (Work item 7.2)", () => {
     expect(ACCESS).toEqual({ native: 1, licensed: 1.25, captured: 1.5 });
   });
 
-  for (const key of Object.keys(CANON("MANUFACTURERS"))) {
+  it("declares every one of Lane I's nine, so the scoped sweep below cannot silently shrink", () => {
+    for (const k of LANE_I_MAKERS) expect(MAKERS[k], `${k} is missing from MANUFACTURERS`).toBeDefined();
+    expect(LANE_I_MAKERS.length).toBe(9);
+  });
+
+  // Scoped, deliberately. See LANE_I_MAKERS at the head of this file: these five
+  // assertions are Lane I's authoring standard, not a property of the table, and
+  // Lane J's `mw_*` rows answer to Lane J's own acceptance criteria.
+  for (const key of LANE_I_MAKERS) {
     describe(key, () => {
       const m = MAKERS[key];
 
@@ -689,10 +712,14 @@ describe("weapon patterns (Work items 9.1–9.7)", () => {
     }
   });
 
-  it("every maker builds something and every calibre feeds something", () => {
+  it("every one of Lane I's makers builds something and every calibre feeds something", () => {
+    // Scoped for the same reason as everything else keyed off LANE_I_MAKERS:
+    // Lane J's motor-works append rows to MANUFACTURERS and draw from
+    // WEAPON_PATTERNS rather than adding to it, so a `mw_*` maker legitimately
+    // builds nothing in THIS table and must not redden THIS file.
     const makers = new Set(Object.values(WP).map((p) => p.maker));
     const calibres = new Set(Object.values(WP).map((p) => p.calibre));
-    for (const m of Object.keys(MAKERS)) expect([...makers], `${m} builds nothing`).toContain(m);
+    for (const m of LANE_I_MAKERS) expect([...makers], `${m} builds nothing`).toContain(m);
     for (const c of Object.keys(CAL)) expect([...calibres], `${c} feeds nothing`).toContain(c);
   });
 
@@ -1042,6 +1069,26 @@ describe("quirks (Work item 12)", () => {
     }
   });
 
+  it("NO QUIRK MIXES THE TWO BRANCHES OF THE §4 UNION — half a row would be silently discarded", () => {
+    // §4: Quirk.mods is `Partial<WeaponBase> | { morale?, initiative? }` — a
+    // UNION, not a mix. applyDelta copies only WEAPON_BASE_KEYS, so a row
+    // carrying both would have its morale term dropped in resolveWeapon with no
+    // error anywhere while its WeaponBase term applied. One row did exactly
+    // that. Nothing in this lane consumes morale or initiative at all
+    // (deriveLoadout's keys are fixed by LOADOUT_KEYS; loadoutProfile returns
+    // four fields), so those rows are DECLARATIVE until the platform wires
+    // them — a stated handoff item, not a silent half-application.
+    let declarative = 0;
+    for (const [k, q] of Object.entries(QUIRKS)) {
+      const fields = Object.keys(q.mods);
+      const weaponSide = fields.filter((f) => BASE_FIELDS.includes(f));
+      const squadSide = fields.filter((f) => f === "morale" || f === "initiative");
+      expect(weaponSide.length === 0 || squadSide.length === 0, `${k}.mods mixes ${weaponSide.join("+")} with ${squadSide.join("+")}`).toBe(true);
+      if (squadSide.length > 0) declarative++;
+    }
+    expect(declarative, "the morale/initiative branch of the union is no longer exercised").toBeGreaterThan(0);
+  });
+
   it("an 'always' quirk is an INSTANCE quirk and is never authored onto a pattern", () => {
     // An unconditional modifier attached to a design is indistinguishable from
     // the design's own numbers and belongs in `base`. Keeping them off the
@@ -1307,13 +1354,21 @@ describe("placeholder plates (Work item 18)", () => {
 describe("Codex entries (Work item 19)", () => {
   const MAKERS = CANON("MANUFACTURERS");
   const CALIBRES = CANON("CALIBRES");
-  const LANE_I_MAKERS = [
-    "hundredweight_works", "reclamation_state_arsenal", "emberwright_foundries",
-    "ferrymen_shrine_armoury", "salvage_court_prize_yard", "crossloom_pattern_house",
-    "ascendancy_signal_works", "outrider_wheelwrights", "tarpool_burnworks",
-  ];
   const slug = (k) => k.replace(/_/g, "-");
   const ids = new Set(ENTRIES.map((e) => e.id));
+
+  // LANE I'S OWN IDS, BUILT FROM ITS OWN KEYS — never `id.startsWith("maker-")`.
+  // `maker-` is a NAMESPACE Lane J shares: §3 makes "Codex entries for every
+  // motor-works and chassis class" a Lane J acceptance criterion, and this
+  // lane's convention for a manufacturer entry is `maker-<slug>`. A sweep by
+  // prefix would impose Lane I's entry contract on Lane J's `maker-mw-*` rows,
+  // and the exact-equality canon check below would go red on main the first
+  // time Lane J marked one `canon`.
+  const LANE_I_IDS = new Set([
+    ...LANE_I_MAKERS.map((k) => `maker-${slug(k)}`),
+    ...Object.keys(CALIBRES).map((k) => `calibre-${slug(k)}`),
+  ]);
+  const laneI = () => ENTRIES.filter((e) => LANE_I_IDS.has(e.id));
 
   it("every entry id in the whole corpus is unique", () => {
     const seen = ENTRIES.map((e) => e.id);
@@ -1335,13 +1390,12 @@ describe("Codex entries (Work item 19)", () => {
     for (const k of Object.keys(CALIBRES)) {
       expect(ids.has(`calibre-${slug(k)}`), `calibre-${slug(k)} is missing from ENTRIES`).toBe(true);
     }
-    const mine = ENTRIES.filter((e) => e.id.startsWith("maker-") || e.id.startsWith("calibre-"));
-    expect(mine.length, "fewer than 24 Lane I Codex entries").toBeGreaterThanOrEqual(24);
+    expect(laneI().length, "fewer than 24 Lane I Codex entries").toBeGreaterThanOrEqual(24);
+    expect(laneI().length, "an id in LANE_I_IDS resolves to no entry").toBe(LANE_I_IDS.size);
   });
 
   it("every Lane I entry is complete and correctly categorised", () => {
-    const mine = ENTRIES.filter((e) => e.id.startsWith("maker-") || e.id.startsWith("calibre-"));
-    for (const e of mine) {
+    for (const e of laneI()) {
       expect(e.category, `${e.id} category`).toBe(e.id.startsWith("maker-") ? "powers" : "war");
       expect(e.tag, `${e.id} tag`).toMatch(/^Arms Catalogue §[34]$/);
       expect(["canon", "contested", "unanswered", "thin"], `${e.id} status`).toContain(e.status);
@@ -1355,8 +1409,10 @@ describe("Codex entries (Work item 19)", () => {
   // Marking invented ground as sealed is how a wiki starts lying. Only the two
   // rows a governing document actually supports may read "canon".
   it("claims canon only where a governing document supports it", () => {
-    const mine = ENTRIES.filter((e) => e.id.startsWith("maker-") || e.id.startsWith("calibre-"));
-    const canon = mine.filter((e) => e.status === "canon").map((e) => e.id).sort();
+    // An EXACT equality, and therefore scoped to this lane's own ids: it is a
+    // statement about the 25 rows Lane I authored, not about every row that
+    // happens to start with `maker-`.
+    const canon = laneI().filter((e) => e.status === "canon").map((e) => e.id).sort();
     expect(canon).toEqual(["calibre-r13-line", "maker-hundredweight-works"]);
   });
 
@@ -1364,8 +1420,16 @@ describe("Codex entries (Work item 19)", () => {
     const shippedSrc = readRepoFile("src/lib/wiki/entries.js");
     const bstart = shippedSrc.indexOf("  // ——— LANE I: makers & calibres ———");
     expect(bstart, "the Lane I banner block is missing from entries.js").toBeGreaterThan(-1);
-    const bend = shippedSrc.indexOf("\n];\n\nexport const ENTRY_BY_ID");
-    expect(bend, "the ENTRIES array terminator moved").toBeGreaterThan(bstart);
+    // The block ends at the NEXT lane's banner, or at the array terminator if
+    // this is still the last block. Lanes F, G, H, I and J all append one
+    // banner-commented tail block to this same array and the merge rule is
+    // "keep both, in lane order" — so bounding this slice at the terminator
+    // would sweep up whichever lane appends after this one and go red on main,
+    // in that lane's PR, over rows Lane I never wrote.
+    const terminator = shippedSrc.indexOf("\n];\n\nexport const ENTRY_BY_ID");
+    expect(terminator, "the ENTRIES array terminator moved").toBeGreaterThan(bstart);
+    const nextBanner = shippedSrc.indexOf("\n  // ——— LANE ", bstart + 1);
+    const bend = nextBanner !== -1 && nextBanner < terminator ? nextBanner : terminator;
     const shipped = shippedSrc.slice(bstart, bend).replace(/\n+$/, "");
 
     const doc = readRepoFile("docs/ARMS_CATALOGUE.md");
@@ -1418,6 +1482,34 @@ describe("the catalogue document (Work item 17)", () => {
       checked++;
     }
     expect(checked, "no snippet was actually compared against a table").toBeGreaterThanOrEqual(3);
+  });
+
+  // §10 is the section Lane A reads to build deriveSquad, and it carried a
+  // `fire(w) = b.damage × shots(w)` that the module does not implement — the
+  // module resolves the weapon twice and computes fire off the BLADELESS
+  // damage, which is the whole reason a bayonet cannot make a rifle shoot
+  // harder. Two records of one formula, contradicting each other, with no gate
+  // between them. So the document's fence and the module's own comment block
+  // are now compared rather than both believed.
+  it("§10.2's reduction formula is the module's reduction formula, character for character", () => {
+    const strip = (t) => t.replace(/\s+/g, " ").trim();
+    const between = (src, from, to) => {
+      const a = src.indexOf(from);
+      expect(a, `marker missing: ${from}`).toBeGreaterThan(-1);
+      const b = src.indexOf(to, a + from.length);
+      expect(b, `marker missing: ${to}`).toBeGreaterThan(a);
+      return src.slice(a + from.length, b);
+    };
+    const fromModule = strip(
+      between(CANON_SRC, "// THE REDUCTION FORMULA, implemented exactly as documented in §10 of the\n// catalogue:\n//\n", "//\n// WHY THE WEAPON IS RESOLVED TWICE")
+        .split("\n").map((l) => l.replace(/^\/\/ ?/, "")).join("\n"),
+    );
+    const fromDoc = strip(between(doc, "THE REDUCTION FORMULA — this is the implemented one\n\n```\n", "\n```"));
+    expect(fromModule.length, "the module's formula block did not lift").toBeGreaterThan(200);
+    expect(fromDoc, "docs/ARMS_CATALOGUE.md §10.2 has drifted from the module's own formula block").toBe(fromModule);
+    // and the version the document used to carry is gone from it entirely
+    expect(fromDoc).toContain("bare.damage");
+    expect(fromDoc).toContain("blade(w)");
   });
 
   it("§2's damage-model tables are the tables, not a paraphrase of them", () => {
