@@ -1684,6 +1684,24 @@ export const IMAGE_LIBRARY = [
     "Requisition token: harvest rights taken under guard — a signed writ held over a settlement seam while a fired derrick smokes behind, worn stamped-token styling"),
   P("perk_exposed_batteries", "perks", "Perk — Exposed Batteries", "Point-buy liability (−1 artillery def)",
     "Requisition token: guns mounted on an open outer deck with no casemate, crews shielded by nothing but a rail, worn stamped-token styling"),
+  //
+  // ONE stage card, for the chapter this lane appended to LIFEPATH_CHAPTERS.
+  // Chapters I-V each already carry a `chapter_<slug>` card in the LIFEPATH &
+  // CHRONICLE block above; the series stopped at V because Chapter VI did not
+  // exist until this lane wrote it, so this is the sixth member of an existing
+  // series and not a new request.
+  //
+  // The brief says "do not add lifepath plates", and gives its reason: the
+  // `std_*` standards already exist. They do — all four, used once each by
+  // Chapter VI's options, and NOT re-registered here. That reason does not
+  // reach the stage card, which is a different plate for a different surface,
+  // and reading the rule past its reason would be the closed-set defect the
+  // wave-4 addendum names: a gate forbidding a legal value. Every other plate
+  // this lane could have wanted was checked and found already present — 20
+  // roster crests and keels, 10 `set_*` grounds, 17 `ideology` axis/bloc/creed
+  // /decree plates, 4 `std_*` standards — and none is duplicated.
+  P("chapter_standard", "lifepath", "Chapter VI — The Standard", "Creation stage card",
+    "Creation stage card: four standards racked together in a muster tent before a keel's colour party — an honors staff, a shrine-banner with an Object sewn into its head, a black cloth with one red mark, and a faded first pennant — a clerk's hand choosing one, drafting-table styling"),
 ];
 
 export const getImage = (key) => IMAGE_LIBRARY.find((i) => i.key === key)?.url || null;

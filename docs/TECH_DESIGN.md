@@ -142,11 +142,43 @@ designed now has a reason to be fought over.
 3. Exodus Works (the Key): sole headline victory, or one of two-three paths (conquest/base-domination
    surviving)? Interacts with VISION §3.4 and §8.7.
 4. Object count per map size; how many Relic Projects should a normal game actually see finished?
-5. Does base capture transfer a *running* project, or only materials? (Leaning: materials only —
-   projects are keel-specific.)
+5. ~~Does base capture transfer a *running* project, or only materials?~~ **CLOSED 2026-09-02 —
+   MATERIALS ONLY. Decided by the operator in the fourth wave; recorded here as a decision, not a
+   leaning.** When a fortress-base is boarded and taken, the captor loots **only the running project's
+   unspent materials** — the conventional resources and fragments still lying loose in the cradle. The
+   **project itself, all of its accumulated progress, and the housed Object its tier gate required are
+   LOST.** Nothing about the works transfers. They were built into a bay whose keel has changed hands,
+   and a Relic Project is keel-specific in the strong sense: it cannot be inherited, resumed, sold,
+   ransomed or re-founded from where it stood. A captor who wants the Land-Dreadnought starts it from
+   the beginning, on its own keel, having first found its own Object of the right class.
 6. Should Tier I nodes migrate to Tier II at all, or leave the shipped tree untouched in slice 1?
 7. NPC houses: full tech-hunger AI, or scripted class preferences per doctrine? (Leaning: preferences —
    Reclamation hunts Wakes, Combine trades fragments, Synod hoards Ciphers. Cheap and in-character.)
+
+**On Q5, and what it costs the rest of this document.** The ruling is deliberately harsh, and the
+reason is §5's demand loop: if a captured keel handed over a finished-in-three-days Land-Dreadnought,
+the cheapest route to a relic would be to let a rival pay for it and then board him, and the hunt this
+document exists to create would collapse into a raid on whoever is furthest along. Materials-only keeps
+boarding worth doing — a taken cradle is a real windfall of fragments and heavy conventional stock —
+while leaving the *works* something a house can only get by digging for it. It also settles two things
+§10's appendix already asserted in passing and can now say plainly: a project **dies with the keel**
+whether the keel is destroyed or captured (the two outcomes are identical for the works), and the
+housed Object that satisfied the tier gate is **consumed by the loss**, not returned to the map. The
+loser does not keep the Object; the winner does not receive it.
+
+Three consequences for other lanes, all of them already written down rather than left implied:
+
+- **The herald's problem is canon.** `docs/HERALD_VOICES.md` Shared Rule 7 binds all thirteen packs:
+  a house that takes a keel may report **metal**, and a house that loses one may report **a hole**.
+  **No pack may report a captured project as an inheritance**, because no house ever inherits one.
+  Each pack carries one intercept for the loss, filed under whichever mood that house would file it in.
+- **The Codex says it in-world.** `src/lib/wiki/entries.js` entry `works-lost-with-the-keel`.
+- **The platform lane must implement the loss, not just the loot.** `RELIC_PROJECTS` need a build clock
+  (`PLATFORM_HANDOFF.md` G5); this ruling says what the capture branch of that clock does, and it is a
+  deletion. See the Lane H block of `PLATFORM_HANDOFF.md`.
+
+*(Filed by Lane H under `docs/TACTICAL_SQUAD_PLAN.md` §3, Lane H Amendment 2 — this lane's claim on
+this question and this note, and on nothing else in this file.)*
 
 ---
 
