@@ -1215,7 +1215,12 @@ describe("the Points Audit (Work item 16)", () => {
     const doc = readRepoFile("docs/ARMS_CATALOGUE.md");
     const start = doc.indexOf("### 11.4");
     expect(start, "§11.4 is missing from the catalogue").toBeGreaterThan(-1);
-    const region = doc.slice(start, doc.indexOf("\n## ", start));
+    // An unguarded indexOf returns -1, and slice(start, -1) quietly means "to
+    // one character before EOF" — a region that grows with every section a
+    // later lane appends. Assert the bound instead of trusting it.
+    const end = doc.indexOf("\n## ", start);
+    expect(end, "§11.4 is not bounded by a following top-level heading").toBeGreaterThan(start);
+    const region = doc.slice(start, end);
     const cell = (c) => c.trim().replace(/[`*]/g, "");
     const rows = region.split("\n")
       .filter((l) => /^\| `[a-z0-9_]+` \|/.test(l))
@@ -1329,7 +1334,13 @@ describe("placeholder plates (Work item 18)", () => {
   it("docs/ARMS_CATALOGUE.md §12 registers exactly the plates that shipped", () => {
     const doc = readRepoFile("docs/ARMS_CATALOGUE.md");
     const start = doc.indexOf("## 12. Plate register");
-    const region = doc.slice(start, doc.indexOf("\n## 13.", start));
+    expect(start, "§12's plate register is missing from the catalogue").toBeGreaterThan(-1);
+    // Bounded at the NEXT top-level heading, whatever it is numbered — not at
+    // a hard-coded "## 13.", which a renumber turns into -1 and therefore into
+    // "everything to EOF".
+    const end = doc.indexOf("\n## ", start + 1);
+    expect(end, "§12 is not bounded by a following top-level heading").toBeGreaterThan(start);
+    const region = doc.slice(start, end);
     const rows = [...region.matchAll(/^\| `((?:arms_|maker_|mod_kit_)[a-z0-9_]+)` \| ([\d:]+) \| (.+) \|$/gm)];
     expect(rows.length, "§12's plate register did not parse").toBe(mine.length);
     for (const [, key, aspect, title] of rows) {
@@ -1539,7 +1550,10 @@ describe("the catalogue document (Work item 17)", () => {
 
     // 2.3 — all 49 numbers of the type matrix.
     const start = doc.indexOf("### 2.3");
-    const region = doc.slice(start, doc.indexOf("### 2.4", start));
+    expect(start, "§2.3 is missing from the catalogue").toBeGreaterThan(-1);
+    const end = doc.indexOf("### 2.4", start);
+    expect(end, "§2.3 is not bounded by §2.4").toBeGreaterThan(start);
+    const region = doc.slice(start, end);
     const rows = region.split("\n").filter((l) => /^\| `\w+` \|/.test(l)).map((l) => l.split("|").slice(1, -1).map(cell));
     expect(rows.length, "§2.3 did not parse").toBe(Object.keys(MATRIX).length);
     for (const [type, ...cells] of rows) {
@@ -1551,13 +1565,38 @@ describe("the catalogue document (Work item 17)", () => {
     }
   });
 
+  // This comparison used to slice from its own heading to END OF FILE on both
+  // sides. "Everything to the end of the file" was a proxy for "my section",
+  // and it stood in for it only while Lane I happened to be the last lane to
+  // append to docs/GAME_RULES.md. Lane G merged, appended its own [PROPOSED]
+  // section after this one, and `inRules` silently swallowed the whole of it —
+  // the gate went red over text Lane I never wrote. Lanes F, H and J will each
+  // append one too, so BOTH sides are now bounded at the next top-level "## "
+  // heading, exactly as §13's entries.js comparison bounds at the next lane
+  // banner. The heading is matched on its TITLE and not on its number: the
+  // orchestrator renumbers on collision (that is how Lane G's became 24), so a
+  // hard-coded "## 23." would either break loudly on a renumber or, if both
+  // copies were renumbered apart, compare the wrong region. The
+  // exactly-one-match assertion is what keeps the match legible — zero hits or
+  // a second copy names the file it found them in rather than silently
+  // comparing an empty string.
+  const SECTION_TITLE = "The Arms Catalogue & the Universal Damage Model [PROPOSED — awaiting platform wiring]";
+  const sectionHeading = () =>
+    new RegExp(`^## \\d+\\. ${SECTION_TITLE.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "gm");
+  const proposedSection = (src, where) => {
+    const hits = [...src.matchAll(sectionHeading())];
+    expect(hits.length, `${where}: expected exactly one "${SECTION_TITLE}" heading, found ${hits.length}`).toBe(1);
+    const start = hits[0].index;
+    const next = src.indexOf("\n## ", start + 1);
+    return src.slice(start, next === -1 ? src.length : next).trim();
+  };
+
   it("§14 and the appended docs/GAME_RULES.md section are the same text", () => {
     const rules = readRepoFile("docs/GAME_RULES.md");
-    const H = "## 23. The Arms Catalogue & the Universal Damage Model [PROPOSED — awaiting platform wiring]";
-    const inDoc = doc.slice(doc.indexOf(H)).trim();
-    const inRules = rules.slice(rules.indexOf(H)).trim();
+    const inDoc = proposedSection(doc, "docs/ARMS_CATALOGUE.md §14");
+    const inRules = proposedSection(rules, "docs/GAME_RULES.md");
     expect(inDoc.length, "§14's proposed section is missing from the catalogue").toBeGreaterThan(500);
-    expect(inRules.length, "section 23 is missing from GAME_RULES.md").toBeGreaterThan(500);
+    expect(inRules.length, "the proposed arms section is missing from GAME_RULES.md").toBeGreaterThan(500);
     expect(inDoc, "the two copies of the proposed rules section have drifted").toBe(inRules);
   });
 
