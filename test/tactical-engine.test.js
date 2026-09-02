@@ -38,7 +38,7 @@ import {
   COLUMN_KEYS, SCALING, MORALE_MODS, WORK_ARMOUR_APPLIES_TO, FACING_ARCS, HEX_DIRECTIONS,
   deriveSquad, hexDistance, resolveSquadHit,
 } from "../base44/shared/tactical.ts";
-import { FIELD, generateField, hexRange as hexRangeOf, lineOfSight } from "../base44/shared/tacticalField.ts";
+import { FIELD, TERRAIN_KEYS, generateField, hexRange as hexRangeOf, lineOfSight } from "../base44/shared/tacticalField.ts";
 import { ARMOUR_CLASSES, SUPPRESSION, resolveAoe, resolveHit } from "../base44/shared/arms.ts";
 import { deriveMechanized, rollVehicle } from "../base44/shared/motorPool.ts";
 
@@ -93,6 +93,245 @@ const makeActive = (t, id) => {
 const harm = (before, after) => (before.figures - after.figures) * 1000 + (after.wounds - before.wounds);
 
 const row = (name, type, figures, specialists, at) => ({ name, type, figures, specialists: specialists || [], at });
+
+// ---------------------------------------------------------------------------
+// §4 AS DATA — REQUIRED members held apart from DECLARED-OPTIONAL ones.
+//
+// WHY THIS EXISTS, and it is a defect this file shipped rather than a tidy-up.
+// The payload key sets used to be asserted as an EXACT list against ONE
+// sampled instance — `field.tiles["5,5"]`, `squads[0]`, `squads[0].status` —
+// and §4 declares `work?` on a Tile and `building?` on a status. A tile
+// carrying a trench has six keys and a section at work has four: both LEGAL,
+// both RED under an exact set. The gates were green only because the sampled
+// tile and the sampled row happened to carry neither, while the fixture two
+// hundred lines below has carried both since it was cut. A closed set that
+// forbids a legal value is the defect that has already cost this project two
+// passes, and a gate that passes by accident of which row it sampled is the
+// same defect wearing a green tick: it reports on a proxy for the payload
+// instead of on the payload.
+//
+// The exact set was buying three things at once, so all three are kept and
+// separated:
+//   1. every REQUIRED member is present AND correctly typed — checked over
+//      EVERY tile, EVERY row, EVERY status, never over a sample;
+//   2. no member OUTSIDE the §4 shape appears — this is the real protection
+//      the exact set bought, and it survives by bounding the key set with
+//      required + DECLARED OPTIONALS rather than with required alone;
+//   3. each optional MAY be absent, and when present is correctly shaped —
+//      `work` names a real deployable, `building` is `{ work, turnsLeft }`
+//      with a positive whole turn count, `fx.facing` names a real plate.
+//
+// Nothing below counts to 14, to 22 or to 6 by hand. A literal beside a list
+// is a second spelling of the same fact and only one of the two ever gets
+// updated; every count here is `LIST.length`.
+// ---------------------------------------------------------------------------
+
+/** §4 Tile — `{ terrain, cover, elev, blocksLOS, moveCost, work? }`. */
+const TILE_REQUIRED = ["blocksLOS", "cover", "elev", "moveCost", "terrain"];
+const TILE_OPTIONAL = ["work"];
+
+/** §4 status — `{ suppressed, routed, guard, building?: { work, turnsLeft } }`. */
+const STATUS_REQUIRED = ["guard", "routed", "suppressed"];
+const STATUS_OPTIONAL = ["building"];
+const BUILDING_REQUIRED = ["turnsLeft", "work"];
+
+/**
+ * §4 + Amendment C1 squad row. Q12 rules that the key set does NOT vary by
+ * stand — infantry carry a `facing` the damage model never consults — so the
+ * row has no optional member today. The empty list is the slot an amendment
+ * adds one to; it is not an assertion that none can ever exist.
+ */
+const SQUAD_REQUIRED = [
+  "actions", "armor", "armour", "facing", "figures", "id", "initiative", "maxFigures",
+  "melee", "mine", "morale", "name", "pts", "q", "r", "range", "ranged", "side",
+  "specialists", "speed", "status", "type",
+];
+const SQUAD_OPTIONAL = [];
+
+/** §4 + Amendment C2 fx — 8 always-present keys and 4 optional ones. */
+const FX_REQUIRED = ["seq", "round", "actorId", "action", "dealt", "taken", "moved", "from"];
+const FX_OPTIONAL = ["targetId", "at", "moraleResult", "facing"];
+
+/** §4 + C1/C2 top level. `los` is always present — empty for a spectator. */
+const VIEW_REQUIRED = [
+  "activeId", "deployed", "field", "fx", "log", "los", "myPool", "myRole",
+  "queue", "relicProject", "round", "roundLimit", "squads", "status",
+];
+const VIEW_OPTIONAL = [];
+const FIELD_REQUIRED = ["deploy", "h", "meta", "tiles", "w"];
+/** §4 FieldMeta, which Lane B owns and Lane C only carries through. */
+const META_REQUIRED = ["fortBonus", "groundsFighters", "losCap", "nodeKind", "seed", "weather"];
+
+// The vocabularies a member's VALUE is checked against, every one read from
+// the lane that owns it rather than retyped here: a type Lane F appends, a
+// work Lane A appends and an armour class Lane H appends all flow through
+// without this file forbidding them.
+const DEPLOYABLE_KEYS = Object.keys(DEPLOYABLES);
+const ARMOUR_KEYS = Object.keys(ARMOUR_CLASSES);
+const TYPE_KEYS = Object.keys(SQUAD_TYPES);
+const SPECIALIST_KEYS = Object.keys(SPECIALISTS);
+const ACTION_KEYS = Object.keys(SQUAD_ACTIONS);
+// `march` is the ENGINE-RESERVED order (Q11): it is reported on `fx.action`
+// and has no SQUAD_ACTIONS row by design. Lifted from the engine's own literal
+// rather than typed here as a string a rename would leave behind.
+const MARCH_KEY = extractConst(SRC, "MARCH_ACTION").key;
+const FX_ACTION_KEYS = ACTION_KEYS.concat(MARCH_KEY);
+const FACING_PLATES = ["front", "side", "rear", "top"];
+const MORALE_RESULTS = ["held", "suppressed", "routed"];
+
+const isInt = (n) => Number.isInteger(n);
+
+/**
+ * BOTH halves of what an exact key set asserts, kept: every required member is
+ * present, and no member outside `required + optional` appears. Dropping the
+ * second half would turn this into a "contains at least" check that a renamed
+ * or smuggled key walks straight through, which is not the fix.
+ */
+function shape(obj, required, optional, where) {
+  expect(obj !== null && typeof obj === "object", `${where} is not an object`).toBe(true);
+  const keys = Object.keys(obj);
+  for (const k of required) expect(keys, `${where}: §4 requires \`${k}\` and it is absent`).toContain(k);
+  const allowed = required.concat(optional);
+  for (const k of keys) expect(allowed, `${where}: \`${k}\` is not a member of the §4 shape`).toContain(k);
+}
+
+/** A hex, wherever §4 writes one. */
+function checkHex(h, where) {
+  shape(h, ["q", "r"], [], where);
+  expect(isInt(h.q) && isInt(h.r), `${where} is not an integral hex`).toBe(true);
+}
+
+/** @returns 1 if the tile carried the optional `work`, else 0. */
+function checkTile(tile, where) {
+  shape(tile, TILE_REQUIRED, TILE_OPTIONAL, where);
+  expect(TERRAIN_KEYS, `${where}.terrain names no Lane B terrain`).toContain(tile.terrain);
+  expect(typeof tile.cover === "number" && tile.cover >= 0, `${where}.cover is not a non-negative number`).toBe(true);
+  expect([0, 1, 2], `${where}.elev is not 0, 1 or 2`).toContain(tile.elev);
+  expect(typeof tile.blocksLOS, `${where}.blocksLOS`).toBe("boolean");
+  expect(tile.moveCost === null || (typeof tile.moveCost === "number" && tile.moveCost > 0),
+    `${where}.moveCost is neither null (impassable) nor a positive number`).toBe(true);
+  if (tile.work === undefined) return 0;
+  expect(DEPLOYABLE_KEYS, `${where}.work names no Lane A deployable`).toContain(tile.work);
+  return 1;
+}
+
+/** @returns 1 if the status carried the optional `building`, else 0. */
+function checkStatus(status, where) {
+  shape(status, STATUS_REQUIRED, STATUS_OPTIONAL, where);
+  expect(isInt(status.suppressed) && status.suppressed >= 0,
+    `${where}.suppressed is not a whole non-negative count of rounds`).toBe(true);
+  expect(typeof status.routed, `${where}.routed`).toBe("boolean");
+  expect(typeof status.guard === "number" && status.guard > 0,
+    `${where}.guard is not a positive multiplier`).toBe(true);
+  if (status.building === undefined) return 0;
+  shape(status.building, BUILDING_REQUIRED, [], `${where}.building`);
+  expect(DEPLOYABLE_KEYS, `${where}.building.work names no Lane A deployable`).toContain(status.building.work);
+  expect(isInt(status.building.turnsLeft) && status.building.turnsLeft > 0,
+    `${where}.building.turnsLeft is not a positive whole turn count`).toBe(true);
+  return 1;
+}
+
+/** @returns 1 if the row was at work, else 0. */
+function checkSquadRow(sq, where) {
+  shape(sq, SQUAD_REQUIRED, SQUAD_OPTIONAL, where);
+  expect(typeof sq.id === "string" && sq.id.length > 0, `${where}.id is not a non-empty string`).toBe(true);
+  expect(typeof sq.name === "string" && sq.name.length > 0, `${where}.name is not a non-empty string`).toBe(true);
+  expect(["attacker", "defender"], `${where}.side`).toContain(sq.side);
+  expect(TYPE_KEYS, `${where}.type names no Lane A squad type`).toContain(sq.type);
+  expect(isInt(sq.figures) && sq.figures > 0, `${where}.figures is not a positive whole count`).toBe(true);
+  expect(isInt(sq.maxFigures) && sq.maxFigures >= sq.figures,
+    `${where}.maxFigures is not a whole count at or above figures`).toBe(true);
+  expect(Array.isArray(sq.specialists), `${where}.specialists is not an array`).toBe(true);
+  for (const k of sq.specialists) expect(SPECIALIST_KEYS, `${where}.specialists names no Lane A specialist`).toContain(k);
+  expect(isInt(sq.q) && isInt(sq.r), `${where} does not stand on an integral hex`).toBe(true);
+  expect(isInt(sq.facing) && sq.facing >= 0 && sq.facing < HEX_DIRECTIONS.length,
+    `${where}.facing indexes no HEX_DIRECTIONS row`).toBe(true);
+  expect(ARMOUR_KEYS, `${where}.armour names no Lane I armour class`).toContain(sq.armour);
+  for (const k of ["melee", "ranged", "range", "armor", "speed", "morale", "initiative", "pts"]) {
+    expect(typeof sq[k] === "number" && Number.isFinite(sq[k]), `${where}.${k} is not a finite number`).toBe(true);
+  }
+  expect(Array.isArray(sq.actions), `${where}.actions is not an array`).toBe(true);
+  for (const k of sq.actions) expect(ACTION_KEYS, `${where}.actions names no Lane A order`).toContain(k);
+  expect(typeof sq.mine, `${where}.mine`).toBe("boolean");
+  return checkStatus(sq.status, `${where}.status`);
+}
+
+/** @returns the OPTIONAL members this fx actually carried, sorted. */
+function checkFx(fx, where) {
+  shape(fx, FX_REQUIRED, FX_OPTIONAL, where);
+  expect(isInt(fx.seq) && fx.seq > 0, `${where}.seq is not a positive whole sequence number`).toBe(true);
+  expect(isInt(fx.round) && fx.round > 0, `${where}.round is not a positive whole round`).toBe(true);
+  expect(typeof fx.actorId === "string" && fx.actorId.length > 0, `${where}.actorId is not a non-empty string`).toBe(true);
+  expect(FX_ACTION_KEYS, `${where}.action is neither a Lane A order nor the engine's march`).toContain(fx.action);
+  expect(typeof fx.dealt === "number" && fx.dealt >= 0, `${where}.dealt is not a non-negative number`).toBe(true);
+  expect(typeof fx.taken === "number" && fx.taken >= 0, `${where}.taken is not a non-negative number`).toBe(true);
+  expect(typeof fx.moved, `${where}.moved`).toBe("boolean");
+  checkHex(fx.from, `${where}.from`);
+  if (fx.targetId !== undefined) {
+    expect(typeof fx.targetId === "string" && fx.targetId.length > 0, `${where}.targetId is not a non-empty id`).toBe(true);
+  }
+  if (fx.at !== undefined) checkHex(fx.at, `${where}.at`);
+  if (fx.moraleResult !== undefined) {
+    expect(MORALE_RESULTS, `${where}.moraleResult is not held/suppressed/routed`).toContain(fx.moraleResult);
+  }
+  if (fx.facing !== undefined) {
+    expect(FACING_PLATES, `${where}.facing names no plate`).toContain(fx.facing);
+  }
+  return Object.keys(fx).filter((k) => FX_OPTIONAL.indexOf(k) !== -1).sort();
+}
+
+/**
+ * The whole §4 payload, every level, every row, typed.
+ *
+ * @returns what OPTIONAL members it actually met — `{ work, building,
+ * fxOptional, fx }` — so a caller can assert the gate READ an optional rather
+ * than merely permitted one. A gate that allows an optional and never meets
+ * one is an untested gate, which is how this file got here.
+ */
+function checkPayload(v, where) {
+  shape(v, VIEW_REQUIRED, VIEW_OPTIONAL, where);
+  expect(["deploy", "fighting", "done"], `${where}.status`).toContain(v.status);
+  expect(isInt(v.round) && v.round > 0, `${where}.round is not a positive whole round`).toBe(true);
+  expect(v.roundLimit, `${where}.roundLimit`).toBe(ROUND_LIMIT);
+  expect([null, "attacker", "defender"], `${where}.myRole`).toContain(v.myRole);
+  shape(v.deployed, ["attacker", "defender"], [], `${where}.deployed`);
+  for (const side of ["attacker", "defender"]) {
+    expect(typeof v.deployed[side], `${where}.deployed.${side}`).toBe("boolean");
+  }
+  shape(v.relicProject, ["attacker", "defender"], [], `${where}.relicProject`);
+  if (v.myPool !== null) {
+    shape(v.myPool, COLUMN_KEYS.slice(), [], `${where}.myPool`);
+    for (const k of COLUMN_KEYS) {
+      expect(isInt(v.myPool[k]) && v.myPool[k] >= 0, `${where}.myPool.${k} is not a whole figure count`).toBe(true);
+    }
+  }
+
+  shape(v.field, FIELD_REQUIRED, [], `${where}.field`);
+  expect(v.field.w, `${where}.field.w`).toBe(GRID.w);
+  expect(v.field.h, `${where}.field.h`).toBe(GRID.h);
+  shape(v.field.meta, META_REQUIRED, [], `${where}.field.meta`);
+  shape(v.field.deploy, ["attacker", "defender"], [], `${where}.field.deploy`);
+  for (const side of ["attacker", "defender"]) {
+    for (const hx of v.field.deploy[side]) checkHex(hx, `${where}.field.deploy.${side}[]`);
+  }
+  let work = 0;
+  for (const [at, tile] of Object.entries(v.field.tiles)) {
+    work += checkTile(tile, `${where}.field.tiles["${at}"]`);
+  }
+
+  let building = 0;
+  for (const sq of v.squads) building += checkSquadRow(sq, `${where}.squads[${sq && sq.id}]`);
+
+  for (const hx of v.los) checkHex(hx, `${where}.los[]`);
+  expect(Array.isArray(v.log), `${where}.log is not an array`).toBe(true);
+  for (const line of v.log) expect(typeof line, `${where}.log[]`).toBe("string");
+  expect(Array.isArray(v.queue), `${where}.queue is not an array`).toBe(true);
+  for (const id of v.queue) expect(typeof id, `${where}.queue[]`).toBe("string");
+  expect(v.activeId === null || typeof v.activeId === "string", `${where}.activeId`).toBe(true);
+
+  const fxOptional = v.fx === null ? [] : checkFx(v.fx, `${where}.fx`);
+  return { work, building, fxOptional, fx: v.fx !== null };
+}
 
 // ---------------------------------------------------------------------------
 describe("Lane C · 1. the frozen surface and the source-text guards", () => {
@@ -1339,38 +1578,55 @@ describe("Lane C · 14. tacticalView — the §4 payload", () => {
     return { t, v: tacticalView(t, "attacker") };
   }
 
-  it("emits exactly the amended §4 key set at every level", () => {
+  it("emits the amended §4 shape at every level, over EVERY tile and EVERY row", () => {
+    // TOTAL, NOT SAMPLED, and that is the whole point of the rewrite. This
+    // case used to read `field.tiles["5,5"]`, `squads[0]` and
+    // `squads[0].status` and pin an EXACT key set on each of the three. §4
+    // declares `work?` on a Tile and `building?` on a status, so a tile with a
+    // trench in it and a section at work are both legal and both were RED —
+    // the gate was green only because those three sampled instances carried
+    // neither optional. checkPayload walks every tile and every row, types
+    // every required member, keeps the "nothing outside §4" bound by comparing
+    // against required + declared optionals, and shape-checks any optional it
+    // meets. The case below then drives a board that carries them.
     const { v } = viewed();
-    expect(Object.keys(v).sort()).toEqual([
-      "activeId", "deployed", "field", "fx", "log", "myPool", "myRole",
-      "queue", "relicProject", "round", "roundLimit", "squads", "status",
-    ].concat(["los"]).sort());
-    expect(Object.keys(v)).toHaveLength(14);
-    expect(Object.keys(v.relicProject).sort()).toEqual(["attacker", "defender"]);
-    expect(Object.keys(v.deployed).sort()).toEqual(["attacker", "defender"]);
-    expect(Object.keys(v.field).sort()).toEqual(["deploy", "h", "meta", "tiles", "w"]);
-    expect(Object.keys(v.myPool).sort()).toEqual(COLUMN_KEYS.slice().sort());
+    const seen = checkPayload(v, "view");
+    expect(seen.fx, "the recorded activation produced no fx at all").toBe(true);
+    // The counts are the §4 lists. A literal 14 or 22 typed beside the list it
+    // is the length of is a second spelling of one fact, and only ever one of
+    // the two gets updated.
+    expect(Object.keys(v)).toHaveLength(VIEW_REQUIRED.length);
+    for (const sq of v.squads) expect(Object.keys(sq), sq.id).toHaveLength(SQUAD_REQUIRED.length);
+  });
 
-    const tile = v.field.tiles["5,5"];
-    expect(Object.keys(tile).sort()).toEqual(["blocksLOS", "cover", "elev", "moveCost", "terrain"]);
+  it("READS the optional members, on a board built to carry them", () => {
+    // THE OTHER HALF OF THE FIX. A gate that ALLOWS an optional and never
+    // meets one has not been tested — it is the same untested branch as
+    // before, only green for a different reason. This board carries both:
+    // Lane B cuts works into the tiles at fortBonus 3, and a pioneer section
+    // is put to work on clear ground before the view is taken. So the optional
+    // branches of checkTile and checkStatus are DRIVEN here, and `fx.at`, the
+    // fourth fx optional, comes with the build order.
+    const t = createTactical(MUSTER, MUSTER, { ...OPTS, fortBonus: 3 });
+    expect(submitFormations(t, "attacker", [row("Pioneers", "pioneers", 8), row("Line", "riflemen", 10)])).toBe(null);
+    expect(submitFormations(t, "defender", [row("D", "riflemen", 10)])).toBe(null);
+    const p = t.squads.find((s) => s.name === "Pioneers");
+    // Ground that already holds a work refuses the order, and a fortBonus 3
+    // board has plenty of it — so the section is moved onto clear, passable,
+    // unoccupied ground rather than left where the seed happened to seat it.
+    const held = new Set(t.squads.map((s) => key(s.q, s.r)));
+    const clear = Object.entries(t.field.tiles)
+      .find(([at, x]) => !x.work && x.moveCost !== null && !held.has(at));
+    expect(clear, "a fortBonus 3 board with no clear passable hex").toBeTruthy();
+    const [cq, cr] = clear[0].split(",").map(Number);
+    place(t, p.id, cq, cr);
+    makeActive(t, p.id);
+    expect(resolveOrders(t, p.id, null, "build_bunker", null)).toBe(null);
 
-    const sq = v.squads[0];
-    expect(Object.keys(sq).sort()).toEqual([
-      "actions", "armor", "armour", "facing", "figures", "id", "initiative", "maxFigures",
-      "melee", "mine", "morale", "name", "pts", "q", "r", "range", "ranged", "side",
-      "specialists", "speed", "status", "type",
-    ]);
-    expect(Object.keys(sq)).toHaveLength(22);
-    expect(Object.keys(sq.status).sort()).toEqual(["guard", "routed", "suppressed"]);
-
-    expect(v.fx).toBeTruthy();
-    for (const k of ["seq", "round", "actorId", "action", "dealt", "taken", "moved", "from"]) {
-      expect(Object.keys(v.fx), `fx.${k}`).toContain(k);
-    }
-    for (const k of Object.keys(v.fx)) {
-      expect(["seq", "round", "actorId", "action", "targetId", "at", "dealt",
-        "taken", "moraleResult", "facing", "moved", "from"], `fx.${k} is not in §4`).toContain(k);
-    }
+    const seen = checkPayload(tacticalView(t, "attacker"), "worked view");
+    expect(seen.work, "no tile carried `work` — the tile gate met no optional").toBeGreaterThan(0);
+    expect(seen.building, "no status carried `building` — the status gate met no optional").toBe(1);
+    expect(seen.fxOptional, "fx.at went unexercised").toContain("at");
   });
 
   it("carries the relicProject slot, empty, and fills it in for a battle filed before it existed", () => {
@@ -1386,7 +1642,8 @@ describe("Lane C · 14. tacticalView — the §4 payload", () => {
     // contract — an absent key is a different payload, not an empty one.
     delete t.relicProject;
     const stale = tacticalView(t, "attacker");
-    expect(Object.keys(stale)).toHaveLength(14);
+    checkPayload(stale, "stale view");
+    expect(Object.keys(stale)).toHaveLength(VIEW_REQUIRED.length);
     expect(stale.relicProject).toEqual({ attacker: null, defender: null });
   });
 
@@ -1397,8 +1654,12 @@ describe("Lane C · 14. tacticalView — the §4 payload", () => {
     makeActive(t, p.id);
     resolveOrders(t, p.id, null, "build_bunker", null);
     const status = tacticalView(t, "attacker").squads.find((s) => s.id === p.id).status;
-    expect(Object.keys(status).sort()).toEqual(["building", "guard", "routed", "suppressed"]);
-    expect(Object.keys(status.building).sort()).toEqual(["turnsLeft", "work"]);
+    // checkStatus returns 1 only when the optional is PRESENT and correctly
+    // shaped, so this one line asserts both halves of the title.
+    expect(checkStatus(status, "the working section's status"),
+      "the section is at work and its status says nothing about it").toBe(1);
+    expect(status.building.work).toBe("bunker");
+    expect(status.building.turnsLeft).toBeGreaterThan(0);
   });
 
   it("shows a tile's `work` only where there is one", () => {
@@ -1406,7 +1667,13 @@ describe("Lane C · 14. tacticalView — the §4 payload", () => {
     const tiles = Object.values(tacticalView(t, "attacker").field.tiles);
     const worked = tiles.filter((x) => x.work);
     expect(worked.length).toBeGreaterThan(0);
-    for (const x of worked) expect(Object.keys(x)).toHaveLength(6);
+    for (const x of worked) {
+      // 1 back from checkTile is "the optional was there AND it is a real
+      // deployable key", which is what a bare key count never said.
+      expect(checkTile(x, `worked tile ${x.terrain}`)).toBe(1);
+      expect(Object.keys(x)).toHaveLength(TILE_REQUIRED.length + TILE_OPTIONAL.length);
+    }
+    for (const x of tiles.filter((y) => !y.work)) expect(checkTile(x, "unworked tile")).toBe(0);
     expect(tiles.filter((x) => !x.work)[0]).not.toHaveProperty("work");
   });
 
@@ -2232,7 +2499,22 @@ describe("Lane C · 19. the numbers this file publishes", () => {
     expect(DEPLOYABLES.emplacement.mods.speed).toBe(0);          // pins the piece, §26.8
     expect(DEPLOYABLES.emplacement.mods.range).toBeGreaterThan(0);
     expect(SPECIALISTS.sapper.mods.buildSpeed).toBe(1);
-    expect(WORK_ARMOUR_APPLIES_TO.slice().sort()).toEqual(["light", "none", "soft"]);
+    // §26.5's RE-CLASS LIST, generated from Lane A's table instead of closed
+    // over it. This line used to read
+    //   expect(WORK_ARMOUR_APPLIES_TO.slice().sort()).toEqual(["light", "none", "soft"])
+    // which is a Lane C gate spelling out the whole of a LANE A row set: a
+    // class Lane A or Lane H adds is a legal value, and that assertion made it
+    // illegal in this file. What Lane C is entitled to gate is that the
+    // PUBLISHED sentence still names the same list (drift guard 9) — so the
+    // clause is BUILT from the table in the table's own order and looked for
+    // in §26, exactly as section 27 builds §26.8's works rows. A red row now
+    // reads "§26.5 must publish the re-class list as: `none`, `soft`, `light`
+    // or `medium`", which sends the reader to the document rather than telling
+    // a content lane its append is forbidden.
+    const reclass = WORK_ARMOUR_APPLIES_TO.map((k) => `\`${k}\``);
+    const reclassClause = `${reclass.slice(0, -1).join(", ")} or ${reclass[reclass.length - 1]}`;
+    expect(readRepoFile("docs/GAME_RULES.md"),
+      `§26.5 must publish the re-class list as: ${reclassClause}`).toContain(reclassClause);
     expect(SQUAD_ACTIONS.smoke.screenTurns).toBe(2);             // §26.3
 
     // §26.9 — the 35% a pinned stand loses is 1 - suppressedOutput
@@ -2495,51 +2777,40 @@ describe("Lane C · 20. the fixture Lanes D and E build against", () => {
     expect(new Set(view.queue).size).toBe(view.queue.length);
   });
 
-  it("emits exactly the amended §4 key set at every level of the fixture itself", () => {
+  it("emits the amended §4 shape at every level of the fixture, and MEETS every optional", () => {
     const fx = JSON.parse(readFileSync(FIXTURE_PATH, "utf8"));
-    expect(Object.keys(fx).sort()).toEqual([
-      "activeId", "deployed", "field", "fx", "log", "los", "myPool", "myRole",
-      "queue", "relicProject", "round", "roundLimit", "squads", "status",
-    ]);
-    expect(Object.keys(fx.deployed).sort()).toEqual(["attacker", "defender"]);
-    expect(Object.keys(fx.field).sort()).toEqual(["deploy", "h", "meta", "tiles", "w"]);
-    expect(Object.keys(fx.myPool).sort()).toEqual(COLUMN_KEYS.slice().sort());
-    expect(Object.keys(fx.relicProject).sort()).toEqual(["attacker", "defender"]);
+    // The same walker section 14 runs over a live view, run over the committed
+    // bytes: every tile, every row, every status typed, and nothing outside
+    // the §4 shape at any level.
+    const seen = checkPayload(fx, "fixture");
 
-    const tileKeys = ["blocksLOS", "cover", "elev", "moveCost", "terrain"];
-    let worked = 0;
-    for (const [at, tile] of Object.entries(fx.field.tiles)) {
-      const keys = Object.keys(tile).sort();
-      if (tile.work === undefined) expect(keys, at).toEqual(tileKeys);
-      else { expect(keys, at).toEqual(tileKeys.concat("work").sort()); worked++; }
-    }
-    expect(worked).toBeGreaterThanOrEqual(1);
+    // THE FIXTURE IS THE ONE PLACE EVERY OPTIONAL IS GUARANTEED TO BE MET, and
+    // that is why the counts are asserted rather than assumed. Lanes D and E
+    // build a board, a status strip and a hit animation from this file alone,
+    // so an optional the fixture does not carry is a member they will not
+    // draw — and a gate that permits an optional it never meets is untested.
+    // Each of these is a named requirement of the script above.
+    expect(seen.work, "no tile carries `work` — script rule 2 finished no dig").toBeGreaterThanOrEqual(1);
+    expect(seen.building, "no status carries `building` — no section is still at work").toBeGreaterThanOrEqual(1);
+    expect(seen.fxOptional, "the recorded hit selected no plate").toContain("facing");
+    expect(seen.fxOptional, "the recorded hit names no target").toContain("targetId");
+    expect(seen.fxOptional, "the recorded hit reports no morale outcome").toContain("moraleResult");
 
-    let building = 0;
-    for (const sq of fx.squads) {
-      expect(Object.keys(sq).sort(), sq.id).toEqual([
-        "actions", "armor", "armour", "facing", "figures", "id", "initiative", "maxFigures",
-        "melee", "mine", "morale", "name", "pts", "q", "r", "range", "ranged", "side",
-        "specialists", "speed", "status", "type",
-      ]);
-      const status = ["guard", "routed", "suppressed"];
-      if (sq.status.building === undefined) expect(Object.keys(sq.status).sort(), sq.id).toEqual(status);
-      else {
-        expect(Object.keys(sq.status).sort(), sq.id).toEqual(status.concat("building").sort());
-        expect(Object.keys(sq.status.building).sort()).toEqual(["turnsLeft", "work"]);
-        building++;
-      }
-    }
-    expect(building).toBeGreaterThanOrEqual(1);
+    // Counted off the §4 lists, never typed beside them.
+    expect(Object.keys(fx)).toHaveLength(VIEW_REQUIRED.length);
+    for (const sq of fx.squads) expect(Object.keys(sq), sq.id).toHaveLength(SQUAD_REQUIRED.length);
 
-    for (const k of ["seq", "round", "actorId", "action", "dealt", "taken", "moved", "from"]) {
-      expect(Object.keys(fx.fx), `fx.${k}`).toContain(k);
-    }
-    for (const k of Object.keys(fx.fx)) {
-      expect(["seq", "round", "actorId", "action", "targetId", "at", "dealt",
-        "taken", "moraleResult", "facing", "moved", "from"], `fx.${k} is not in §4`).toContain(k);
-    }
-    for (const hx of fx.los) expect(Object.keys(hx).sort()).toEqual(["q", "r"]);
+    // AND THE SAME WALK OVER THE LIVE PAYLOAD, not only the bytes. The check
+    // above reads a file, so it goes red on a corrupted fixture and stays
+    // green on an ENGINE that starts emitting `facing: 'flank'` — the byte
+    // gate below would catch that, but as "the fixture no longer matches",
+    // which names the file rather than the fault. This walk puts the plate
+    // vocabulary, and every other §4 value rule, on the engine's own output at
+    // the one activation in this suite where a shot selected a plate.
+    const live = checkPayload(view, "fixture battle view");
+    expect(live.fxOptional, "the live payload's recorded hit selected no plate").toContain("facing");
+    expect(live.work, "the live payload carries no finished work").toBeGreaterThanOrEqual(1);
+    expect(live.building, "the live payload has no section at work").toBeGreaterThanOrEqual(1);
   });
 
   it("matches the committed bytes, not merely the committed value", () => {
