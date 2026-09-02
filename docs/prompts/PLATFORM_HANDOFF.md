@@ -277,6 +277,11 @@ long-dead purchases live. For `kind: 'module'` the catalog's `effects[]` is what
 **fitted**, not what certification does — if the Refit Yard is the intended application point, fit is
 where these belong and unlock should stay inert.
 
+> **RULED 2026-09-01 (operator):** **fit, not unlock.** For every `kind: 'module'` row, certification stays
+> inert; the row's `effects[]` apply when the module is fitted in the Refit Yard and are removed when it is
+> unfitted. `citadel_plate`, `juggernaut_reactors`, `munitions_works` come alive on fit only. Platform lane
+> wires it in P3/C3.
+
 #### G3 — fragments are a fourth resource family and cannot be spent today
 
 `concurrentPlay/entry.ts:19` defines `RESOURCE_KEYS = ['manpower','steel','fuel']`, and `unlockItem`
@@ -325,6 +330,9 @@ race**. `buildDays` is a positive integer in in-game days (24 · 18 · 40 · 40)
   point: everyone can see the days remaining);
 - **dies with the keel** — a captured base loses its running project. Materials only, per §7 Q5's
   leaning; the decision is still open in that doc and is worth closing before this is built;
+  > **RULED 2026-09-01 (operator):** **materials only.** The captor inherits the project's unspent
+  > materials as loot; the project itself, its progress and any housed Object class it required are lost.
+  > Lane H may close §7 Q5 in `docs/TECH_DESIGN.md` on this ruling.
 - on completion, apply the row's `effects[]` (G2) and file a combat-log event; the herald line is
   drafted in `docs/TECH_DESIGN.md` §4.
 
