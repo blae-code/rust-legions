@@ -75,6 +75,9 @@ Found by the brief critic, fixed in the briefs (details in the Wave 0 workflow t
 | **A** Rules core | [#7](https://github.com/blae-code/rust-legions/pull/7) | `feat/tactical-a` | `tactical-mirror` (200) | §4 SquadType/Specialist, §4 Q5 regiment-keyed ratio, §6.1, §6.12 | 2026-09-01 |
 | **J** Motor Pool | [#8](https://github.com/blae-code/rust-legions/pull/8) | `feat/tactical-j` | `motor-mirror` + `motor-roll` (133) | §4 Motor Pool block, §4 Q7/Q8 amendments, §6.12, §6.13, GAME_RULES `[PROPOSED]` | 2026-09-01 |
 | **C** Engine | [#10](https://github.com/blae-code/rust-legions/pull/10) | `feat/tactical-c` | `tactical-engine` (164) | §4 tacticalView payload (C1/C2), §4 Q9-Q12, §6.2 export freeze, GAME_RULES §26 | 2026-09-02 |
+| **F** Units/specialists/kits | [#9](https://github.com/blae-code/rust-legions/pull/9) | `feat/tactical-f` | `gear-points-audit` + mirror growth | §4 SquadType/Specialist/Upgrade rows, GAME_RULES §27 | 2026-09-02 |
+| *fix* Lane A gates | — | `fix/tactical-a-gates` | frozen-pin + optional-field gates | §4 SquadType optionals | 2026-09-02 |
+| *fix* Lane C optionals | — | `fix/tactical-c-optionals` | payload-shape gates opened | §4 Tile/status/fx optionals | 2026-09-02 |
 
 ### Wave 1 — platform sync, then merge
 
@@ -226,3 +229,46 @@ push red"; its ownership rule said "§3 is absolute — report the conflict, do 
 file". Those conflicted. It followed §3, refused to edit Lane A's test, pushed red **deliberately**, and
 made the red unmissable in its PR title and first screen. No test was weakened and no mandated content was
 dropped to go green. Routed to Lane A, whose file it is.
+
+### Wave 3 closed — 1180 tests green
+
+**Lane F's `land_dreadnought` cross-check passes.** Lane F's `SQUAD_TYPES` row and Lane G's
+`ARMORY_ITEMS` row are both tier `'III'`, and F's `pts: 156` is a squad cost against riflemen's 100.
+The orchestrator's first check reported a mismatch by reading `RELIC_PROJECTS` — the build-spec table,
+which carries no tier — instead of the `ARMORY_ITEMS` row where the tier lives. Orchestrator error, not
+a lane defect.
+
+### THE CLOSED-SET DEFECT, FOUR TIMES, AND WHAT IT ACTUALLY COSTS
+
+This is the finding of the whole run. **A gate must fail on DRIFT, not on GROWTH — and "growth" includes
+a field §4 marks with a `?`.**
+
+| # | Where | How it surfaced | Cost |
+| --- | --- | --- | --- |
+| 1 | Lane I, `MANUFACTURERS` | **Pre-empted** — the orchestrator barred an exact count in the brief | none |
+| 2 | Lane J, `MANUFACTURERS` | **Caught by audit** — shipped anyway from the other side | one fix inside the lane |
+| 3 | Lane A, `SQUAD_TYPES` / `SPECIALISTS` row set | **Shipped.** Found only when Lane F tried to do its mandated job | Lane F blocked, a full route-back |
+| 3b | Lane A, the FIELD set inside the same repair | The repair itself, one level down — `creedLock` is `optional` in §4 | a second route-back |
+| 4 | Lane C, `tile` / `status` / `fx` optional members | **Found by Lane A's sweep, not by any test.** Passed only because the assertion sampled a row without the optional — while the fixture already contained the breaking cases | pre-empted before D/E |
+
+Two structural lessons worth keeping:
+
+1. **The lane writing the gate is never the lane the gate obstructs**, so it cannot feel the cost of
+   closing the set. Being warned in a brief was not enough — only an audit caught Lane J, and nothing at
+   all caught Lane A until the blocked lane arrived.
+2. **A gate that passes by accident of selection is worse than one that fails.** Lane C's tile gate had
+   been green over a fixture that already contained `work` tiles and `building` statuses; it was simply
+   looking at `tiles["5,5"]`. Fixing it meant iterating the collection, not editing the expectation.
+
+Every repair in this class came out **stronger** than what it replaced: a key-list cap never noticed a
+re-tuned stat, a renamed key or a dropped field, whereas a field-for-field frozen pin plus a
+required/allowed/optional split catches all of those *and* survives the append.
+
+### Lane F set the precedent for a red PR
+
+Lane F's ship order said "never push red"; §3 said "ownership is absolute — report the conflict, do not
+write into another lane's file". Ten assertions in Lane A's file structurally forbade the rows §3
+*mandates* Lane F to add. It followed §3, refused to edit Lane A's test, pushed red **deliberately**, and
+made it unmissable in the PR title and first screen. Nothing was weakened and no mandated content was
+dropped to go green. That is the correct behaviour under a genuine rule conflict and it is recorded here
+as precedent.
