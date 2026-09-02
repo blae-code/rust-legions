@@ -74,6 +74,7 @@ Found by the brief critic, fixed in the briefs (details in the Wave 0 workflow t
 | **G** Research/armory | [#4](https://github.com/blae-code/rust-legions/pull/4) | `feat/tactical-g` | `catalog-mirror` (105) | §4 Tech/ArmoryItem, GAME_RULES §24 `[PROPOSED]` | 2026-09-01 |
 | **A** Rules core | [#7](https://github.com/blae-code/rust-legions/pull/7) | `feat/tactical-a` | `tactical-mirror` (200) | §4 SquadType/Specialist, §4 Q5 regiment-keyed ratio, §6.1, §6.12 | 2026-09-01 |
 | **J** Motor Pool | [#8](https://github.com/blae-code/rust-legions/pull/8) | `feat/tactical-j` | `motor-mirror` + `motor-roll` (133) | §4 Motor Pool block, §4 Q7/Q8 amendments, §6.12, §6.13, GAME_RULES `[PROPOSED]` | 2026-09-01 |
+| **C** Engine | [#10](https://github.com/blae-code/rust-legions/pull/10) | `feat/tactical-c` | `tactical-engine` (164) | §4 tacticalView payload (C1/C2), §4 Q9-Q12, §6.2 export freeze, GAME_RULES §26 | 2026-09-02 |
 
 ### Wave 1 — platform sync, then merge
 
@@ -181,3 +182,47 @@ Lane J also adopted `main`'s plate-gate fix while rebasing, unprompted: it carri
 | **Q8** | Lane J | `PLATFORM_HANDOFF.md` is an eleventh path its own ownership gate flags | **Blessed as an append surface for every lane.** §3's owned-file lists never named it, so a correct gate read a required action as a breach. The kickoff has always demanded lanes collect platform needs there. It is now the ONE shared doc lanes may append to; `ART_MANIFEST.md` and `ORCHESTRATION_LOG.md` stay orchestrator-only. |
 
 Both are recorded in §4 of the plan as amendments Q7 and Q8.
+
+### Wave 3 — Lane C merged; Lane F blocked by Lane A, and the reason is systemic
+
+**Lane C (PR #10, 1098 tests).** Verified before merge: all eight frozen exports intact with unchanged
+signatures (one added, `autoResolveRemainder`, permitted by Q7); zero armour arithmetic; the field stored
+on `battle.tactical` and never regenerated; `field.meta` carried through `tacticalView`. The fixture Lanes
+D and E will build against is **real**: 23 squads on 15x11, four mechanized stands, every row carrying
+`facing` and `armour`, `fx.facing: "rear"` — an actual facing selection — plus `field.meta`, a
+`relicProject` slot and live suppressed/routed states.
+
+Four open questions ruled as amendments **Q9-Q12**: `relicProject` belongs in the payload (the fixture IS
+the payload, and a hidden slot is one D/E must re-cut later); it is keyed by **role**, not faction id;
+`orderAction: 'march'` is **engine-reserved** — not priced, not gated, never in a squad's `actions[]`, and
+not a missing Lane A row; and `facing` is emitted on **every** row because a row shape that varies by type
+forces every consumer to branch before it can read.
+
+### THE SAME DEFECT CLASS, FOR THE THIRD TIME — and this time it shipped
+
+Lane F did its mandated job (SQUAD_TYPES 9 -> 16+, SPECIALISTS 5 -> 10) and hit **ten** failing assertions,
+all in Lane A's `test/tactical-mirror.test.js`, none of them Lane F's fault:
+
+- `expect(SQUAD_TYPE_KEYS).toEqual([...the nine...])` — a whole-table equality gate.
+- `expect(Object.keys(SPECIALISTS)).toEqual([...the five...])` — the same.
+- `expect(row.tier).toBe("I")` — which structurally **forbids** the tier `'II:Eng'` and `'III'` rows §3
+  *requires* Lane F to add.
+
+**A gate must fail on DRIFT, not on GROWTH.** These encode "these are the only rows that exist" when the
+fact worth protecting is "these particular rows are correct and unchanged". The history:
+
+| Occurrence | Table | Outcome |
+| --- | --- | --- |
+| Lane I | `MANUFACTURERS` | **Pre-empted** — the orchestrator barred an exact count in the brief, because Lane J appends `mw_*` rows |
+| Lane J | `MANUFACTURERS` | **Caught by audit** — shipped anyway from the other side; rescoped to something stronger (every Lane I key present and correctly keyed, AND the `mw_*` subset matching the registry exactly) |
+| Lane A | `SQUAD_TYPES` / `SPECIALISTS` | **Shipped and blocking** — found only when the lane it blocks tried to do its job |
+
+The pattern is that the lane writing the gate is never the lane the gate will obstruct, so it cannot feel
+the cost of closing the table. Being warned in a brief was not enough; only the audit caught Lane J, and
+nothing caught Lane A.
+
+**Lane F behaved correctly and is worth recording as the right precedent.** Its ship order said "never
+push red"; its ownership rule said "§3 is absolute — report the conflict, do not write into another lane's
+file". Those conflicted. It followed §3, refused to edit Lane A's test, pushed red **deliberately**, and
+made the red unmissable in its PR title and first screen. No test was weakened and no mandated content was
+dropped to go green. Routed to Lane A, whose file it is.
