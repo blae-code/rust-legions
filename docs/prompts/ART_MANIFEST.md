@@ -275,12 +275,42 @@ New `IMAGE_CATEGORIES` keys introduced by this plan: `arms` (Lane I), `motor` (L
 | `design_heavy_plate` | designs | 1:1 | Armor — Siege Harness |
 | `design_chaplaincy` | designs | 1:1 | Support — Chaplaincy Detachment |
 | `design_observers` | designs | 1:1 | Support — Observation Section |
+| `house_kessel_crest` | houses | 1:1 | The Kessel Pact — Crest |
+| `keel_debt_of_ash` | houses | 4:3 | Keel — 'the Debt of Ash' |
+| `house_ironsynod_crest` | houses | 1:1 | The Iron Synod — Crest |
+| `keel_ledger_of_brass` | houses | 4:3 | Keel — 'the Ledger of Brass' |
+| `house_grauwall_crest` | houses | 1:1 | The Grauwall Marches — Crest |
+| `keel_verdict_of_stone` | houses | 4:3 | Keel — 'the Verdict of Stone' |
+| `perk_draught_columns` | perks | 1:1 | Perk — Draught Column Circuit |
+| `perk_boarding_parties` | perks | 1:1 | Perk — Boarding Parties |
+| `perk_field_refit_train` | perks | 1:1 | Perk — Field Refit Train |
+| `perk_ranging_batteries` | perks | 1:1 | Perk — Ranging Batteries |
+| `perk_swath_bound` | perks | 1:1 | Perk — Swath-Bound |
+| `perk_stripped_escorts` | perks | 1:1 | Perk — Stripped Escorts |
+| `perk_tribute_graze` | perks | 1:1 | Perk — Tribute Graze |
+| `perk_exposed_batteries` | perks | 1:1 | Perk — Exposed Batteries |
+| `chapter_standard` | lifepath | 1:1 | Chapter VI — The Standard |
 
-## Delivered so far
+## Status — 278 requested, 689 already delivered
 
-The Base44 session has already delivered **586** of these into `src/lib/imagePlates.js` — all 105 arms
-plates plus Lane G doctrine/decree/relic plates and the pre-existing registry. `getImage(key)` resolves a
-delivered URL and returns `null` otherwise, so an undelivered plate is safe to ship.
+The content lanes registered **278** new placeholder plates across waves 1-4 (table above). The Base44
+session has already generated and delivered **689** entries into `src/lib/imagePlates.js`, including all
+105 arms plates. `getImage(key)` resolves a delivered URL and returns `null` otherwise, and every
+component falls back to an icon or text, so an undelivered plate is always safe to ship.
+
+**A note for whoever generates the rest.** A plate is a REQUEST (`url: null`) that the platform turns into
+a delivery by adding its key to `PLATE_URLS` — `P()` resolves `url` from there. Lane I originally asserted
+`url === null` for every one of its plates, which forbade delivery outright; the suite went red the first
+time art actually landed. Any new plate gate must read *"the lane shipped no visual"* (`url` is null **or**
+equals `PLATE_URLS[key]`), never *"no art exists"*.
+
+| Lane | Plate families | Count |
+| --- | --- | --- |
+| **I** Arms | `arms_*` 49 patterns, `maker_*` 9, `mod_kit_*` 47 | 105 |
+| **J** Motor Pool | `chassis_*`, `plant_*`, `refit_*` | 103 |
+| **G** Doctrine | `tech_*` 16, `decree_*` 9, relic | 26 |
+| **F** Units | `unit_*_token` / `unit_*_action`, design + gear patterns | 29 |
+| **H** Houses | `house_*_crest`, `keel_*`, `perk_*`, `chapter_standard` | 15 |
 
 ## Expected volume by lane
 

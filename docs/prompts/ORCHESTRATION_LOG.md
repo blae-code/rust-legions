@@ -78,6 +78,7 @@ Found by the brief critic, fixed in the briefs (details in the Wave 0 workflow t
 | **F** Units/specialists/kits | [#9](https://github.com/blae-code/rust-legions/pull/9) | `feat/tactical-f` | `gear-points-audit` + mirror growth | §4 SquadType/Specialist/Upgrade rows, GAME_RULES §27 | 2026-09-02 |
 | *fix* Lane A gates | — | `fix/tactical-a-gates` | frozen-pin + optional-field gates | §4 SquadType optionals | 2026-09-02 |
 | *fix* Lane C optionals | — | `fix/tactical-c-optionals` | payload-shape gates opened | §4 Tile/status/fx optionals | 2026-09-02 |
+| **H** Factions/houses/lore | [#11](https://github.com/blae-code/rust-legions/pull/11) | `feat/tactical-h` | `presets` (151 assertions) | §3 Lane H owns `perkMods.ts` + §7 Q5; GAME_RULES §28 | 2026-09-02 |
 
 ### Wave 1 — platform sync, then merge
 
@@ -272,3 +273,43 @@ write into another lane's file". Ten assertions in Lane A's file structurally fo
 made it unmissable in the PR title and first screen. Nothing was weakened and no mandated content was
 dropped to go green. That is the correct behaviour under a genuine rule conflict and it is recorded here
 as precedent.
+
+## Waves 1-4 COMPLETE — 1445 tests green, stopped at the platform handoff
+
+`main` @ `088e28c`. `npm test` 1445 passed / 0 failed · lint clean · typecheck clean · `rules-guard.sh`
+exit 0. Mirror parity after the final merge: `tactical.ts` ↔ `data.js` **24 exports**, `arms.ts` ↔
+`arms.js` **28 exports**, zero drift.
+
+**Lane H verified before merge, by the orchestrator rather than from its report:** 13 presets, every one
+carrying a `uniqueRoster` whose squad / upgrade / decree / pattern keys **all resolve against the live
+tables** — zero dangling; every ledger legal (`netPoints <= 0`, `<= 3` liabilities) by running `pointBuy`
+over all 13; no `keel` field on any row (Q3b); `PERKS` 20 -> 28; `TECH_DESIGN` §7 Q5 closed on the
+operator's materials-only ruling.
+
+Lane H filed **both of its amendments before making the edits they authorise** — §3 gaining
+`base44/shared/perkMods.ts` (the rules-mirror asserts `PERK_MODS` and `PERKS` agree, so eight new perks
+cannot land in `pointBuy.js` alone), and a narrow claim on `TECH_DESIGN.md` §7 Q5, which §3 assigns to
+Lane G, on the authority of the wave-4 addendum — leaving §8's parsed cost curve with Lane G. That is the
+protocol working as designed.
+
+### An orchestrator error Lane H caught, recorded because the class matters
+
+The wave-4 brief's check 14 required `PERKS.length >= 29`, derived as "21 shipped + 8 new". **`main`
+ships 20**, and "exactly 4 new assets and 4 new liabilities" was also binding — so 29 was unreachable by
+construction. Lane H refused to pad the catalogue with a ninth perk to satisfy a false figure, and
+asserted the count from the two id lists it is actually made of instead, which additionally pins the 20
+shipped rows against reordering.
+
+This is defect class 2 — **a published number arithmetically false against its own table** — committed by
+the orchestrator, in a brief, against a lane. The same class the briefs warn every lane about. It is the
+fourth distinct class this run and the second time a lane has been right to push back on an instruction
+rather than obey it.
+
+### One open question returned to the operator
+
+Ruling **Q3b** said the `keel_<key>` plate "is keyed off the existing `house` value", which reads as
+`keel_<house>`. The 13 `keel_*` plates already on `main` are keyed by **keel slug** (`keel_iron_verdict`,
+`keel_vow_of_coal`, …), and none matches `keel_<house>`. Since existing catalog keys are never renamed,
+Lane H obeyed Q3b on the point that matters — no `keel` field on the row — and reached the plate from the
+house through a `KEEL_BY_HOUSE` lookup and a `keelOf(preset)` export. If the intent was instead to rename
+those 13 plates, that is a rename of existing keys and belongs to whoever owns them.
