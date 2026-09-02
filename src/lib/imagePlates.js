@@ -531,6 +531,16 @@ export const PLATE_URLS = {
   decree_ordinance_common_metal: B + "62182eac9_generated_image.png",
   decree_wakewatch_act: B + "7e609feca_generated_image.png",
   relic_lance_carriage: B + "becce72fb_generated_image.png",
+  // --- Tactical Squad Plan — Lane I (makers' marks) · delivered 2026-09-01 ---
+  maker_hundredweight_works: B + "89ff44a37_generated_image.png",
+  maker_reclamation_state_arsenal: B + "c0426e8c4_generated_image.png",
+  maker_emberwright_foundries: B + "c4dd85fbb_generated_image.png",
+  maker_ferrymen_shrine_armoury: B + "ae81957e2_generated_image.png",
+  maker_salvage_court_prize_yard: B + "37d1e1af3_generated_image.png",
+  maker_crossloom_pattern_house: B + "03865414d_generated_image.png",
+  maker_ascendancy_signal_works: B + "4eb4f3d8b_generated_image.png",
+  maker_outrider_wheelwrights: B + "d90b43d02_generated_image.png",
+  maker_tarpool_burnworks: B + "65c6e6b46_generated_image.png",
 
   // patch category stamps
   patch_stamp_audio: LP + "patch_stamp_audio.webp",
