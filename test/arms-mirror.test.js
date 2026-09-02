@@ -18,6 +18,7 @@ import { describe, it, expect } from "vitest";
 import { readRepoFile, extractConst } from "./helpers/extract-const.js";
 import * as MIRROR from "@/lib/arms.js";
 import { IMAGE_LIBRARY, IMAGE_CATEGORIES, HOUSE_STYLE } from "@/lib/imageLibrary.js";
+import { PLATE_URLS } from "@/lib/imagePlates";
 import { ENTRIES } from "@/lib/wiki/entries.js";
 
 const CANON_SRC = readRepoFile("base44/shared/arms.ts");
@@ -1301,7 +1302,16 @@ describe("placeholder plates (Work item 18)", () => {
   it("every arms plate is a REQUEST: url null, a real prompt, and a declared aspect", () => {
     expect(mine.length).toBeGreaterThanOrEqual(77);
     for (const p of mine) {
-      expect(p.url, `${p.key} ships a url — content lanes never ship visuals`).toBe(null);
+      // A plate starts life as a REQUEST (url null) and the Base44 session later
+      // DELIVERS it by adding the key to PLATE_URLS — that delivery is the whole
+      // point of the pipeline, so "url is null" is not the invariant. It was only
+      // ever true because nothing had been delivered yet: a gate on a proxy, and
+      // it went red the moment the platform delivered nine maker plates.
+      // The real rule is that the LANE never ships a visual: any non-null url must
+      // have arrived through the platform's PLATE_URLS channel, never from a url
+      // literal written into imageLibrary.js.
+      expect(p.url === null || PLATE_URLS[p.key] === p.url,
+        `${p.key} has a url that did not come from PLATE_URLS — content lanes never ship visuals`).toBe(true);
       expect(typeof p.prompt, `${p.key} prompt`).toBe("string");
       expect(p.prompt.trim().length, `${p.key} has an empty prompt`).toBeGreaterThan(20);
       expect(p.title.trim().length, `${p.key} has no title`).toBeGreaterThan(0);
