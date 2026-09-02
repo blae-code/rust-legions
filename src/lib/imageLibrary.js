@@ -1562,6 +1562,81 @@ export const IMAGE_LIBRARY = [
     "Airframe assembly hall with wing spars on jigs and a fuselage suspended in a cradle, drawings pinned along the wall beneath high windows"),
   P("maker_mw_redwater_hullyards", "motor", "Redwater Hullyards", "Motor works plate — shallow-draught hull builder",
     "Flooded slipway with shallow-draught hulls on their ways, plate being riveted along a chine, the diggings' standing water beyond the gate"),
+  // ——— LANE F: squad tokens, upgrade kits & design patterns ———
+  // Appended as ONE contiguous tail block per the content-lane shared-file
+  // protocol, after Lanes I, G and J and never between them. `category` is what
+  // groups a plate in the UI; its position in this array is not. No new
+  // IMAGE_CATEGORIES key is needed — `units`, `gear` and `designs` all exist.
+  // Every row here is a REQUEST: the lane ships no visual and passes no url, and
+  // `P()` resolves url from PLATE_URLS when the platform delivers one.
+  // Prompts deliberately do NOT restate HOUSE_STYLE — it is prepended at
+  // generation, and a prompt that repeats it produces a doubled prompt.
+
+  // ---------- Squad-type tokens (tactical.ts SQUAD_TYPES, GEAR §11) ----------
+  P("unit_stormtroops_token", "units", "Stormtroops — Token", "Squad token for SQUAD_TYPES.stormtroops [I]",
+    "Assault section in cut-down greatcoats and bomb bags, short automatics carried low, faces half-masked, waiting in a churned trench mouth at first light, bust-height token composition"),
+  P("unit_sappers_token", "units", "Sappers — Token", "Squad token for SQUAD_TYPES.sappers [I]",
+    "Breaching section kneeling at a wall base, satchel charge taped to the brickwork and fuse cord run back, coils of wire and folded revetment frames stacked behind, bust-height token composition"),
+  P("unit_ski_troops_token", "units", "Ski Troops — Token", "Squad token for SQUAD_TYPES.ski_troops [I]",
+    "White-smocked company on long boards, carbines slung across their backs and packs cut small, poles planted in deep snow under a flat northern overcast, bust-height token composition"),
+  P("unit_digger_corps_token", "units", "Digger Corps — Token", "Squad token for SQUAD_TYPES.digger_corps [I]",
+    "Excavation company in canvas working dress at a cut face, spades and picks held like arms, short rifles slung and forgotten, spoil heaps rising behind, bust-height token composition"),
+  P("unit_pilgrim_levy_token", "units", "Pilgrim Levy — Token", "Squad token for SQUAD_TYPES.pilgrim_levy [I]",
+    "Crowd of devout levy under a hand-stitched parish banner, mismatched old rifles and bare hands among them, work boots and sandals, walking in a loose column, bust-height token composition"),
+  P("unit_provost_token", "units", "Provost Section — Token", "Squad token for SQUAD_TYPES.provost [I]",
+    "Discipline detachment in pressed field dress, revolvers holstered high and brassards on the sleeve, one man holding an open writ book at a road junction, bust-height token composition"),
+  P("unit_marksmen_token", "units", "Marksmen — Token", "Squad token for SQUAD_TYPES.marksmen [I]",
+    "Pair of selected shots prone in long grass, long rifle with a ranging optic and a spotter at his scope beside it, sacking wrapped over both barrels, bust-height token composition"),
+  P("unit_flame_team_token", "units", "Flame Team — Token", "Squad token for SQUAD_TYPES.flame_team [II:Eng]",
+    "Two men with a trench projector, pressure tanks strapped high on the back and heavy gauntlets on the lance, waiting at the corner of a concrete doorway, bust-height token composition"),
+  P("unit_autocar_scouts_token", "units", "Autocar Scouts — Token", "Squad token for SQUAD_TYPES.autocar_scouts [I], single-figure stand",
+    "Light wheeled scout car with a small turret gun and thin riveted plate, spare wheels racked on the flanks, crewman standing in the hatch with field glasses, three-quarter token composition"),
+  P("unit_siege_mortar_token", "units", "Siege Mortar — Token", "Squad token for SQUAD_TYPES.siege_mortar [I], single-figure stand",
+    "Heavy short mortar tube on a bedded steel plate dug into a revetted pit, crew walking a shell to the muzzle on a cradle, aiming stakes and a plotting board aside, three-quarter token composition"),
+  P("unit_land_dreadnought_token", "units", "Land Dreadnought — Token", "Squad token for SQUAD_TYPES.land_dreadnought [III], the relic Object",
+    "Immense walled land engine on many track units, casemated main gun and slab armour scarred and over-plated in mismatched steel, infantry at its skirts for scale, three-quarter token composition"),
+
+  // ---------- Vehicle action plates (the three figures: 1 stands) ----------
+  P("unit_autocar_scouts_action", "units", "Autocar Scouts — Action Plate", "Wide action illustration for battle reports",
+    "Scout car breaking from a treeline at speed on a rutted farm track, dust plume standing behind it, commander half out of the hatch pointing, shellfire distant across open fields", "16:9"),
+  P("unit_siege_mortar_action", "units", "Siege Mortar — Action Plate", "Wide action illustration for battle reports",
+    "Siege mortar firing from a revetted pit at night, the muzzle flash throwing the crew flat against the earth wall, plotting board and shielded lamp in the near foreground", "16:9"),
+  P("unit_land_dreadnought_action", "units", "Land Dreadnought — Action Plate", "Wide action illustration for battle reports",
+    "Land dreadnought grinding through a broken town wall, main gun in recoil, masonry and dust falling across its skirts, infantry running in the shadow of its tracks", "16:9"),
+
+  // ---------- Upgrade kits (tactical.ts UPGRADES; six others already exist) ----------
+  P("kit_marksman_pattern", "gear", "Kit — Marksman Pattern", "Infantry kit [II:Eng] for UPGRADES.marksman_pattern",
+    "Selected long rifle laid on a workbench beside its ranging optic in a fitted case, ammunition of a single lot boxed and marked, armourer's tags wired to the barrel, equipment plate"),
+  P("kit_drum_magazines", "gear", "Kit — Drum Magazines", "Infantry kit [I] for UPGRADES.drum_magazines",
+    "Pan drums stacked beside an automatic rifle on a bench, one drum open on its spring and follower, the straight sticks they replace pushed aside into a tray, equipment plate"),
+  P("kit_gas_shells", "gear", "Kit — Gas Shells", "Artillery kit [II:Ciph] for UPGRADES.gas_shells",
+    "Fume shells in a padded crate with ringed bands, a ciphered warrant tag wired to the lid and countersigned twice on the manifest, a respirator hanging above, equipment plate"),
+  P("kit_radio_pack", "gear", "Kit — Radio Pack", "Infantry kit [II:Ciph] for UPGRADES.radio_pack",
+    "Field wireless set on a pack frame with headset and hand key, spare batteries in a canvas roll, aerial sections strapped down the side, equipment plate"),
+
+  // ---------- Design Bureau options (armyDesign.js DESIGN_SLOTS, GEAR §11.5) ----------
+  P("design_dispersed", "designs", "Formation — Dispersed Order", "Army Design Bureau pattern card",
+    "Design bureau pattern card: wide-interval dispersal diagram over an illustration of pairs working forward through broken ground, drafting-table style, approval stamps"),
+  P("design_echelon", "designs", "Formation — Echelon Refused", "Army Design Bureau pattern card",
+    "Design bureau pattern card: stepped-back flank diagram over an illustration of a company holding one wing behind the other, drafting-table style, approval stamps"),
+  P("design_automatics", "designs", "Kit — Automatic Rifles", "Army Design Bureau pattern card",
+    "Design bureau pattern card: exploded diagram of a magazine-fed automatic rifle and its bipod beside a two-man team illustration, drafting-table style"),
+  P("design_long_rifles", "designs", "Kit — Long Rifles", "Army Design Bureau pattern card",
+    "Design bureau pattern card: long-barrelled rifle and ranging optic diagram with a range ladder beside a prone firer illustration, drafting-table style"),
+  P("design_shaped_charges", "designs", "Kit — Shaped Charges", "Army Design Bureau pattern card",
+    "Design bureau pattern card: cutaway of a coned demolition charge and its stand-off legs beside a breaching-party illustration, drafting-table style"),
+  P("design_entrenching", "designs", "Armor — Entrenching Issue", "Army Design Bureau pattern card",
+    "Design bureau pattern card: spade, stake and revetment-frame layout with a trench profile section beside a digging party illustration, drafting-table style"),
+  P("design_sealed_hoods", "designs", "Armor — Sealed Hoods", "Army Design Bureau pattern card",
+    "Design bureau pattern card: sealed hood and filter canister cutaway beside an illustration of a section standing steady in drifting fume, drafting-table style"),
+  P("design_light_order", "designs", "Armor — Light Marching Order", "Army Design Bureau pattern card",
+    "Design bureau pattern card: stripped webbing layout with the discarded pack listed off to one side, beside an illustration of a company moving fast and unburdened, drafting-table style"),
+  P("design_heavy_plate", "designs", "Armor — Siege Harness", "Army Design Bureau pattern card",
+    "Design bureau pattern card: heavy breast-and-back harness with loophole shield diagram beside an illustration of a plated section walking into a doorway, drafting-table style"),
+  P("design_chaplaincy", "designs", "Support — Chaplaincy Detachment", "Army Design Bureau pattern card",
+    "Design bureau pattern card: chaplaincy establishment diagram over an illustration of a chaplain reading to a kneeling section in a support trench, drafting-table style"),
+  P("design_observers", "designs", "Support — Observation Section", "Army Design Bureau pattern card",
+    "Design bureau pattern card: observation post and telephone-line diagram over an illustration of observers at a plotting board on a forward crest, drafting-table style"),
 ];
 
 export const getImage = (key) => IMAGE_LIBRARY.find((i) => i.key === key)?.url || null;

@@ -756,3 +756,114 @@ annihilation is: the attacker is the side that had to take the ground.
 > reading the result once. Figures still in the depot — mustered but never carved into a section — are
 > not folded back into the surviving regiments. That is the shipped behaviour, and whether a commander
 > should get his unfiled reserves back is a decision this section does not make.
+## 27. Squads, Specialists & Upgrade Kits [PROPOSED — awaiting platform wiring]
+
+Every number in this section is read from `base44/shared/tactical.ts`; nothing here is live until the
+platform lane wires it.
+
+The tactical board fields **squads**, not the macro unit stack. A squad is a squad *type* at a figure
+count, optionally carrying **specialists** (named men attached to it) and **upgrade kits** (wargear
+drawn against its establishment). `deriveSquad(squad)` is the only thing that combines the three; the
+tables below are its inputs and nothing computes them here.
+
+### 26.1 The squad roster
+
+`from` names the macro regiment a squad is raised out of, and `FIGURES_PER_COMPANY` is keyed by that
+**regiment**, never by squad type — a type's `figures` is its own default squad size and may differ
+freely from its source regiment's company size, which is why an eight-figure or five-figure section is
+legal. `toRegiments` converts through the regiment's company size and rounds **down**, so a battle
+never creates a company. `pts` is the cost of the **squad**, not of a figure: the anchor is the rifle
+section at its default figure count.
+
+| `key` | Label | `from` | Tier | Figures | `pts` |
+| --- | --- | --- | --- | --- | --- |
+| `riflemen` | Rifle Section | riflemen | I | 10 | 100 |
+| `assault` | Assault Section | riflemen | I | 8 | 90 |
+| `gunners` | Machine-Gun Crew | riflemen | I | 6 | 85 |
+| `scouts` | Scout Section | riflemen | I | 5 | 45 |
+| `mortars` | Mortar Team | riflemen | I | 4 | 55 |
+| `pioneers` | Pioneer Section | riflemen | I | 8 | 100 |
+| `crawler` | Diesel Crawler | crawler | I | 1 | 100 |
+| `artillery` | Siege Piece | artillery | I | 1 | 100 |
+| `fighter` | Prop Fighter | fighter | I | 1 | 70 |
+| `stormtroops` | Stormtroops | riflemen | I | 8 | 105 |
+| `sappers` | Sappers | riflemen | I | 8 | 106 |
+| `ski_troops` | Ski Troops | riflemen | I | 10 | 85 |
+| `digger_corps` | Digger Corps | riflemen | I | 10 | 82 |
+| `pilgrim_levy` | Pilgrim Levy | riflemen | I | 14 | 89 |
+| `provost` | Provost Section | riflemen | I | 6 | 58 |
+| `marksmen` | Marksmen | riflemen | I | 5 | 51 |
+| `flame_team` | Flame Team | riflemen | II:Eng | 6 | 59 |
+| `autocar_scouts` | Autocar Scouts | crawler | I | 1 | 41 |
+| `siege_mortar` | Siege Mortar | artillery | I | 1 | 52 |
+| `land_dreadnought` | Land Dreadnought | crawler | III | 1 | 156 |
+
+Every row raised from `crawler`, `artillery` or `fighter` fields at one figure, and every row raised
+from `riflemen` fields at more than one. A single-figure stand is a `SquadType` row and nothing more —
+a stand's chassis, powerplant, armour package, suspension, mount and hardpoints live in the section
+titled *The Motor Pool* — cited by title, not by number, because these `[PROPOSED]` sections may be
+renumbered at merge — and reach the engine only through `deriveMechanized` plus its facings.
+
+`land_dreadnought` is one machine described by two rows in two tables: the relic **project** that
+raises it, in the catalogue, and this **stand** that then fights. Both carry tier III. It dies with the
+keel that raised it — on capture the captor loots unspent materials only; the project, its progress
+and its housed Object are lost.
+
+### 26.2 Specialists
+
+A specialist is attached to a squad and moves its numbers. Every one carries at least one numeric mod;
+an attachment whose only effect is in its blurb is not an attachment.
+
+`squadStaffMods` fixes the stacking so two callers cannot disagree: duplicates count once; `morale`,
+`initiative`, `recoverPerTurn`, `aoeSuppress`, `buildSpeed` and `executionToll` are **additive**;
+`moraleFloor` takes the **maximum**, because a floor is a floor. A squad carries at most
+`SCALING.maxSpecialists` attachments, and the survivors are chosen in the table's own declaration
+order rather than in the order the caller listed them — so the result does not change when the list is
+shuffled, and an attachment past the cap is ignored rather than rejected.
+
+| `key` | Label | `pts` | Mods |
+| --- | --- | --- | --- |
+| `medic` | Field Medic | 12 | morale +1, recoverPerTurn +1 |
+| `signaler` | Signaler | 10 | initiative +3 |
+| `commissar` | Ministry Commissar | 14 | morale +1, moraleFloor +11, executionToll +1 |
+| `heavy_gunner` | Heavy Gunner | 16 | aoeSuppress +1 |
+| `sapper` | Sapper | 12 | buildSpeed +1 |
+| `chaplain` | Chaplain | 13 | morale +1, moraleFloor +10 |
+| `cartographer` | Field Cartographer | 13 | initiative +2, morale +1 |
+| `forward_observer` | Forward Observer | 18 | aoeSuppress +1, initiative +1 |
+| `provost_sergeant` | Provost Sergeant | 15 | moraleFloor +12, executionToll +2 |
+| `relic_bearer` | Relic Bearer | 20 | morale +2, recoverPerTurn +1 |
+
+### 26.3 Upgrade kits
+
+A kit applies only to the squad types named in its `appliesTo`, and a squad may carry at most
+`UPGRADE_RULES.maxPerSquad` kits. That ceiling is a constant in `base44/shared/tactical.ts`; this
+section deliberately does not retype it, because a number written in two places is a number that will
+disagree with itself.
+
+**No kit is free.** Every row either carries a negative mod — a real trade along a real axis — or is
+gated behind a fragment class above tier I, and several are both. A kit's effects apply to the
+**fitted stand**, on fit, and never to the faction that unlocked the row.
+
+| `key` | Label | Tier | `pts` | Mods | `appliesTo` |
+| --- | --- | --- | --- | --- | --- |
+| `armor_skirts` | Armor Skirts | I | 20 | armor +3, speed -1 | `crawler`, `autocar_scouts`, `land_dreadnought` |
+| `storm_hoods` | Storm Hoods | II:Cache | 14 | morale +1 | `stormtroops`, `assault`, `sappers`, `pioneers`, `flame_team` |
+| `wire_spades` | Wire & Spades | I | 12 | armor +1, speed -1 | `riflemen`, `pioneers`, `sappers`, `digger_corps`, `ski_troops`, `pilgrim_levy`, `provost` |
+| `sapper_plate` | Sapper Plate | I | 20 | armor +2, speed -1 | `sappers`, `pioneers`, `stormtroops`, `assault` |
+| `ski_conversions` | Ski Conversions | I | 16 | speed +2, ranged -2 | `ski_troops`, `autocar_scouts`, `crawler` |
+| `mine_flails` | Mine Flails | I | 14 | melee +2, speed -1 | `crawler`, `autocar_scouts`, `land_dreadnought` |
+| `marksman_pattern` | Marksman Pattern | II:Eng | 18 | range +2, ranged -1 | `marksmen`, `scouts`, `riflemen`, `provost` |
+| `drum_magazines` | Drum Magazines | I | 18 | ranged +3, range -1 | `assault`, `stormtroops`, `gunners`, `provost` |
+| `gas_shells` | Gas Shells | II:Ciph | 22 | ranged +2, range -1 | `mortars`, `siege_mortar`, `artillery` |
+| `radio_pack` | Radio Pack | II:Ciph | 16 | morale +1, speed -1 | `riflemen`, `stormtroops`, `marksmen`, `provost`, `autocar_scouts`, `siege_mortar` |
+
+### 26.4 What the platform lane still owns
+
+- `gameEngine` reads none of these tables yet. Wiring them is the handoff item, recorded in
+  `docs/prompts/PLATFORM_HANDOFF.md` under *Lane F*.
+- The kit ceiling is declared but unenforced: nothing in this section validates a squad's kit list, and
+  the combined specialist-plus-kit bill is ungated and on the single-figure stands it is large. The
+  audit in `docs/GEAR_LIBRARY.md` §11.8 recomputes it and names the two worst stands.
+- Pricing is audited in `docs/GEAR_LIBRARY.md` §11, which recomputes every figure in this section from
+  the tables rather than quoting it, and is itself recomputed by `test/gear-points-audit.test.js`.

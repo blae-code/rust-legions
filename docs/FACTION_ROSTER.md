@@ -103,3 +103,43 @@ The roster and the wizard are one system, not two:
    voices ever open up (LLM-synthesized style guides from a player prompt)?
 5. The Outrider Compact's "smallest, fastest keel" implies per-house keel stat variance — currently
    keels differ by modules only. Worth a base-chassis stat, or express it purely as starting modules?
+
+---
+
+## 5. Unit Access — Tactical Squads & Kits [PROPOSED]
+
+*Signature, not exclusive.* A house's signatures are what its muster leans on and what Lane H's
+`uniqueRoster` draws from — they are **not** locks. Only a `creedLock` or `factionLock` on the row
+itself restricts who may field a type, and the whole roster carries one (below). Every key in this
+table is live in `SQUAD_TYPES` or `UPGRADES`, and every signature kit fits at least one of the
+house's own signature squads — `test/gear-points-audit.test.js` parses this table and asserts both,
+so a renamed key or a kit whose `appliesTo` narrows turns the suite red here rather than in play.
+
+| House | Signature squad type(s) | Signature upgrade kit(s) | Note |
+| --- | --- | --- | --- |
+| The Iron Reclamation | `stormtroops`, `riflemen` | `radio_pack`, `sapper_plate` | Restoration by force: the Guard-flagged assault company off the front of a conscript line, and a wire back to it so the whole administration hears the same order. |
+| The Charter Combine | `autocar_scouts`, `provost` | `armor_skirts`, `drum_magazines` | A house that insures. It buys wheels to see the convoy first and revolvers to keep the yard quiet, and it plates both because a written-off asset is a written-off contract. |
+| The Bastion Synod | `marksmen`, `pioneers` | `marksman_pattern`, `wire_spades` | Preservation is a firing lane and a finished revetment. The Synod outlasts, at reach, from behind something it built the season before. |
+| The Covenant of Locks | `sappers`, `flame_team` | `sapper_plate`, `storm_hoods` | The only war aim on the Ground that is a closing. Breaching men to reach a shaft and the projector to make sure nobody comes back up it, hooded against their own fume. |
+| The Signal Ascendancy | `siege_mortar`, `marksmen` | `gas_shells`, `radio_pack` | War as transmission. Everything is fired on a map reference and a ciphered warrant; nothing the Ascendancy shoots at is ever in sight of the thing shooting. |
+| The Commonweal March | `digger_corps`, `provost` | `wire_spades`, `marksman_pattern` | Federated levies who dig before they fight and vote on the rest. Bedrock on the defence, a committee on the advance, and a spade issued to every hand. |
+| The Salvage Court | `autocar_scouts`, `assault` | `mine_flails`, `drum_magazines` | Property in motion is contestable. The Court arrives on wheels, through the belt, and settles the argument at a range where drums beat aim. |
+| The Emberwright Union | `land_dreadnought`, `sappers` | `armor_skirts`, `sapper_plate` | The house that fields two hulls is the house that built one. Union engineers put the relic on the ground and walk in beside it in siege plate. |
+| The Long Procession | `pilgrim_levy`, `flame_team` | `wire_spades`, `storm_hoods` | The one house whose creed opens the levy: `pilgrim_levy` carries `creedLock: recall`, and the Recall is Procession orthodoxy (LORE §2). Mass on the march, hooded, with a spade each. |
+| The Outrider Compact | `ski_troops`, `autocar_scouts` | `ski_conversions`, `radio_pack` | Speed and nothing else. Boards for the men, forward skis for the running gear, and a set on every column so what it sees is worth selling before it is stale. |
+
+### Locks used by this lane — for Lanes G and H
+
+**One lock in the whole append, of a budget of two.** `pilgrim_levy` carries
+`creedLock: 'recall'` — The Recall, whose holders LORE §2 names as the Synod, the Procession and
+the parishes, and which Lane G already ships as a `CREEDS` key. No other new squad type, specialist
+or upgrade kit in this lane carries a `creedLock` or a `factionLock`.
+
+`land_dreadnought` is deliberately **unlocked** and is the second budgeted lock deliberately left
+unspent: Lane G gates it as a `RELIC_PROJECTS` row on `prereq: ['continuous_casting', 'pattern_book']`
+with no creed at all, so a `creedLock` here would contradict the project that builds the machine.
+The two rows are one Object — same key, same `tier: 'III'`, and a squad-cost `pts` basis on this side
+rather than a per-figure one.
+
+No `factionLock` is used anywhere in this lane, so no id from `src/lib/presetFactions.js` is claimed
+and Lane H is free to assign every house above without reconciling against a lock.

@@ -878,3 +878,254 @@ lane's move; §0 is a section this lane may not edit (its one sanctioned excepti
 here rather than quietly left for an audit to find.
 
 - [ ] `docs/TACTICAL_SQUAD_PLAN.md:14` — `9×7` → `15×11`.
+### Lane F — squad roster, specialists, upgrade kits & the points audit
+
+> ## ⛔ F0 — `npm test` IS RED ON THIS BRANCH, AND THE MERGE IS GATED ON A LANE A EDIT
+>
+> **Read this before anything else in this block. Ten assertions fail, all of them in Lane A's
+> `test/tactical-mirror.test.js`, and every one is caused by Lane F's mandated append.** They are
+> **not** pre-existing — at the branch point the file held nine squad types and five specialists, and
+> every failing assertion pins exactly that snapshot. An earlier commit message on this branch called
+> them "the same pre-existing Lane A failures … none new"; **that was wrong and this paragraph is the
+> correction.**
+>
+> `TACTICAL_SQUAD_PLAN.md` §3 makes *"mirror test green"* a Lane F acceptance criterion, and Lane F
+> **cannot** satisfy it: eight of the ten live in files §3 assigns to Lane A
+> (`test/tactical-mirror.test.js`, `docs/COMBAT_DESIGN.md`), and two are gates that **structurally
+> forbid rows Lane F was mandated to write**. §3 ownership wins over the acceptance line, so the lane
+> reports rather than edits. **Do not merge Lane F alone. It merges with a Lane A companion change.**
+>
+> | # | Assertion | Why it fails | Fix, and whose |
+> | --- | --- | --- | --- |
+> | 1 | `:985` the base nine are exactly the base nine, in plan order | `expect(SQUAD_TYPE_KEYS).toEqual([…9])`; the roster is now 20 | **Lane A** — assert the base nine are the first nine, in plan order, as a *prefix* of the table |
+> | 2 | `:992` every squad row defines all 21 fields | two causes: `expect(row.tier).toBe("I")` vs `flame_team` `II:Eng` and `land_dreadnought` `III`, both **mandated** by Work item 1; and `pilgrim_levy` has 22 keys because of `creedLock` | **Lane A** — allow the six legal tier strings (or scope the `"I"` check to the base nine), and allowlist the optional `creedLock`/`factionLock` that §4 declares (see F0.1) |
+> | 3 | `:1007` five specialists, each with at least one numeric mod | `expect(Object.keys(SPECIALISTS)).toEqual([…5])`; there are now 10 | **Lane A** — prefix check, not equality |
+> | 4 | `:1086` every source regiment is a column key, and six of nine are riflemen | `toHaveLength(6)`; 14 rows now derive from `riflemen` | **Lane A** — count against the table, or scope to the base nine |
+> | 5 | `:1397` specials is the gate written from the other end | asserts `SQUAD_TYPES[k].specials` **equals** the actions whose `requires.types` names `k`, for **every** key. Lane F may not edit `SQUAD_ACTIONS`, so any new row with a non-empty `specials` fails | **Lane A** — see F0.2; this contradicts Lane A's own comment above `SQUAD_ACTIONS` |
+> | 6 | `:1618` the squad stat table in `COMBAT_DESIGN.md` matches `SQUAD_TYPES` | the doc carries 9 rows, the table 20 | **Lane A** — extend §13.2 to 20 rows |
+> | 7 | `:1640` the points audit in `COMBAT_DESIGN.md` is recomputed cell by cell | same | **Lane A** — extend §13 |
+> | 8 | `:1702` the specialist table in `COMBAT_DESIGN.md` matches `SPECIALISTS` | the doc carries 5 rows, the table 10 | **Lane A** — extend §13.7 to 10 rows |
+> | 9 | `:2165` the three types the roster table leaves out | `expect(omitted.sort()).toEqual(["assault","pioneers","scouts"])` — a literal | **Lane A** — derive the omitted set from the table |
+> | 10 | `:2185` the two claims about what the roster cannot hurt | `canHurt("fortified")` now also returns `land_dreadnought` | **Lane A** — derive the set, do not list it |
+>
+> `docs/COMBAT_DESIGN.md` is Lane A's and drift guard 9 is discharged by naming it here, per the
+> brief's Owned-files note. The paragraphs Lane A must extend are **§13.2** (squad stat table),
+> **§13.7** (specialists) and the **§13.11** worked example.
+>
+> **This is the brief's own class-3 defect — "a gate bounded by the current set, true only while that
+> lane was last to append" — shipped by Lane A and now blocking the lane whose entire job was to
+> append.** Nine of the ten are that shape exactly.
+>
+> ### F0.1 — `creedLock` is legal by §4 and illegal by Lane A's merged test
+>
+> `TACTICAL_SQUAD_PLAN.md` §4 declares `SquadType` with `factionLock?: string, creedLock?: string`, and
+> the brief's Work item 1.2 names `pilgrim_levy` as the natural `creedLock: 'recall'` candidate. Lane
+> A's merged `SQUAD_FIELDS` is 21 keys with no optional lock, asserted as an exact key set on **every**
+> row. **The contract and the test disagree; §4 is the contract and the brief says the plan wins**, so
+> Lane F kept the lock. One field, one row. Deleting it would leave `docs/FACTION_ROSTER.md` §5, this
+> handoff and `test/gear-points-audit.test.js` describing a mechanic that no longer exists.
+>
+> ### F0.2 — `:1397` contradicts the design it is testing, and the verbs DO work
+>
+> The gate `squadActions()` implements is a **union**, and Lane A's own comment above `SQUAD_ACTIONS`
+> says so: an action is offered when *(a)* `requires` is null, *(b)* `requires.types` names the type,
+> *(c)* **the type names the action in its own `specials`**, or *(d)* a carried specialist matches —
+> and it closes *"A new type from Lane F declares only `specials` and is gated correctly by (c)."*
+> `squadActions` reads `bySpecial = t.specials.indexOf(k) !== -1`, so **`siege_mortar` can fire
+> `mortar_barrage` and `land_dreadnought` can `overrun` as shipped**. Nothing is decorative and no
+> squad advertises a verb the engine withholds. What fails is the *test*, which asserts (b) == (c) for
+> every key while the comment scopes that symmetry to the base nine. **Lane A's fix is to scope the
+> equality to the base nine and assert, for the new rows, that every `specials` tag is a live
+> `SQUAD_ACTION_KEYS` member** — which the test already does on its second line. Lane F must not be
+> asked to empty `specials[]`: that is the only gate the new types have.
+>
+> **Everything else on this branch is green** — `npm run lint` exit 0, `npm run typecheck` exit 0,
+> `.claude/hooks/rules-guard.sh` exit 0, `npm run rules:check` 55 passed, and the lane's own
+> `test/gear-points-audit.test.js` passes in full.
+
+Data is complete, mirrored (`base44/shared/tactical.ts` ↔ `src/lib/tactical/data.js`) and audited —
+**and `npm test` is red for the reason F0 above gives, which is not a data defect and is not Lane F's
+to fix.** Nothing below is wired. Lane F appended **rows only**: every table structure, every
+derivation (`deriveSquad`, `squadStaffMods`, `poolCost`, `toRegiments`) and all nine base squad types
+are Lane A's and were not touched.
+
+The lane's own regression suite is `test/gear-points-audit.test.js`. **It is a claimed file, and the
+claim is now written into the plan**: `TACTICAL_SQUAD_PLAN.md` §3 Lane F carries *AMENDMENT 2026-09-01
+(Lane F, Amendment 1)*, in the same form as Lane G's Amendment 3 for `test/rules-mirror.test.js`. The
+amendment exists because the brief says **"No new test files"** and the Wave 3 addendum — newer, and
+authoritative — requires *"a test that recomputes it from the table so it cannot rot"*; a new file was
+chosen over editing Lane A's suite so two lanes never hold one file in one wave. It **edits** no
+assertion in `test/tactical-mirror.test.js` (it is nonetheless what the ten F0 failures live in — file
+equality and outcome are different questions, and an earlier revision of this paragraph conflated
+them). It is the only suite in the repository that reads *documents*, parsing the Points Audit, the
+Unit Access section and the `[PROPOSED]` rules section back out of the markdown and rebuilding every
+published cell from the tables — including the fifty-five figures in the audit's §11.7 prose. Every
+section is sliced heading→next `##`, never to end of file, and every section is located by its heading
+**text**, so neither a later lane's append nor a renumber at merge reaches it.
+
+#### F1 — nothing reads these tables yet
+
+`gameEngine` consumes no squad type, no specialist and no kit. `UPGRADES` and `UPGRADE_RULES` are
+**new in this lane** — they appear in no other lane's delivers list.
+
+**The mirror suite already covers both, and no Lane A edit is needed for that.** An earlier revision
+of this item asked Lane A to "add `UPGRADES` and `UPGRADE_RULES` to `test/tactical-mirror.test.js`'s
+table list". **There is no table list.** Per the Wave 3 addendum the mirror suite *discovers*: it
+parses every top-level `export const` out of `tactical.ts` and demands a mirror for each. Seven tests
+are generated for these two tables today and all seven pass — `UPGRADES deep-equals its mirror`,
+`UPGRADES mirrors its key order (check 2)`, `UPGRADES is a pure data literal on the mirror side too`,
+the same three for `UPGRADE_RULES`, and `UPGRADE_KEYS is Object.keys(UPGRADES) on both sides`. The
+instruction was inherited verbatim from the pre-addendum brief §0.4 and was repeated without being
+re-tested. **The one real follow-up remains:** Lane A/C should read `UPGRADE_RULES.maxPerSquad`
+wherever a kit ceiling is enforced instead of hard-coding the digit.
+
+The Lane A companion changes this lane actually needs are the ten in **F0**, above.
+
+#### F2 — the fourteen legacy Design Bureau options carry no squad `mods`
+
+`line`, `vanguard`, `skirmish`, `column`, `rifles`, `trench_guns`, `mortars`, `standard`, `plated`,
+`scout`, `none`, `medics`, `signals` and `commissars` predate the squad-mod convention and are
+referenced by live saves, so this lane did not touch them (drift guard 10). The eleven options it
+added all declare `mods`, and `compileDesign` now returns a `mods` key alongside its frozen
+`{ skill, dmgOut, dmgIn, moraleIn, cost }` — additive, so `ArmyDesigner.jsx`, `DesignCard.jsx` and
+`SlotPicker.jsx` render the new options with zero component edits. **Until the legacy fourteen are
+translated, `compileDesign(...).mods` describes only the options that declare it**, and any consumer
+treating it as a complete picture of a design will be wrong about the eleven-year-old half of the
+bureau. Translating those multipliers into `mods` is the platform's edit, not a content lane's,
+because it changes what existing saves compile to.
+
+#### F3 — `bridging_train` has no effect key for the thing it does
+
+`PROPOSED_UNIT_TYPES.bridging_train` exists to put an army across water. The §4 effect vocabulary has
+no key for a crossing, so the row declares `{ scope: 'economy', key: 'buildTurns', value: -1 }` — a
+true statement about a bridging train and **not** the mechanic the unit is named for. The honest fix
+is a new §4 key (`crossing`, or a river-crossing verb on the macro side) added by whoever owns the
+macro movement rules; inventing one inside a content lane would have put an effect key in a table
+that nothing could ever apply. Named here so the gap is a decision rather than an omission.
+
+#### F4 — `hospital_train` is gated in prose and nowhere else
+
+`docs/GEAR_LIBRARY.md` §7 gates the hospital train at `[II:Cache]`. `PROPOSED_UNIT_TYPES` mirrors the
+`UNIT_TYPES` field set, and `UNIT_TYPES` has **no tier field** — so the gate exists in the Gear
+Library and in the row's `blurb`, and in no machine-readable field anywhere. Adding a `tier` to
+`PROPOSED_UNIT_TYPES` alone would have made the proposed rows a different shape from the live ones and
+broken the "lift each row into `gameEngine`'s `UNITS` unchanged" promise the table exists to keep. The
+platform lane decides: add `tier` to both tables, or gate macro units some other way.
+
+#### F5 — the combined staff-and-kit bill is ungated, and on the cheap stands it is large
+
+Nothing in this lane's contract caps `SCALING.maxSpecialists` attachments **plus**
+`UPGRADE_RULES.maxPerSquad` kits against the stand's own cost. Recomputed from the tables: the two
+dearest attachments come to 38 pts, and against the cheapest stands that plus two kits reaches
+**180.49%** of `autocar_scouts` and **146.15%** of `siege_mortar` — a stand whose attachments cost
+more than a second stand. `docs/GEAR_LIBRARY.md` §11.8 states it and
+`test/gear-points-audit.test.js` recomputes it, so the figures cannot rot. **It should not be
+"fixed" by re-pricing kits**: what a squad may actually field in a battle is Lane C's, and a cap
+belongs there or in the engine.
+
+#### F6 — promoting `PROPOSED_UNIT_TYPES`
+
+Seven macro support classes sit in `src/lib/units.js` as `PROPOSED_UNIT_TYPES`, deliberately outside
+`UNIT_KEYS` and outside `gameEngine.UNITS`, because `test/rules-mirror.test.js` asserts those two key
+sets are equal and `gameEngine` is platform-owned. Each row carries the full `UNIT_TYPES` field set
+plus `effects[]` and a `blurb`, so promotion is: copy the row into `gameEngine`'s `UNITS`, copy it
+into `UNIT_TYPES`, add the key to `UNIT_KEYS`, and delete it from `PROPOSED_UNIT_TYPES`. All seven
+already have plates registered (`unit_draught_column`, `unit_siege_train`, `unit_bridging_train`,
+`unit_signals_wagon`, `unit_salvage_detachment`, `unit_hospital_train`, `unit_provost_column`) —
+which is why the seven were chosen.
+
+#### F7 — plates: twenty-nine requests, and one aspect decision the platform owns
+
+One banner-commented block at the very end of `IMAGE_LIBRARY`, after Lanes I, G and J: eleven
+`unit_<key>_token`, three `unit_<key>_action` for the single-figure stands, four `kit_*` (the other
+six kit plates already existed) and eleven `design_*`, one per new Design Bureau option. No new
+`IMAGE_CATEGORIES` key was needed. **No url is passed and `src/lib/imagePlates.js` is untouched** —
+the lane ships no visual, and no test here asserts that a url stays `null`, because a delivered plate
+is the success case and a gate on `url === null` forbids the very step it waits for.
+
+Two things the platform must settle, both in `docs/GEAR_LIBRARY.md` §11.9:
+
+- **Aspect.** The lane brief mandates `1:1` for tokens, kits and design cards and `16:9` for action
+  plates. Every pre-existing row in those categories is `4:3` — all five legacy `unit_*_action`
+  plates and all eleven legacy `design_*` cards. The lane followed the brief, so the `designs`
+  category now holds two aspects. Re-stamp this block or re-stamp the legacy rows, in one edit.
+- **Five duplicate subjects.** `unit_stormtroops`, `unit_sappers`, `unit_ski_troops`,
+  `unit_digger_corps` and `unit_pilgrim_levy` predate the canonical `unit_<key>_token` convention and
+  were left in place (drift guard 10 forbids renaming a plate key). Generate **one** image per pair,
+  against the canonical `_token` key. The sixth older key, `unit_provost_column`, is **not** a
+  duplicate: it is the macro support class, while the tactical squad type is `provost` at
+  `unit_provost_token`. Two subjects, two images.
+
+#### F8 — the appended documents
+
+`docs/GAME_RULES.md` **§26 Squads, Specialists & Upgrade Kits** is appended and marked
+`[PROPOSED — awaiting platform wiring]`; it is on the C3 promotion list. It states the kit ceiling as
+*"a squad may carry at most `UPGRADE_RULES.maxPerSquad` kits"* and never retypes the digit (drift
+guard 7).
+
+**A renumber at merge is one edit, in the heading, and nothing else in the repository has to move.**
+That claim used to be false in two ways and both are now closed. (a) `test/gear-points-audit.test.js`
+pinned `"## 26. …"` in its section locator while the comment directly above that line claimed it
+located the section by text; the locators are now regexes anchored on the heading **text**
+(`/^## \d+\. Squads, Specialists & Upgrade Kits/`), and a test reads this suite's own source back and
+fails on any locator that pins a digit — those locators run at module scope, so a pinned number would
+not have failed one assertion, it would have thrown at import and taken all of the suite's tests with
+it. (b) §26's body cross-referenced the Motor Pool as **"(§25)"** — a *neighbouring* `[PROPOSED]`
+section, and four of them were appended in this one wave, so a cross-reference is likelier to rot than
+a self-reference. It now cites that section by **title**, and the renumber gate asserts §26's body
+pins no GAME_RULES section number at all, its own or another lane's.
+
+`docs/GEAR_LIBRARY.md` §11 (the Points Audit, 11.1–11.9) and `docs/FACTION_ROSTER.md` §5 (Unit
+Access, ten houses) are the lane's own appends. Thirteen `squad-*` Codex entries land in
+`src/lib/wiki/entries.js` as one tail block. **No Codex entry quotes a stat or a section number *in
+its prose*, asserted** — the scanned surface is the title, folk name, summary and every block's text,
+now including `{ table: { head, rows } }` blocks, which previously fell through the flattener and
+would have hidden a stat table in the one place a stat would actually be written. The mandated `tag`
+field is a deliberate exception and is **not** in that surface: brief 11.5 requires every entry to
+cite `Gear Library §8` or `Gear Library §11`, so all thirteen carry a section number there by design.
+That is a different document's number, which this lane does not renumber.
+
+#### F9 — two contract facts a reader of the brief will get wrong
+
+- **`specials[]` has sixteen legal keys, not thirteen.** Lane A merged `SQUAD_ACTIONS` with
+  `bombard`, `strafe` and `overrun` beyond the thirteen the Lane F brief listed. `land_dreadnought`
+  uses `overrun` and the base rows use `bombard` and `strafe`. The live table is the authority; the
+  brief's list is stale.
+- **`Specialist.mods` carries a seventh key.** §4 names six; Lane A's merged `commissar` declares
+  `executionToll`, `deriveSquad` folds it, and `provost_sergeant` follows that precedent rather than
+  the brief's list. No new key was invented by this lane.
+
+#### F10 — the cross-lane rows to diff at merge
+
+`land_dreadnought` is one machine in two tables: Lane G's `RELIC_PROJECTS` row (the project that
+raises it) and Lane F's `SQUAD_TYPES` row (the stand that then fights). Both carry `tier: 'III'`;
+Lane F's `pts` is a **squad** cost on the tactical scale and Lane G's is a project cost — they are not
+the same currency and must not be reconciled by making them equal. Per the operator ruling, the
+project **dies with the keel**: on capture the captor loots unspent materials only, and the project,
+its progress and its housed Object are lost. Both rows' prose says so.
+
+#### F11 — the brief's own acceptance script no longer runs as written (orchestrator, not platform)
+
+`docs/prompts/LANE_BRIEFS/f.md` "Definition of done" step 4 ships a standalone audit script. **A
+reviewer running it verbatim gets a crash and then a false failure, neither of which is a Lane F
+defect.** Both causes are merges that landed after the brief was written; the file is
+orchestrator-owned, so this is reported rather than edited.
+
+1. **It cannot resolve `@/`.** `src/lib/tactical/data.js:14` now imports `@/lib/arms` (Lane I, Wave
+   1). Plain `node /tmp/lane-f-audit.mjs` dies with
+   `ERR_MODULE_NOT_FOUND: Cannot find package '@/lib'` before a single check runs. Run it through
+   `vite-node`/vitest, or register a resolve hook mapping `@/` → `<root>/src/` with extension
+   probing.
+2. **Its `ACTIONS` allow-list is stale by three keys.** The script pins the thirteen action keys the
+   brief lists; Lane A merged **sixteen**, adding `bombard`, `strafe` and `overrun` (F9). With the
+   hook in place the script otherwise passes — 20 types · 10 specialists · 10 kits, widest ratio 1.36
+   against the 1.60 cap, no dangling `appliesTo`, no duplicate plate key, every mandated plate and
+   Codex entry present — and reports exactly four `A8 unknown special` lines: `overrun` on
+   `land_dreadnought`, and **`overrun`/`bombard`/`strafe` on Lane A's own `crawler`, `artillery` and
+   `fighter`**. Three of the four are base rows Lane F never touched, which is the proof that the
+   list is stale rather than the data.
+
+The lane uses exactly **one** lock, inside the budget of two: `pilgrim_levy.creedLock: 'recall'`.
+There is no `factionLock` anywhere in Lane F. `land_dreadnought` is deliberately **unlocked** — Lane
+G's relic project gates it on `prereq` with no creed, and a second gate on the stand would gate it
+twice.
