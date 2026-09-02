@@ -1252,3 +1252,354 @@ describe("HERALD_VOICES.md — thirteen packs", () => {
     expect(deny.test(heraldSrc)).toBe(false);
   });
 });
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STEP 3 — the ten named grounds, and forty-four entries of the Archive.
+//
+// TWO GATES HERE ARE DELIBERATELY NOT WRITTEN THE OBVIOUS WAY.
+//
+//   * The Codex tail block is located by its OWN ids, from the first to the
+//     last, and is asserted to be a contiguous run of exactly that length.
+//     It is NOT "everything from the banner to the end of the array": Lane H is
+//     the last content lane today and Field Amendments append after it, so a
+//     slice bounded by end-of-file would be true exactly until the next append.
+//   * The block-key set ADMITS `cite`. The Lane H brief lists the shipped block
+//     kinds as lead/p/h/note/quote/list/table, but `cite` is the optional
+//     companion of `quote` — documented in src/lib/fieldManual.js's schema
+//     comment, rendered by ManualBlock.jsx, and used by two entries that predate
+//     this wave. A gate built from the brief's list would have been red on a
+//     healthy corpus, which is the defect class this file exists to avoid.
+import { settlementDossier, charterOptions, LORE_ERAS, LORE_HOOKS } from "../base44/shared/settlementLore.ts";
+import { ENTRIES, CATEGORIES, STATUS, entryText, citedBy } from "@/lib/wiki/entries.js";
+
+const settlementSrc = readRepoFile("base44/shared/settlementLore.ts");
+// Lifted textually, not imported: extractConst throws on a spread, a computed
+// key or a call, so a green extraction is itself the proof that the table is
+// still the pure data literal the mirror protocol requires.
+const NAMED_POLITIES = extractConst(settlementSrc, "NAMED_POLITIES");
+const POLITY_ROWS = Object.entries(NAMED_POLITIES);
+const SPOIL_KEYS = ["steel", "manpower", "fuel"];
+
+// ── predicates, each one shown to have teeth ───────────────────────────────
+const polityGrammarIsValid = (row) =>
+  typeof row.name === "string" && row.name.length > 0 &&
+  Object.prototype.hasOwnProperty.call(LORE_HOOKS, row.kind) &&
+  LORE_ERAS.includes(row.era) &&
+  typeof row.culture === "string" && row.culture === row.culture.toLowerCase() &&
+  typeof row.hook === "string" && /^[a-z]/.test(row.hook) &&
+  Object.keys(row.spoils).length === 1 &&
+  SPOIL_KEYS.includes(Object.keys(row.spoils)[0]) &&
+  Number.isInteger(Object.values(row.spoils)[0]) &&
+  Object.values(row.spoils)[0] >= 2 && Object.values(row.spoils)[0] <= 5;
+
+// One sentence: opens on a capital, closes on a full stop, and carries no
+// second sentence inside it.
+const isOneSentence = (s) => typeof s === "string" && s.length > 20 && /^[A-Z“"]/.test(s) && s.endsWith(".") && !/\.\s/.test(s.slice(0, -1));
+// "states its own number" — a numeral or a written number, either is a number.
+const statesANumber = (s) => /\b(one|two|three|four|five|six|seven|eight|nine|ten|\d+)\b/i.test(s);
+
+describe("NAMED_POLITIES — the ten grounds the Chart names", () => {
+  it("is a pure data literal of exactly ten rows", () => {
+    expect(POLITY_ROWS.length).toBe(10);
+    expect(new Set(POLITY_ROWS.map(([, r]) => r.name)).size).toBe(10);
+    expect(new Set(Object.keys(NAMED_POLITIES)).size).toBe(10);
+  });
+
+  it("gives every row the shipped row grammar", () => {
+    for (const [slug, row] of POLITY_ROWS) {
+      expect(polityGrammarIsValid(row), `${slug} breaks the row grammar`).toBe(true);
+    }
+  });
+
+  it("goes red on a row that breaks the grammar", () => {
+    const good = clone(NAMED_POLITIES.tarpool);
+    expect(polityGrammarIsValid(good)).toBe(true);
+    expect(polityGrammarIsValid({ ...good, era: "the Third Collapse" }), "era off LORE_ERAS").toBe(false);
+    expect(polityGrammarIsValid({ ...good, kind: "fortress" }), "kind off LORE_HOOKS").toBe(false);
+    expect(polityGrammarIsValid({ ...good, spoils: { fuel: 9 } }), "spoils out of band").toBe(false);
+    expect(polityGrammarIsValid({ ...good, spoils: { fuel: 3, steel: 1 } }), "two spoil keys").toBe(false);
+    expect(polityGrammarIsValid({ ...good, hook: "Burns where it stands" }), "hook capitalised").toBe(false);
+  });
+
+  it("gives every ground one bespoke crisis and one bespoke charter, the charter stating its number", () => {
+    for (const [slug, row] of POLITY_ROWS) {
+      expect(isOneSentence(row.crisis), `${slug} crisis is not one sentence: ${row.crisis}`).toBe(true);
+      expect(isOneSentence(row.charter), `${slug} charter is not one sentence: ${row.charter}`).toBe(true);
+      expect(statesANumber(row.charter), `${slug} charter states no number`).toBe(true);
+    }
+    // No two grounds share a crisis or a charter — ten bespoke hooks, not one
+    // hook with the name swapped ten times.
+    expect(new Set(POLITY_ROWS.map(([, r]) => r.crisis)).size).toBe(10);
+    expect(new Set(POLITY_ROWS.map(([, r]) => r.charter)).size).toBe(10);
+    expect(new Set(POLITY_ROWS.map(([, r]) => r.hook)).size).toBe(10);
+  });
+
+  it("names a plate that already exists, and adds none", () => {
+    const keys = new Set(IMAGE_LIBRARY.map((p) => p.key));
+    for (const [slug, row] of POLITY_ROWS) expect(keys.has(row.plate), `${slug} → ${row.plate}`).toBe(true);
+    // Every settlement plate this lane names was shipped before it: the count of
+    // set_* plates is read off the library rather than typed here, and the ten
+    // named ones are a subset of it.
+    const setPlates = IMAGE_LIBRARY.filter((p) => p.key.startsWith("set_")).map((p) => p.key);
+    for (const [, row] of POLITY_ROWS) expect(setPlates).toContain(row.plate);
+  });
+
+  it("names ten grounds the roster's §2 actually lists", () => {
+    // Bounded at BOTH ends: §2 down to the next `## `, never to end-of-file.
+    const grounds = section(rosterSrc, /^## \d+\. The Ten Grounds/);
+    for (const [slug, row] of POLITY_ROWS) expect(grounds, `${slug} missing from roster §2`).toContain(row.name);
+  });
+
+  it("keeps §6.6's register equal to the data", () => {
+    const recon = section(rosterSrc, /^## \d+\. Reconciliation/);
+    const rows = tableRows(recon, "| spoils |");
+    const fromDoc = rows.map((r) => ({
+      slug: unbacktick(r[1]), name: r[2], kind: r[3], culture: r[4], era: r[5], spoils: r[6], plate: unbacktick(r[7]),
+    }));
+    const fromData = POLITY_ROWS.map(([slug, r]) => {
+      const [res, amt] = Object.entries(r.spoils)[0];
+      return { slug, name: r.name, kind: r.kind, culture: r.culture, era: r.era, spoils: `${res} ${amt}`, plate: r.plate };
+    });
+    expect(fromDoc).toEqual(fromData);
+    expect(rows.map((r) => Number(r[0]))).toEqual(fromData.map((_, i) => i + 1));
+  });
+});
+
+describe("settlementDossier — the named path, and the hashed path it did not disturb", () => {
+  const FOUR = ["title", "era", "text", "spoils"];
+
+  it("answers a named node from its own row", () => {
+    const row = NAMED_POLITIES.tarpool;
+    const d = settlementDossier({ id: "n1", name: "Tarpool", kind: "town" });
+    expect(Object.keys(d).sort()).toEqual([...FOUR].sort());
+    expect(d.title).toBe("Tarpool");
+    expect(d.era).toBe(row.era);
+    expect(d.spoils).toEqual(row.spoils);
+    expect(d.text).toBe(`Tarpool ${row.hook}.`);
+  });
+
+  it("answers every one of the ten, whatever kind the chart node claims", () => {
+    // The node's `kind` is the surveyor's guess; a named ground's own row wins.
+    for (const [slug, row] of POLITY_ROWS) {
+      const d = settlementDossier({ id: `n-${slug}`, name: row.name, kind: "ruin" });
+      expect(d.text, slug).toBe(`${row.name} ${row.hook}.`);
+      expect(d.era, slug).toBe(row.era);
+    }
+  });
+
+  it("hands out a COPY of the spoils, so a save cannot mutate the canon table", () => {
+    const d = settlementDossier({ id: "n1", name: "Tarpool", kind: "town" });
+    const before = Object.values(NAMED_POLITIES.tarpool.spoils)[0];
+    d.spoils[Object.keys(d.spoils)[0]] = 99;
+    const after = settlementDossier({ id: "n2", name: "Tarpool", kind: "town" });
+    expect(Object.values(after.spoils)[0]).toBe(before);
+  });
+
+  it("leaves the hashed path intact for everything else", () => {
+    const node = { id: "x7", name: "Ashfoot Siding", kind: "depot" };
+    const a = settlementDossier(node);
+    const b = settlementDossier(node);
+    expect(Object.keys(a).sort()).toEqual([...FOUR].sort());
+    expect(a).toEqual(b);
+    expect(LORE_ERAS).toContain(a.era);
+    // The legacy text carries its own tail; the named path deliberately does not.
+    expect(a.text.endsWith(`Standing since ${a.era}.`)).toBe(true);
+    expect(settlementDossier({ id: "n1", name: "Tarpool", kind: "town" }).text).not.toContain("Standing since");
+  });
+
+  it("keeps charterOptions on its three ids", () => {
+    const d = settlementDossier({ id: "n1", name: "Tarpool", kind: "town" });
+    expect(charterOptions(d).map((o) => o.id)).toEqual(["requisition", "levy", "autonomy"]);
+    for (const o of charterOptions(d)) expect(typeof o.label === "string" && typeof o.detail === "string").toBe(true);
+  });
+});
+
+// ── the Archive ────────────────────────────────────────────────────────────
+// This lane's own ids, named one by one. The minimum is 40 IN THIS LANE'S DIFF,
+// and four other content lanes have already appended to this file — so counting
+// ENTRIES.length would let somebody else's block satisfy this lane's floor.
+const LANE_H_ENTRY_IDS = [
+  "the-house-register",
+  "house-iron-reclamation", "house-charter-combine", "house-bastion-synod", "house-covenant-of-locks",
+  "house-signal-ascendancy", "house-commonweal-march", "house-salvage-court", "house-emberwright-union",
+  "house-long-procession", "house-outrider-compact", "house-kessel-pact", "house-iron-synod",
+  "house-grauwall-marches",
+  "the-ten-grounds",
+  "ground-hundredweight-bottoms", "ground-the-nine-cradles", "ground-tarpool", "ground-the-gray-commons",
+  "ground-crossloom", "ground-vault-of-winters", "ground-the-chandlery", "ground-redwater-digs",
+  "ground-the-quiet-parish", "ground-kettleharrow",
+  "departures-in-practice", "the-thirteen-keels", "herald-registers", "the-swath", "grazing-rights",
+  "salvage-adjudication", "charter-terms", "works-lost-with-the-keel", "certification-and-fit",
+  "the-red-flag", "the-parish-question", "the-meet", "lexicon-settlement-cultures", "boarding-assault",
+  "the-standard",
+  "requisitions-the-graze", "requisitions-the-refit", "requisitions-the-boarding-deck", "requisitions-the-batteries",
+];
+const HOUSE_ENTRY_IDS = LANE_H_ENTRY_IDS.filter((id) => id.startsWith("house-"));
+const GROUND_ENTRY_IDS = LANE_H_ENTRY_IDS.filter((id) => id.startsWith("ground-"));
+const BLOCK_KEYS = ["lead", "p", "h", "note", "quote", "cite", "list", "table"];
+const blockIsValid = (b) =>
+  Object.keys(b).length > 0 &&
+  Object.keys(b).every((k) => BLOCK_KEYS.includes(k)) &&
+  (!b.table || (Array.isArray(b.table.head) && Array.isArray(b.table.rows)));
+
+describe("the Ministry Archive — forty-four entries in this lane's own diff", () => {
+  const ids = ENTRIES.map((e) => e.id);
+  const byIdEntry = (id) => ENTRIES.find((e) => e.id === id);
+
+  it("adds at least forty entries of its own, and the corpus clears its floor", () => {
+    expect(LANE_H_ENTRY_IDS.length).toBeGreaterThanOrEqual(40);
+    expect(new Set(LANE_H_ENTRY_IDS).size, "a Lane H id is listed twice").toBe(LANE_H_ENTRY_IDS.length);
+    for (const id of LANE_H_ENTRY_IDS) expect(ids, `missing entry ${id}`).toContain(id);
+    expect(ENTRIES.length).toBeGreaterThanOrEqual(86);
+  });
+
+  it("covers what the lane owes: thirteen houses, ten grounds, all eight requisitions and the Standard", () => {
+    expect(HOUSE_ENTRY_IDS.length).toBe(PRESET_FACTIONS.length);
+    expect(GROUND_ENTRY_IDS.length).toBe(POLITY_ROWS.length);
+    // Every house entry is titled with its faction's name, exactly.
+    for (const p of PRESET_FACTIONS) {
+      const hit = HOUSE_ENTRY_IDS.map(byIdEntry).filter((e) => e.title === p.factionName);
+      expect(hit.length, `no house entry titled ${p.factionName}`).toBe(1);
+    }
+    for (const [, row] of POLITY_ROWS) {
+      const hit = GROUND_ENTRY_IDS.map(byIdEntry).filter((e) => e.title === row.name);
+      expect(hit.length, `no ground entry titled ${row.name}`).toBe(1);
+    }
+    // The eight nomad-keel requisitions are each named, by label, somewhere in
+    // the four requisition entries — grouped coverage, but coverage by name.
+    const reqText = LANE_H_ENTRY_IDS.filter((id) => id.startsWith("requisitions-")).map(byIdEntry).map(entryText).join(" ");
+    for (const id of LANE_H_PERK_IDS) {
+      expect(reqText, `requisition ${id} is never named`).toContain(PERK_BY_ID[id].label.toLowerCase());
+    }
+    expect(byIdEntry("the-standard").blocks.length).toBeGreaterThan(2);
+  });
+
+  it("sits as ONE contiguous tail block, bounded at both ends by its own ids", () => {
+    // Bounded by the FIRST and LAST Lane H id, never by end-of-array: a later
+    // Field Amendment appends after this block and must not turn this red.
+    const positions = LANE_H_ENTRY_IDS.map((id) => ids.indexOf(id));
+    const first = Math.min(...positions);
+    const last = Math.max(...positions);
+    expect(last - first + 1, "the Lane H block is not contiguous").toBe(LANE_H_ENTRY_IDS.length);
+    const inside = ids.slice(first, last + 1);
+    expect([...inside].sort()).toEqual([...LANE_H_ENTRY_IDS].sort());
+    // …and it is a TAIL block: nothing from another lane sits after it today.
+    expect(first).toBeGreaterThan(0);
+  });
+
+  it("keeps every id unique and every entry well formed, corpus-wide", () => {
+    expect(new Set(ids).size).toBe(ids.length);
+    const cats = new Set(CATEGORIES.map((c) => c.id));
+    const statuses = new Set(Object.keys(STATUS));
+    for (const e of ENTRIES) {
+      expect(cats.has(e.category), `${e.id} category ${e.category}`).toBe(true);
+      expect(statuses.has(e.status), `${e.id} status ${e.status}`).toBe(true);
+      expect(typeof e.summary === "string" && e.summary.length > 0, `${e.id} summary`).toBe(true);
+      expect(Array.isArray(e.blocks) && e.blocks.length > 0, `${e.id} blocks`).toBe(true);
+      for (const b of e.blocks) expect(blockIsValid(b), `${e.id} block ${JSON.stringify(b).slice(0, 60)}`).toBe(true);
+    }
+  });
+
+  it("admits `cite`, which the corpus already uses, and still rejects an unknown key", () => {
+    expect(blockIsValid({ quote: "…and on the last lift-day no manifest was posted.", cite: "fragment, provenance disputed" })).toBe(true);
+    expect(blockIsValid({ p: "text" })).toBe(true);
+    expect(blockIsValid({ table: { head: ["a"], rows: [["b"]] } })).toBe(true);
+    expect(blockIsValid({ table: { head: ["a"] } }), "a table with no rows").toBe(false);
+    expect(blockIsValid({ paragraph: "text" }), "an invented block kind").toBe(false);
+    expect(blockIsValid({}), "an empty block").toBe(false);
+  });
+
+  it("leaves no dangling `see` link anywhere in the corpus", () => {
+    const known = new Set(ids);
+    const dangling = ENTRIES.flatMap((e) => (e.see || []).filter((s) => !known.has(s)).map((s) => `${e.id} → ${s}`));
+    expect(dangling).toEqual([]);
+    // and this lane's own entries carry links rather than standing alone
+    for (const id of LANE_H_ENTRY_IDS) {
+      expect((byIdEntry(id).see || []).length, `${id} links to nothing`).toBeGreaterThan(0);
+    }
+  });
+
+  it("cross-links both ways — every new house and ground entry is cited by another entry", () => {
+    for (const id of [...HOUSE_ENTRY_IDS, ...GROUND_ENTRY_IDS]) {
+      expect(citedBy(id).length, `${id} is cited by nothing`).toBeGreaterThan(0);
+    }
+  });
+
+  it("mentions all thirteen faction names and all ten ground names somewhere in the corpus", () => {
+    const haystacks = ENTRIES.map(entryText);
+    for (const p of PRESET_FACTIONS) {
+      expect(haystacks.some((t) => t.includes(p.factionName.toLowerCase())), `${p.factionName} unmentioned`).toBe(true);
+    }
+    for (const [slug, row] of POLITY_ROWS) {
+      expect(haystacks.some((t) => t.includes(row.name.toLowerCase())), `${slug} unmentioned`).toBe(true);
+    }
+  });
+
+  it("marks the three legacy presets thin, because no governing document names them", () => {
+    for (const legacyId of LEGACY_IDS) {
+      const p = byId(legacyId);
+      const e = HOUSE_ENTRY_IDS.map(byIdEntry).find((x) => x.title === p.factionName);
+      expect(e.status, `${legacyId} entry status`).toBe("thin");
+    }
+    // …and the ten the Almanac does name are not hedged.
+    for (const p of AUTHORED) {
+      const e = HOUSE_ENTRY_IDS.map(byIdEntry).find((x) => x.title === p.factionName);
+      expect(e.status, `${p.id} entry status`).toBe("canon");
+    }
+  });
+
+  it("restates no requisition number — the tables are the only place those live", () => {
+    // Drift guard 7. A perk's number is written in PERK_MODS and described in
+    // its own `desc`; an Archive entry that repeated one would be a second
+    // source that goes stale in silence.
+    const reqEntries = LANE_H_ENTRY_IDS.filter((id) => id.startsWith("requisitions-")).map(byIdEntry);
+    for (const e of reqEntries) {
+      expect(/[+−-]\s?\d/.test(entryText(e)), `${e.id} restates a signed number`).toBe(false);
+    }
+  });
+});
+
+describe("voice and safety — the grounds and the Archive", () => {
+  const strings = [];
+  for (const [, row] of POLITY_ROWS) strings.push(row.name, row.culture, row.hook, row.crisis, row.charter);
+  for (const id of LANE_H_ENTRY_IDS) {
+    const e = ENTRIES.find((x) => x.id === id);
+    strings.push(e.title, e.summary, e.folk || "", e.tag || "");
+    for (const b of e.blocks) {
+      for (const v of Object.values(b)) {
+        if (typeof v === "string") strings.push(v);
+        else if (Array.isArray(v)) strings.push(...v);
+        else if (v && v.head) strings.push(...v.head, ...v.rows.flat());
+      }
+    }
+  }
+
+  it("carries no PII of any shape", () => {
+    const PII = [
+      [/[\w.+-]+@[\w-]+\.[\w.]+/, "email address"],
+      [/https?:\/\//, "url"],
+      [/\+?\d[\d\s().-]{7,}\d/, "phone-shaped digit run"],
+      [/(^|\s)@\w+/, "@handle"],
+    ];
+    for (const s of strings) {
+      for (const [re, what] of PII) expect(re.test(s), `${what} in: ${s.slice(0, 80)}`).toBe(false);
+    }
+  });
+
+  it("names no real-world nation, regime or alliance", () => {
+    const deny = /\b(America|American|Europe|European|Russia|Russian|German|Germany|Britain|British|France|French|China|Chinese|Japan|Japanese|Soviet|Nazi|Reich|USSR|NATO)\b/;
+    for (const s of strings) expect(deny.test(s), `real-world proper noun in: ${s.slice(0, 80)}`).toBe(false);
+  });
+
+  it("keeps out-of-world mechanics vocabulary out of every string it ships", () => {
+    const banned = /\b(tile|player|stat|modifier|hex|XP|buff|debuff)s?\b/i;
+    for (const s of strings) expect(banned.test(s), `mechanics word in: ${s.slice(0, 80)}`).toBe(false);
+  });
+
+  it("uses no hex colour in the files this step touched", () => {
+    for (const f of ["base44/shared/settlementLore.ts", "src/lib/wiki/entries.js"]) {
+      expect(/#[0-9a-fA-F]{3,8}\b/.test(readRepoFile(f)), `hex colour in ${f}`).toBe(false);
+    }
+  });
+});

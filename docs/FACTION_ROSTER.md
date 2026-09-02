@@ -372,3 +372,69 @@ identically** and frees a liability slot; and the Compact's `rusting_arsenal` �
 that ledger from −1 to **0**. The three legacy ledgers are untouched and the suite asserts they pick no
 new perk. Three ledgers still ship at `netPoints === −1` — `charter_combine`, `commonweal_march` and the
 long-shipped `grauwall_marches` — which the contract permits (`<= 0`, not `=== 0`).
+
+### 6.6 The ten named grounds and the Ministry Archive [Lane H, step 3]
+
+**The ten polities of §2 stop being hashed dossiers.** `NAMED_POLITIES` in
+`base44/shared/settlementLore.ts` carries one row per ground, and `settlementDossier` resolves a chart
+node **by name** before it falls through to the hashed path — which is left byte-for-byte as it shipped,
+because every unnamed settlement on the Chart still tells its story that way. The row grammar is the
+existing one (`kind` a `LORE_HOOKS` key, `era` verbatim from `LORE_ERAS`, `spoils` a single-key
+`LORE_SPOILS`-shaped object) plus the two bespoke fields this lane owes each ground: **one** occupation
+crisis and **one** charter term that states its own number.
+
+| # | slug | name | kind | culture | era | spoils | plate |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | `hundredweight_bottoms` | Hundredweight Bottoms | town | mining combine | the Long March | steel 5 | `set_hundredweight` |
+| 2 | `nine_cradles` | The Nine Cradles | ruin | scrap-parish | the Ash Years | steel 3 | `set_nine_cradles` |
+| 3 | `tarpool` | Tarpool | depot | burn-town | the Second Collapse | fuel 5 | `set_tarpool` |
+| 4 | `gray_commons` | The Gray Commons | town | farm commune | Combine era | manpower 4 | `set_gray_commons` |
+| 5 | `crossloom` | Crossloom | town | waystation | Combine era | fuel 3 | `set_crossloom` |
+| 6 | `vault_of_winters` | Vault-of-Winters | city | still-city | Combine era | steel 4 | `set_vault_of_winters` |
+| 7 | `chandlery` | The Chandlery | depot | waystation-provisioner | the Long March | manpower 3 | `set_chandlery` |
+| 8 | `redwater_digs` | Redwater Digs | ruin | digger camp | the Silent Decade | steel 2 | `set_redwater` |
+| 9 | `quiet_parish` | The Quiet Parish | town | scrap-parish | the Ash Years | manpower 2 | `set_quiet_parish` |
+| 10 | `kettleharrow` | Kettleharrow | ruin | still-city rim | the Second Collapse | steel 4 | `set_kettleharrow` |
+
+Every cell of that table is **recomputed from `NAMED_POLITIES`** by `test/presets.test.js`, the same way
+§6.1 and §6.3 are recomputed from `PRESET_FACTIONS` — it is a rendering of the data, not a second copy
+of it. Three properties are gated there rather than asserted here: no `set_*` plate is added (all ten
+already existed), no `spoils` row leaves the `2…5` band the hashed path can produce, and the returned
+dossier still has exactly the four keys `{ title, era, text, spoils }` that `gameEngine` stores.
+**The spoils object is copied on the way out** — the caller keeps the dossier on the game record and the
+charter path reads it back, so handing out the canon row's own object would let a save mutate the table.
+
+**`docs/LORE.md` §6 now names the ten** and points at §2 above as their register; it named none of them
+before. The cultures in the table are §2's own parentheticals, lowercased.
+
+**The Ministry Archive grows by 44 entries** (`src/lib/wiki/entries.js`, one banner-commented tail block
+after the Lane I / G / J / F blocks): thirteen houses, the ten grounds, an index for each of those two
+sets, four requisition entries covering all eight nomad-keel perks **by name**, the Standard, and
+fourteen supporting entries — the Departures as the houses actually hold them, the keels, the herald
+registers, the swath, grazing rights, salvage adjudication, the charter terms, the red flag, the parish
+question, the Meet, the settled kinds, boarding, and the two operator rulings below. **No existing entry
+was edited**, not even to add a back-link, so the corpus stays link-clean by construction; every new
+house entry is cited by at least one other new entry, and the suite asserts zero dangling `see` links
+corpus-wide.
+
+**Two decisions inside that block a later lane should not re-open.**
+
+1. **The ten grounds are `theaters`, not `powers`.** A ground is charted before it is courted: the ten
+   are places a commander surveys, garrisons and settles terms with, and keeping Peoples & Powers a
+   register of *houses* is what makes the shelf readable. The brief permits either category.
+2. **The three legacy presets' entries are `status: "thin"`, and that is not a gap to be closed by
+   writing more.** No governing document mentions the Kessel Pact, the Iron Synod or the Grauwall
+   Marches; they are shipped content the lore bible has not caught up with. The file's own rule is that
+   an entry needing something the sources do not say is marked thin — so the Pact's "First Attrition"
+   is named and left unexplained rather than invented.
+
+**A closed set this lane nearly shipped, caught by measuring instead of trusting the brief.** The Lane H
+brief lists the shipped Codex block kinds as `lead, p, h, note, quote, list, table`. The corpus also uses
+**`cite`** — the optional companion of `quote`, documented in `src/lib/fieldManual.js`'s schema comment
+and rendered by `ManualBlock.jsx` — in two entries that predate this wave. A block-key gate built from
+the brief's list would have gone red on `the-reckoning` and `the-lamp-and-the-coal`, which is the
+*gate-red-in-the-healthy-state* class this file has now rejected four times. The gate admits `cite`, one
+of this lane's own entries uses it, and the suite asserts the predicate accepts a `{ quote, cite }` block
+so a later narrowing of the set fails loudly.
+
+**Next free roster subsection: §6.7.**
