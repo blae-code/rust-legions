@@ -268,6 +268,7 @@ WeatherKey  = 'clear'|'rain'|'fog'|'storm'|'snow'
 // neighbors(q, r) → [{q,r}] (6, unfiltered)   ·   hexRange(field, centre, n) → [{q,r}] in-field, hexDistance ≤ n
 // hexLine(a, b) → [{q,r}] inclusive of both endpoints; hexLine(a,b) === hexLine(b,a).reverse()
 // lineOfSight(field, a, b) → boolean          ·   pathCost(field, from, to, opts?) → { cost, path: [{q,r}] } | null
+// repairConnectivity(field) → { passes, carved, forced }   (pipeline step 10; exported so it can be driven against a hand-broken board — a no-op on any board generateField produces)
 ```
 
 Effect `key` vocabulary (the engine applies these; add new keys here before using them): `unit.<type>.attack|defense|melee|ranged|armor|speed|morale`, `income.<steel|fuel|manpower>`, `armyCap`, `supplyRange`, `capitalDefense`, `initiative`, `losRange`, `digSpeed`, `fragmentYield`, `moraleTest`, `buildTurns`.
