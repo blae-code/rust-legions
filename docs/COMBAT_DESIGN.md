@@ -258,7 +258,11 @@ recruit a mortar man, it retrains a rifleman and issues him a tube. The remainin
 vehicle regiments, and each is a **single-figure squad** — one crawler, one gun, one aeroplane.
 
 *Scope: the core roster only. Appended squad types are documented and priced in
-`docs/GEAR_LIBRARY.md`; this table does not grow with them.*
+`docs/GEAR_LIBRARY.md`; this table does not grow with them. The table has no column for §4's two
+OPTIONAL `SquadType` fields, `factionLock` and `creedLock`, because no base row carries one — they
+are a growth affordance for the content lanes, and the mirror test allows any row to carry them
+(typed, and `creedLock` checked against Lane G's creed table) while requiring the base nine to carry
+neither.*
 
 | Type | Label | From | figures | melee | ranged | range | armor | speed | morale | armour | damageType | armorPen | pts |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
