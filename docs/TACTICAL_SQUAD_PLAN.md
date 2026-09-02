@@ -415,6 +415,30 @@ surface for all lanes, on the same one-banner-block, append-only, keep-both-in-l
 `imageLibrary.js` and `wiki/entries.js`. It is the ONE shared doc lanes may append to;
 `ART_MANIFEST.md` and `ORCHESTRATION_LOG.md` remain orchestrator-only.
 
+**AMENDMENT 2026-09-02 (orchestrator, Q9-Q12 — Lane C's four open questions, all ruled).**
+
+**Q9 — `relicProject` lives IN the `tacticalView` payload, not server-side only.** Lane C's amendment C2
+stands and supersedes its own C1 note. The fixture *is* the payload, and it is the only description of a
+battle that Lanes D and E ever see; a slot the server holds and the payload hides is a slot those lanes
+must re-cut the day boarding assaults fill it. Shape: `relicProject: { attacker, defender }`, both `null`
+until the capture path exists.
+
+**Q10 — `relicProject` is keyed by ROLE (`attacker`/`defender`), not by faction id.** A tactical
+engagement has exactly two participants and the whole §4 payload already addresses them by role
+(`myRole: 'attacker' | 'defender'`). "Per-faction tactical state" means the per-participant state of that
+engagement. Lane C's per-side shape is correct; do not re-cut it.
+
+**Q11 — `orderAction: 'march'` is an ENGINE-RESERVED order and correctly has no `SQUAD_ACTIONS` row.**
+Every action in Lane A's table either fires, builds, or carries `noMove: true`, which left a stand that
+only wants to close ground with no key to send. `march` is pure movement: it is **not priced** (Lane F
+gives it no `pts`), **not gated** (Lane H writes no lock for it), and never appears in a squad's
+`actions[]`. It is not a missing Lane A row. Any future engine-reserved order is added to this paragraph.
+
+**Q12 — `squads[].facing` is emitted on EVERY row, infantry included; the row shape does not vary by
+stand type.** A payload whose key set depends on the row forces every consumer to branch before it can
+read, and Lanes D and E consume this shape from a fixture they cannot regenerate. Uniform rows win.
+Infantry carry a facing that the damage model simply does not consult.
+
 Effect `key` vocabulary (the engine applies these; add new keys here before using them): `unit.<type>.attack|defense|melee|ranged|armor|speed|morale`, `income.<steel|fuel|manpower>`, `armyCap`, `supplyRange`, `capitalDefense`, `initiative`, `losRange`, `digSpeed`, `fragmentYield`, `moraleTest`, `buildTurns`.
 
 Regiments ↔ figures: `1 company = FIGURES_PER_COMPANY` (Lane A sets; default 10 for infantry-derived, 1 for crawler/artillery/fighter — vehicles are single-figure squads). `toRegiments` rounds **down** so battles never create companies.
