@@ -592,3 +592,49 @@ pre-existing and unrelated to this plan). It was repaired first — `main` is gr
 before your lane begins. Do not record an absolute test count as your success gate; other lanes add
 tests. Your gate is **0 failed** plus your own lane's named tests passing.
 
+
+---
+
+## WAVE 3 ADDENDUM — 2026-09-01 (orchestrator, AUTHORITATIVE)
+
+Waves 1 and 2 are merged. `main` is green at **934 tests**. Everything you consume now exists.
+
+### What is on main for you
+- `base44/shared/tactical.ts` + `src/lib/tactical/data.js` (Lane A) — `SQUAD_TYPES` (base nine),
+  `SPECIALISTS`, `SQUAD_ACTIONS`, `DEPLOYABLES`, `FIGURES_PER_COMPANY`, `deriveSquad`, `poolCost`,
+  `toRegiments`.
+- `base44/shared/tacticalField.ts` (Lane B) — `generateField({ seed, nodeKind, weather, fortBonus, w, h })`
+  and the LOS/A* toolkit. **Call it with Lane B's exact `fieldOpts` shape.**
+- `base44/shared/arms.ts` (Lane I) — `resolveHit`, `ARMOUR_CLASSES`, `PEN_TABLE`, `TYPE_MATRIX`.
+- `base44/shared/motorPool.ts` (Lane J) — `deriveMechanized(stand)` returning SquadType-shaped values
+  **plus `facings`**.
+
+### Hard requirements added by the operator
+1. **`test/fixtures/tactical-state.json` must come from a scripted battle that includes at least one
+   VEHICLE stand**, so a **facing selection** is actually present in the fixture. Lanes D and E build
+   against this file; if it contains only infantry, the facing path ships untested and unrendered.
+2. **`createTactical(attackerUnits, defenderUnits, fieldOpts)`** — the field is **stored on
+   `battle.tactical` at creation and NEVER regenerated**. A re-run with a changed `fortBonus` or `weather`
+   would repaint the board underneath the squads. It is 165 tile objects at 15×11.
+3. **`field.meta` must be carried through `tacticalView`** to the client. `lineOfSight()` reads
+   `meta.losCap` and throws if `meta` is missing — deliberately, because a silent default would be an
+   invisible rules change.
+4. **`GRID` → `FIELD` (15×11) is your move**, up from the old 9×7.
+5. **Drift guard 12:** penetration resolves ONLY via `resolveHit` imported from `arms.ts`. A hit on a
+   vehicle **selects a facing** — rear when the attacker occupies a hex behind the stand's facing hex.
+   You author no armour arithmetic.
+6. **§6.2 export freeze, and it is now a SUPERSET rule:** `base44/shared/tacticalEngine.ts` must keep
+   exporting `createTactical`, `submitFormations`, `autoFormations`, `autoOrders`, `resolveOrders`,
+   `activeFormation`, `battleResult`, `tacticalView`. **Nothing removed, nothing re-signatured.** You may
+   add exports (see amendment Q7); you may not take one away or change how an existing one is called.
+7. **Leave a `relicProject` slot on the per-faction tactical state you fixture.** You do NOT implement the
+   capture path — boarding assaults are a later Field Amendment — but the shape must exist now so it is
+   not re-cut later. Operator ruling: on capture the captor loots the project's unspent **materials only**;
+   the project, its progress and its housed-Object requirement are lost.
+8. `tacticalOrders` reads **`body.orderAction`** (amendment Q1), and `tacticalAuto { gameId }` is already
+   live on the platform side.
+
+### Section numbers taken
+`docs/GAME_RULES.md` `## 23` (Lane I), `## 24` (Lane G), and Lanes A and J have taken theirs. Read the
+file, take the next free number, and name it in your PR body. Do not hard-code your section number
+anywhere a renumber would silently break — the orchestrator renumbers on collision.

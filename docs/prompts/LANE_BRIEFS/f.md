@@ -880,3 +880,52 @@ pre-existing and unrelated to this plan). It was repaired first — `main` is gr
 before your lane begins. Do not record an absolute test count as your success gate; other lanes add
 tests. Your gate is **0 failed** plus your own lane's named tests passing.
 
+
+---
+
+## WAVE 3 ADDENDUM — 2026-09-01 (orchestrator, AUTHORITATIVE)
+
+Waves 1 and 2 are merged. `main` is green at **934 tests**.
+
+### Your gate is OPEN — Lane A has merged
+Your brief tells you to stop and report if Lane A has not merged. **It has.**
+`base44/shared/tactical.ts` and `src/lib/tactical/data.js` now hold `SQUAD_TYPES` (the base nine),
+`SPECIALISTS` (five), `SQUAD_ACTIONS`, `DEPLOYABLES`, `FIGURES_PER_COMPANY`, `deriveSquad`, `poolCost`
+and `toRegiments`. **You APPEND ROWS ONLY.** Lane A owns the derivations and the file structure; the
+tables were deliberately left one-row-per-line-block so you can append without restructuring. Do not
+re-key, reorder, or reformat an existing row.
+
+### The mirror test now DISCOVERS — you cannot quietly skip a mirror
+`test/tactical-mirror.test.js` (Lane A) parses every top-level `export const` out of `tactical.ts` and
+demands a mirror for each, classifying by right-hand side. If you add a table to the canonical file and
+forget `src/lib/tactical/data.js`, it goes red immediately. That is by design — it is what caught
+`CASUALTY_ORDER`, unmirrored since before this plan began.
+
+### `land_dreadnought` — one machine, two rows, and they are diffed at merge
+Lane G shipped a `RELIC_PROJECTS` row (the project that *builds* it). You ship the `SQUAD_TYPES` row (the
+stand that then *fights*). At merge the orchestrator diffs the two: **same tier `'III'`, and the same pts
+basis — squad cost, never per-figure.** The blurb and the desc must describe the same machine. Neither
+lane edits the other's file; they meet in the platform's completion handler.
+
+### Standing rulings that bind your numbers
+- **`SquadType.pts` is the SQUAD's cost.** `riflemen.pts === 100` at its 10 default figures, and Lane A
+  asserts it. Your Points Audit is computed against 100, not 10. If any draft of your brief says 10, it
+  is wrong.
+- **`FIGURES_PER_COMPANY` is keyed by REGIMENT**, not by squad type. A type's `figures` may differ freely
+  from its source regiment's company size — which is exactly why `stormtroops` at 8 or `marksmen` at 5 is
+  legal. `toRegiments` converts through the **regiment's** company size.
+- **Module effects apply on FIT, never on unlock** (operator ruling). If any upgrade kit you author is
+  modelled as an armory module, its numbers live on the fitted stand, not on the faction.
+
+### Compute, do not retype
+A Wave 1 lane published a cost curve claiming 110 RP against a table that summed to 138, restated in
+three places, checked by nothing. Your Points Audit must be **computed from `SQUAD_TYPES`**, and you must
+add a test that recomputes it from the table so it cannot rot. State no figure you have not derived.
+
+### Shared-file state
+`docs/GAME_RULES.md` `## 23` (Lane I), `## 24` (Lane G), plus Lanes A and J — read the file, take the next
+free number, name it in your PR body, and hard-code it nowhere a renumber would break.
+`IMAGE_LIBRARY` and `src/lib/wiki/entries.js` carry banner-commented tail blocks from Lanes I, G and J —
+append ONE more at the very end, never between. `IMAGE_CATEGORIES` already has `arms` and `motor`; you
+need no new key. `docs/prompts/PLATFORM_HANDOFF.md` is a sanctioned append surface (amendment Q8).
+**Do NOT edit `docs/prompts/ART_MANIFEST.md`** — report your plate keys in the PR body.
