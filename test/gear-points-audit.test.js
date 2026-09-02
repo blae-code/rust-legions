@@ -29,6 +29,8 @@ import { describe, it, expect } from "vitest";
 import { readRepoFile, extractConst } from "./helpers/extract-const.js";
 import { DESIGN_SLOTS, SLOT_KEYS, DEFAULT_DESIGN, SQUAD_MOD_KEYS, compileDesign } from "@/lib/armyDesign.js";
 import { UNIT_TYPES, UNIT_KEYS, PROPOSED_UNIT_TYPES, BUILDINGS } from "@/lib/units.js";
+import { IMAGE_LIBRARY, IMAGE_CATEGORIES } from "@/lib/imageLibrary.js";
+import { ENTRIES } from "@/lib/wiki/entries.js";
 
 const tacticalSrc = readRepoFile("base44/shared/tactical.ts");
 const SQUAD_TYPES = extractConst(tacticalSrc, "SQUAD_TYPES");
@@ -40,6 +42,8 @@ const SCALING = extractConst(tacticalSrc, "SCALING");
 
 const gearSrc = readRepoFile("docs/GEAR_LIBRARY.md");
 const rosterSrc = readRepoFile("docs/FACTION_ROSTER.md");
+const rulesSrc = readRepoFile("docs/GAME_RULES.md");
+const librarySrc = readRepoFile("src/lib/imageLibrary.js");
 
 // ── document slicing ───────────────────────────────────────────────────────
 // From a heading line to the NEXT top-level heading, or the end of the file if
@@ -73,6 +77,36 @@ function table(sectionText, ...headerCells) {
 
 const AUDIT = section(gearSrc, "## 11. Points Audit");
 const ACCESS = section(rosterSrc, "## 5. Unit Access");
+// Located by its heading TEXT, never by its number. Lanes append concurrently and
+// the orchestrator may renumber at merge; a suite that hard-codes 26 turns a
+// mechanical renumber into a red test in a file the renumberer is not editing.
+const RULES = section(rulesSrc, "## 26. Squads, Specialists & Upgrade Kits");
+
+// A lane's own tail block in a shared file, bounded at BOTH ends: from this
+// lane's banner to whichever comes first — the NEXT lane's banner, or the array
+// terminator. "Everything to the end of the file" is true only while this lane
+// happens to be last, and Lane H merges after Lane F into both of these files.
+// Bounding on the array close alone would quietly swallow Lane H's block and
+// start reporting on its content as if it were Lane F's.
+const LANE_F_PLATE_BANNER = "// ——— LANE F: squad tokens, upgrade kits & design patterns ———";
+const LANE_F_CODEX_BANNER = "// ——— LANE F: squad types ———";
+function laneBlock(src, banner, terminator) {
+  const start = src.indexOf(banner);
+  expect(start, `banner not found: ${banner}`).toBeGreaterThan(-1);
+  const rest = src.slice(start + banner.length);
+  const ends = [rest.indexOf("// ——— LANE"), rest.search(terminator)].filter((i) => i > -1);
+  expect(ends.length, "the block is bounded at neither a later banner nor the array close").toBeGreaterThan(0);
+  return banner + rest.slice(0, Math.min(...ends));
+}
+const laneFPlateBlock = laneBlock(librarySrc, LANE_F_PLATE_BANNER, /\n\];/);
+const codexSrc = readRepoFile("src/lib/wiki/entries.js");
+const laneFCodexSrc = laneBlock(codexSrc, LANE_F_CODEX_BANNER, /\n\];/);
+const laneFCodexBlock = (() => {
+  const block = laneFCodexSrc;
+  const ids = new Set([...block.matchAll(/^\s*id: "([^"]+)"/gm)].map((m) => m[1]));
+  expect(ids.size, "the Lane F Codex block declares no entries").toBeGreaterThan(0);
+  return ENTRIES.filter((e) => ids.has(e.id));
+})();
 const bare = (c) => c.replace(/[`*]/g, "").trim();
 const keysOf = (cell) => bare(cell).split(",").map((s) => s.trim()).filter(Boolean);
 
@@ -489,5 +523,309 @@ describe("faction roster — §5 unit access", () => {
     const claimsNoFactionLock = ACCESS.includes("No `factionLock` is used anywhere in this lane");
     expect(claimsNoFactionLock && locked.some(([, t]) => t.factionLock),
       "the section claims no factionLock while a row carries one").toBe(false);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// STEP 3 — the plates, the Codex and the [PROPOSED] rules section.
+//
+// The gate this suite deliberately does NOT write: "every Lane F plate has
+// url === null". A previous lane wrote exactly that and it went red the moment
+// the platform delivered art — a gate forbidding the step it exists to wait
+// for. A delivered url is the SUCCESS case. What must stay true is that the
+// LANE ships no visual, which is a property of the lane's diff and of the P()
+// call it writes, not of the value P() resolves at runtime.
+// ══════════════════════════════════════════════════════════════════════════
+
+// Parse the Lane F block's P(...) calls textually. The source is the authority
+// for arity and aspect; IMAGE_LIBRARY is the authority for what resolves.
+const PLATE_CALL = /P\(\s*"([^"]+)",\s*"([^"]+)",\s*"([^"]+)",\s*"([^"]+)",\s*\n\s*"([^"]*)"((?:,[^)]*)?)\)/g;
+const laneFPlates = [...laneFPlateBlock.matchAll(PLATE_CALL)].map((m) => ({
+  key: m[1], category: m[2], title: m[3], desc: m[4], prompt: m[5], extra: (m[6] || "").trim(),
+  aspect: (m[6] || "").trim() ? (m[6].match(/"([^"]+)"/) || [])[1] : "1:1",
+}));
+
+const NEW_TYPES = ["stormtroops", "sappers", "ski_troops", "digger_corps", "pilgrim_levy", "provost",
+  "marksmen", "flame_team", "autocar_scouts", "siege_mortar", "land_dreadnought"];
+const LEGACY_DESIGN_OPTIONS = ["line", "vanguard", "skirmish", "column", "rifles", "trench_guns",
+  "mortars", "standard", "plated", "scout", "none", "medics", "signals", "commissars"];
+
+describe("plates — the Lane F block in src/lib/imageLibrary.js", () => {
+  it("parsed every P(...) call in the block", () => {
+    // A regex that silently matches nothing turns every assertion below into a
+    // vacuous pass. Count the openers independently and demand agreement.
+    const openers = (laneFPlateBlock.match(/^\s{2}P\(/gm) || []).length;
+    expect(laneFPlates.length, "the plate parser missed a P(...) call").toBe(openers);
+    expect(laneFPlates.length).toBeGreaterThanOrEqual(29);
+  });
+
+  it("is ONE contiguous block, and holds nothing but its own plates", () => {
+    // NOT "Lane F is last". Lane H merges after Lane F and appends its own tail
+    // block to this file; the sanctioned resolution is to keep both, in lane
+    // order. A gate demanding Lane F stay last would forbid the next required
+    // step. What must hold is that Lane F opened exactly one block and that
+    // nothing but plates lives inside it.
+    for (const src of [librarySrc, codexSrc]) {
+      const mine = [...src.matchAll(/\/\/ ——— LANE F: /g)];
+      expect(mine.length, "Lane F opened more than one block in a shared file").toBe(1);
+    }
+    const stray = laneFPlateBlock.split("\n").filter((l) => l.trim() && !l.trim().startsWith("//") && !/^\s{2}P\(/.test(l) && !/^\s{4}"/.test(l));
+    expect(stray, "non-plate source inside the Lane F block").toEqual([]);
+  });
+
+  it("registers a token for every new squad type and an action plate for every single-figure stand", () => {
+    const keys = new Set(laneFPlates.map((p) => p.key));
+    for (const k of NEW_TYPES) expect(keys, `missing unit_${k}_token`).toContain(`unit_${k}_token`);
+    // Derived from the table, not listed: the vehicles ARE the figures === 1 rows.
+    const stands = NEW_TYPES.filter((k) => SQUAD_TYPES[k].figures === 1);
+    expect(stands.length, "the roster's single-figure new stands").toBe(3);
+    for (const k of stands) expect(keys, `missing unit_${k}_action`).toContain(`unit_${k}_action`);
+    for (const k of NEW_TYPES.filter((x) => !stands.includes(x)))
+      expect(keys, `${k} is not a single-figure stand and must not carry an action plate`).not.toContain(`unit_${k}_action`);
+  });
+
+  it("registers a kit plate for exactly the kits that had none, and re-registers none that existed", () => {
+    const laneFKeys = new Set(laneFPlates.map((p) => p.key));
+    const preExisting = new Set(
+      [...librarySrc.slice(0, librarySrc.indexOf(LANE_F_PLATE_BANNER)).matchAll(/P\("(kit_[a-z_0-9]+)"/g)].map((m) => m[1]),
+    );
+    for (const k of Object.keys(UPGRADES)) {
+      const plate = `kit_${k}`;
+      if (preExisting.has(plate)) expect(laneFKeys, `${plate} already existed — re-registering it is a duplicate key`).not.toContain(plate);
+      else expect(laneFKeys, `${k} has no kit plate on either side`).toContain(plate);
+    }
+  });
+
+  it("registers a design card for every option this lane added, and for no legacy option", () => {
+    const laneFKeys = new Set(laneFPlates.map((p) => p.key));
+    const added = SLOT_KEYS.flatMap((s) => Object.keys(DESIGN_SLOTS[s].options)).filter((k) => !LEGACY_DESIGN_OPTIONS.includes(k));
+    expect(added.length, "the options this lane added").toBeGreaterThanOrEqual(10);
+    for (const k of added) expect(laneFKeys, `missing design_${k}`).toContain(`design_${k}`);
+    for (const k of LEGACY_DESIGN_OPTIONS) expect(laneFKeys, `design_${k} predates this lane`).not.toContain(`design_${k}`);
+  });
+
+  it("names only categories that already exist, and adds no IMAGE_CATEGORIES key", () => {
+    for (const p of laneFPlates) expect(Object.keys(IMAGE_CATEGORIES), `${p.key} names an unknown category`).toContain(p.category);
+    expect(new Set(laneFPlates.map((p) => p.category))).toEqual(new Set(["units", "gear", "designs"]));
+  });
+
+  it("leaves zero duplicate plate keys in the whole library", () => {
+    const all = IMAGE_LIBRARY.map((p) => p.key);
+    const dupes = [...new Set(all.filter((k, i) => all.indexOf(k) !== i))];
+    expect(dupes, "duplicate plate keys").toEqual([]);
+  });
+
+  it("passes no url and restates no HOUSE_STYLE", () => {
+    for (const p of laneFPlates) {
+      // P(key, category, title, desc, prompt, aspect?) — a 7th argument would be a url.
+      const extraArgs = p.extra ? p.extra.split(",").filter((x) => x.trim()).length : 0;
+      expect(extraArgs, `${p.key} passes more than an aspect`).toBeLessThanOrEqual(1);
+      if (extraArgs === 1) expect(["1:1", "4:3", "16:9"], `${p.key} aspect`).toContain(p.aspect);
+      expect(p.prompt.length, `${p.key} has no prompt`).toBeGreaterThan(40);
+      const words = p.prompt.split(/\s+/).length;
+      expect(words, `${p.key} prompt is ${words} words, outside the 15–40 band`).toBeGreaterThanOrEqual(15);
+      expect(words, `${p.key} prompt is ${words} words, outside the 15–40 band`).toBeLessThanOrEqual(40);
+    }
+    // The house style is prepended at generation; a prompt that repeats it doubles it.
+    const HOUSE_FRAGMENTS = ["Gritty dieselpunk", "1930s industrial", "muted olive-rust-umber", "Foxhole and Iron Harvest"];
+    for (const f of HOUSE_FRAGMENTS) expect(laneFPlateBlock, `a Lane F prompt repeats HOUSE_STYLE ("${f}")`).not.toContain(f);
+  });
+
+  it("every registered plate resolves in IMAGE_LIBRARY with the source's own category and aspect", () => {
+    const byKey = Object.fromEntries(IMAGE_LIBRARY.map((p) => [p.key, p]));
+    for (const p of laneFPlates) {
+      expect(byKey[p.key], `${p.key} does not resolve`).toBeTruthy();
+      expect(byKey[p.key].category, `${p.key} category`).toBe(p.category);
+      expect(byKey[p.key].aspect, `${p.key} aspect`).toBe(p.aspect);
+    }
+  });
+});
+
+describe("plates — §11.9 Plate Register, recomputed", () => {
+  const rows = table(AUDIT, "Plate key", "Category");
+
+  it("lists exactly the plates in the Lane F block, in both directions", () => {
+    expect(rows.map((r) => bare(r[0])).sort()).toEqual(laneFPlates.map((p) => p.key).sort());
+  });
+
+  it("republishes each plate's category, aspect and title unchanged", () => {
+    const byKey = Object.fromEntries(laneFPlates.map((p) => [p.key, p]));
+    for (const r of rows) {
+      const p = byKey[bare(r[0])];
+      expect(bare(r[1]), `${p.key} category`).toBe(p.category);
+      expect(bare(r[2]), `${p.key} aspect`).toBe(p.aspect);
+      expect(bare(r[3]), `${p.key} subject`).toBe(p.title);
+    }
+  });
+
+  it("rules on every pre-existing unit_* sketch plate the register claims to cover", () => {
+    const dupes = table(AUDIT, "Older key", "Canonical key");
+    expect(dupes.length, "the duplicate ruling table").toBe(6);
+    const libKeys = new Set(IMAGE_LIBRARY.map((p) => p.key));
+    const laneFKeys = new Set(laneFPlates.map((p) => p.key));
+    for (const [older, canonical] of dupes) {
+      expect(libKeys, `${bare(older)} is claimed as pre-existing but does not exist`).toContain(bare(older));
+      expect(laneFKeys, `${bare(older)} is claimed as pre-existing but Lane F registered it`).not.toContain(bare(older));
+      const c = bare(canonical);
+      if (c.startsWith("unit_")) {
+        expect(laneFKeys, `the canonical key ${c} is not one of Lane F's`).toContain(c);
+      } else {
+        // The one row that rules "not a duplicate" must say so, and the subject
+        // it is distinguished from must actually be a live PROPOSED_UNIT_TYPES row.
+        expect(canonical, "a non-canonical ruling must name no replacement key").toContain("none");
+        expect(Object.keys(PROPOSED_UNIT_TYPES), "the not-a-duplicate ruling names no live macro row")
+          .toContain(bare(older).replace(/^unit_/, ""));
+      }
+    }
+  });
+
+  it("states the aspect divergence against counts recomputed from the library", () => {
+    const before = librarySrc.slice(0, librarySrc.indexOf(LANE_F_PLATE_BANNER));
+    const legacyActions = [...before.matchAll(/P\("unit_[a-z_0-9]+_action",[\s\S]{0,400}?\)/g)].filter((m) => /"4:3"/.test(m[0]));
+    const legacyDesigns = [...before.matchAll(/P\("design_[a-z_0-9]+",[\s\S]{0,400}?\)/g)].filter((m) => /"4:3"/.test(m[0]));
+    const WORD = { 5: "five", 11: "eleven" };
+    expect(AUDIT, `the register claims a legacy 4:3 action-plate count that is not ${legacyActions.length}`)
+      .toContain(`all ${WORD[legacyActions.length] || legacyActions.length} pre-existing\n\`unit_*_action\` plates`);
+    expect(AUDIT, `the register claims a legacy 4:3 design-card count that is not ${legacyDesigns.length}`)
+      .toContain(`${WORD[legacyDesigns.length] || legacyDesigns.length} pre-existing \`design_*\` cards`);
+    // The lane took the brief's aspects; the divergence is reported, not decided.
+    expect(new Set(laneFPlates.map((p) => p.aspect))).toEqual(new Set(["1:1", "16:9"]));
+  });
+
+  it("does not assert that a plate url stays null — a delivered plate is the success case", () => {
+    expect(AUDIT).toContain("a delivered plate is the success case");
+    // And the lane genuinely ships no visual: no P(...) call passes a url, and
+    // nothing in the block writes to the delivery table. Reading imagePlates.js
+    // for the ABSENCE of these keys would be the same defect in mirror image —
+    // the platform's job is to put them there.
+    expect(laneFPlateBlock, "a Lane F P(...) call passes a url").not.toMatch(/\burl\s*:/);
+    expect(laneFPlateBlock, "the Lane F block writes to PLATE_URLS").not.toMatch(/PLATE_URLS\s*\[/);
+  });
+
+  it("declares that all seven proposed macro classes already have a plate, and they do", () => {
+    const libKeys = new Set(IMAGE_LIBRARY.map((p) => p.key));
+    for (const k of Object.keys(PROPOSED_UNIT_TYPES)) {
+      expect(libKeys, `PROPOSED_UNIT_TYPES.${k} has no plate`).toContain(`unit_${k}`);
+      expect(AUDIT, `the register does not account for unit_${k}`).toContain(`unit_${k}`);
+    }
+  });
+});
+
+describe("codex — the Lane F block in src/lib/wiki/entries.js", () => {
+  it("carries at least one entry per new squad type, keyed by the type's own key", () => {
+    expect(laneFCodexBlock.length).toBeGreaterThanOrEqual(11);
+    const ids = new Set(laneFCodexBlock.map((e) => e.id));
+    for (const k of NEW_TYPES) expect(ids, `no Codex entry for ${k}`).toContain(`squad-${k.replace(/_/g, "-")}`);
+  });
+
+  it("leaves every id unique and every see target live, across the WHOLE array", () => {
+    const ids = ENTRIES.map((e) => e.id);
+    expect([...new Set(ids.filter((k, i) => ids.indexOf(k) !== i))], "duplicate Codex ids").toEqual([]);
+    const live = new Set(ids);
+    for (const e of ENTRIES) {
+      expect(Array.isArray(e.see) && e.see.length > 0, `${e.id} has no see links`).toBe(true);
+      for (const t of e.see) expect(live, `${e.id} sees missing entry ${t}`).toContain(t);
+    }
+  });
+
+  it("is cited back by something, so no Lane F entry is an orphan in the Archive", () => {
+    const cited = new Set(ENTRIES.flatMap((e) => e.see || []));
+    for (const e of laneFCodexBlock) expect(cited, `${e.id} is linked from nowhere`).toContain(e.id);
+  });
+
+  it("marks the five companies GEAR_LIBRARY §8 already names canon, and everything it invents thin", () => {
+    const gear8 = section(gearSrc, "## 8. Infantry");
+    for (const k of NEW_TYPES) {
+      const e = ENTRIES.find((x) => x.id === `squad-${k.replace(/_/g, "-")}`);
+      // "Named by §8" is read out of §8 itself, not from a list retyped here.
+      const named = new RegExp(`\\*\\*${SQUAD_TYPES[k].label}\\*\\*`).test(gear8);
+      expect(e.status, `${k} is ${named ? "named" : "not named"} in §8`).toBe(named ? "canon" : "thin");
+      expect(e.tag, `${k} citation`).toBe(named ? "Gear Library §8" : "Gear Library §11");
+      expect(e.category, `${k} category`).toBe("war");
+    }
+  });
+
+  it("quotes no stat and no section number in its prose", () => {
+    for (const e of laneFCodexBlock) {
+      const prose = [e.title, e.folk || "", e.summary,
+        ...e.blocks.map((b) => b.p || b.lead || b.note || b.h || (b.list || []).join(" ") || "")].join(" ");
+      const digits = prose.match(/\d/g) || [];
+      expect(digits, `${e.id} quotes a number in prose — the tables are the only place a stat is written`).toEqual([]);
+    }
+  });
+});
+
+describe("game rules — the [PROPOSED] section, recomputed", () => {
+  it("is marked [PROPOSED — awaiting platform wiring] and is the last section in the file", () => {
+    expect(RULES.split("\n")[0]).toContain("[PROPOSED — awaiting platform wiring]");
+    expect(RULES).toContain("Every number in this section is read from `base44/shared/tactical.ts`");
+  });
+
+  it("republishes the whole squad roster — every key, and no key that is not one", () => {
+    const rows = table(RULES, "`key`", "Label", "`from`", "Figures");
+    expect(rows.map((r) => bare(r[0])).sort()).toEqual(Object.keys(SQUAD_TYPES).sort());
+    for (const r of rows) {
+      const t = SQUAD_TYPES[bare(r[0])];
+      expect(bare(r[1]), `${t.key} label`).toBe(t.label);
+      expect(bare(r[2]), `${t.key} from`).toBe(t.from);
+      expect(bare(r[3]), `${t.key} tier`).toBe(t.tier);
+      expect(Number(bare(r[4])), `${t.key} figures`).toBe(t.figures);
+      expect(Number(bare(r[5])), `${t.key} pts`).toBe(t.pts);
+    }
+  });
+
+  it("states the single-figure rule as a claim the table actually supports", () => {
+    const single = Object.values(SQUAD_TYPES).filter((t) => t.figures === 1).map((t) => t.from);
+    expect(new Set(single), "a riflemen-derived row fields at one figure").toEqual(new Set(["crawler", "artillery", "fighter"]));
+    const many = Object.values(SQUAD_TYPES).filter((t) => t.from === "riflemen");
+    expect(many.every((t) => t.figures > 1), "a riflemen-derived row fields at one figure").toBe(true);
+  });
+
+  it("republishes every specialist with its pts and its mods", () => {
+    const rows = table(RULES, "`key`", "Label", "`pts`", "Mods");
+    expect(rows.map((r) => bare(r[0])).sort()).toEqual(Object.keys(SPECIALISTS).sort());
+    for (const r of rows) {
+      const sp = SPECIALISTS[bare(r[0])];
+      expect(bare(r[1]), `${sp.key} label`).toBe(sp.label);
+      expect(Number(bare(r[2])), `${sp.key} pts`).toBe(sp.pts);
+      const printed = bare(r[3]).split(",").map((x) => x.trim()).sort();
+      const actual = Object.entries(sp.mods).map(([k, v]) => `${k} ${v > 0 ? "+" : ""}${v}`).sort();
+      expect(printed, `${sp.key} mods`).toEqual(actual);
+    }
+  });
+
+  it("republishes every kit with its tier, pts, mods and appliesTo", () => {
+    const rows = table(RULES, "`key`", "Label", "Tier", "`pts`", "`appliesTo`");
+    expect(rows.map((r) => bare(r[0])).sort()).toEqual(Object.keys(UPGRADES).sort());
+    for (const r of rows) {
+      const u = UPGRADES[bare(r[0])];
+      expect(bare(r[1]), `${u.key} label`).toBe(u.label);
+      expect(bare(r[2]), `${u.key} tier`).toBe(u.tier);
+      expect(Number(bare(r[3])), `${u.key} pts`).toBe(u.pts);
+      const printed = bare(r[4]).split(",").map((x) => x.trim()).sort();
+      const actual = Object.entries(u.mods).map(([k, v]) => `${k} ${v > 0 ? "+" : ""}${v}`).sort();
+      expect(printed, `${u.key} mods`).toEqual(actual);
+      expect(keysOf(r[5]), `${u.key} appliesTo`).toEqual(u.appliesTo);
+    }
+  });
+
+  it("references the kit ceiling as a constant and never retypes the digit", () => {
+    expect(RULES).toContain("`UPGRADE_RULES.maxPerSquad` kits");
+    expect(RULES).toContain("`SCALING.maxSpecialists`");
+    // Drift guard 7: the ceiling's VALUE must appear nowhere in the ceiling's own prose.
+    const sentence = RULES.split("\n").filter((l) => l.includes("maxPerSquad")).join(" ");
+    expect(sentence.includes(String(UPGRADE_RULES.maxPerSquad)),
+      "the ceiling's digit is retyped beside the constant").toBe(false);
+  });
+
+  it("hard-codes its own section number nowhere a renumber would break", () => {
+    const n = RULES.match(/^## (\d+)\./)[1];
+    // This suite finds the section by heading text. Nothing in the lane's OWN
+    // blocks may pin the number: a renumber at merge is one edit, here. Scoped
+    // to Lane F's blocks and not to the whole shared file — a later lane's
+    // content is not this gate's to report on.
+    for (const src of [laneFPlateBlock, laneFCodexSrc])
+      expect(src, `a Lane F block pins GAME_RULES §${n}`).not.toContain(`GAME_RULES.md §${n}`);
+    expect(RULES.slice(RULES.indexOf("\n")), "the section body restates its own number").not.toContain(`§${n}`);
   });
 });

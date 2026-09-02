@@ -521,3 +521,83 @@ honest statement is that the model is a squad-type pricing instrument and not a 
 this lane did not touch them. Translating their multipliers into `mods` is a platform-handoff item;
 until it happens, `compileDesign(...).mods` describes only the options that declare it.
 
+### 11.9 Plate Register
+
+Twenty-nine plates, appended as one contiguous banner-commented block at the very end of
+`IMAGE_LIBRARY` — after Lanes I, G and J, never between them. Every one is a **request**: this
+lane passes no `url` and writes nothing into `src/lib/imagePlates.js`. `P()` resolves each url
+from `PLATE_URLS` when the platform delivers, so a plate going live is the normal case and not a
+drift. No prompt restates `HOUSE_STYLE`; it is prepended at generation.
+
+| Plate key | Category | Aspect | Subject |
+| --- | --- | --- | --- |
+| `unit_stormtroops_token` | units | 1:1 | Stormtroops — Token |
+| `unit_sappers_token` | units | 1:1 | Sappers — Token |
+| `unit_ski_troops_token` | units | 1:1 | Ski Troops — Token |
+| `unit_digger_corps_token` | units | 1:1 | Digger Corps — Token |
+| `unit_pilgrim_levy_token` | units | 1:1 | Pilgrim Levy — Token |
+| `unit_provost_token` | units | 1:1 | Provost Section — Token |
+| `unit_marksmen_token` | units | 1:1 | Marksmen — Token |
+| `unit_flame_team_token` | units | 1:1 | Flame Team — Token |
+| `unit_autocar_scouts_token` | units | 1:1 | Autocar Scouts — Token |
+| `unit_siege_mortar_token` | units | 1:1 | Siege Mortar — Token |
+| `unit_land_dreadnought_token` | units | 1:1 | Land Dreadnought — Token |
+| `unit_autocar_scouts_action` | units | 16:9 | Autocar Scouts — Action Plate |
+| `unit_siege_mortar_action` | units | 16:9 | Siege Mortar — Action Plate |
+| `unit_land_dreadnought_action` | units | 16:9 | Land Dreadnought — Action Plate |
+| `kit_marksman_pattern` | gear | 1:1 | Kit — Marksman Pattern |
+| `kit_drum_magazines` | gear | 1:1 | Kit — Drum Magazines |
+| `kit_gas_shells` | gear | 1:1 | Kit — Gas Shells |
+| `kit_radio_pack` | gear | 1:1 | Kit — Radio Pack |
+| `design_dispersed` | designs | 1:1 | Formation — Dispersed Order |
+| `design_echelon` | designs | 1:1 | Formation — Echelon Refused |
+| `design_automatics` | designs | 1:1 | Kit — Automatic Rifles |
+| `design_long_rifles` | designs | 1:1 | Kit — Long Rifles |
+| `design_shaped_charges` | designs | 1:1 | Kit — Shaped Charges |
+| `design_entrenching` | designs | 1:1 | Armor — Entrenching Issue |
+| `design_sealed_hoods` | designs | 1:1 | Armor — Sealed Hoods |
+| `design_light_order` | designs | 1:1 | Armor — Light Marching Order |
+| `design_heavy_plate` | designs | 1:1 | Armor — Siege Harness |
+| `design_chaplaincy` | designs | 1:1 | Support — Chaplaincy Detachment |
+| `design_observers` | designs | 1:1 | Support — Observation Section |
+
+**Aspect — a divergence, named rather than silently chosen.** The lane brief mandates `1:1` for
+tokens, kit plates and design cards (the `P()` default, so it is omitted) and `16:9` for the three
+action plates. The rows already in those two categories do not agree with it: all five pre-existing
+`unit_*_action` plates and all eleven pre-existing `design_*` cards are stamped `4:3`. This lane
+followed the brief, so the `designs` category now holds two aspects and so does the action set. That
+is a rendering decision, not a data one, and it belongs to whoever owns the Design Bureau grid — the
+platform lane should either re-stamp this block to `4:3` or re-stamp the legacy rows, in one edit,
+rather than have two content lanes each guess. The suite asserts that the aspect printed in the table
+above is the aspect in the source, and recomputes both legacy counts from the library — it asserts
+nothing about which aspect is *right*, because that is not this lane's call to make.
+
+**Six pre-existing `unit_*` sketch plates, and which key is canonical.** Drift guard 10 forbids
+renaming an existing plate key — live saves and delivered art reference them — so the older rows are
+left exactly as they are and the canonical `unit_<key>_token` keys were added alongside. Five are
+genuine duplicates of a Lane F subject and the platform should generate **one** image for each pair.
+The sixth is not a duplicate at all, and saying so is the point of listing it.
+
+| Older key | Canonical key | Ruling |
+| --- | --- | --- |
+| `unit_stormtroops` | `unit_stormtroops_token` | Same subject. Generate once, against the canonical key. |
+| `unit_sappers` | `unit_sappers_token` | Same subject. Generate once, against the canonical key. |
+| `unit_ski_troops` | `unit_ski_troops_token` | Same subject. Generate once, against the canonical key. |
+| `unit_digger_corps` | `unit_digger_corps_token` | Same subject. Generate once, against the canonical key. |
+| `unit_pilgrim_levy` | `unit_pilgrim_levy_token` | Same subject. Generate once, against the canonical key. |
+| `unit_provost_column` | *(none — keep it)* | **Not a duplicate.** It is the macro support class `PROPOSED_UNIT_TYPES.provost_column` — a column of police waggons policing an occupied settlement. The tactical squad type is `provost`, a six-figure discipline section, and its plate is `unit_provost_token`. Two subjects, two images. |
+
+**The seven proposed macro support classes need no new plate.** `unit_draught_column`,
+`unit_siege_train`, `unit_bridging_train`, `unit_signals_wagon`, `unit_salvage_detachment`,
+`unit_hospital_train` and `unit_provost_column` are all already registered, which is exactly why
+§11.6 drew its rows from that list.
+
+**This register is recomputed, not transcribed.** `test/gear-points-audit.test.js` parses the table
+above back out of this document and rebuilds every cell from the Lane F block in
+`src/lib/imageLibrary.js` — key, category and aspect. It asserts set equality in both directions, so
+a plate added to the block and not to the table is red, and so is a row here naming a plate that does
+not exist. It deliberately asserts **nothing about `url`**: a delivered plate is the success case.
+An earlier lane gated on every url being `null` and went red the moment the platform delivered art,
+which is a gate forbidding the step it exists to wait for. The rule this lane holds itself to is that
+*the lane ships no visual* — no image file, no SVG, no `PLATE_URLS` entry, no `imagePlates.js` edit —
+and the diff is what proves it.
