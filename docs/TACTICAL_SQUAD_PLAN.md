@@ -354,6 +354,22 @@ WeatherKey  = 'clear'|'rain'|'fog'|'storm'|'snow'
 // repairConnectivity(field) → { passes, carved, forced }   (pipeline step 10; exported so it can be driven against a hand-broken board — a no-op on any board generateField produces)
 ```
 
+**AMENDMENT 2026-09-01 (orchestrator, Q7 — raised by Lane J) — §4 is a CONTRACT, not an export whitelist.**
+A lane may export additional pure helpers beyond the shapes named here, provided (a) every contracted
+export keeps its exact name and signature, (b) any added optional parameter leaves the contracted
+call form behaving identically, and (c) the lane pins its full export surface in a test so the superset
+cannot grow unnoticed. Lane J's `MOTOR_MODEL`, `evaluateVehicleQuirk` and its two optional `ctx`
+parameters are **blessed** on those terms — they are pinned by `test/motor-mirror.test.js`. Consumers
+(Lanes A, C, D) code against the contracted surface only.
+
+**AMENDMENT 2026-09-01 (orchestrator, Q8 — raised by Lane J) — `docs/prompts/PLATFORM_HANDOFF.md` is a
+sanctioned append surface for EVERY lane.** §3's owned-file lists do not name it, which made a lane's own
+ownership gate read it as an unauthorised eleventh path. The kickoff has always required the opposite —
+"collect every such need into `docs/prompts/PLATFORM_HANDOFF.md`" — so the file is hereby an append
+surface for all lanes, on the same one-banner-block, append-only, keep-both-in-lane-order protocol as
+`imageLibrary.js` and `wiki/entries.js`. It is the ONE shared doc lanes may append to;
+`ART_MANIFEST.md` and `ORCHESTRATION_LOG.md` remain orchestrator-only.
+
 Effect `key` vocabulary (the engine applies these; add new keys here before using them): `unit.<type>.attack|defense|melee|ranged|armor|speed|morale`, `income.<steel|fuel|manpower>`, `armyCap`, `supplyRange`, `capitalDefense`, `initiative`, `losRange`, `digSpeed`, `fragmentYield`, `moraleTest`, `buildTurns`.
 
 Regiments ↔ figures: `1 company = FIGURES_PER_COMPANY` (Lane A sets; default 10 for infantry-derived, 1 for crawler/artillery/fighter — vehicles are single-figure squads). `toRegiments` rounds **down** so battles never create companies.

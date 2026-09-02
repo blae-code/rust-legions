@@ -73,6 +73,7 @@ Found by the brief critic, fixed in the briefs (details in the Wave 0 workflow t
 | **B** Field generator | [#5](https://github.com/blae-code/rust-legions/pull/5) | `feat/tactical-b` | `tactical-field` (96) | §4 field shape + `FieldMeta`, COMBAT_DESIGN | 2026-09-01 |
 | **G** Research/armory | [#4](https://github.com/blae-code/rust-legions/pull/4) | `feat/tactical-g` | `catalog-mirror` (105) | §4 Tech/ArmoryItem, GAME_RULES §24 `[PROPOSED]` | 2026-09-01 |
 | **A** Rules core | [#7](https://github.com/blae-code/rust-legions/pull/7) | `feat/tactical-a` | `tactical-mirror` (200) | §4 SquadType/Specialist, §4 Q5 regiment-keyed ratio, §6.1, §6.12 | 2026-09-01 |
+| **J** Motor Pool | [#8](https://github.com/blae-code/rust-legions/pull/8) | `feat/tactical-j` | `motor-mirror` + `motor-roll` (133) | §4 Motor Pool block, §4 Q7/Q8 amendments, §6.12, §6.13, GAME_RULES `[PROPOSED]` | 2026-09-01 |
 
 ### Wave 1 — platform sync, then merge
 
@@ -155,3 +156,28 @@ generator and replaced with the bridging-hex mechanism.
    `imageLibrary.js`. Fixed by the orchestrator rather than routed back, because the red came from the
    platform's commit and invalidated already-merged work; Lane G's and Lane J's plate guards were checked
    for the same shape and are clean (51 of Lane G's plates are already delivered without incident).
+
+### Wave 2 closed — 934 tests green
+
+Post-merge parity, as required after every two PRs and specifically after Lane J appended to Lane I's
+table: `tactical.ts` ↔ `data.js` **21 exports, 0 drift**; `arms.ts` ↔ `arms.js` **28 exports, 0 drift**.
+`MANUFACTURERS` is 14 = Lane I's 9 preserved byte-for-byte + Lane J's 5 `mw_*`.
+
+**Lane J: 23 findings, 1 blocker, every fix mutation-checked.** The blocker was Lane J's own whole-table
+`MANUFACTURERS` assertions — the very thing Lane I had been barred from doing, reintroduced one lane
+later from the other side. Rescoped to something stronger for its own namespace. Also caught: ~11% of
+rolls emitted contradictory locomotion tokens (a class token and a drive token disagreeing), and
+`Mount.hardpoints` was *documented* as a firing limit it never implemented — the code was right and the
+doc was wrong, so the doc was corrected rather than the behaviour bent to match it.
+
+Lane J also adopted `main`'s plate-gate fix while rebasing, unprompted: it carried the identical
+`url === null` assertion and would have gone red the day a motor plate was delivered.
+
+### Two contract questions ruled on rather than left open
+
+| # | Raised by | Question | Ruling |
+| --- | --- | --- | --- |
+| **Q7** | Lane J | Its export surface is a superset of §4 (`MOTOR_MODEL`, `evaluateVehicleQuirk`, two optional `ctx` params) | **Blessed.** §4 is a contract, not an export whitelist. Extra pure helpers are allowed provided every contracted export keeps its name and signature, an added optional parameter leaves the contracted call form identical, and the lane pins its full surface in a test — all of which Lane J did instead of filing a competing amendment. |
+| **Q8** | Lane J | `PLATFORM_HANDOFF.md` is an eleventh path its own ownership gate flags | **Blessed as an append surface for every lane.** §3's owned-file lists never named it, so a correct gate read a required action as a breach. The kickoff has always demanded lanes collect platform needs there. It is now the ONE shared doc lanes may append to; `ART_MANIFEST.md` and `ORCHESTRATION_LOG.md` stay orchestrator-only. |
+
+Both are recorded in §4 of the plan as amendments Q7 and Q8.
