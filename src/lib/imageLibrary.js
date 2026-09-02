@@ -1637,6 +1637,30 @@ export const IMAGE_LIBRARY = [
     "Design bureau pattern card: chaplaincy establishment diagram over an illustration of a chaplain reading to a kneeling section in a support trench, drafting-table style"),
   P("design_observers", "designs", "Support — Observation Section", "Army Design Bureau pattern card",
     "Design bureau pattern card: observation post and telephone-line diagram over an illustration of observers at a plotting board on a forward crest, drafting-table style"),
+
+  // ——— LANE H: houses, polities & perks ———
+  // ONE contiguous block, appended at the very end of the array, after the
+  // Lane I / G / J / F tail blocks. The `category` field is what files a plate
+  // under houses or perks; its position in this array does not. `url` is never
+  // set here — P() reads it from PLATE_URLS, so a delivered plate lights up
+  // without this file changing.
+  //
+  // Crests and keels for the THREE LEGACY PRESETS. The ten roster houses already
+  // have theirs in the THE GREAT HOUSES block above and are not duplicated here.
+  // Keel names follow the LORE §8 pattern — an abstract noun bound to a material,
+  // a vow, a debt or a verdict — and the slug is what `KEEL_BY_HOUSE` maps to.
+  P("house_kessel_crest", "houses", "The Kessel Pact — Crest", "Aggressive · the Discarding — house emblem",
+    "Frontier war-pact crest: a clenched iron gauntlet crushing a spent artillery shell over crossed sledge-hafts, flat heraldic insignia"),
+  P("keel_debt_of_ash", "houses", "Keel — 'the Debt of Ash'", "First Keel of the Pact",
+    "Lean scarred fortress-keel built around flame-crawler ramps and open muster decks, burnt ground and drifting ash trailing behind it", "4:3"),
+  P("house_ironsynod_crest", "houses", "The Iron Synod — Crest", "Economic · the Finished Ledger — house emblem",
+    "Foundry crest: three furnace stacks bound by a gear-ring venting stylised smoke above a ledger ribbon, flat heraldic insignia"),
+  P("keel_ledger_of_brass", "houses", "Keel — 'the Ledger of Brass'", "Second Keel of the Synod",
+    "Heavy foundry fortress-keel of clustered stacks and casting halls, ore trains queued along its flanks under banked smoke", "4:3"),
+  P("house_grauwall_crest", "houses", "The Grauwall Marches — Crest", "Defensive · the Finished Ledger — house emblem",
+    "March crest: a rampart of overlapping shields beneath a single watch-lantern, flat heraldic insignia"),
+  P("keel_verdict_of_stone", "houses", "Keel — 'the Verdict of Stone'", "Warden Keel of the Marches",
+    "Squat armoured fortress-keel like a rolling rampart, layered casemates and a lantern mast at its crown, dug-in siege lines worked around it", "4:3"),
 ];
 
 export const getImage = (key) => IMAGE_LIBRARY.find((i) => i.key === key)?.url || null;

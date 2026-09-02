@@ -8,12 +8,22 @@
 > Ideology seeds use VISION §6 axes: Authority / Economy / Creed / Mobilization, each −3…+3.
 > **LORE v2 alignment (2026-07-16):** all "restoration" goals now read as bids for **the Key** — the
 > way off the dead world (LORE §2–§3, §7): each house's theory column maps to a Departure reading
-> (Ferrymen→the Recall, No-Patron→the Discarding, Warden→the Flight, agnostic→the Finished Ledger).
+> (Ferrymen→the Recall, No-Patron→the Discarding, Warden→the Flight, agnostic→the Finished Ledger,
+> Experiment→the Recall — house 5 addresses the Absent and demands an answer, which LORE §7 already
+> reads as an appeal). **The Departure a house holds is not stored anywhere; it is DERIVED from its
+> Creed seed** — see §6 and `DEPARTURE_BY_CREED_SEED` in `src/lib/presetFactions.js`.
 
 ## 1. The Ten Houses (major factions)
 
 Coverage by design: all four theories represented (LORE §2), all three AI doctrines used (aggressive
-×4, economic ×3, defensive ×3), and no two houses sharing both a doctrine and a creed.
+×4, economic ×4, defensive ×2), and no two houses sharing both a doctrine and a creed.
+
+> **Correction (Lane H, 2026-09-02).** This sentence read “aggressive ×4, economic ×3, defensive ×3”
+> while the ten per-house **Doctrine** lines below read 4 / 4 / 2. The per-house lines govern and are
+> unchanged; the summary was the error. `test/presets.test.js` now parses those ten lines and asserts
+> each against its preset’s `doctrine`, so the two cannot drift apart again in silence. Counting the
+> three legacy presets as well, the shipped thirteen are aggressive ×5, economic ×5, defensive ×3 —
+> a figure recomputed from `PRESET_FACTIONS`, not typed here twice.
 
 ### 1. The Iron Reclamation — *canon (LORE §7)*
 **Doctrine** aggressive · **Theory** No-Patron · **Seeds** Auth +2, Econ 0, Creed −2, Mob −1 · **Keel** *the Iron Verdict*, First Sledge of the Reclamation
@@ -36,7 +46,7 @@ The world is a prison and the vaults are its machinery — every dig is a hand o
 They never left; they only stopped answering — so make them answer. The Ascendancy performs: monument works, spectacle battles, ceaseless transmission skyward. Playstyle: signals supremacy — Cipher hunger, intercept warfare, probe range, the Long Ear Array as a holy grail. Herald: addresses the Absent directly, copying all humanity — unsettling, grandiose, occasionally beautiful.
 
 ### 6. The Commonweal March — *new*
-**Doctrine** defensive · **Theory** No-Patron (communal) · **Seeds** Auth −3, Econ −2, Creed −1, Mob −2 · **Keel** *the Bond of Bread*, First Keel of the Commonweal
+**Doctrine** defensive · **Theory** No-Patron (communal) · **Seeds** Auth −3, Econ −2, Creed −2, Mob −2 · **Keel** *the Bond of Bread*, First Keel of the Commonweal
 A marching republic — federated communes that pooled their levies and built a keel by subscription. Nobody saves humanity; humanity saves each other, one shared harvest at a time. Playstyle: commune pacts everywhere, deep manpower, citizen armies that defend like bedrock and advance like a committee. The bloc system at its most alive — Assembly sessions are their national sport. Herald: minutes of the open Assembly, motions carried and defeated, read aloud.
 
 ### 7. The Salvage Court — *new*
@@ -143,3 +153,140 @@ rather than a per-figure one.
 
 No `factionLock` is used anywhere in this lane, so no id from `src/lib/presetFactions.js` is claimed
 and Lane H is free to assign every house above without reconciling against a lock.
+
+
+---
+
+## 6. Reconciliation — the key register [Lane H, 2026-09-02]
+
+*This section is the record the platform lane reads. Every table in it is asserted against
+`src/lib/presetFactions.js` and the live catalogs by `test/presets.test.js`: a key renamed upstream,
+or a row edited here without the data moving with it, is a red test rather than a stale document.*
+
+### 6.1 House, keel and herald keys
+
+`house` is the plate stem (`house_<house>_crest`). `heraldVoice` always equals `house`. There is **no
+`keel` field on the row** — §4 amendment Q3b — and the keel slug is looked up from `house` through
+`KEEL_BY_HOUSE`. `departure` is not stored either: it is derived from the Creed seed by
+`DEPARTURE_BY_CREED_SEED`, and is shown here so the derivation can be read at a glance.
+
+| Faction | `id` | `house` | keel slug | `heraldVoice` | Creed seed | Departure |
+| --- | --- | --- | --- | --- | --- | --- |
+| The Kessel Pact | `kessel_pact` | `kessel` | `debt_of_ash` | `kessel` | -2 | `discarding` |
+| The Iron Synod | `iron_synod` | `ironsynod` | `ledger_of_brass` | `ironsynod` | 0 | `finished_ledger` |
+| The Grauwall Marches | `grauwall_marches` | `grauwall` | `verdict_of_stone` | `grauwall` | 0 | `finished_ledger` |
+| The Iron Reclamation | `iron_reclamation` | `reclamation` | `iron_verdict` | `reclamation` | -2 | `discarding` |
+| The Charter Combine | `charter_combine` | `combine` | `vow_of_coal` | `combine` | 0 | `finished_ledger` |
+| The Bastion Synod | `bastion_synod` | `synod` | `reliquary_adamant` | `synod` | 2 | `recall` |
+| The Covenant of Locks | `covenant_of_locks` | `covenant` | `vigil_of_chains` | `covenant` | -1 | `flight` |
+| The Signal Ascendancy | `signal_ascendancy` | `ascendancy` | `testimony_of_copper` | `ascendancy` | 1 | `recall` |
+| The Commonweal March | `commonweal_march` | `commonweal` | `bond_of_bread` | `commonweal` | -2 | `discarding` |
+| The Salvage Court | `salvage_court` | `salvage` | `writ_of_knives` | `salvage` | 0 | `finished_ledger` |
+| The Emberwright Union | `emberwright_union` | `emberwright` | `debt_of_winters` | `emberwright` | -2 | `discarding` |
+| The Long Procession | `long_procession` | `procession` | `burden_of_bells` | `procession` | 3 | `recall` |
+| The Outrider Compact | `outrider_compact` | `outrider` | `promise_of_dust` | `outrider` | -1 | `flight` |
+
+**⚠ Two plate-key facts a later lane will trip over.** §4's Q3b amendment says the keel plate "is keyed
+off the existing `house` value (`keel_<houseKey>`)". The plates an earlier lane actually shipped are
+keyed by **keel slug** — `keel_iron_verdict`, not `keel_reclamation`. Existing catalog keys are never
+renamed and no plate is duplicated under a second key, so `KEEL_BY_HOUSE` is what reconciles the
+amendment's intent with the shipped art. Second: the ten roster houses' twenty crest/keel plates
+already existed; the **six** plates for the three legacy presets are new in this lane and sit in the
+`LANE H` tail block of `src/lib/imageLibrary.js`, not in the `THE GREAT HOUSES` block.
+
+### 6.2 The Creed axis decides the Departure
+
+The mapping is a table over the **whole** legal domain of the axis, not a rule with a default, so
+there is no seed value it silently fails to answer for:
+
+| Creed seed | Departure | Reading (LORE §2) |
+| --- | --- | --- |
+| +1 … +3 | `recall` | preserve the works, light the signal; the Key is an appeal |
+| 0 | `finished_ledger` | nobody is coming; passage is bought or built |
+| −1 | `flight` | they *fled*; the Key must never be turned |
+| −2 … −3 | `discarding` | we were equipment; we climb on our own hull |
+
+`CREEDS[k].axisLean` **cannot** carry this on its own, and `PLATFORM_HANDOFF.md` G4 slightly overstates
+it when it says the Departure "can be derived from its axis position" by that field: `flight` and
+`finished_ledger` both lean `0`, so the lean is 2-to-1 ambiguous and only the seed distinguishes them.
+The −1 band is the Flight because LORE §2 calls the Flight "the axis's dark orthogonal" — its holders
+read Reclaimer-side because they reject the inheritance, but they reject it in order to **seal** it,
+not to smelt it. That is exactly what house 4's own asterisk (`Creed −1*`) was flagging. Every one of
+the ten houses resolves to the Departure LORE §7 already gives it; the table was read off §7 and the
+seeds, not fitted to them afterwards.
+
+**One seed was corrected to make that true, and it is the only number in §1 this lane changed.** The
+Commonweal March's Creed seed read **−1**, which the table above would make the Flight. LORE §2 names
+"much of the Commonweal" among the holders of **the Discarding**, LORE §7 gives it "a people who cannot
+feed each other have no business among stars", and its own entry above reads *No-Patron (communal)* —
+all three are the Discarding. The seed is now **−2**. Nothing else in §1 moved.
+
+**Still open, for the LORE owner — not fixed here, because §3 does not assign this lane LORE §2.**
+LORE §2's "Who holds it" column lists **the Emberwrights** under *The Finished Ledger*. The roster gives
+that house *No-Patron (technical)* at Creed **−2**, LORE §7 gives it "beat the Rent and build the New
+Ignition", and Lane G's `the_new_ignition` relic project carries `creedLock: 'discarding'` — so the
+Emberwright Union ships as **the Discarding** and LORE §2's holder list is the stale line. It is a
+one-cell edit in a section this lane may not touch. Flagged, not made.
+
+### 6.3 Which Lane F / G / I keys each house claims
+
+`uniqueRoster.squads` and `.upgrades` are the house's **signature** pair from §5 above — signature,
+never exclusive; only a row's own `creedLock` / `factionLock` restricts who may field it, and §5 spends
+exactly one such lock (`pilgrim_levy`, `creedLock: 'recall'`, on the Procession, whose derived Departure
+is `recall`). `.patterns` are Lane I `WEAPON_PATTERNS`; `.decree` is a Lane G `ARMORY_ITEMS` row with
+`kind: 'decree'`.
+
+| `house` | squads (Lane F) | upgrade kits (Lane F) | decree (Lane G) | weapon patterns (Lane I) |
+| --- | --- | --- | --- | --- |
+| `kessel` | `assault`, `flame_team` | `storm_hoods`, `drum_magazines` | `universal_levy` | `tp226_seamfire_trench_projector_mk2`, `hw302_sledge_shoulder_gun_mk1` |
+| `ironsynod` | `crawler`, `gunners` | `armor_skirts`, `drum_magazines` | `war_bonds_decree` | `cl206_tollgate_sustained_gun_mk2`, `hw184_combine_squad_automatic_mk3` |
+| `grauwall` | `riflemen`, `pioneers` | `wire_spades`, `sapper_plate` | `fuel_ration_act` | `hw141_levy_rifle_mk2`, `cl221_crossloom_light_mortar_mk2` |
+| `reclamation` | `stormtroops`, `riflemen` | `radio_pack`, `sapper_plate` | `emergency_powers_act` | `rs229_verdict_service_rifle_mk3`, `rs236_levy_trench_automatic_mk2`, `rs257_ironworks_belt_gun_mk2` |
+| `combine` | `autocar_scouts`, `provost` | `armor_skirts`, `drum_magazines` | `charter_of_passage` | `cl252_waymark_pattern_rifle_mk1`, `cl274_knotwork_light_gun_mk1`, `sy277_prizeyard_turret_gun_mk3` |
+| `synod` | `marksmen`, `pioneers` | `marksman_pattern`, `wire_spades` | `reliquary_act` | `fs171_ferryman_watch_rifle_mk2`, `fs159_ninefold_vigil_rifle_mk1`, `fs188_reliquary_officers_sidearm_mk2` |
+| `covenant` | `sappers`, `flame_team` | `sapper_plate`, `storm_hoods` | `sealed_sites_order` | `em276_cinder_breaching_rifle_mk1`, `cl281_openhand_shaped_lance_mk1`, `hw249_bottoms_gallery_burner_mk1` |
+| `ascendancy` | `siege_mortar`, `marksmen` | `gas_shells`, `radio_pack` | `wakewatch_act` | `as294_longear_ranging_rifle_mk1`, `as256_beacon_ranging_gun_mk1`, `as268_copperline_long_rifle_mk2` |
+| `commonweal` | `digger_corps`, `provost` | `wire_spades`, `marksman_pattern` | `hearth_and_bulwark` | `hw203_sledge_short_rifle_mk1`, `hw218_sledge_trench_sweeper_mk1`, `hw166_bottoms_pit_revolver_mk1` |
+| `salvage` | `autocar_scouts`, `assault` | `mine_flails`, `drum_magazines` | `ordinance_common_metal` | `sy288_knife_room_gun_mk5`, `sy245_bailiff_boarding_gun_mk2`, `sy277_prizeyard_turret_gun_mk3` |
+| `emberwright` | `land_dreadnought`, `sappers` | `armor_skirts`, `sapper_plate` | `breaking_yards_act` | `em291_forgeworks_breakthrough_gun_mk1`, `em214_winter_anti_crawler_rifle_mk2`, `tp305_slagline_hull_projector_mk1` |
+| `procession` | `pilgrim_levy`, `flame_team` | `wire_spades`, `storm_hoods` | `writ_of_consecration` | `fs159_ninefold_vigil_rifle_mk1`, `tp313_firetongue_incendiary_mortar_mk1`, `rs263_verdict_commune_mortar_mk3` |
+| `outrider` | `ski_troops`, `autocar_scouts` | `ski_conversions`, `radio_pack` | `standing_corps_act` | `ow197_courier_dust_carbine_mk2`, `ow311_dustpromise_field_rifle_mk2`, `ow259_skimline_saddle_gun_mk1` |
+
+Three properties of that table are gated in `test/presets.test.js` rather than asserted here in prose:
+
+1. **Every key exists** in the live `SQUAD_TYPES`, `UPGRADES`, `ARMORY_ITEMS` and `WEAPON_PATTERNS`,
+   read out of `base44/shared/*.ts` at test time — not out of a copy.
+2. **Every kit and every pattern fits at least one of that house's own signature squads**
+   (`appliesTo` ∩ `squads` ≠ ∅). A gun the house's men cannot carry is not a signature.
+3. **The thirteen decrees are distinct** — one act of the Assembly per house — and where a decree
+   carries a `creedLock`, the lock **equals** the house's derived Departure. Four of the thirteen are
+   creed-locked and all four land on a house that holds that creed: `charter_of_passage`
+   (`finished_ledger`) → the Combine, `sealed_sites_order` (`flight`) → the Covenant,
+   `breaking_yards_act` (`discarding`) → the Emberwrights, `writ_of_consecration` (`recall`) → the
+   Procession.
+
+**Keys requested for reconciliation: none.** Every key this lane wanted exists upstream; nothing was
+dropped, and nothing was invented.
+
+**Two notes for Lane I's owner, neither of them a defect.** `Manufacturer.access` is keyed by the ten
+roster `house` stems, which match this lane's exactly — no renaming was needed anywhere. It carries no
+entry for the three legacy stems (`kessel`, `ironsynod`, `grauwall`), so those three houses' patterns
+are chosen on `appliesTo` fit alone; if access is ever consulted for a preset, those three need rows.
+And the Covenant of Locks has **no native weapon maker** among the nine that build `WEAPON_PATTERNS`
+(its native maker, `mw_grimwold_treadworks`, is a Lane J chassis house), so its three signature patterns
+are licensed ones — which is in character for a house that buys its tools and buries what it finds.
+
+### 6.4 Contract questions this lane found and did **not** re-litigate
+
+- **A preset's `lore` is required to be 120–180 words, and the three legacy rows are required to be
+  byte-identical. They are 62, 61 and 64 words.** Both requirements are in the Lane H brief and they
+  cannot both hold. Byte-identity governs — live saves reference those rows — so the word-count gate is
+  scoped **by id**, to the ten houses this lane authors, and the three frozen rows are excluded by name
+  rather than by position. Recorded here so the exclusion is a decision and not an oversight.
+- **A `netPoints` of `−1` is legal and three houses ship one.** The contract is `netPoints <= 0`, not
+  `=== 0`, and the shipped `grauwall_marches` ledger has been `−1` since before this lane. The
+  Commonweal, the Emberwrights and the Compact each leave a point unspent, in character; the test
+  asserts the contract, not a stricter reading of it.
+- **`module` certification grants nothing** (orchestrator ruling 2, 2026-09-02). No preset's lore,
+  trait or decree implies a house-wide bonus from unlocking a `kind: 'module'` row; a module's effects
+  apply on fit, in its bay, and nowhere else.
