@@ -14,6 +14,25 @@
 // mirror for every one of them, and the export-set check demands a mirror for
 // every exported FUNCTION too.
 //
+// THREE THINGS FOLLOW FROM THAT, AND THEY ARE WHY THIS FILE IS LONGER THAN A
+// DEEP-EQUAL:
+//
+//  (1) The discovery classifies EVERY top-level `export const`, not only the
+//      ones whose right-hand side happens to be a literal. A table rewritten as
+//      `export const SQUAD_TYPES = buildTypes()` would drop straight out of a
+//      literal-only scan and take its mirror demand with it — the CASUALTY_ORDER
+//      shape exactly. Anything that is neither a literal, nor an `Object.keys`
+//      derivation, nor an arrow function lands in `unknown`, and `unknown` is
+//      asserted empty. Silently skipped becomes loudly refused.
+//  (2) The discovery's OWN precondition is asserted, against a synthetic source
+//      fixture, because a normaliser that quietly stopped normalising is how the
+//      last two gates in this repository were defeated. If the classifier
+//      regressed, every per-table assertion below would pass vacuously.
+//  (3) The gap the file was written to catch is a PERMANENT assertion, not a
+//      transcript in a pull request: `missingMirrors` is run against the mirror
+//      namespace with `CASUALTY_ORDER` removed and must name it. A proof that
+//      exists only as a paste in a PR body cannot go red again next month.
+//
 // It also holds the line on drift guard 12: armour and penetration arithmetic
 // exist in arms.ts and nowhere else. Both files are asserted to declare no
 // armour table of their own, and the only route from this layer into the
@@ -21,7 +40,7 @@
 import { describe, it, expect } from "vitest";
 import { readRepoFile, extractConst } from "./helpers/extract-const.js";
 import * as MIRROR from "@/lib/tactical/data.js";
-import { ARMOUR_CLASSES, PEN_TABLE, TYPE_MATRIX, LOADOUT_KEYS } from "@/lib/arms.js";
+import { ARMOUR_CLASSES, PEN_TABLE, TYPE_MATRIX, LOADOUT_KEYS, deriveLoadout } from "@/lib/arms.js";
 import { neighbors, TERRAIN } from "@/lib/tactical/field.js";
 
 const CANON_SRC = readRepoFile("base44/shared/tactical.ts");
@@ -64,28 +83,76 @@ const afterTrivia = (src, i) => {
   }
 };
 
-/** Every `export const NAME =` whose value is an object or array literal. */
-const discoverTables = (src) => {
-  const re = /\bexport\s+const\s+([A-Za-z_$][\w$]*)\s*=\s*/g;
-  const found = [];
+/**
+ * Classify EVERY top-level `export const NAME = …` by what its right-hand side
+ * actually is:
+ *
+ *   tables    — an object or array literal. These are lifted textually and
+ *               deep-equalled against the mirror.
+ *   derived   — `Object.keys(SOME_TABLE)`. Not mirror-tested as a table (it has
+ *               no literal to lift) but pinned against its source table on both
+ *               sides, so it cannot quietly disagree either.
+ *   functions — an arrow const.
+ *   unknown   — ANYTHING ELSE, and the suite fails on a non-empty `unknown`.
+ *               This is the branch that matters: a literal-only scan treats a
+ *               table that became a function call as "not a table" and stops
+ *               demanding a mirror for it, which is precisely how a gap hides.
+ *
+ * `export` must sit at column 0, so a `//` or `*` comment line that quotes a
+ * declaration is not mistaken for one. The fixture suite below pins that.
+ *
+ * A TypeScript annotation (`export const X: Rec = {…}`) is matched and
+ * classified. extract-const.js cannot lift such a declaration, so it throws by
+ * name rather than the table vanishing from the sweep — loud, not silent.
+ */
+const classifyExports = (src) => {
+  const re = /^export\s+const\s+([A-Za-z_$][\w$]*)\s*(?::[^=;]*)?=\s*/gm;
+  const out = { tables: [], derived: [], functions: [], unknown: [] };
   let m;
   while ((m = re.exec(src)) !== null) {
-    const c = src[afterTrivia(src, m.index + m[0].length)];
-    if (c === "{" || c === "[") found.push(m[1]);
+    const i = afterTrivia(src, m.index + m[0].length);
+    const head = src.slice(i, i + 240);
+    const keysOf = /^Object\.keys\(\s*([A-Za-z_$][\w$]*)\s*\)/.exec(head);
+    if (src[i] === "{" || src[i] === "[") out.tables.push(m[1]);
+    else if (keysOf) out.derived.push({ name: m[1], from: keysOf[1] });
+    else if (/^(?:\([^)]*\)|[A-Za-z_$][\w$]*)\s*=>/.test(head)) out.functions.push(m[1]);
+    else out.unknown.push(m[1]);
   }
-  return found;
+  return out;
 };
 
-/** Every exported binding name, const or function. */
+/** Every exported binding name — const, function, or a re-export braces list. */
 const discoverExports = (src) => {
   const names = [];
-  const re = /\bexport\s+(?:const|function)\s+([A-Za-z_$][\w$]*)/g;
+  const re = /^export\s+(?:const|function|let|class)\s+([A-Za-z_$][\w$]*)/gm;
   let m;
   while ((m = re.exec(src)) !== null) names.push(m[1]);
+  // `export { hexPixel, hexCorners } from "…"` — the shape the Lane B hand-off
+  // leaves behind. A re-export is an export: if the canonical file ever used
+  // one it would otherwise escape the mirror demand entirely.
+  const reExport = /^export\s*\{([^}]*)\}/gm;
+  while ((m = reExport.exec(src)) !== null) {
+    for (const part of m[1].split(",")) {
+      const t = part.trim();
+      if (!t) continue;
+      const aliased = /\bas\s+([A-Za-z_$][\w$]*)\s*$/.exec(t);
+      names.push(aliased ? aliased[1] : t.split(/\s+/)[0]);
+    }
+  }
   return names;
 };
 
-const CANON_TABLES = discoverTables(CANON_SRC);
+/**
+ * The gate, as a pure function of (canonical source, the names the mirror
+ * actually supplies). Pure so it can be run against a SIMULATED mirror — which
+ * is how this file proves, permanently and in the suite, that it would have
+ * caught the CASUALTY_ORDER gap rather than merely claiming it.
+ */
+const missingMirrors = (canonSrc, mirrorNames) =>
+  discoverExports(canonSrc).filter((n) => !mirrorNames.includes(n));
+
+const CANON = classifyExports(CANON_SRC);
+const CANON_TABLES = CANON.tables;
 const CANON_EXPORTS = discoverExports(CANON_SRC);
 
 // Source text of a top-level exported function or arrow const, whitespace
@@ -103,6 +170,32 @@ const fnSource = (src, name) => {
     const c = src[j];
     if (c === "{") depth++;
     else if (c === "}") { depth--; if (depth === 0) return src.slice(i, j + 1).replace(/\s+/g, " "); }
+  }
+  return null;
+};
+
+/**
+ * The inclusive line range of a top-level exported function's body, found by
+ * balancing its braces. Returns null if the declaration is absent — the caller
+ * asserts on that rather than treating "no range" as "nothing to check".
+ *
+ * This exists so that a region-bounded source assertion is bounded at BOTH
+ * ends. A slice that runs to end-of-file is true only while its owner is the
+ * last thing in the file, which is a property the next lane's append destroys.
+ */
+const fnLineRange = (src, name) => {
+  const lines = src.split("\n");
+  const decl = new RegExp(`^export\\s+(?:function\\s+${name}\\b|const\\s+${name}\\s*=)`);
+  const start = lines.findIndex((l) => decl.test(l));
+  if (start === -1) return null;
+  let depth = 0;
+  let opened = false;
+  for (let i = start; i < lines.length; i++) {
+    for (const c of lines[i]) {
+      if (c === "{") { depth++; opened = true; }
+      else if (c === "}") depth--;
+    }
+    if (opened && depth === 0) return { start, end: i };
   }
   return null;
 };
@@ -135,6 +228,82 @@ const parseMdTable = (doc, headingRe) => {
 
 const num = (s) => Number(String(s).replace(/[^0-9.-]/g, ""));
 
+// The rounding both rules files apply to a derived offence value. Restated here
+// on purpose: a test that imported the module's own rounding could not tell a
+// changed rounding from a correct one.
+const round2 = (n) => Math.round(n * 100) / 100;
+
+// A synthetic source, exercising every shape the classifier has to tell apart.
+// It is deliberately NOT the real file: a gate asserted only against the source
+// it currently passes on is asserted against nothing.
+const FIXTURE_SRC = [
+  "// export const DECOY_LINE_COMMENT = { a: 1 };",
+  "/*",
+  " * export const DECOY_BLOCK_COMMENT = [1];",
+  " */",
+  "export const PLAIN_OBJECT = { a: 1 };",
+  "export const PLAIN_ARRAY = ['a', 'b'];",
+  "export const TYPED_TABLE: Record<string, number> = { b: 2 };",
+  "export const AFTER_TRIVIA = /* a comment sits here */ { c: 3 };",
+  "export const KEYS_OF = Object.keys(PLAIN_OBJECT);",
+  "export const ARROW_PAIR = (a, b) => a + b;",
+  "export const ARROW_BARE = x => x * 2;",
+  "export const COMPUTED = buildTheTable();",
+  "export function namedFunction(x) { return x; }",
+  "  export const INDENTED_NOT_TOP_LEVEL = { d: 4 };",
+  'export { alpha, beta as gamma } from "./elsewhere.js";',
+].join("\n");
+
+describe("tactical mirror — the gate's own precondition", () => {
+  const F = classifyExports(FIXTURE_SRC);
+
+  it("classifies literals as tables, annotation or no annotation", () => {
+    expect(F.tables).toEqual(["PLAIN_OBJECT", "PLAIN_ARRAY", "TYPED_TABLE", "AFTER_TRIVIA"]);
+  });
+
+  it("classifies Object.keys derivations, and records what they derive from", () => {
+    expect(F.derived).toEqual([{ name: "KEYS_OF", from: "PLAIN_OBJECT" }]);
+  });
+
+  it("classifies arrow consts in both spellings as functions", () => {
+    expect(F.functions).toEqual(["ARROW_PAIR", "ARROW_BARE"]);
+  });
+
+  it("REFUSES a computed right-hand side rather than skipping it", () => {
+    // The whole point. A literal-only scan would classify COMPUTED as "not a
+    // table" and stop demanding a mirror for it, without a word.
+    expect(F.unknown).toEqual(["COMPUTED"]);
+  });
+
+  it("ignores declarations quoted in comments and below column zero", () => {
+    const all = [...F.tables, ...F.functions, ...F.unknown, ...F.derived.map((d) => d.name)];
+    expect(all).not.toContain("DECOY_LINE_COMMENT");
+    expect(all).not.toContain("DECOY_BLOCK_COMMENT");
+    expect(all).not.toContain("INDENTED_NOT_TOP_LEVEL");
+  });
+
+  it("counts functions and re-exports as exports, so neither escapes the mirror demand", () => {
+    expect(discoverExports(FIXTURE_SRC)).toContain("namedFunction");
+    expect(discoverExports(FIXTURE_SRC)).toContain("alpha");
+    expect(discoverExports(FIXTURE_SRC)).toContain("gamma");
+    expect(discoverExports(FIXTURE_SRC)).not.toContain("beta");
+  });
+
+  it("would have gone red on the gap it was written to catch", () => {
+    // CASUALTY_ORDER was exported from tactical.ts and absent from data.js from
+    // before the squad plan until Lane A. Simulate that mirror and require the
+    // gate to name it — this is the proof, kept in the suite rather than pasted
+    // into a pull request where it can never fail again.
+    const asMainHadIt = Object.keys(MIRROR).filter((n) => n !== "CASUALTY_ORDER");
+    expect(missingMirrors(CANON_SRC, asMainHadIt)).toEqual(["CASUALTY_ORDER"]);
+    // Drop a whole table and it is named too, by the same mechanism.
+    const noSquadTypes = Object.keys(MIRROR).filter((n) => n !== "SQUAD_TYPES");
+    expect(missingMirrors(CANON_SRC, noSquadTypes)).toEqual(["SQUAD_TYPES"]);
+    // And against the mirror as it actually stands, nothing is missing.
+    expect(missingMirrors(CANON_SRC, Object.keys(MIRROR))).toEqual([]);
+  });
+});
+
 describe("tactical mirror — table discovery (check 1)", () => {
   it("discovers every canonical table from the source, not from a list", () => {
     // A sanity floor on the discovery itself: a regex that silently stopped
@@ -148,7 +317,14 @@ describe("tactical mirror — table discovery (check 1)", () => {
     expect(CANON_TABLES).not.toContain("hexDistance");
   });
 
-  for (const name of discoverTables(readRepoFile("base44/shared/tactical.ts"))) {
+  it("every canonical export is a literal, a keys derivation or a function", () => {
+    // The refusal branch, on the real file. A table rewritten as a call would
+    // land here rather than quietly leaving the sweep.
+    expect(CANON.unknown, "unclassifiable export const in tactical.ts").toEqual([]);
+    expect(classifyExports(MIRROR_SRC).unknown, "unclassifiable export const in data.js").toEqual([]);
+  });
+
+  for (const name of CANON_TABLES) {
     it(`${name} deep-equals its mirror`, () => {
       const canonical = extractConst(CANON_SRC, name);
       expect(MIRROR[name], `${name} is missing from src/lib/tactical/data.js`).toBeDefined();
@@ -159,6 +335,27 @@ describe("tactical mirror — table discovery (check 1)", () => {
       const canonical = extractConst(CANON_SRC, name);
       if (Array.isArray(canonical)) return;
       expect(Object.keys(MIRROR[name])).toEqual(Object.keys(canonical));
+    });
+
+    it(`${name} is a pure data literal on the mirror side too`, () => {
+      // Two things at once. extractConst throws unless data.js declares this as
+      // a literal — which is what keeps Lane F's append a pure-append diff on
+      // BOTH sides. And lifting the text and comparing it to the imported value
+      // proves the mirror does not post-process the literal after declaring it,
+      // which a runtime-only deep-equal against the canonical text cannot see.
+      const lifted = extractConst(MIRROR_SRC, name);
+      expect(stripUi(lifted)).toEqual(stripUi(MIRROR[name]));
+    });
+  }
+
+  for (const { name, from } of CANON.derived) {
+    it(`${name} is Object.keys(${from}) on both sides`, () => {
+      // A derived export has no literal to mirror, so it is the one shape the
+      // deep-equal sweep cannot see. Pin it against its source table instead of
+      // leaving it unchecked.
+      const canonicalKeys = Object.keys(extractConst(CANON_SRC, from));
+      expect(MIRROR[name], `${name} is missing from the mirror`).toEqual(canonicalKeys);
+      expect(MIRROR[name]).toEqual(Object.keys(MIRROR[from]));
     });
   }
 });
@@ -204,15 +401,34 @@ describe("tactical mirror — one damage model (check 4, drift guard 12)", () =>
     });
 
     it(`${label} touches the damage model only on an import line or inside resolveSquadHit`, () => {
-      const hits = codeLines(src)
-        .map((l, i) => [i, l])
-        .filter(([, l]) => /armourValue|PEN_TABLE|TYPE_MATRIX|resolveHit/.test(l));
-      expect(hits.length, "the damage model is never referenced at all").toBeGreaterThan(0);
-      for (const [, l] of hits) {
+      // BOUNDED AT BOTH ENDS, and by the function's braces rather than by the
+      // spelling of one line. An earlier form of this check allowed any line
+      // matching the exact text `return resolveHit({ weapon, target });` — which
+      // is a gate on a spelling: a SECOND such call, pasted into some other
+      // function in the same file, would have satisfied it. The permitted region
+      // is now resolveSquadHit's actual body, so a later lane appending code
+      // after it cannot widen the licence either.
+      const range = fnLineRange(src, "resolveSquadHit");
+      expect(range, `resolveSquadHit not found in the ${label} file`).toBeTruthy();
+      expect(range.end - range.start, "resolveSquadHit's body did not scan").toBeGreaterThan(3);
+
+      const lines = src.split("\n");
+      let hits = 0;
+      let inBlockComment = false;
+      for (let i = 0; i < lines.length; i++) {
+        const l = lines[i];
+        const t = l.trim();
+        if (inBlockComment) { if (t.includes("*/")) inBlockComment = false; continue; }
+        if (t.startsWith("/*")) { if (!t.includes("*/")) inBlockComment = true; continue; }
+        if (!t || t.startsWith("//") || t.startsWith("*")) continue;
+        if (!/armourValue|PEN_TABLE|TYPE_MATRIX|resolveHit/.test(l)) continue;
+        hits++;
         const isImport = /^\s*import\s/.test(l);
-        const isCall = /return resolveHit\(\{ weapon, target \}\);/.test(l);
-        expect(isImport || isCall, `stray damage-model reference: ${l.trim()}`).toBe(true);
+        const inAdapter = i >= range.start && i <= range.end;
+        expect(isImport || inAdapter, `stray damage-model reference at ${label}:${i + 1}: ${t}`).toBe(true);
       }
+      // A regex that stopped matching would let this pass with nothing checked.
+      expect(hits, "the damage model is never referenced at all").toBeGreaterThan(0);
     });
   }
 
@@ -512,6 +728,52 @@ describe("tactical mirror — deriveSquad figure scaling (check 9)", () => {
     expect(Object.keys(deriveSquad())).toEqual(KEYS);
   });
 
+  it("the erosion curve is the one SCALING declares, to the digit", () => {
+    // Not "lower than full and higher than half" — the exact value, recomputed
+    // from the exported constant. A bracket assertion passes over a curve that
+    // has silently become something else with a similar shape.
+    for (const k of SQUAD_TYPE_KEYS) {
+      const t = SQUAD_TYPES[k];
+      for (let f = t.minFigures; f <= t.maxFigures; f++) {
+        const d = deriveSquad({ type: k, figures: f });
+        const cohesion = Math.pow(f / t.figures, SCALING.offenceExponent);
+        expect(d.ranged, `${k} at ${f} figures`).toBe(round2(t.ranged * cohesion));
+        expect(d.melee, `${k} at ${f} figures`).toBe(round2(t.melee * cohesion));
+      }
+    }
+  });
+
+  it("offence never falls as figures rise, for any type at any strength", () => {
+    for (const k of SQUAD_TYPE_KEYS) {
+      const t = SQUAD_TYPES[k];
+      let prev = -1;
+      for (let f = t.minFigures; f <= t.maxFigures; f++) {
+        const d = deriveSquad({ type: k, figures: f });
+        expect(d.ranged, `${k} at ${f} figures is worse than at ${f - 1}`).toBeGreaterThanOrEqual(prev);
+        prev = d.ranged;
+      }
+    }
+  });
+
+  it("the erosion percentage printed in COMBAT_DESIGN.md 13.8 is recomputed, not typed", () => {
+    // The document names a figure — "half a section fights at 53.6% of a
+    // section". A published number arithmetically false against its own table
+    // is the Wave 1 defect this project has already paid for, so the number is
+    // read back out of the prose and recomputed from SCALING.
+    const lines = DESIGN_DOC.split("\n");
+    const start = lines.findIndex((l) => /^### 13\.8 /.test(l));
+    expect(start, "13.8 not found").toBeGreaterThan(-1);
+    let end = lines.length;
+    for (let i = start + 1; i < lines.length; i++) if (/^#{1,6}\s/.test(lines[i])) { end = i; break; }
+    const section = lines.slice(start, end).join("\n");
+    const printed = /([0-9]+\.[0-9])% of a section/.exec(section);
+    expect(printed, "13.8 no longer states the half-strength percentage").toBeTruthy();
+    const computed = (Math.pow(0.5, SCALING.offenceExponent) * 100).toFixed(1);
+    expect(printed[1]).toBe(computed);
+    // And the prose's exponent is the exported one.
+    expect(section).toContain(String(SCALING.offenceExponent));
+  });
+
   it("erosion is strict but sub-linear", () => {
     const full = deriveSquad({ type: "riflemen", figures: 10 });
     const half = deriveSquad({ type: "riflemen", figures: 5 });
@@ -660,7 +922,7 @@ describe("tactical mirror — action gating (check 11)", () => {
     for (const k of SQUAD_TYPE_KEYS) {
       const declared = [...SQUAD_TYPES[k].specials].sort();
       const gated = SQUAD_ACTION_KEYS
-        .filter((a) => SQUAD_ACTIONS[a].requires && SQUAD_ACTIONS[a].requires.types.includes(k))
+        .filter((a) => SQUAD_ACTIONS[a].requires && (SQUAD_ACTIONS[a].requires.types || []).includes(k))
         .sort();
       expect(declared, `${k}.specials disagrees with SQUAD_ACTIONS.requires.types`).toEqual(gated);
       for (const s of SQUAD_TYPES[k].specials) expect(SQUAD_ACTION_KEYS, `${k} tag ${s}`).toContain(s);
@@ -716,6 +978,37 @@ describe("tactical mirror — the points anchor and the audit (check 13)", () =>
       expect(e, `${k} efficiency`).toBeLessThanOrEqual(POINTS_MODEL.efficiencyCap);
       expect(e, `${k} efficiency`).toBeGreaterThan(0.5);
     }
+  });
+
+  it("no constant in SCALING or POINTS_MODEL is dead weight", () => {
+    // A whole repair pass that nothing reached, justified by claims that were
+    // untrue, is the defect class this project has already paid for once. A
+    // published constant that no derivation reads is the same shape in
+    // miniature: it looks like a knob and turns nothing. Every key must be read
+    // by the derivations in BOTH files, or be one of the two named audit bounds
+    // — and that exemption list is itself pinned, so a third cannot join it
+    // quietly.
+    const AUDIT_ONLY = ["efficiencyCap", "specialistPtsCap"];
+    for (const [label, src] of [["tactical.ts", CANON_SRC], ["data.js", MIRROR_SRC]]) {
+      const code = codeLines(src).join("\n");
+      for (const k of Object.keys(SCALING)) {
+        expect(code, `${label} never reads SCALING.${k}`).toContain(`SCALING.${k}`);
+      }
+      for (const k of Object.keys(POINTS_MODEL)) {
+        if (AUDIT_ONLY.includes(k)) continue;
+        const read = code.includes(`POINTS_MODEL.${k}`) || code.includes(`P.${k}`);
+        expect(read, `${label} never reads POINTS_MODEL.${k}`).toBe(true);
+      }
+    }
+    // The two exempt keys are bounds the audit enforces here rather than
+    // arithmetic the derivations use. Enforced, not merely exempted:
+    for (const k of SQUAD_TYPE_KEYS) {
+      expect(typeEfficiency(k), `${k} efficiency`).toBeLessThanOrEqual(POINTS_MODEL.efficiencyCap);
+    }
+    for (const k of Object.keys(SPECIALISTS)) {
+      expect(SPECIALISTS[k].pts, `${k} pts`).toBeLessThanOrEqual(POINTS_MODEL.specialistPtsCap);
+    }
+    expect(Object.keys(POINTS_MODEL).filter((k) => AUDIT_ONLY.includes(k))).toEqual(AUDIT_ONLY);
   });
 
   it("combatValue reads the table and nothing else", () => {
@@ -809,6 +1102,42 @@ describe("tactical mirror — the design document is recomputed, not retyped (ch
     });
   });
 
+  it("the morale table in COMBAT_DESIGN.md matches MORALE_MODS entry for entry", () => {
+    // Sixteen numbers that Lane C rolls and this file owns. Published in the
+    // document and read straight back out of it, in BOTH directions, so neither
+    // a rotted cell nor an entry quietly dropped from the prose can survive.
+    const { body } = parseMdTable(DESIGN_DOC, /^### 13\.10 /);
+    const printed = {};
+    for (const row of body) printed[row[0].replace(/`/g, "")] = num(row[1]);
+    expect(Object.keys(printed).sort()).toEqual(Object.keys(MORALE_MODS).sort());
+    for (const k of Object.keys(MORALE_MODS)) {
+      expect(printed[k], `MORALE_MODS.${k} is printed wrong in COMBAT_DESIGN.md 13.10`).toBe(MORALE_MODS[k]);
+    }
+  });
+
+  it("both auto thresholds are reachable by the modifiers actually printed", () => {
+    // The document's closing paragraph makes a claim about the band. Proven
+    // here rather than believed: a table of modifiers too weak to reach either
+    // threshold would make both rules dead letters, and nothing else would say so.
+    const M = MORALE_MODS;
+    const situational = Object.keys(M).filter((k) => !["dice", "dieSides", "autoPassRoll", "autoFailRoll", "routMargin", "suppressedTurns"].includes(k));
+    const worst = situational.reduce((s, k) => s + Math.min(0, M[k]), 0);
+    const best = situational.reduce((s, k) => s + Math.max(0, M[k]), 0);
+    // Both thresholds sit inside what 3d6 can actually roll.
+    expect(M.autoPassRoll).toBeGreaterThanOrEqual(M.dice);
+    expect(M.autoFailRoll).toBeLessThanOrEqual(M.dice * M.dieSides);
+    // A squad at the floor with everything against it cannot pass on the target
+    // alone — so autoPassRoll is doing work, not decorating the table.
+    expect(SCALING.moraleMin + worst).toBeLessThanOrEqual(M.autoPassRoll);
+    // A squad at the ceiling with everything for it would otherwise be
+    // unbreakable — so autoFailRoll is doing work too.
+    expect(SCALING.moraleMax + best).toBeGreaterThanOrEqual(M.autoFailRoll);
+    // A rout is a worse outcome than suppression, and is reachable.
+    expect(M.routMargin).toBeGreaterThan(0);
+    expect(M.routMargin).toBeLessThan(M.dice * M.dieSides);
+    expect(M.suppressedTurns).toBeGreaterThan(0);
+  });
+
   it("the figures-to-companies ratio is stated in prose as well as in code", () => {
     const section = DESIGN_DOC.slice(DESIGN_DOC.indexOf("### 13.6"));
     expect(section).toMatch(/FIGURES_PER_COMPANY/);
@@ -895,6 +1224,95 @@ describe("tactical mirror — the cross-lane seams", () => {
     const half = deriveSquad({ type: "riflemen", figures: 5, loadout: kit });
     expect(half.ranged).toBeLessThan(armed.ranged);
     expect(half.pts).toBeLessThan(armed.pts);
+  });
+
+  // ---- the reduction is arms.ts's, not ours -------------------------------
+  //
+  // The bracket assertions above would pass over a local approximation that
+  // merely landed in the same neighbourhood — a number "arithmetically false
+  // against its own table" is the defect class that survived Wave 1. These
+  // recompute the derived row FROM deriveLoadout's own return value and demand
+  // exact equality, so any arithmetic of our own between the two would show.
+  const primaryKit = (patternKey, quality, mods = []) => ({
+    primary: { patternKey, quality, mods, quirks: [] },
+  });
+
+  const KITS = [
+    ["a levy rifle, as issued", primaryKit("hw141_levy_rifle_mk2", "issue")],
+    ["the same rifle, proofed", primaryKit("hw141_levy_rifle_mk2", "proofed")],
+    ["a rifle with the blade fixed", primaryKit("hw141_levy_rifle_mk2", "issue", ["bayonet_sword_pattern"])],
+    ["an anvilgate heavy gun", primaryKit("em233_anvilgate_heavy_gun_mk1", "issue")],
+    ["a full three-weapon kit", {
+      primary: { patternKey: "rs229_verdict_service_rifle_mk3", quality: "issue", mods: [], quirks: [] },
+      support: { patternKey: "cl274_knotwork_light_gun_mk1", quality: "issue", mods: [], quirks: [] },
+      sidearm: { patternKey: "hw166_bottoms_pit_revolver_mk1", quality: "scrap", mods: [], quirks: [] },
+    }],
+    ["an empty kit — an unarmed stand is a legal state", {}],
+  ];
+
+  for (const [label, loadout] of KITS) {
+    it(`every derived value for ${label} is recomputed from deriveLoadout's own return`, () => {
+      const t = SQUAD_TYPES.riflemen;
+      const figures = 7;
+      const squad = { type: "riflemen", figures, loadout };
+      const kit = deriveLoadout(squad, {});
+      const derived = deriveSquad(squad);
+      const cohesion = Math.pow(figures / t.figures, SCALING.offenceExponent);
+
+      // 'absolute' (LOADOUT_KEYS): the kit REPLACES the declared value. Lane I
+      // returns it per figure, so the type's DEFAULT figure count is what puts
+      // it on the squad scale before erosion — never the actual headcount, or
+      // the strength penalty would be charged twice.
+      expect(derived.ranged).toBe(round2(kit.ranged * t.figures * cohesion));
+      expect(derived.melee).toBe(round2(kit.melee * t.figures * cohesion));
+      // 'absolute', and not scaled by headcount: reach is what a figure carries.
+      expect(derived.range).toBe(kit.range);
+      // 'delta': added to the type's base, floored.
+      expect(derived.speed).toBe(Math.max(SCALING.speedFloor, t.speed + kit.speed));
+      // 'delta', per figure, charged on the figures actually present.
+      expect(derived.pts).toBe(Math.round(t.pts * (figures / t.figures)) + Math.round(kit.pts * figures));
+    });
+  }
+
+  it("the kits are actually distinguishable, so the equality above is not vacuous", () => {
+    // A deriveLoadout that returned a constant would satisfy every assertion in
+    // the loop. Three kits, three different reductions.
+    const seen = KITS.filter(([, l]) => Object.keys(l).length)
+      .map(([, loadout]) => JSON.stringify(deriveLoadout({ type: "riflemen", figures: 7, loadout }, {})));
+    expect(new Set(seen).size).toBe(seen.length);
+  });
+
+  it("a proofed weapon is worth more than the same weapon as issued, all the way through", () => {
+    const at = (loadout) => deriveSquad({ type: "riflemen", figures: 10, loadout });
+    const issued = at(primaryKit("hw141_levy_rifle_mk2", "issue"));
+    const proofed = at(primaryKit("hw141_levy_rifle_mk2", "proofed"));
+    expect(proofed.ranged).toBeGreaterThan(issued.ranged);
+    expect(proofed.pts).toBeGreaterThan(issued.pts);
+  });
+
+  it("melee is the blade and nothing else — Lane I's semantics, adopted whole", () => {
+    // Recorded because it is surprising and deliberate. arms.ts computes melee
+    // as the BLADE's contribution (b.damage − bare.damage) and publishes it as
+    // 'absolute' in LOADOUT_KEYS, so a section issued a bayonet-less rifle
+    // derives melee 0 — lower than the same section with no loadout at all.
+    // That is the contract as Lane I wrote it, and Lane A applies the published
+    // meaning rather than inventing a kinder one. Fix the blade and it returns.
+    const bare = deriveSquad({ type: "riflemen", figures: 10, loadout: primaryKit("hw141_levy_rifle_mk2", "issue") });
+    const fixed = deriveSquad({ type: "riflemen", figures: 10, loadout: primaryKit("hw141_levy_rifle_mk2", "issue", ["bayonet_sword_pattern"]) });
+    expect(bare.melee).toBe(0);
+    expect(fixed.melee).toBeGreaterThan(0);
+    expect(deriveSquad({ type: "riflemen", figures: 10 }).melee).toBe(SQUAD_TYPES.riflemen.melee);
+  });
+
+  it("neither file ever looks inside a weapon (drift guard 11)", () => {
+    // deriveSquad consumes deriveLoadout OUTPUT only. If either file ever named
+    // a pattern, a quality grade or the resolver, the reduction boundary would
+    // have been crossed and the equalities above would stop meaning anything.
+    for (const [label, src] of [["tactical.ts", CANON_SRC], ["data.js", MIRROR_SRC]]) {
+      for (const token of ["patternKey", "quirks", "WEAPON_PATTERNS", "QUALITY_GRADES", "MODIFICATIONS", "resolveWeapon", "rollWeapon", "LOADOUT_SHARES"]) {
+        expect(codeLines(src).join("\n"), `${label} reaches into a weapon via ${token}`).not.toContain(token);
+      }
+    }
   });
 
   it("an unreadable loadout is no loadout, not a crash", () => {

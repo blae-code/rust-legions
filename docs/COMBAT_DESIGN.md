@@ -436,6 +436,43 @@ reads the bearing from attacker to target, compares it with the stand's facing, 
 drift into disagreeing about which way a hull is pointed. Anything overhead — an aeroplane, a shell
 coming down — lands on the top plate whatever the hull is facing.
 
+### 13.10 The morale test — the numbers Lane C rolls and does not own
+
+The engine rolls the test; **it authors none of these numbers** (drift guard 7). Three six-sided
+dice, **roll under** the squad's derived morale plus the situation. A modifier is **added to the
+target**, so a negative entry makes the test harder to pass — one convention, stated once, because
+two lanes reading the sign differently is a bug nobody can see. Fail by `routMargin` or more and the
+squad **routs**; fail by less and it is **suppressed** for `suppressedTurns`. A commissar converts a
+rout into `SPECIALISTS.commissar.mods.executionToll` figures and the line holds.
+
+| Entry | Value | What it is |
+| --- | --- | --- |
+| `dice` | 3 | Dice rolled. |
+| `dieSides` | 6 | Sides per die. |
+| `autoPassRoll` | 4 | At or under this the squad holds whatever the target says. |
+| `autoFailRoll` | 17 | At or over this it breaks whatever the target says. |
+| `routMargin` | 4 | Fail by this much or more and it routs rather than goes to ground. |
+| `suppressedTurns` | 1 | Turns a suppressed squad stays down. |
+| `perCasualtyThisTurn` | -1 | Per figure lost this turn. The commonest reason a line breaks. |
+| `flanked` | -2 | Fire arriving from a flank or rear arc. |
+| `adjacentFriendlyDestroyed` | -1 | A neighbouring stand wiped out in sight of them. |
+| `alreadySuppressed` | -2 | Being tested while already down. |
+| `underFireFromUnseen` | -1 | Taking fire with no line of sight to the source. |
+| `inCover` | 1 | Sitting in terrain that covers them. |
+| `inWork` | 1 | Sitting in a raised work. |
+| `entrenched` | 2 | Dug in on the spot they are being asked to hold. |
+| `rallying` | 2 | Under a rally order this turn. |
+| `commandAdjacent` | 1 | An officer or a signaler within a hex. |
+
+**Why the band is what it is.** A steady rifle section tests at 11 on 3d6 and holds five times in
+eight. Stack the worst of it — flanked, already down, two figures gone, a neighbour destroyed, fire
+from somewhere they cannot see — and the target falls to the floor, which is why `autoPassRoll`
+exists at all: without it a squad in that state could not hold on any roll, and a rule that cannot
+be passed is not a test. Stack the best of it and the target runs past 18, which is why
+`autoFailRoll` exists: a ditch and an officer should not make a squad literally unbreakable. Both
+thresholds are therefore *reachable* by the modifiers actually printed above, and the mirror test
+asserts exactly that rather than trusting this paragraph.
+
 ## 14. The Field Generator *(Lane B — the ground the squads fight over)*
 
 Layer Two gave the battle a *line*; the tactical layer gives it a *place*. `generateField` is one
