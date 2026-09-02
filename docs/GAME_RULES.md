@@ -343,3 +343,49 @@ are untouched and remain authoritative for hex games.
   supply as it goes and flips settlements it rolls through; it cannot enter
   contested ground (foreign columns or a foreign base). Boarding assaults on an
   anchored base remain reserved for M5.
+
+---
+
+## 23. The Arms Catalogue & the Universal Damage Model [PROPOSED — awaiting platform wiring]
+
+*Lane I · source of record `docs/ARMS_CATALOGUE.md` · data `base44/shared/arms.ts` (mirror `src/lib/arms.js`).
+Nothing below is wired into the engine yet: the tables, the roll and the damage model exist and are
+tested; the platform lane decides when `rollWeapon` fires and where a stand's `armour` is stored.*
+
+- **"Rifles" is a class, not a weapon.** A squad carries **weapon patterns** — 49 named
+  patterns from 9 fictional manufacturers, in 16 calibres, at one of **5
+  quality grades** (`scrap · issue · proofed · master · relic`), with slot-based **modifications**
+  (47 across 8 slots) and named **quirks** (33, every one machine-evaluable).
+- **The Universal Damage Model is the only armour arithmetic in the game.** A hit resolves as
+  `delta = weapon.armorPen − target.armourValue` → `PEN_TABLE` multiplier → `TYPE_MATRIX[damageType][armourClass]`
+  multiplier → `effective`. There are **7 armour classes** (`none` through `fortified`) and **7 damage
+  types**, so the matrix is 49 numbers and there are no defaults and no fallbacks.
+- **A rifle cannot scratch a crawler, and that is a rule, not a rounding.** `PEN_TABLE` carries a
+  mandatory `mult: 0` row. At issue grade with no mods, every `sidearm/carbine/rifle/smg/lmg/hmg/shotgun/marksman/flame`
+  pattern does **exactly 0** effective damage to `heavy` and `superheavy` armour, while every
+  `anti_armor/crawler_gun/artillery` pattern does not.
+- **A zero-effect hit still suppresses.** `resolveHit` returns `{ effective, suppressOnly }`; a rifle
+  volley pins a crawler's crew without hurting the crawler. The weight of that suppression is data:
+  `SUPPRESSION.onZeroEffect = 0.5`, `SUPPRESSION.concussiveBonus = 0.5`.
+- **Area fire rolls against each victim's own armour.** `resolveAoe` calls `resolveHit` once per victim
+  inside the burst radius, with damage scaled by `max(0, 1 − falloff × distance)`. Victims outside the
+  radius are not in the result at all.
+- **Weapons are rolled, not picked.** `rollWeapon({ seed, class, maker, calibre, tierCap, luck })` draws
+  one `mulberry32` stream in a fixed, documented order and returns a `WeaponInstance`
+  `{ patternKey, quality, mods, quirks, serial }`. The same seed returns the same weapon forever —
+  serials are reproduced from the seed, not stored. Quality is **not** gated by `tierCap`; `tierCap`
+  gates the pattern pool only. `luck` (clamped to `[-1, 1]`) tilts the quality draw and nothing else.
+- **The engine never sees a rifle.** `deriveLoadout(squad)` reduces a squad's carried weapons to
+  `SquadType`-shaped numbers (`melee`, `ranged`, `range` absolute; `speed`, `pts` deltas), and
+  `loadoutProfile(squad)` hands the engine the damage profile `{ armorPen, damageType, aoe, misfire }`
+  it feeds to `resolveHit`. Nothing below squad level crosses that line.
+- **Points.** `SquadType.pts` is the cost of a **squad** (`riflemen` = 100 for ten figures);
+  `WeaponPattern.pts` is the cost of **one weapon**. The reference is the **Hundredweight 141 Levy
+  Rifle at issue grade = 1 point per figure** — a ten-figure section therefore carries 10 points of
+  weapon. Anti-armour value is priced on a **separate rate** from anti-personnel value, so a heavy
+  anti-crawler rifle is not free against infantry. No pattern exceeds **1.6×**
+  the reference's points-efficiency; the audited maximum is **1.2724** (`hw218_sledge_trench_sweeper_mk1`).
+
+**Platform wiring still owed:** when `rollWeapon` fires (battle loot, dig finds, armory
+certifications); where a `Loadout` is persisted on a squad row; where a stand's `armour` class is
+stored (vehicles carry one per facing); and validation of any `WeaponInstance` arriving from a client.
