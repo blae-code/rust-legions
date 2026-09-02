@@ -1168,6 +1168,7 @@ export function resolveOrders(t, squadId, moveTo, action, target) {
       if (!primary && v.sq.side !== sq.side) {
         primary = v.sq;
         fx.targetId = v.sq.id;
+        if (hit.facing) fx.facing = hit.facing;
         if (result) fx.moraleResult = result;
       }
     }
@@ -1184,6 +1185,13 @@ export function resolveOrders(t, squadId, moveTo, action, target) {
     sq.facing = directionIndex({ q: sq.q, r: sq.r }, { q: victim.q, r: victim.r }, sq.facing);
     const hit = strike(t, sq, act, victim);
     fx.dealt = hit.figures;
+    // THE PLATE THE SHOT LANDED ON, reported to the client rather than kept
+    // internal. `strike` already selected it — the engine cannot resolve a hit
+    // on a hull WITHOUT selecting one — and a facing that only ever reaches
+    // the log as an English phrase is a rule Lane E can neither draw nor
+    // verify. Present only when the struck stand carried `facings`: an
+    // infantry section has one armour class and no plate to name.
+    if (hit.facing) fx.facing = hit.facing;
     const result = afterHit(t, sq, act, victim, hit);
     if (result) fx.moraleResult = result;
     const where = hit.facing ? ` on the ${hit.facing}` : '';
@@ -1616,6 +1624,12 @@ function holdingPower(list) {
  * `field` carries `meta` (the addendum's requirement): lineOfSight reads
  * meta.losCap and throws without it, so a client that renders sight lines
  * needs it, and a silent default would be an invisible rules change.
+ *
+ * `relicProject` and `fx.facing` are amendment C2, and both exist for the same
+ * reason: `test/fixtures/tactical-state.json` IS this payload, and it is the
+ * only description of the battle Lanes D and E have. A slot or a plate that
+ * the server knows and the payload does not is a shape they cannot render,
+ * cannot test against, and would have to re-cut the day it matters.
  */
 export function tacticalView(t, myRole) {
   const fighting = t.status === 'fighting';
@@ -1628,6 +1642,16 @@ export function tacticalView(t, myRole) {
     myRole: myRole || null,
     deployed: t.deployed,
     myPool: myRole ? t.pools[myRole] : null,
+    // THE PER-FACTION RELIC SLOT, shipped to the client rather than kept as
+    // engine state. Nothing reads or writes it until boarding assaults land
+    // as a Field Amendment, so it is `{ attacker: null, defender: null }` on
+    // every board today — but the fixture Lanes D and E build against IS this
+    // payload, byte for byte, and a slot that exists only on the server is a
+    // shape they would have to re-cut the day it is filled. `||` because a
+    // battle persisted before the slot was cut carries no relicProject at
+    // all, and the view's key set is a contract: a missing key is a different
+    // payload, not an empty one. A test deletes the slot and drives it.
+    relicProject: t.relicProject || { attacker: null, defender: null },
     field: t.field,
     activeId: fighting && active ? active.id : null,
     queue: fighting ? t.queue.slice(t.qIndex).concat(t.queue.slice(0, t.qIndex)) : [],

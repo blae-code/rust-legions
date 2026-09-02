@@ -220,8 +220,7 @@ SquadTemplate = { name: string, type: SquadTypeKey, specialists: SpecialistKey[]
 //      said "Every stand row gains `armour: ArmourClassKey`" for the data model and the VIEW row did not
 //      carry it. For a mechanized stand this reports the FRONT facing; the other three are server state
 //      and are selected by struckFacing at resolution time.
-//   Rows are therefore 22 keys, `status` is unchanged at 3 + optional `building`, and the top level is
-//   unchanged at 13 keys.
+//   Rows are therefore 22 keys and `status` is unchanged at 3 + optional `building`.
 //   4. `orderAction` additionally accepts the ENGINE order `'march'` — an activation spent moving only.
 //      It is deliberately NOT a SQUAD_ACTIONS row: every order in Lane A's table either fires, builds,
 //      or carries noMove:true (`hold`, `rally`, `entrench` all stand fast), so a stand that only wants
@@ -229,13 +228,28 @@ SquadTemplate = { name: string, type: SquadTypeKey, specialists: SpecialistKey[]
 //      verb that does nothing. A null or absent `orderAction` with a `moveTo` is read as a march.
 //      It is reported back on `fx.action` as the string 'march'.
 //
-// ENGINE STATE, NOT VIEW (Lane C, Amendment C1, cont.): the tactical state object carries
-// `relicProject: { attacker: null, defender: null }` — the per-faction slot the Wave 3 addendum (item 7)
-// requires be cut now so it is not re-cut later. It is deliberately NOT in the getState payload above:
-// the top level is fixed at 13 keys, nothing reads or writes the slot until boarding assaults land as a
-// Field Amendment, and a fourteenth key would be shipped to Lanes D and E with nothing to render.
-// Operator ruling recorded with it: on capture the captor loots the project's unspent MATERIALS only;
-// the project, its progress and its housed-Object requirement are lost with the keel.
+// AMENDMENT 2026-09-01 (Lane C, Amendment C2): two further ADDED keys, both required by the operator's
+// step-3 instruction that `test/fixtures/tactical-state.json` "must carry field.meta and a relicProject
+// slot" and "must include a hit that selected a FACING", the second qualified as otherwise "untested and
+// UNRENDERABLE". Nothing is removed or renamed.
+//   5. the top level gains `relicProject: { attacker, defender }` — the per-faction slot the Wave 3
+//      addendum (item 7) requires be cut now so it is not re-cut later. **This SUPERSEDES Amendment C1's
+//      note, which put the slot on the engine state and out of the view.** The reason C1 gave — "nothing
+//      to render" — was answered by the wrong question. The fixture IS this payload byte for byte and is
+//      the only description of the battle Lanes D and E have, so a slot the server holds and the payload
+//      does not is one they must re-cut the day boarding assaults fill it; and a fixture carrying a key
+//      `tacticalView` does not emit would be a fixture that lies about the contract it exists to pin.
+//      It is `{ attacker: null, defender: null }` on every board today. Nothing reads or writes it until
+//      boarding assaults land as a Field Amendment. Operator ruling recorded with it: on capture the
+//      captor loots the project's unspent MATERIALS only; the project, its progress and its housed-Object
+//      requirement are lost with the keel. **The top level is therefore 14 keys.**
+//   6. `fx` gains optional `facing: 'front'|'side'|'rear'|'top'` — the plate the shot landed on, present
+//      only when the struck stand carried `facings`. The engine cannot resolve a hit on a hull WITHOUT
+//      selecting a plate (drift guard 12, and the Wave 3 addendum item 5), and before this the selection
+//      reached the client only as an English phrase inside a log line. Lane E draws the strike on the
+//      plate; an infantry stand has one armour class and no plate to name, so the key is absent on its
+//      hits. **`fx` is therefore 8 always-present keys + 4 optional (`targetId`, `at`, `moraleResult`,
+//      `facing`).**
 
 // battleResult (Lane C → platform, unchanged)
 { attackerWon: bool, attackerUnits: Regiments, defenderUnits: Regiments }

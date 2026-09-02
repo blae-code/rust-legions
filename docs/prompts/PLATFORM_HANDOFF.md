@@ -658,3 +658,169 @@ that statement, the embedded copy and the live heading together, so a renumber i
 three-line edit inside this lane's own files and a red test if any one of them is missed. **No
 shipped Codex entry names a section number**, asserted, because the Codex block lands in a file
 Lane H owns and merges after this lane.
+
+### Lane C — the tactical engine (`base44/shared/tacticalEngine.ts`)
+
+The state machine is complete, deterministic and tested (`test/tactical-engine.test.js`), and the
+recorded payload Lanes D and E build against is committed at **`test/fixtures/tactical-state.json`**.
+`gameEngine` already imports the eight frozen names and none of them changed shape, so **nothing below
+is required to keep the engine compiling** — but until C1 and C2 are applied the tactical battle is
+played on one board and settles by refusing its own orders. Two items are already applied and are
+marked so.
+
+#### C1 — `createTactical` is still called with TWO arguments, so every battle is the same board
+
+`entry.ts` `battleSetMode` (≈ line 1944) reads:
+
+```js
+b.tactical = createTactical(b.attacker.units, b.defender.units);
+```
+
+The third argument is optional precisely so this line kept working, and when it is omitted the engine
+falls back to `DEFAULT_FIELD_OPTS = { seed: 1, nodeKind: 'crossroads', weather: 'clear', fortBonus: 0 }`.
+**That is one board, for every battle, in every game, for ever** — same 165 tiles, same two deploy
+strips, same woods in the same places. Lane B's generator is doing no work at all today.
+
+- [ ] Pass the real options:
+
+```js
+b.tactical = createTactical(b.attacker.units, b.defender.units, {
+  seed: <stable integer derived from the persisted battle — e.g. gameId + turn + tile id>,
+  nodeKind: <the macro node's own kind: 'city'|'town'|'depot'|'ruin'|'crossroads'>,
+  weather: <the live weather key: 'clear'|'rain'|'fog'|'storm'|'snow'>,
+  fortBonus: <the DEFENDER's fortification level, 0..3>,
+});
+```
+
+`w`/`h` are omitted deliberately — the board is `FIELD` (15×11) and the engine takes it from Lane B.
+**The field is generated once and stored on `b.tactical.field`; nothing in the engine ever regenerates
+it**, because a second `generateField` with a changed `fortBonus` or `weather` would repaint the ground
+underneath squads already standing on it. Validate `nodeKind` and `weather` at this call site — Lane B's
+generator never throws, it falls back, so a typo surfaces as a bland board rather than as an error.
+
+One consequence of the current ordering worth knowing rather than changing: `battleSetMode` files the
+**defender's** auto order of battle at set-mode time, before the attacker has deployed. That is legal
+(the deploy zones are disjoint) and the engine seats the second filing around the first.
+
+#### C2 — `runAutoTurns` passes `o.targetId`, and the staff's area orders have no `targetId`
+
+`entry.ts` ≈ line 1908:
+
+```js
+const o = autoOrders(t, f);
+if (!o || resolveOrders(t, f.id, o.moveTo, o.actionKey, o.targetId)) break;
+```
+
+`autoOrders` returns **both** `targetId` (the seam's original three keys) and the §4 `target` object.
+`targetId` is a squad id for a shot at a stand and **`null` for every order that falls on a HEX** —
+`grenade`, `mortar_barrage`, `bombard`, `smoke` and every `build_*`, all of which report
+`target: { q, r }`. Handing `null` to `resolveOrders` for one of those gets the order refused
+(*"That order needs a hex to fall on"*), and the `break` ends the whole auto run.
+
+**Measured, not read** (`test/tactical-engine.test.js`, *"hands the platform a hex target the SHIPPED
+seam then drops"*, and the same loop over five seeds): the shipped form stops after **16–38** of its 60
+activations, **inside round 1**, the first time any section is issued a barrage. The same loop with
+`o.target` runs all 60 and passes the round.
+
+- [ ] One word: `resolveOrders(t, f.id, o.moveTo, o.actionKey, o.target)`. `resolveOrders` normalises
+      `{ squadId }`, `{ q, r }` **and** a bare id string at the top of the function, so this is
+      backward-compatible with anything else that still passes a string.
+
+#### C3 — `guard < 60` is under one round at full strength
+
+Same loop. `MAX_SQUADS` is **24 a side**, so a full board is **48 activations per round** and a 60-turn
+guard is one round and a quarter. It is a safety bound, not a budget, and the engine has its own
+termination guarantee (`t.round > t.roundLimit` with `ROUND_LIMIT = 20`, so **≤ 960 activations**).
+
+- [ ] Either raise the guard to `MAX_SQUADS * 2 * ROUND_LIMIT` (960) with the same `break`s, or call
+      the export written for exactly this: **`autoResolveRemainder(t, side, maxTurns = 200)`** loops
+      `autoOrders` + `resolveOrders` for one side (`side = null` for both) until `battleResult(t)` is
+      non-null or the budget is spent, and returns the number of activations it resolved. It stops of
+      its own accord the moment the other side's stand is next in the queue, so it is safe to call on
+      a half-automatic battle.
+
+#### C4 — `tacticalOrders` reads `body.orderAction` (**APPLIED**) but still flattens the target to an id
+
+```js
+const targetId = body.target?.squadId ?? body.targetId ?? null;
+```
+
+A hex target from Lane E (`target: { q, r }`) is silently dropped to `null` by that expression, so a
+human commander cannot issue a grenade, a barrage, a bombardment or a smoke screen — the same class of
+refusal as C2, on the human path instead of the staff path. The code comment says *"hex targets await
+Lane C"*; they no longer do.
+
+- [ ] Pass `body.target` straight through: `resolveOrders(b.tactical, squadId, body.moveTo || null,
+      body.orderAction, body.target ?? body.targetId ?? null)`. The engine normalises all three forms.
+- [ ] `body.orderAction` additionally accepts the engine order **`'march'`** (§4 amendment C1 item 4) —
+      an activation spent moving only. A `moveTo` with a null or absent `orderAction` is read as a
+      march, so Lane E may send either.
+
+#### C5 — `tacticalDeploy` passes the rows through untouched; make sure they still have their kit on
+
+`submitFormations(b.tactical, role, body.squads ?? body.formations)` already forwards each row whole, so
+nothing in `gameEngine` needs to change for the row to carry more. What it must not do is normalise the
+rows on the way past. A deploy row is:
+
+```ts
+{ name, type, figures, specialists: SpecialistKey[] /* <= 2 */,
+  at?: { q, r },            // honoured when it is inside that side's field.deploy[side] zone
+  loadout?: Loadout,        // Lane I — folded in by deriveSquad, never inspected by the engine
+  vehicle?: VehicleInstance // Lane J — the ONLY thing that gives a stand `facings`
+}
+```
+
+- [ ] **`vehicle` is what makes a stand mechanized.** `autoFormations` carves a `crawler` row with no
+      `vehicle`, so a staff-deployed crawler has no facings and every hit on it resolves against the
+      squad type's single armour class. A hull only ever gets front/side/rear/top plates if a
+      `VehicleInstance` reaches `submitFormations` on its row. That is a Lane D + entity-schema item as
+      much as an engine one, and it is why the committed fixture deploys its two hulls explicitly.
+- [ ] `ArmyDesign.jsonc` → the `SquadTemplate` shape needs room for `loadout` and `vehicle`, or the
+      whole arms and motor-pool half of the game never reaches the board.
+
+#### C6 — persistence: `persistWar()` already carries it, and it is bigger than it was
+
+`persistWar()` writes `activeBattle` whole, so `b.tactical` rides along with no field list to maintain —
+including `field` (165 tile objects), `relicProject`, `screens`, `lost`, `seed`, `rolls`, `nextId` and
+each stand's retained `wounds`. **Do not add a per-key projection of `b.tactical` to that update.**
+Dropping `seed`/`rolls` breaks replay determinism; dropping `screens` leaves a smoke screen blocking
+sight for ever; dropping `wounds` heals every stand on every save.
+
+- [ ] Budget for the size: the committed fixture — one battle, 22 stands, mid-round-two — serialises to
+      **~46 KB** as the client-facing view, and the server object is larger. The `Game` document is
+      already a large single record (CLAUDE.md, Gotchas); this is the biggest single thing in it.
+
+#### C7 — the two keys §4 gained from this lane (amendment C2), both additive
+
+- **`relicProject: { attacker, defender }`** at the top level of the `getState → battle.tactical`
+  payload. `{ attacker: null, defender: null }` on every board today. Nothing reads or writes it until
+  boarding assaults land as a Field Amendment; it is cut now so the shape is not re-cut then. Operator
+  ruling recorded with it: **on capture the captor loots the project's unspent materials only — the
+  project, its progress and its housed-Object requirement die with the keel.**
+- **`fx.facing: 'front'|'side'|'rear'|'top'`**, optional, present exactly when the struck stand carried
+  `facings`. The engine cannot resolve a hit on a hull without selecting a plate; before this the
+  selection reached the client only as English inside a log line.
+
+#### C8 — `t.status = 'done'` is the platform's transition, and `battleResult` is read before it
+
+`runAutoTurns` sets `t.status = 'done'` itself, after reading `battleResult(t)`. **The engine never sets
+it**, deliberately: `battleResult(t)` returns `null` unless `t.status === 'fighting'`, so a second
+`settleTactical` on an already-sealed battle cannot re-run `finishBattle`. Two consequences:
+
+- `tacticalView` therefore never emits `status: 'done'` from the engine's own state machine — Lanes D
+  and E get that value because the platform wrote it.
+- If anything ever calls `battleResult(b.tactical)` **after** the seal, it gets `null`. Read it once,
+  before setting the status, exactly as the current code does.
+
+#### C9 — the fixture, and what to point Lanes D and E at
+
+`test/fixtures/tactical-state.json` **is** the `getState → battle.tactical` payload, byte for byte, at a
+recorded moment of a scripted battle: 14 top-level keys, 15×11 field with `meta`, 22 stands (11 a side)
+of 7 types, one mechanized stand per side, four stands suppressed, five routed, one at work on a bunker,
+two finished foxholes on the ground, 77 hexes of sight, an 18-line log, and an `fx` recording a hit that
+selected the **rear** plate of a hull. `UPDATE_FIXTURE=1 npm test` regenerates it; a default run asserts
+the committed bytes against the battle, so an engine change fails loudly instead of drifting away from
+what the UI draws.
+
+- [ ] When P3 goes live, diff a real `getState` response against this file. Any key that differs is
+      either a platform projection dropping engine state (C6) or a contract change nobody filed.

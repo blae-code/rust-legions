@@ -528,3 +528,221 @@ quality grade.
 > (`src/lib/units.js` `crawler.points === 12`), while a tactical `SquadType` prices a whole squad
 > (`riflemen.pts === 100`). Reconciling the two scales is one documented multiplier and it is not this
 > section's to choose.
+
+## 26. The Tactical Engagement [PROPOSED — awaiting platform wiring]
+
+*Drafted by the tactical-engine lane. Code: `base44/shared/tacticalEngine.ts`. Field: `base44/shared/
+tacticalField.ts` (§ Lane B). Content: `base44/shared/tactical.ts` (squad types, actions, staff,
+deployables, morale). Damage: §23's Universal Damage Model, and nothing else. Recorded payload:
+`test/fixtures/tactical-state.json`. The platform wiring this section waits on is C1–C9 in
+`docs/prompts/PLATFORM_HANDOFF.md`.*
+
+**A set-piece engagement is fought as squads on a 15×11 field, and it is the same fight for both
+commanders.** The attacking commander elects it in place of quick resolution (§9); both staffs file an
+order of battle; the sections then activate one at a time in initiative order until one side has nothing
+left on the ground or the clock runs out.
+
+**The board is generated once and never repainted.** 165 hexes from the macro node's own kind, the live
+weather and the defender's fortification level. The two deploy strips are the three columns at either
+end and are disjoint. A board that was regenerated mid-battle would move the woods out from under
+sections already standing in them, so it is generated at the moment the engagement is elected, stored
+with the battle, and read from there for the rest of it.
+
+### 26.1 The order of battle
+
+| | |
+| --- | --- |
+| Sections a side | **1 minimum, 24 maximum** |
+| Staff attachments per section | **2 maximum** |
+| Figures per section | the type's own band (a rifle section musters **4–12**, default **10**) |
+| Cost | the side's figure pool, by regiment; a regiment is **10 figures** of the line and **1** of crawlers, guns or aeroplanes |
+
+A filing is **all or nothing**. Every row is validated — the type exists, the figure count is inside the
+band, the staff return is legal, the whole submission is inside the pool — and then every section is
+seated in one movement. A filing the deployment ground cannot hold whole is refused with nothing seated
+and no section number spent, so the commander may re-file against exactly the ground he was refused on.
+
+A row may name the hex it wants (`at`). It is honoured when the hex is inside that side's own strip,
+unblocked, and not already claimed; **every row that asked for a legal hex is seated before any row is
+seated automatically**, so a preferred hex does not depend on the order the rows happened to arrive in.
+Anything unseated fills the strip from the front. The two strips fill as 180° rotations of one another —
+an axial column is a diagonal, so mirroring one coordinate is not a fair reflection of the hex metric,
+and filling both strips the same way hands one side the sheltered corner of its parallelogram.
+
+### 26.2 The clock and the queue
+
+| | |
+| --- | --- |
+| Rounds | **20** (`ROUND_LIMIT`); the engagement is called at the end of the twentieth |
+| Activations in a full round | **48** (24 sections a side, each activating once) |
+| Order | initiative descending, rebuilt every round |
+| Initiative | `speed × 2 + 4`, plus a signaler's **+3** |
+| Ties | broken by a seeded draw, one per stand per round |
+
+The tie-break is a draw and not the section number on purpose: on a board of thirty-odd sections most of
+them tie, and breaking ties on the identifier hands every one of those ties to the same side.
+
+**End of round, in this order:** suppression lifts by one, smoke thins, works under construction advance
+and finish, medics recover, the round's casualty memory is cleared, and the queue is rebuilt — because a
+section that lost figures may have lost the initiative with them.
+
+### 26.3 Orders
+
+An activation spends one order. A section may march **and** fire in the same activation unless the order
+stands fast (`hold`, `rally`, `entrench`, `suppress`, both barrages, and every `build_`). An activation
+spent only closing the ground is the **march** order.
+
+- **Movement** costs the A\* path over the tiles' own move cost, and must not exceed the section's
+  speed. Ground off the field, ground that will not take a section, ground already held, and — for a
+  hull — an infantry-only work are each refused in their own words, and a refused order costs the
+  section nothing and leaves it exactly where it stood.
+- **Reach and sight.** The target must be inside the order's own range (or the section's, if the order
+  does not override it) and there must be a line of sight to it — **except** for indirect fire
+  (`mortar_barrage`, `bombard`), which needs the range and not the sight.
+- **Melee** (`assault`, `overrun`) uses the section's melee against an adjacent stand; everything else
+  uses its ranged value.
+- **Area fire** falls on a **hex** and strikes every stand inside the radius, friendly stands included,
+  each resolved against its own armour. Effect falls off by the order's falloff per hex from the impact,
+  and **the shell weight is divided among the stands it finds** — one section under a grenade takes the
+  whole of it, eight sections under a bombardment share it. An order that struck every stand for its
+  full effect would multiply itself by its own area.
+- **Smoke** blocks sight in its hex for two rounds and then lifts, restoring the ground's own state.
+
+### 26.4 Armour, and the plate a shot lands on
+
+**Every damaging hit in this engagement — small arms, melee, splash, artillery, aircraft — resolves
+through §23's damage model and through nothing else.** There is no armour arithmetic in the engine: it
+selects *which* armour class the hit is asked about and hands the question over.
+
+- A **mechanized** stand answers on the plate the shot came in on. Each hull declares front, side, rear
+  and top; the rear is the arc directly behind the way the stand is pointed. A stand's facing is set at
+  deployment (toward the enemy line) and updated every time it moves (to the way it walked) or fires (to
+  what it fired at).
+- **Indirect and air attacks land on the top plate** whatever the hull is pointed at.
+- A stand in a **work** answers on the work's class instead of its own — but only if its own class is
+  `none`, `soft` or `light`. **A work re-classes a man; it never re-classes a hull.**
+- Everything else answers on its type's declared class.
+
+A hit that §23 resolves to **zero takes no figures, ever** — the remainder is retained on the stand
+rather than rounded, so a light weapon accumulates exactly nothing against heavy plate however long it
+fires. **It still suppresses and still forces a morale test**: a rifle section cannot mark a heavy
+crawler and can pin its crew.
+
+### 26.5 Figures
+
+A resolved effect becomes whole figures by dividing it by what one figure of the target absorbs:
+
+> **figures = ⌊ (retained wounds + effect × swing) ÷ ( (3 + 2 × armor) × (1 + 0.35 × cover) × guard ) ⌋**
+
+| Term | Value |
+| --- | --- |
+| Base absorption | **3**, plus **2** per point of the stand's `armor` |
+| A rifle section | 2 armor → **7** per figure |
+| A diesel crawler | 12 armor → **27** per figure |
+| Cover | **+35 %** per point, terrain plus the work standing on it — cover 2 is **+70 %** |
+| Guard | the order the stand last took: `entrench` **1.9**, `hold` **1.45**, `rally` **1.1**, ordinary **1.0**, `assault` **0.9**, `strafe` **0.85** |
+| Swing | one seeded draw, **×0.85 to ×1.15** |
+| Remainder | retained on the stand, never rounded away |
+
+A rifle section that has entrenched itself in a trench therefore absorbs **7 × 1.70 × 1.9 = 22.61** per
+figure — better than three times what the same section absorbs in the open, which is the whole argument
+for digging. Casualties remove whole figures; a section at zero leaves the field and the queue.
+
+### 26.6 Suppression
+
+Suppression is measured in whole rounds and is **⌊ the order's own weight + ½ ⌋**, plus the work the
+firer stands in. A hit that resolved to nothing adds **+0.5**, which is what lets a section pin what it
+cannot hurt.
+
+| Order | Weight | Rounds pinned |
+| --- | --- | --- |
+| `assault`, `smoke`, `fire` | 0 – 0.25 | **0** — aimed fire does not pin |
+| `fire` on a stand it cannot mark | 0.25 + 0.5 | **1** |
+| `grenade`, `strafe` | 0.5 | **1** |
+| `mortar_barrage` | 0.75 | **1** |
+| `bombard`, `overrun` | 1.0 | **1** |
+| `suppress` | 1.5 | **2** |
+
+A pinned stand fires at **65 %** and loses one round of suppression each end of round. Suppression takes
+the longer of what a stand carries and what a new order buys, so re-pinning a pinned section buys
+nothing.
+
+**The suppression ring.** A heavy gunner's attachment adds **1 hex to the suppress radius, and never to
+the damage radius**. Stands inside the ring that the order did not strike are pinned and morale-tested
+and **lose no figures** — the belt goes over their heads. For an area order the ring begins where the
+burst stops (radius + 1); for point fire it is measured one hex out from the hex the order fell on.
+Friendly stands are caught in it, for the same reason they are caught under a burst.
+
+### 26.7 Morale
+
+A morale test is **3d6 roll-under** the section's derived morale, adjusted:
+
+| | |
+| --- | --- |
+| Automatic pass / automatic failure | roll **≤ 4** / roll **≥ 17** |
+| Per figure lost this round | **−1** |
+| Flanked (two or more enemies adjacent) | **−2** |
+| Already suppressed | **−2** |
+| A friendly section destroyed alongside | **−1** |
+| Under fire from something unseen | **−1** |
+| In cover / in a work / entrenched | **+1 / +1 / +2** |
+| A signaler or commissar in the next hex | **+1** |
+| Rallying | **+2** |
+| The order's own shock | the order's `moraleHit` (`fire` 1, `grenade` 2, `assault` and both barrages 3, `suppress` and `bombard` 4, `overrun` 5) |
+
+Failing pins the section for a round. **Failing by 4 or more breaks it.** A broken section runs for its
+own board edge on each activation, never fires, and may not be given an attacking order; it tests to
+rally at **+2** each activation, and a section that rallies stands where it is, suppressed.
+
+**The commissar.** A section carrying a Ministry Commissar does not break: the rout becomes **one figure
+removed** and the section stands, suppressed. If that figure was its last, the section is gone — the
+commissar closes the ledger on an empty section as readily as on a full one.
+
+**The medic.** A section carrying a Field Medic with no enemy adjacent returns **1 figure per round**,
+never above the figures it mustered with.
+
+### 26.8 Works
+
+| Work | Cover | Blocks sight | Move cost | Turns to raise | Armour class | Hulls |
+| --- | --- | --- | --- | --- | --- | --- |
+| Foxholes | 1 | no | +0 | 1 | light | infantry only |
+| Trench Line | 2 | yes | +1 | 1 | light | infantry only |
+| Bunker | 4 | yes | +1 | 2 | fortified | any |
+| Gun Emplacement | 2 | no | +0 | 1 | light | any |
+
+A section with the order breaks ground on the hex it stands on and finishes at the end of the turn count
+(a Sapper takes one turn off, never below one). The work is written into the ground on completion and
+belongs to the ground, not to the section: whoever stands in it afterwards gets its cover, its armour
+class and its modifiers. A Gun Emplacement pins the piece in it at **speed 0** and lengthens its reach —
+which is the trade the order is for. Ground that already carries a work cannot be dug twice.
+
+### 26.9 The staff
+
+A side may hand the engagement to its own staff, and every absent commander's side is fought by it. The
+staff is deterministic — the same board and the same seed give the same battle, every time.
+
+**It values an order by the enemy output the order denies for the rest of the engagement**, which has
+exactly two terms and no invented exchange rate between them: the figures it expects to remove, times
+what a figure of that stand is worth, **times the rounds left on the clock**; plus the additional rounds
+of pinning it buys, times the 35 % of output a pinned stand loses, times the stands the suppression ring
+reaches. A scorer that read the order's raw damage instead would never issue suppressing fire — it is
+priced at half of aimed fire precisely because its value is the pin — and would rate a volley at a heavy
+hull exactly as it rated the same volley at the infantry beside it.
+
+Beyond that it prefers the reachable hex with the most cover that keeps the shot open, puts an area
+order on a hex holding two or more enemies rather than firing at one, sets an unengaged section with a
+Sapper to work, never drops a burst on its own people, and never gives a broken section anything but the
+attempt to rally.
+
+### 26.10 The result
+
+The engagement ends when one side has nothing on the field, or at the end of round 20. Survivors fold
+back into regiments **rounding down**, so a battle never creates a company. **Mutual annihilation is a
+defender's win** — the attacker had to take the ground, and an empty field was not taken. When the clock
+decides it, the side holding more of the field wins, measured as the sum over its surviving sections of
+melee + ranged + figures × armor.
+
+> **Open for the platform lane.** The engine never sets `status: 'done'`; `gameEngine` does, after
+> reading the result once. Figures still in the depot — mustered but never carved into a section — are
+> not folded back into the surviving regiments. That is the shipped behaviour, and whether a commander
+> should get his unfiled reserves back is a decision this section does not make.
