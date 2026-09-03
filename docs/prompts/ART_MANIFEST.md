@@ -291,11 +291,11 @@ New `IMAGE_CATEGORIES` keys introduced by this plan: `arms` (Lane I), `motor` (L
 | `perk_exposed_batteries` | perks | 1:1 | Perk — Exposed Batteries |
 | `chapter_standard` | lifepath | 1:1 | Chapter VI — The Standard |
 
-## Status — 278 requested, 689 already delivered
+## Status — 278 requested, 278 delivered (all lanes closed 2026-09-03)
 
 The content lanes registered **278** new placeholder plates across waves 1-4 (table above). The Base44
-session has already generated and delivered **689** entries into `src/lib/imagePlates.js`, including all
-105 arms plates. `getImage(key)` resolves a delivered URL and returns `null` otherwise, and every
+session has generated and delivered every one into `src/lib/imagePlates.js` — Lanes G, I and J on
+2026-09-01, Lanes F (29) and H (15) on 2026-09-03. The registry now carries **733** plates. `getImage(key)` resolves a delivered URL and returns `null` otherwise, and every
 component falls back to an icon or text, so an undelivered plate is always safe to ship.
 
 **A note for whoever generates the rest.** A plate is a REQUEST (`url: null`) that the platform turns into
