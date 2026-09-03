@@ -55,7 +55,13 @@ export const SAMPLE_ORBAT = [
   S("d6", "defender", "artillery", "88th Heavy Battery", 13, 4, 7, 8, null, 2, 1),
   S("d7", "defender", "marksmen", "Watch Marksmen", 11, 8, 12, 9, null, 1, 2),
   S("d8", "defender", "pilgrim_levy", "Pilgrim Levy", 10, 7, 44, 3, null, 1, 0),
-];
+]
+  // Battle damage already taken: `prot` holds the CURRENT value of a layer, so
+  // 'Lockjaw' has had its plate beaten in and is running on hull alone.
+  .map((s) => {
+    const WEAR = { a3: { armour: 4 }, a7: { armour: 1, hull: 3 }, d4: { armour: 9 }, d5: { armour: 0, hull: 15 } };
+    return WEAR[s.id] ? { ...s, prot: WEAR[s.id] } : s;
+  });
 
 // The dispatch feed — what the signals section has logged this turn.
 export const SAMPLE_LOG = [
@@ -69,23 +75,6 @@ export const SAMPLE_LOG = [
   { id: 8, tone: "kill", text: "12th Sapper Company breached the wire" },
   { id: 9, tone: "info", text: "Weather holding clear — sight unlimited" },
 ];
-
-const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
-
-/**
- * Display-only exchange estimate for the attack preview chips. Returns the
- * losses each side would take. The engine owns the real roll; this exists so
- * the HUD can show a forecast before the arena is wired.
- */
-export function estimateExchange(att, def, cover = 0) {
-  const A = UNIT_TYPES[att.type];
-  const D = UNIT_TYPES[def.type];
-  const supplied = att.ammo > 0 ? 1 : 0.25;
-  const shield = 1 + cover * 0.3 + (def.entrench || 0) * 0.25;
-  const dealt = clamp(Math.round(((A.atk * att.str * supplied) / (D.def * 1.6)) / shield), 1, def.str);
-  const back = clamp(Math.round((D.atk * def.str) / (A.def * 3.2)), 0, att.str);
-  return { dealt, back };
-}
 
 // What each type does when it fires, and how it moves. This is why a crawler
 // and a siege mortar sound and read completely differently on the same order.

@@ -18,7 +18,9 @@
 // Display/forecast model. Authoritative resolution stays server-side in
 // base44/shared/tacticalEngine.ts, which mirrors these same layer names.
 // ---------------------------------------------------------------------------
-import { UNIT_TYPES } from "./orbat";
+import { UNIT_TYPES, FIRE_ACT } from "./orbat";
+
+const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
 
 export const EXPOSED_MULT = 1.5;
 
@@ -88,6 +90,30 @@ export const WEAPON_TRAITS = {
 };
 
 const SEALED_ARMS = ["armor", "recon"];
+
+/**
+ * Forecast for the assault arrows: what each side would lose in men, after the
+ * defender's plate has taken its cut. `soaked` is the damage armour ate — which
+ * is why shooting a dreadnought with rifles reads as almost nothing.
+ */
+export function estimateExchange(att, def, cover = 0) {
+  const A = UNIT_TYPES[att.type];
+  const D = UNIT_TYPES[def.type];
+  const supplied = att.ammo > 0 ? 1 : 0.25;
+  const shield = 1 + cover * 0.3 + (def.entrench || 0) * 0.25;
+
+  const rawOut = ((A.atk * att.str * supplied) / (D.def * 1.6)) / shield;
+  const out = resolveDamage(def, rawOut, WEAPON_TRAITS[FIRE_ACT[att.type]]);
+  const back = resolveDamage(att, (D.atk * def.str) / (A.def * 3.2), WEAPON_TRAITS[FIRE_ACT[def.type]]);
+
+  return {
+    dealt: clamp(out.health, out.bio || out.soaked > 0 ? 0 : 1, def.str),
+    back: clamp(back.health, 0, att.str),
+    soaked: out.soaked,
+    pierced: out.pierced,
+    bio: out.bio,
+  };
+}
 
 /**
  * Apply `damage` to a stand's layers.

@@ -2,6 +2,8 @@ import React from "react";
 import { PLATE_URLS } from "@/lib/imagePlates";
 import { UNIT_TYPES, CARRIES_FUEL } from "@/lib/tactical/orbat";
 import ActivityBadge from "./ActivityBadge";
+import DurabilityBars from "./DurabilityBars";
+import { layersOf } from "@/lib/tactical/durability";
 
 // A stamped unit counter — the readable object of a hex wargame. Local coords
 // are centred on 0,0 so the board only has to translate it onto a hex.
@@ -19,8 +21,8 @@ export default function UnitCounter({ stand, selected, targeted, onSelect }) {
   const type = UNIT_TYPES[stand.type];
   const skin = SIDE[stand.side];
   const url = PLATE_URLS[type.token];
-  const frac = Math.max(0, Math.min(1, stand.str / type.maxStr));
   const fuel = CARRIES_FUEL.indexOf(type.arm) !== -1 ? stand.fuel : null;
+  const layers = layersOf(stand);
 
   return (
     <g
@@ -61,15 +63,8 @@ export default function UnitCounter({ stand, selected, targeted, onSelect }) {
         {fuel === null ? "–" : fuel}
       </text>
 
-      {/* strength bar across the foot of the portrait */}
-      <rect x={L + 1} y={T + 23.5} width={W - 2} height={1.6} fill="#15181B" />
-      <rect
-        x={L + 1}
-        y={T + 23.5}
-        width={(W - 2) * frac}
-        height={1.6}
-        fill={frac > 0.6 ? "#7E9B57" : frac > 0.3 ? "#C9922F" : "#C0392B"}
-      />
+      {/* layer bars across the foot of the portrait: protection, then health */}
+      <DurabilityBars layers={layers} x={L + 1} y={T + 25} width={W - 2} />
 
       {/* foot strip — side flash, veterancy pips, entrenchment */}
       <rect x={L + 1} y={T + 25.5} width={W - 2} height={H - 26.5} fill="#15181B" opacity="0.92" />

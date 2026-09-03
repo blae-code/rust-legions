@@ -1,6 +1,7 @@
 import React, { useMemo } from "react";
 import { hexPixel, hexCorners } from "@/lib/tactical/field";
-import { estimateExchange, neighborsOf } from "@/lib/tactical/orbat";
+import { neighborsOf } from "@/lib/tactical/orbat";
+import { estimateExchange } from "@/lib/tactical/durability";
 import TerrainDefs from "./TerrainDefs";
 import HexTerrainTile from "./HexTerrainTile";
 import UnitCounter, { CounterDefs } from "./counters/UnitCounter";

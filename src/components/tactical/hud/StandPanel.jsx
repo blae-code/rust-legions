@@ -2,6 +2,7 @@ import React from "react";
 import { PLATE_URLS } from "@/lib/imagePlates";
 import { UNIT_TYPES, CARRIES_FUEL, ARM_LABEL } from "@/lib/tactical/orbat";
 import { ACTIVITIES } from "@/lib/tactical/activities";
+import LayerReadout from "./LayerReadout";
 
 const Cell = ({ k, v, tone = "text-foreground" }) => (
   <div className="flex justify-between gap-2">
@@ -49,6 +50,7 @@ export default function StandPanel({ stand, role }) {
               </span>
             )}
           </p>
+          <LayerReadout stand={stand} />
           <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 mt-1.5">
             <Cell k="Strength" v={`${stand.str} / ${type.maxStr}`} />
             <Cell k="Attack" v={type.atk} />
