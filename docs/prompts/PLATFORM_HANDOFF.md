@@ -22,15 +22,22 @@ Nothing here has been applied except where a row says APPLIED.
 
 ## P3 — Engine wiring (after waves 1–3)
 
-- [ ] `createTactical` call site passes `{ seed, nodeKind, weather, fortBonus }`.
-- [ ] `tacticalDeploy` accepts `squads: [{ name, type, figures, specialists: [], at?: {q,r}, loadout? }]`.
+- [x] **APPLIED 2026-09-03** — `createTactical` call site passes `{ seed, nodeKind, weather, fortBonus }`. Seed is
+      FNV-1a over `gameId|battleId|turn|nodeId`; `nodeKind` and `weather` are validated against `PALETTES` /
+      `WEATHER_FIELD` and throw on an unknown key (C1, Lane B).
+- [x] **APPLIED** — `tacticalDeploy` forwards `squads` rows whole (`loadout`/`vehicle` ride through untouched; C5).
+- [x] **APPLIED 2026-09-03** — `tacticalOrders` passes `body.target` through (`{squadId}` / `{q,r}` / bare id);
+      null `orderAction` + `moveTo` reads as `march` (C4). `runAutoTurns` passes `o.target` and its guard is
+      `MAX_SQUADS * 2 * ROUND_LIMIT` (C2, C3). `TACTICAL_SQUAD_PLAN.md:14` reads 15×11 (C11).
 - [x] **APPLIED 2026-09-01** — `tacticalOrders` reads `body.orderAction` (Q1). Envelope `action` stays the
       dispatch verb; `squadId` (legacy `formationId`) and `target.squadId` (legacy `targetId`) are accepted.
 - [x] **APPLIED 2026-09-01** — `tacticalAuto { gameId }` hands the caller's side to the staff: deploys via
       `autoFormations` if not yet filed, then runs `autoOrders` turns until the engagement settles. Both sides
       may hand off; the shared `settleTactical` tail persists and archives. **Lane E may ship its button enabled.**
-- [ ] `tacticalView` fields persisted via `persistWar()`.
-- [ ] Field Amendment `Patch` dispatch filed.
+- [x] **APPLIED** — `persistWar()` writes `activeBattle` whole; `b.tactical` rides along with no projection (C6).
+- [x] **APPLIED 2026-09-03** — Field Amendment `Patch` 1.3.0 "Set-Piece Engagements" filed and published.
+- [x] **RULED 2026-09-03 (Q3b)** — the thirteen `keel_*` plates keep their keel-slug keys; `KEEL_BY_HOUSE` is the
+      house → plate join. Recorded in `TACTICAL_SQUAD_PLAN.md` §4 beneath the Q3b amendment.
 
 *(Exact function bodies, entity schema JSON and action names are appended by the lanes as they are written.)*
 
