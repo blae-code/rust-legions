@@ -30,6 +30,7 @@ import FieldManual from './pages/FieldManual';
 import InstallApp from './pages/InstallApp';
 import Leaderboard from './pages/Leaderboard';
 import GameRegistry from './pages/GameRegistry';
+import TacticalPreview from './pages/TacticalPreview';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import DevConsole from './components/debug/DevConsole';
 
@@ -78,6 +79,7 @@ const AuthenticatedApp = () => {
         <Route path="/install" element={<InstallApp />} />
         <Route path="/leaderboard" element={<Leaderboard />} />
         <Route path="/game-registry" element={<GameRegistry />} />
+        <Route path="/tactical-preview" element={<TacticalPreview />} />
       </Route>
       </Route>
       <Route path="*" element={<PageNotFound />} />
