@@ -16,28 +16,39 @@ import SignalsLog from "@/components/tactical/hud/SignalsLog";
 import OrbatList from "@/components/tactical/hud/OrbatList";
 import InitiativeTracker from "@/components/tactical/hud/InitiativeTracker";
 import BuildProgress from "@/components/tactical/BuildProgress";
+import { readSkirmish, clearSkirmish } from "@/lib/skirmish/session";
+import { deployForces } from "@/lib/skirmish/deploy";
+import BattleBanner from "@/components/skirmish/BattleBanner";
 
 // The tactical arena as a hex-wargame command surface: counters on painted
 // ground, an assault forecast on every contact, and service cards on the rail.
 export default function TacticalPreview() {
-  const [opts, setOpts] = useState({ seed: 20260903, nodeKind: "town", weather: "clear", fortBonus: 2 });
+  // A requisitioned skirmish takes over the arena: its ground, its forces.
+  const order = useMemo(() => readSkirmish(), []);
+  const [opts, setOpts] = useState(
+    order ? order.opts : { seed: 20260903, nodeKind: "town", weather: "clear", fortBonus: 2 },
+  );
   const [hover, setHover] = useState(null);
-  const [selectedId, setSelectedId] = useState("a4");
-  const [targetId, setTargetId] = useState("d1");
+  const [selectedId, setSelectedId] = useState(order ? null : "a4");
+  const [targetId, setTargetId] = useState(order ? null : "d1");
   const [tab, setTab] = useState("Orders");
   const [menu, setMenu] = useState(null); // { standId, path: [] } — the open radial
   const [intel, setIntel] = useState(null); // { standId, kind } — the pulled file
-  const [viewSide, setViewSide] = useState("attacker");
-  const [turnSide, setTurnSide] = useState("attacker");
+  const [viewSide, setViewSide] = useState(order ? order.side : "attacker");
+  const [turnSide, setTurnSide] = useState(order ? order.side : "attacker");
   const { acts, issue } = useActivities();
 
   const field = useMemo(() => generateField(opts), [opts]);
   const palette = PALETTES[field.meta.nodeKind];
 
+  // Either the requisitioned forces, deployed into their strips, or the
+  // standing sample engagement when the arena is opened on its own.
+  const orbat = useMemo(() => (order ? deployForces(field, order) : SAMPLE_ORBAT), [order, field]);
+
   // Counters are static; their current activity is layered on at render time.
   const stands = useMemo(
-    () => SAMPLE_ORBAT.map((s) => (acts[s.id] ? { ...s, activity: acts[s.id] } : s)),
-    [acts],
+    () => orbat.map((s) => (acts[s.id] ? { ...s, activity: acts[s.id] } : s)),
+    [orbat, acts],
   );
 
   const selected = stands.find((s) => s.id === selectedId) || null;
@@ -110,6 +121,8 @@ export default function TacticalPreview() {
 
   return (
     <div className="cq-page-in max-w-[1800px] mx-auto px-3 py-3 space-y-2">
+      {order && <BattleBanner order={order} onStand={clearSkirmish} />}
+
       <CommandBar field={field} tab={tab} onTab={setTab} turn={7} />
 
       <div className="sticky top-2 z-30">

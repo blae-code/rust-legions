@@ -9,6 +9,7 @@ import CommsCenter from "@/components/comms/CommsCenter";
 const NAV = [
   { to: "/", label: "Command HQ" },
   { to: "/new-game", label: "New Game" },
+  { to: "/skirmish", label: "Skirmish" },
   { to: "/faction-builder", label: "Faction Builder" },
   { to: "/leaderboard", label: "Roll of Honour" },
   { to: "/maps", label: "Map Library" },
