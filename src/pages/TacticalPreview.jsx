@@ -14,6 +14,7 @@ import CommandBar from "@/components/tactical/hud/CommandBar";
 import StandPanel from "@/components/tactical/hud/StandPanel";
 import SignalsLog from "@/components/tactical/hud/SignalsLog";
 import OrbatList from "@/components/tactical/hud/OrbatList";
+import InitiativeTracker from "@/components/tactical/hud/InitiativeTracker";
 import BuildProgress from "@/components/tactical/BuildProgress";
 
 // The tactical arena as a hex-wargame command surface: counters on painted
@@ -55,6 +56,15 @@ export default function TacticalPreview() {
     else setTargetId(stand.id);
     setIntel(null);
     setMenu({ standId: stand.id, path: [] });
+  };
+
+  // Picking a portrait in the queue jumps to that counter and selects it —
+  // marking it instead if it belongs to the other side.
+  const jumpTo = (stand) => {
+    if (stand.side === viewSide) setSelectedId(stand.id);
+    else setTargetId(stand.id);
+    setMenu(null);
+    setIntel(null);
   };
 
   // The tree for the open counter, resolved to the ring currently on screen.
@@ -101,6 +111,16 @@ export default function TacticalPreview() {
   return (
     <div className="cq-page-in max-w-[1800px] mx-auto px-3 py-3 space-y-2">
       <CommandBar field={field} tab={tab} onTab={setTab} turn={7} />
+
+      <div className="sticky top-2 z-30">
+        <InitiativeTracker
+          stands={stands}
+          field={field}
+          viewSide={viewSide}
+          selectedId={selectedId}
+          onPick={jumpTo}
+        />
+      </div>
 
       <div className="grid xl:grid-cols-[1fr_296px] gap-2 items-start">
         <div className="cq-panel cq-brackets p-2 cq-board relative overflow-hidden">
