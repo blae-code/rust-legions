@@ -4,8 +4,8 @@ import React from "react";
 // as each batch lands so this page always reports the true position.
 const BATCHES = [
   { id: "B1", label: "Hex Terrain Tiles", note: "16 terrain keys · 3 elevations · works", state: "done" },
-  { id: "B2", label: "Squad Sprites", note: "20 types × idle/fire/melee/hit/death", state: "next" },
-  { id: "B3", label: "Vehicle Hulls", note: "20 chassis × 6 hex facings", state: "pending" },
+  { id: "B2", label: "Squad Sprites", note: "6 kits × idle/move/fire/melee/hit/death", state: "done" },
+  { id: "B3", label: "Vehicle Hulls", note: "20 chassis × 6 hex facings", state: "next" },
   { id: "B4", label: "Combat FX", note: "muzzle, burst, penetration, smoke", state: "pending" },
   { id: "B5", label: "Arena HUD & Orders", note: "16 orders · 10 specialists · rail", state: "pending" },
   { id: "B6", label: "Battle Audio", note: "per-class fire, impacts, beds", state: "pending" },

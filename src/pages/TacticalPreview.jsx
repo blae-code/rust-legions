@@ -4,6 +4,21 @@ import BattlefieldBoard from "@/components/tactical/BattlefieldBoard";
 import FieldControls from "@/components/tactical/FieldControls";
 import TileInspector from "@/components/tactical/TileInspector";
 import BuildProgress from "@/components/tactical/BuildProgress";
+import SpriteBench from "@/components/tactical/SpriteBench";
+
+// A sample order of battle standing on the ground, one stand per state so the
+// board shows the full animation vocabulary at once.
+const SAMPLE_STANDS = [
+  { id: "a1", side: "attacker", type: "riflemen", state: "fire", q: 2, r: 3 },
+  { id: "a2", side: "attacker", type: "stormtroops", state: "move", q: 1, r: 6 },
+  { id: "a3", side: "attacker", type: "sappers", state: "melee", q: 4, r: 5 },
+  { id: "a4", side: "attacker", type: "flame_team", state: "fire", q: 3, r: 8 },
+  { id: "a5", side: "attacker", type: "pilgrim_levy", state: "idle", q: 0, r: 4 },
+  { id: "d1", side: "defender", type: "riflemen", state: "fire", q: 12, r: 4 },
+  { id: "d2", side: "defender", type: "marksmen", state: "idle", q: 14, r: 7 },
+  { id: "d3", side: "defender", type: "riflemen", state: "hit", q: 11, r: 6 },
+  { id: "d4", side: "defender", type: "stormtroops", state: "death", q: 10, r: 2 },
+];
 
 // The live tactical build surface. Every board here comes out of the REAL
 // generator mirror, so what is drawn is what the engine will resolve on.
@@ -40,7 +55,7 @@ export default function TacticalPreview() {
 
       <div className="grid lg:grid-cols-[1fr_300px] gap-5 items-start">
         <div className="cq-panel cq-brackets p-3 cq-board relative overflow-hidden">
-          <BattlefieldBoard field={field} onHoverTile={setHover} />
+          <BattlefieldBoard field={field} stands={SAMPLE_STANDS} onHoverTile={setHover} />
           {/* weather is a live bed over the ground, exactly as the arena will run it */}
           {field.meta.weather === "rain" && <div className="absolute inset-0 cq-rain" />}
           {field.meta.weather === "snow" && <div className="absolute inset-0 cq-snowfall" />}
@@ -62,6 +77,7 @@ export default function TacticalPreview() {
           <div className="cq-slip p-3.5">
             <TileInspector tile={hover} />
           </div>
+          <SpriteBench />
           <BuildProgress />
         </aside>
       </div>

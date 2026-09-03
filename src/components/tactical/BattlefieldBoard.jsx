@@ -2,13 +2,14 @@ import React, { useMemo } from "react";
 import { hexPixel, hexCorners } from "@/lib/tactical/field";
 import TerrainDefs from "./TerrainDefs";
 import HexTerrainTile from "./HexTerrainTile";
+import SquadSprite from "./sprites/SquadSprite";
 
 const SIZE = 26;
 
 // The 15x11 axial board, drawn faithfully: x = size*√3*(q + r/2) skews the grid
 // into a rhombus, which is what the engine's own geometry describes. Rendering
 // it as a rectangle would make visual adjacency disagree with hexDistance.
-export default function BattlefieldBoard({ field, onHoverTile }) {
+export default function BattlefieldBoard({ field, stands = [], onHoverTile }) {
   const corners = useMemo(() => hexCorners(SIZE), []);
   const zoneOf = useMemo(() => {
     const m = {};
@@ -54,6 +55,19 @@ export default function BattlefieldBoard({ field, onHoverTile }) {
           onHover={() => onHoverTile?.({ ...c.tile, q: c.q, r: c.r })}
         />
       ))}
+
+      {/* stands ride above the ground layer, drawn north-to-south so a figure
+          in front of another overlaps it correctly */}
+      {[...stands]
+        .sort((a, b) => a.r - b.r)
+        .map((s) => {
+          const { x, y } = hexPixel(s.q, s.r, SIZE);
+          return (
+            <g key={s.id} transform={`translate(${x},${y + SIZE * 0.55})`}>
+              <SquadSprite type={s.type} state={s.state} facing={s.side === "attacker" ? "right" : "left"} />
+            </g>
+          );
+        })}
     </svg>
   );
 }
