@@ -36,6 +36,14 @@ const GLYPHS = {
       <path d="M-7 3.5 h4" />
     </g>
   ),
+  firing_gas: (
+    <g>
+      <circle cx="-1" cy="1" r="3.2" fill="none" />
+      <circle cx="3.5" cy="-2.5" r="2" fill="none" />
+      <circle cx="-4.5" cy="-3.5" r="1.5" fill="none" />
+      <path d="M-6.5 5.5 h12" fill="none" />
+    </g>
+  ),
   grenade: (
     <g>
       <path d="M-6 3 q3 -9 9 -6" fill="none" />

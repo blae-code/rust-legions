@@ -14,7 +14,7 @@
 // ---------------------------------------------------------------------------
 import {
   Crosshair, Flame, Bomb, Zap, Move, Shovel, Hammer, Wrench, Package, Eye,
-  Flag, Shield, Radio, FileText, Search, Gauge, Swords, Layers,
+  Flag, Shield, Radio, FileText, Search, Gauge, Swords, Layers, Wind,
 } from "lucide-react";
 import { UNIT_TYPES, FIRE_ACT, MOVE_ACT, CARRIES_FUEL } from "./orbat";
 
@@ -41,7 +41,11 @@ function fireBranch(stand) {
     kids.push(N("f_sustained", "Sustained", Zap, { act: "firing_sustained", tone: "rust", disabled: dry }));
   if (t.arm === "inf") kids.push(N("f_grenade", "Grenades", Bomb, { act: "grenade", tone: "rust", disabled: dry }));
   if (stand.type === "flame_team") kids.push(N("f_flame", "Flame", Flame, { act: "flame", tone: "rust", disabled: dry }));
-  if (t.arm === "gun") kids.push(N("f_barrage", "Barrage", Bomb, { act: "firing_siege", tone: "rust", disabled: dry }));
+  if (t.arm === "gun") {
+    kids.push(N("f_barrage", "Barrage", Bomb, { act: "firing_siege", tone: "rust", disabled: dry }));
+    // Fume fillings go around plate at the crew — the answer to dug-in armour.
+    kids.push(N("f_gas", "Gas Shells", Wind, { act: "firing_gas", tone: "rust", disabled: dry }));
+  }
 
   return N("fire", "Fire", Crosshair, { tone: "rust", children: kids });
 }

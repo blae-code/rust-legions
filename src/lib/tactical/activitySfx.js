@@ -65,6 +65,14 @@ const BANK = {
     noise(c, { duration: 1.0, gain: 0.03, filterType: "bandpass", freq: 1100, freqEnd: 320, delay: 0.7 });
   },
 
+  // Gas shell — a soft launch, a wet burst, then the long hiss of the cloud.
+  firing_gas(c) {
+    noise(c, { duration: 0.09, gain: 0.06, filterType: "lowpass", freq: 600, freqEnd: 240, dirty: true });
+    noise(c, { duration: 0.3, gain: 0.05, filterType: "lowpass", freq: 900, freqEnd: 300, delay: 0.5 });
+    noise(c, { duration: 1.2, gain: 0.04, filterType: "highpass", freq: 3200, freqEnd: 5600, delay: 0.6 });
+    tone(c, { freq: 320, freqEnd: 180, duration: 1.0, gain: 0.02, type: "sine", delay: 0.62 });
+  },
+
   // Grenade — the throw, a beat of nothing, then a muffled crump.
   grenade(c) {
     noise(c, { duration: 0.16, gain: 0.03, filterType: "bandpass", freq: 700, freqEnd: 2200 });
