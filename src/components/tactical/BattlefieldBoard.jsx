@@ -5,6 +5,7 @@ import TerrainDefs from "./TerrainDefs";
 import HexTerrainTile from "./HexTerrainTile";
 import UnitCounter, { CounterDefs } from "./counters/UnitCounter";
 import AttackArrow from "./counters/AttackArrow";
+import UnitRadialMenu from "./radial/UnitRadialMenu";
 
 const SIZE = 26;
 
@@ -19,6 +20,7 @@ export default function BattlefieldBoard({
   onSelectStand,
   onClearSelection,
   onHoverTile,
+  radial,
 }) {
   const corners = useMemo(() => hexCorners(SIZE), []);
   const zoneOf = useMemo(() => {
@@ -64,9 +66,17 @@ export default function BattlefieldBoard({
   const maxY = Math.max(...cells.map((c) => c.y));
   const pad = SIZE * 1.4;
 
+  const vbW = maxX + pad * 2;
+  const vbH = maxY + pad * 2;
+
+  // The radial rides above the board in an HTML layer so its buttons keep
+  // real hit targets and readable type at any board scale.
+  const radialAt = radial ? hexPixel(radial.stand.q, radial.stand.r, SIZE) : null;
+
   return (
+    <div className="relative">
     <svg
-      viewBox={`${-pad} ${-pad} ${maxX + pad * 2} ${maxY + pad * 2}`}
+      viewBox={`${-pad} ${-pad} ${vbW} ${vbH}`}
       className="w-full h-auto select-none"
       role="img"
       aria-label="Tactical battlefield"
@@ -132,5 +142,17 @@ export default function BattlefieldBoard({
           );
         })}
     </svg>
+
+      {radial && (
+        <div className="absolute inset-0 pointer-events-none">
+          <div
+            className="absolute pointer-events-auto"
+            style={{ left: `${((radialAt.x + pad) / vbW) * 100}%`, top: `${((radialAt.y + pad) / vbH) * 100}%` }}
+          >
+            <UnitRadialMenu {...radial} />
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

@@ -1,9 +1,12 @@
 import React, { useMemo, useState } from "react";
 import { generateField, PALETTES } from "@/lib/tactical/field";
-import { SAMPLE_ORBAT, neighborsOf, FIRE_ACT, MOVE_ACT, UNIT_TYPES } from "@/lib/tactical/orbat";
+import { SAMPLE_ORBAT, neighborsOf, FIRE_ACT } from "@/lib/tactical/orbat";
 import useActivities from "@/hooks/useActivities";
 import OrderRail from "@/components/tactical/hud/OrderRail";
-import { ACTIVITIES } from "@/lib/tactical/activities";
+import { buildUnitTree, resolvePath } from "@/lib/tactical/unitOrders";
+import { assess, buildReport } from "@/lib/tactical/intel";
+import IntelSlip from "@/components/tactical/radial/IntelSlip";
+import SideToggles from "@/components/tactical/hud/SideToggles";
 import BattlefieldBoard from "@/components/tactical/BattlefieldBoard";
 import FieldControls from "@/components/tactical/FieldControls";
 import TileInspector from "@/components/tactical/TileInspector";
@@ -21,6 +24,10 @@ export default function TacticalPreview() {
   const [selectedId, setSelectedId] = useState("a4");
   const [targetId, setTargetId] = useState("d1");
   const [tab, setTab] = useState("Orders");
+  const [menu, setMenu] = useState(null); // { standId, path: [] } — the open radial
+  const [intel, setIntel] = useState(null); // { standId, kind } — the pulled file
+  const [viewSide, setViewSide] = useState("attacker");
+  const [turnSide, setTurnSide] = useState("attacker");
   const { acts, issue } = useActivities();
 
   const field = useMemo(() => generateField(opts), [opts]);
@@ -35,24 +42,61 @@ export default function TacticalPreview() {
   const selected = stands.find((s) => s.id === selectedId) || null;
   const target = stands.find((s) => s.id === targetId) || null;
 
-  // Clicking one of our own counters selects it; clicking an enemy in contact
-  // with the selection designates it as the target instead.
+  const coverAt = (s) => field.tiles[`${s.q},${s.r}`]?.cover || 0;
+  const contactWith = (stand) =>
+    stands.some(
+      (v) => v.side === viewSide && neighborsOf(v.q, v.r).some((n) => n.q === stand.q && n.r === stand.r),
+    );
+
+  // Every counter is a radial button: opening one selects it (or marks it, if
+  // it belongs to the other side) and fans out whatever it can offer right now.
   const handleSelect = (stand) => {
-    if (selected && stand.side !== selected.side) {
-      const inContact = neighborsOf(selected.q, selected.r).some((n) => n.q === stand.q && n.r === stand.r);
-      if (inContact) {
-        setTargetId(stand.id);
-        // Designating a target opens fire: the attacker's own weapon class, and
-        // the defender is pinned by it.
-        issue(selected.id, FIRE_ACT[selected.type]);
-        issue(stand.id, "suppressed");
-        return;
-      }
-    }
-    setSelectedId(stand.id);
-    setTargetId(null);
-    issue(stand.id, MOVE_ACT[UNIT_TYPES[stand.type].arm]);
+    if (stand.side === viewSide) setSelectedId(stand.id);
+    else setTargetId(stand.id);
+    setIntel(null);
+    setMenu({ standId: stand.id, path: [] });
   };
+
+  // The tree for the open counter, resolved to the ring currently on screen.
+  const menuStand = stands.find((s) => s.id === menu?.standId) || null;
+  const radial = useMemo(() => {
+    if (!menuStand) return null;
+    const own = menuStand.side === viewSide;
+    const yourTurn = viewSide === turnSide;
+    const root = buildUnitTree(menuStand, { own, yourTurn, inContact: contactWith(menuStand) });
+    const { ring, trail } = resolvePath(root, menu.path);
+    return {
+      stand: menuStand,
+      ring,
+      trail,
+      note: own ? (yourTurn ? null : "Orders held") : "Hostile",
+      onPick: (node) => {
+        if (node.children) return setMenu((m) => ({ ...m, path: [...m.path, node.key] }));
+        if (node.report) {
+          setIntel({ standId: menuStand.id, kind: node.report });
+          return setMenu(null);
+        }
+        if (node.act === "designate") {
+          setTargetId(menuStand.id);
+          if (selected) issue(selected.id, FIRE_ACT[selected.type]);
+          issue(menuStand.id, "suppressed");
+          return setMenu(null);
+        }
+        if (node.act) issue(menuStand.id, node.act);
+        setMenu(null);
+      },
+      onBack: () => setMenu((m) => ({ ...m, path: m.path.slice(0, -1) })),
+      onClose: () => setMenu(null),
+    };
+  }, [menuStand, menu, viewSide, turnSide, stands, selected, targetId, issue, field]);
+
+  // The intel file, printed at whatever fidelity the viewer's own units earn.
+  const intelStand = stands.find((s) => s.id === intel?.standId) || null;
+  const intelView = useMemo(() => {
+    if (!intelStand) return null;
+    const obs = assess(intelStand, stands.filter((s) => s.side === viewSide), field.meta.weather);
+    return { obs, report: buildReport(intel.kind, intelStand, obs, coverAt(intelStand)) };
+  }, [intelStand, intel, stands, viewSide, field]);
 
   return (
     <div className="cq-page-in max-w-[1800px] mx-auto px-3 py-3 space-y-2">
@@ -66,8 +110,9 @@ export default function TacticalPreview() {
             selectedId={selectedId}
             targetId={targetId}
             onSelectStand={handleSelect}
-            onClearSelection={() => setTargetId(null)}
+            onClearSelection={() => setMenu(null)}
             onHoverTile={setHover}
+            radial={radial}
           />
           {field.meta.weather === "rain" && <div className="absolute inset-0 cq-rain" />}
           {field.meta.weather === "snow" && <div className="absolute inset-0 cq-snowfall" />}
@@ -83,6 +128,30 @@ export default function TacticalPreview() {
               {palette.label.toUpperCase()} · {field.w}×{field.h}
             </p>
           </div>
+
+          <div className="absolute top-2 right-2">
+            <SideToggles
+              viewSide={viewSide}
+              turnSide={turnSide}
+              onView={(s) => { setViewSide(s); setMenu(null); setIntel(null); }}
+              onTurn={setTurnSide}
+            />
+          </div>
+
+          {intelView && (
+            <div className="absolute bottom-2 right-2">
+              <IntelSlip
+                standName={
+                  intelStand.side === viewSide || intelView.obs.level === "confirmed"
+                    ? intelStand.name
+                    : `Contact ${intelStand.q},${intelStand.r}`
+                }
+                report={intelView.report}
+                obs={intelView.obs}
+                onClose={() => setIntel(null)}
+              />
+            </div>
+          )}
         </div>
 
         <aside className="space-y-2">
