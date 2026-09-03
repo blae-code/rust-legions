@@ -1,62 +1,59 @@
 import React, { useMemo, useState } from "react";
-import { generateField, PALETTES, WEATHER_FIELD } from "@/lib/tactical/field";
+import { generateField, PALETTES } from "@/lib/tactical/field";
+import { SAMPLE_ORBAT, neighborsOf } from "@/lib/tactical/orbat";
 import BattlefieldBoard from "@/components/tactical/BattlefieldBoard";
 import FieldControls from "@/components/tactical/FieldControls";
 import TileInspector from "@/components/tactical/TileInspector";
+import CommandBar from "@/components/tactical/hud/CommandBar";
+import StandPanel from "@/components/tactical/hud/StandPanel";
+import SignalsLog from "@/components/tactical/hud/SignalsLog";
+import OrbatList from "@/components/tactical/hud/OrbatList";
 import BuildProgress from "@/components/tactical/BuildProgress";
-import SpriteBench from "@/components/tactical/SpriteBench";
 
-// A sample order of battle standing on the ground, one stand per state so the
-// board shows the full animation vocabulary at once.
-const SAMPLE_STANDS = [
-  { id: "a1", side: "attacker", type: "riflemen", state: "fire", q: 2, r: 3 },
-  { id: "a2", side: "attacker", type: "stormtroops", state: "move", q: 1, r: 6 },
-  { id: "a3", side: "attacker", type: "sappers", state: "melee", q: 4, r: 5 },
-  { id: "a4", side: "attacker", type: "flame_team", state: "fire", q: 3, r: 8 },
-  { id: "a5", side: "attacker", type: "pilgrim_levy", state: "idle", q: 0, r: 4 },
-  { id: "d1", side: "defender", type: "riflemen", state: "fire", q: 12, r: 4 },
-  { id: "d2", side: "defender", type: "marksmen", state: "idle", q: 14, r: 7 },
-  { id: "d3", side: "defender", type: "riflemen", state: "hit", q: 11, r: 6 },
-  { id: "d4", side: "defender", type: "stormtroops", state: "death", q: 10, r: 2 },
-];
-
-// The live tactical build surface. Every board here comes out of the REAL
-// generator mirror, so what is drawn is what the engine will resolve on.
+// The tactical arena as a hex-wargame command surface: counters on painted
+// ground, an assault forecast on every contact, and service cards on the rail.
 export default function TacticalPreview() {
-  const [opts, setOpts] = useState({ seed: 20260903, nodeKind: "city", weather: "clear", fortBonus: 2 });
+  const [opts, setOpts] = useState({ seed: 20260903, nodeKind: "town", weather: "clear", fortBonus: 2 });
   const [hover, setHover] = useState(null);
+  const [selectedId, setSelectedId] = useState("a4");
+  const [targetId, setTargetId] = useState("d1");
+  const [tab, setTab] = useState("Order of Battle");
 
   const field = useMemo(() => generateField(opts), [opts]);
   const palette = PALETTES[field.meta.nodeKind];
-  const wx = WEATHER_FIELD[field.meta.weather];
+
+  const selected = SAMPLE_ORBAT.find((s) => s.id === selectedId) || null;
+  const target = SAMPLE_ORBAT.find((s) => s.id === targetId) || null;
+
+  // Clicking one of our own counters selects it; clicking an enemy in contact
+  // with the selection designates it as the target instead.
+  const handleSelect = (stand) => {
+    if (selected && stand.side !== selected.side) {
+      const inContact = neighborsOf(selected.q, selected.r).some((n) => n.q === stand.q && n.r === stand.r);
+      if (inContact) {
+        setTargetId(stand.id);
+        return;
+      }
+    }
+    setSelectedId(stand.id);
+    setTargetId(null);
+  };
 
   return (
-    <div className="cq-page-in max-w-[1600px] mx-auto px-4 py-6 space-y-5">
-      <header className="cq-panel p-4">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <p className="cq-label text-rust">Ministry of War · Tactical Establishment</p>
-            <h1 className="cq-display text-3xl mt-0.5">The Set-Piece Ground</h1>
-            <p className="font-mono text-[10px] text-muted-foreground tracking-widest mt-1">
-              LIVE BUILD SURFACE · PATCH 1.3.0 · {field.w}×{field.h} AXIAL
-            </p>
-          </div>
-          <div className="text-right">
-            <p className="cq-display text-lg leading-none text-brass-bright">{palette.label}</p>
-            <p className="font-mono text-[10px] text-muted-foreground tracking-widest mt-1">
-              {wx.label.toUpperCase()} · SIGHT {wx.losCap === 99 ? "UNLIMITED" : `${wx.losCap} HEX`}
-              {wx.groundsFighters && " · AIRFIELDS SHUT"}
-            </p>
-          </div>
-        </div>
-        <div className="cq-hazard mt-3" />
-        <p className="font-mono text-[10px] text-muted-foreground mt-2 leading-relaxed">{palette.blurb}</p>
-      </header>
+    <div className="cq-page-in max-w-[1800px] mx-auto px-3 py-3 space-y-2">
+      <CommandBar field={field} tab={tab} onTab={setTab} turn={7} />
 
-      <div className="grid lg:grid-cols-[1fr_300px] gap-5 items-start">
-        <div className="cq-panel cq-brackets p-3 cq-board relative overflow-hidden">
-          <BattlefieldBoard field={field} stands={SAMPLE_STANDS} onHoverTile={setHover} />
-          {/* weather is a live bed over the ground, exactly as the arena will run it */}
+      <div className="grid xl:grid-cols-[1fr_296px] gap-2 items-start">
+        <div className="cq-panel cq-brackets p-2 cq-board relative overflow-hidden">
+          <BattlefieldBoard
+            field={field}
+            stands={SAMPLE_ORBAT}
+            selectedId={selectedId}
+            targetId={targetId}
+            onSelectStand={handleSelect}
+            onClearSelection={() => setTargetId(null)}
+            onHoverTile={setHover}
+          />
           {field.meta.weather === "rain" && <div className="absolute inset-0 cq-rain" />}
           {field.meta.weather === "snow" && <div className="absolute inset-0 cq-snowfall" />}
           {field.meta.weather === "fog" && <div className="absolute inset-0 cq-fogbank" />}
@@ -66,20 +63,45 @@ export default function TacticalPreview() {
               <div className="absolute inset-0 cq-stormflash bg-slate-200" />
             </>
           )}
-          <div className="absolute inset-0 cq-scanlines opacity-40" />
+          <div className="absolute top-2 left-2 cq-slip px-2 py-1 pointer-events-none">
+            <p className="font-mono text-[9px] tracking-widest text-brass-bright">
+              {palette.label.toUpperCase()} · {field.w}×{field.h}
+            </p>
+          </div>
         </div>
 
-        <aside className="space-y-5">
-          <div className="cq-panel p-3.5">
-            <p className="cq-label text-rust mb-3">Survey Orders</p>
-            <FieldControls opts={opts} onChange={(patch) => setOpts((o) => ({ ...o, ...patch }))} />
-          </div>
-          <div className="cq-slip p-3.5">
-            <TileInspector tile={hover} />
-          </div>
-          <SpriteBench />
-          <BuildProgress />
+        <aside className="space-y-2">
+          {tab === "Order of Battle" && (
+            <div className="cq-panel p-2.5">
+              <OrbatList stands={SAMPLE_ORBAT} selectedId={selectedId} onSelect={handleSelect} />
+            </div>
+          )}
+
+          {tab === "Signals" && (
+            <div className="cq-panel p-2.5">
+              <p className="cq-label text-rust mb-2">Signals Intercept</p>
+              <SignalsLog />
+            </div>
+          )}
+
+          {tab === "Survey" && (
+            <>
+              <div className="cq-panel p-2.5">
+                <p className="cq-label text-rust mb-2.5">Survey Orders</p>
+                <FieldControls opts={opts} onChange={(patch) => setOpts((o) => ({ ...o, ...patch }))} />
+              </div>
+              <div className="cq-slip p-2.5">
+                <TileInspector tile={hover} />
+              </div>
+              <BuildProgress />
+            </>
+          )}
         </aside>
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-2">
+        <StandPanel stand={selected} role="selected" />
+        <StandPanel stand={target} role="target" />
       </div>
     </div>
   );
