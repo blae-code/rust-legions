@@ -1,6 +1,7 @@
 import React from "react";
 import { PLATE_URLS } from "@/lib/imagePlates";
 import { UNIT_TYPES, CARRIES_FUEL } from "@/lib/tactical/orbat";
+import ActivityBadge from "./ActivityBadge";
 
 // A stamped unit counter — the readable object of a hex wargame. Local coords
 // are centred on 0,0 so the board only has to translate it onto a hex.
@@ -87,6 +88,9 @@ export default function UnitCounter({ stand, selected, targeted, onSelect }) {
       {targeted && (
         <rect x={L - 2} y={T - 2} width={W + 4} height={H + 4} fill="none" stroke="#E2483A" strokeWidth="1.8" />
       )}
+
+      {/* what this stand is doing right now — the plate itself never animates */}
+      <ActivityBadge activity={stand.activity} y={T - 12} />
     </g>
   );
 }

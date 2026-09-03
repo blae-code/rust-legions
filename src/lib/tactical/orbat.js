@@ -87,6 +87,26 @@ export function estimateExchange(att, def, cover = 0) {
   return { dealt, back };
 }
 
+// What each type does when it fires, and how it moves. This is why a crawler
+// and a siege mortar sound and read completely differently on the same order.
+export const FIRE_ACT = {
+  riflemen: "firing_light",
+  stormtroops: "grenade",
+  sappers: "melee",
+  marksmen: "firing_light",
+  flame_team: "flame",
+  pilgrim_levy: "firing_light",
+  digger_corps: "firing_light",
+  provost: "firing_sustained",
+  crawler: "firing_light_gun",
+  land_dreadnought: "firing_heavy_gun",
+  autocar_scouts: "firing_sustained",
+  artillery: "firing_heavy_gun",
+  siege_mortar: "firing_siege",
+};
+
+export const MOVE_ACT = { inf: "move_foot", gun: "move_foot", armor: "move_tracked", recon: "move_tracked" };
+
 export const neighborsOf = (q, r) => [
   { q: q + 1, r }, { q: q + 1, r: r - 1 }, { q, r: r - 1 },
   { q: q - 1, r }, { q: q - 1, r: r + 1 }, { q, r: r + 1 },

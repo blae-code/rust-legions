@@ -6,9 +6,9 @@ const BATCHES = [
   { id: "B1", label: "Hex Terrain Tiles", note: "16 terrain keys · 3 elevations · works", state: "done" },
   { id: "B2", label: "Unit Counters", note: "13 types · strength/ammo/fuel · vet & works", state: "done" },
   { id: "B3", label: "Command HUD", note: "orbat, signals, service cards, forecast", state: "done" },
-  { id: "B4", label: "Orders & Movement", note: "move range, fire arcs, 16 order cards", state: "next" },
-  { id: "B5", label: "Combat FX", note: "muzzle, burst, penetration, smoke", state: "pending" },
-  { id: "B6", label: "Battle Audio", note: "per-class fire, impacts, beds", state: "pending" },
+  { id: "B4", label: "Activity States", note: "18 badges + 18 synthesized cues", state: "done" },
+  { id: "B5", label: "Movement & Arcs", note: "move range shading, fire arcs, LOS", state: "next" },
+  { id: "B6", label: "Ambient Beds", note: "weather and front soundscapes", state: "pending" },
 ];
 
 const TONE = {

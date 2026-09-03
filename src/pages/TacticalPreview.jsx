@@ -1,6 +1,9 @@
 import React, { useMemo, useState } from "react";
 import { generateField, PALETTES } from "@/lib/tactical/field";
-import { SAMPLE_ORBAT, neighborsOf } from "@/lib/tactical/orbat";
+import { SAMPLE_ORBAT, neighborsOf, FIRE_ACT, MOVE_ACT, UNIT_TYPES } from "@/lib/tactical/orbat";
+import useActivities from "@/hooks/useActivities";
+import OrderRail from "@/components/tactical/hud/OrderRail";
+import { ACTIVITIES } from "@/lib/tactical/activities";
 import BattlefieldBoard from "@/components/tactical/BattlefieldBoard";
 import FieldControls from "@/components/tactical/FieldControls";
 import TileInspector from "@/components/tactical/TileInspector";
@@ -17,13 +20,20 @@ export default function TacticalPreview() {
   const [hover, setHover] = useState(null);
   const [selectedId, setSelectedId] = useState("a4");
   const [targetId, setTargetId] = useState("d1");
-  const [tab, setTab] = useState("Order of Battle");
+  const [tab, setTab] = useState("Orders");
+  const { acts, issue } = useActivities();
 
   const field = useMemo(() => generateField(opts), [opts]);
   const palette = PALETTES[field.meta.nodeKind];
 
-  const selected = SAMPLE_ORBAT.find((s) => s.id === selectedId) || null;
-  const target = SAMPLE_ORBAT.find((s) => s.id === targetId) || null;
+  // Counters are static; their current activity is layered on at render time.
+  const stands = useMemo(
+    () => SAMPLE_ORBAT.map((s) => (acts[s.id] ? { ...s, activity: acts[s.id] } : s)),
+    [acts],
+  );
+
+  const selected = stands.find((s) => s.id === selectedId) || null;
+  const target = stands.find((s) => s.id === targetId) || null;
 
   // Clicking one of our own counters selects it; clicking an enemy in contact
   // with the selection designates it as the target instead.
@@ -32,11 +42,16 @@ export default function TacticalPreview() {
       const inContact = neighborsOf(selected.q, selected.r).some((n) => n.q === stand.q && n.r === stand.r);
       if (inContact) {
         setTargetId(stand.id);
+        // Designating a target opens fire: the attacker's own weapon class, and
+        // the defender is pinned by it.
+        issue(selected.id, FIRE_ACT[selected.type]);
+        issue(stand.id, "suppressed");
         return;
       }
     }
     setSelectedId(stand.id);
     setTargetId(null);
+    issue(stand.id, MOVE_ACT[UNIT_TYPES[stand.type].arm]);
   };
 
   return (
@@ -47,7 +62,7 @@ export default function TacticalPreview() {
         <div className="cq-panel cq-brackets p-2 cq-board relative overflow-hidden">
           <BattlefieldBoard
             field={field}
-            stands={SAMPLE_ORBAT}
+            stands={stands}
             selectedId={selectedId}
             targetId={targetId}
             onSelectStand={handleSelect}
@@ -71,9 +86,16 @@ export default function TacticalPreview() {
         </div>
 
         <aside className="space-y-2">
+          {tab === "Orders" && (
+            <div className="cq-panel p-2.5">
+              <p className="cq-label text-rust mb-2">Issue Orders</p>
+              <OrderRail stand={selected} current={selected && acts[selected.id]} onIssue={issue} />
+            </div>
+          )}
+
           {tab === "Order of Battle" && (
             <div className="cq-panel p-2.5">
-              <OrbatList stands={SAMPLE_ORBAT} selectedId={selectedId} onSelect={handleSelect} />
+              <OrbatList stands={stands} selectedId={selectedId} onSelect={handleSelect} />
             </div>
           )}
 

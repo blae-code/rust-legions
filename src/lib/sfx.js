@@ -8,6 +8,9 @@ const ac = () => {
 };
 
 let enabled = typeof localStorage !== "undefined" && localStorage.getItem("cq_sfx") !== "off";
+// Exposed so other sound banks (e.g. the tactical activity bank) can compose
+// with the same grit stage instead of opening a second audio graph.
+export const audioCtx = ac;
 export const sfxEnabled = () => enabled;
 export const setSfxEnabled = (v) => {
   enabled = v;
@@ -37,7 +40,7 @@ const grit = (c, amount = 18) => {
 };
 
 // Filtered noise burst (rumbles, booms, steam, debris)
-function noise(c, { duration = 0.4, gain = 0.08, filterType = "lowpass", freq = 400, freqEnd, delay = 0, dirty = false }) {
+export function noise(c, { duration = 0.4, gain = 0.08, filterType = "lowpass", freq = 400, freqEnd, delay = 0, dirty = false }) {
   const t = c.currentTime + delay;
   const src = c.createBufferSource();
   src.buffer = noiseBuffer(c, duration + 0.1);
@@ -55,7 +58,7 @@ function noise(c, { duration = 0.4, gain = 0.08, filterType = "lowpass", freq = 
 }
 
 // Pitched tone, optionally driven through the grit stage
-function tone(c, { freq = 440, freqEnd, duration = 0.15, gain = 0.06, type = "triangle", delay = 0, dirty = false }) {
+export function tone(c, { freq = 440, freqEnd, duration = 0.15, gain = 0.06, type = "triangle", delay = 0, dirty = false }) {
   const t = c.currentTime + delay;
   const osc = c.createOscillator();
   osc.type = type;
@@ -71,7 +74,7 @@ function tone(c, { freq = 440, freqEnd, duration = 0.15, gain = 0.06, type = "tr
 }
 
 // Struck metal — stacked inharmonic partials, like a wrench on a boiler plate
-function clank(c, { base = 340, duration = 0.3, gain = 0.05, delay = 0 }) {
+export function clank(c, { base = 340, duration = 0.3, gain = 0.05, delay = 0 }) {
   const partials = [1, 1.51, 2.32, 3.17];
   partials.forEach((p, i) => {
     tone(c, { freq: base * p, freqEnd: base * p * 0.92, duration: duration * (1 - i * 0.18), gain: gain / (i + 1.2), type: "triangle", delay });
@@ -80,7 +83,7 @@ function clank(c, { base = 340, duration = 0.3, gain = 0.05, delay = 0 }) {
 }
 
 // Laboring diesel engine — LFO-chopped sawtooth chug
-function chug(c, { duration = 0.7, gain = 0.06, freq = 48, rate = 11, delay = 0 }) {
+export function chug(c, { duration = 0.7, gain = 0.06, freq = 48, rate = 11, delay = 0 }) {
   const t = c.currentTime + delay;
   const osc = c.createOscillator();
   osc.type = "sawtooth";

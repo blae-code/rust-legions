@@ -14,7 +14,7 @@ const Res = ({ icon: Icon, value, tone }) => (
 // that swap the right-hand column.
 export default function CommandBar({ field, tab, onTab, turn }) {
   const Wx = WX_ICON[field.meta.weather] || Sun;
-  const TABS = ["Order of Battle", "Signals", "Survey"];
+  const TABS = ["Orders", "Order of Battle", "Signals", "Survey"];
 
   return (
     <div className="cq-panel flex flex-wrap items-center gap-x-5 gap-y-2 px-3 py-2">
