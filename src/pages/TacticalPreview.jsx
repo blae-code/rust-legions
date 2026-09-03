@@ -8,6 +8,7 @@ import { assess, buildReport } from "@/lib/tactical/intel";
 import IntelSlip from "@/components/tactical/radial/IntelSlip";
 import SideToggles from "@/components/tactical/hud/SideToggles";
 import BattlefieldBoard from "@/components/tactical/BattlefieldBoard";
+import BoardViewport from "@/components/tactical/BoardViewport";
 import FieldControls from "@/components/tactical/FieldControls";
 import TileInspector from "@/components/tactical/TileInspector";
 import CommandBar from "@/components/tactical/hud/CommandBar";
@@ -34,6 +35,7 @@ export default function TacticalPreview() {
   const [tab, setTab] = useState("Orders");
   const [menu, setMenu] = useState(null); // { standId, path: [] } — the open radial
   const [intel, setIntel] = useState(null); // { standId, kind } — the pulled file
+  const [zoom, setZoom] = useState(1);
   const [viewSide, setViewSide] = useState(order ? order.side : "attacker");
   const [turnSide, setTurnSide] = useState(order ? order.side : "attacker");
   const { acts, issue } = useActivities();
@@ -137,16 +139,19 @@ export default function TacticalPreview() {
 
       <div className="grid xl:grid-cols-[1fr_296px] gap-2 items-start">
         <div className="cq-panel cq-brackets p-2 cq-board relative overflow-hidden">
-          <BattlefieldBoard
-            field={field}
-            stands={stands}
-            selectedId={selectedId}
-            targetId={targetId}
-            onSelectStand={handleSelect}
-            onClearSelection={() => setMenu(null)}
-            onHoverTile={setHover}
-            radial={radial}
-          />
+          <BoardViewport zoom={zoom} onZoom={setZoom}>
+            <BattlefieldBoard
+              field={field}
+              stands={stands}
+              selectedId={selectedId}
+              targetId={targetId}
+              onSelectStand={handleSelect}
+              onClearSelection={() => setMenu(null)}
+              onHoverTile={setHover}
+              radial={radial}
+              zoom={zoom}
+            />
+          </BoardViewport>
           {field.meta.weather === "rain" && <div className="absolute inset-0 cq-rain" />}
           {field.meta.weather === "snow" && <div className="absolute inset-0 cq-snowfall" />}
           {field.meta.weather === "fog" && <div className="absolute inset-0 cq-fogbank" />}

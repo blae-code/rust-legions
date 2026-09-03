@@ -10,7 +10,7 @@ import UnitCounter, { CounterDefs } from "./counters/UnitCounter";
 import AttackArrow from "./counters/AttackArrow";
 import UnitRadialMenu from "./radial/UnitRadialMenu";
 
-const SIZE = 26;
+const SIZE = 46;
 
 // The 15x11 axial board, drawn faithfully: x = size*√3*(q + r/2) skews the grid
 // into a rhombus, which is what the engine's own geometry describes. Rendering
@@ -24,6 +24,7 @@ export default function BattlefieldBoard({
   onClearSelection,
   onHoverTile,
   radial,
+  zoom = 1,
 }) {
   const corners = useMemo(() => hexCorners(SIZE), []);
   const zoneOf = useMemo(() => {
@@ -77,10 +78,12 @@ export default function BattlefieldBoard({
   const radialAt = radial ? hexPixel(radial.stand.q, radial.stand.r, SIZE) : null;
 
   return (
-    <div className="relative">
+    <div className="relative" style={{ width: vbW * zoom, height: vbH * zoom }}>
     <svg
       viewBox={`${-pad} ${-pad} ${vbW} ${vbH}`}
-      className="w-full h-auto select-none"
+      width={vbW * zoom}
+      height={vbH * zoom}
+      className="block select-none"
       role="img"
       aria-label="Tactical battlefield"
       onClick={() => onClearSelection?.()}
