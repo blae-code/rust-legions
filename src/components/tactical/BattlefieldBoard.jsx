@@ -2,7 +2,9 @@ import React, { useMemo } from "react";
 import { hexPixel, hexCorners } from "@/lib/tactical/field";
 import { neighborsOf } from "@/lib/tactical/orbat";
 import { estimateExchange } from "@/lib/tactical/durability";
-import TerrainDefs from "./TerrainDefs";
+import TopoDefs from "./topo/TopoDefs";
+import TopoNetwork from "./topo/TopoNetwork";
+import TopoGrid from "./topo/TopoGrid";
 import HexTerrainTile from "./HexTerrainTile";
 import UnitCounter, { CounterDefs } from "./counters/UnitCounter";
 import AttackArrow from "./counters/AttackArrow";
@@ -83,8 +85,11 @@ export default function BattlefieldBoard({
       aria-label="Tactical battlefield"
       onClick={() => onClearSelection?.()}
     >
-      <TerrainDefs />
+      <TopoDefs />
       <CounterDefs />
+
+      {/* the sheet under everything */}
+      <rect x={-pad} y={-pad} width={vbW} height={vbH} fill="url(#topo_paper)" />
 
       {cells.map((c) => (
         <HexTerrainTile
@@ -94,9 +99,15 @@ export default function BattlefieldBoard({
           corners={corners}
           tile={c.tile}
           zone={zoneOf[c.key]}
+          q={c.q}
+          r={c.r}
           onHover={() => onHoverTile?.({ ...c.tile, q: c.q, r: c.r })}
         />
       ))}
+
+      {/* linear features run across hexes, then the grid is ruled on top */}
+      <TopoNetwork field={field} size={SIZE} />
+      <TopoGrid x={-pad} y={-pad} width={vbW} height={vbH} />
 
       {/* the selected stand's hex, ringed on the ground */}
       {selected &&
