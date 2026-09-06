@@ -572,7 +572,7 @@ export default function GamePage() {
       {!game.battle && <BattleReport report={report} onClose={() => setReport(null)} />}
 
       <TourGuide
-        open={tourOpen}
+        open={tourOpen && !showBriefing}
         steps={GAME_TOUR_STEPS}
         onClose={() => { setTourOpen(false); localStorage.setItem(TOUR_DONE_KEY, "1"); }}
       />
