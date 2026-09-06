@@ -309,10 +309,11 @@ export default function GamePage() {
             </button>
           </CommandTip>
         )}
+        {/* The ministry desks — one spotlit cluster for the tour, not one icon */}
+        <div data-tour="desks" className="flex items-center gap-2 flex-wrap">
         {game.status === "active" && game.mySlot !== null && game.mySlot !== undefined && (
           <CommandTip title="Faction Overview" body="Holdings, supply network and standing bonuses, gathered on one dashboard.">
             <button
-              data-tour="desks"
               onClick={() => { playSfx("select"); setShowOverview(true); }}
               className="p-1.5 rounded-sm border border-border text-muted-foreground hover:text-brass-bright hover:border-brass/50 transition-colors"
             >
@@ -364,9 +365,10 @@ export default function GamePage() {
             className="p-1.5 rounded-sm border border-border text-muted-foreground hover:text-brass-bright hover:border-brass/50 transition-colors"
           >
             <BookOpen className="w-3.5 h-3.5" />
-          </button>
-        </CommandTip>
-        {game.status === "active" && game.diplomacy && (
+            </button>
+            </CommandTip>
+            </div>
+            {game.status === "active" && game.diplomacy && (
           <CommandTip title="Envoy Desk" body="Diplomacy — propose pacts and trades. A red lamp means an offer awaits your answer.">
             <button
               onClick={() => setShowDiplomacy(true)}

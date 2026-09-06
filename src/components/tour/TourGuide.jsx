@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import TourCard from "@/components/tour/TourCard";
+import placeCard from "@/lib/tourPlace";
 import { playSfx } from "@/lib/sfx";
 
 const q = (target) => document.querySelector(`[data-tour="${target}"]`);
@@ -11,6 +12,8 @@ export default function TourGuide({ open, steps, onClose }) {
   const [liveSteps, setLiveSteps] = useState([]);
   const [idx, setIdx] = useState(0);
   const [rect, setRect] = useState(null);
+  const cardRef = useRef(null);
+  const [card, setCard] = useState({ w: 340, h: 200 });
 
   // On open, keep only the steps whose target is actually on this screen
   useEffect(() => {
@@ -23,21 +26,31 @@ export default function TourGuide({ open, steps, onClose }) {
   const step = liveSteps[idx];
 
   const measure = useCallback(() => {
-    if (!step) return;
-    const el = q(step.target);
+    const el = step && q(step.target);
     if (!el) return;
     const r = el.getBoundingClientRect();
-    setRect({ top: r.top, left: r.left, width: r.width, height: r.height });
+    setRect((prev) =>
+      prev && prev.top === r.top && prev.left === r.left && prev.width === r.width && prev.height === r.height
+        ? prev
+        : { top: r.top, left: r.left, width: r.width, height: r.height },
+    );
+    const c = cardRef.current?.getBoundingClientRect();
+    if (c) setCard((p) => (p.h === c.height && p.w === c.width ? p : { w: c.width, h: c.height }));
   }, [step]);
 
+  // The war room keeps redrawing under the tour (polled state, wrapping command
+  // bar), so the box is re-surveyed on a beat rather than measured once.
   useEffect(() => {
     if (!open || !step) return;
     q(step.target)?.scrollIntoView({ behavior: "smooth", block: "center" });
-    const t = setTimeout(measure, 450);
+    measure();
+    const settle = setTimeout(measure, 450);
+    const beat = setInterval(measure, 400);
     window.addEventListener("resize", measure);
     window.addEventListener("scroll", measure, true);
     return () => {
-      clearTimeout(t);
+      clearTimeout(settle);
+      clearInterval(beat);
       window.removeEventListener("resize", measure);
       window.removeEventListener("scroll", measure, true);
     };
@@ -52,13 +65,9 @@ export default function TourGuide({ open, steps, onClose }) {
     width: rect.width + pad * 2,
     height: rect.height + pad * 2,
   };
-  const below = spot ? spot.top + spot.height + 220 < window.innerHeight : true;
-  const cardStyle = spot
-    ? {
-        top: below ? spot.top + spot.height + 14 : Math.max(spot.top - 215, 12),
-        left: Math.min(Math.max(spot.left, 16), Math.max(window.innerWidth - 364, 16)),
-      }
-    : { top: "40%", left: "calc(50% - 170px)" };
+  const placed = spot
+    ? placeCard(spot, card, { w: window.innerWidth, h: window.innerHeight })
+    : { top: window.innerHeight * 0.4, left: Math.max(window.innerWidth / 2 - card.w / 2, 12) };
 
   const advance = (d) => {
     playSfx("select");
@@ -89,7 +98,17 @@ export default function TourGuide({ open, steps, onClose }) {
       ) : (
         <div className="absolute inset-0 bg-black/85" />
       )}
-      <TourCard step={step} idx={idx} total={liveSteps.length} onPrev={() => advance(-1)} onNext={() => advance(1)} onSkip={onClose} style={cardStyle} />
+      <TourCard
+        ref={cardRef}
+        step={step}
+        idx={idx}
+        total={liveSteps.length}
+        arrow={placed.side}
+        onPrev={() => advance(-1)}
+        onNext={() => advance(1)}
+        onSkip={onClose}
+        style={{ top: placed.top, left: placed.left }}
+      />
     </div>
   );
 }
