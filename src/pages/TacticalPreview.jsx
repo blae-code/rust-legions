@@ -57,6 +57,8 @@ export default function TacticalPreview() {
   const target = stands.find((s) => s.id === targetId) || null;
 
   const coverAt = (s) => field.tiles[`${s.q},${s.r}`]?.cover || 0;
+  // In a co-op skirmish each commander orders only the stands they bought.
+  const commands = (s) => !order?.me || !s.owner || s.owner === order.me;
   const contactWith = (stand) =>
     stands.some(
       (v) => v.side === viewSide && neighborsOf(v.q, v.r).some((n) => n.q === stand.q && n.r === stand.r),
@@ -85,14 +87,15 @@ export default function TacticalPreview() {
   const radial = useMemo(() => {
     if (!menuStand) return null;
     const own = menuStand.side === viewSide;
+    const ally = own && !commands(menuStand);
     const yourTurn = viewSide === turnSide;
-    const root = buildUnitTree(menuStand, { own, yourTurn, inContact: contactWith(menuStand) });
+    const root = buildUnitTree(menuStand, { own, ally, yourTurn, inContact: contactWith(menuStand) });
     const { ring, trail } = resolvePath(root, menu.path);
     return {
       stand: menuStand,
       ring,
       trail,
-      note: own ? (yourTurn ? null : "Orders held") : "Hostile",
+      note: ally ? `${menuStand.owner}'s stand` : own ? (yourTurn ? null : "Orders held") : "Hostile",
       onPick: (node) => {
         if (node.children) return setMenu((m) => ({ ...m, path: [...m.path, node.key] }));
         if (node.report) {
@@ -196,7 +199,12 @@ export default function TacticalPreview() {
           {tab === "Orders" && (
             <div className="cq-panel p-2.5">
               <p className="cq-label text-rust mb-2">Issue Orders</p>
-              <OrderRail stand={selected} current={selected && acts[selected.id]} onIssue={issue} />
+              <OrderRail
+                stand={selected}
+                current={selected && acts[selected.id]}
+                onIssue={issue}
+                locked={!!selected && !commands(selected)}
+              />
             </div>
           )}
 

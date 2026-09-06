@@ -3,12 +3,24 @@ import { ACTIVITIES, ORDER_GROUPS } from "@/lib/tactical/activities";
 
 // Issue an activity to the selected stand. Each button fires that action's
 // sound cue and strikes its badge onto the counter.
-export default function OrderRail({ stand, current, onIssue }) {
+export default function OrderRail({ stand, current, onIssue, locked = false }) {
   if (!stand) {
     return (
       <p className="font-mono text-[10px] text-muted-foreground tracking-widest">
         SELECT A COUNTER TO ISSUE ORDERS
       </p>
+    );
+  }
+
+  // A co-commander's stand: you may read its file, but its orders are theirs.
+  if (locked) {
+    return (
+      <div className="space-y-1">
+        <p className="font-mono text-[10px] text-brass-bright tracking-widest truncate">{stand.name}</p>
+        <p className="font-mono text-[10px] text-muted-foreground tracking-widest">
+          UNDER {String(stand.owner).toUpperCase()}'S COMMAND — COORDINATE ON THE WIRE
+        </p>
+      </div>
     );
   }
 

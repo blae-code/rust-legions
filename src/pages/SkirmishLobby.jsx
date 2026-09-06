@@ -10,6 +10,7 @@ import LobbyHeader from "@/components/skirmish/lobby/LobbyHeader";
 import SideColumn from "@/components/skirmish/lobby/SideColumn";
 import SeatRequisition from "@/components/skirmish/lobby/SeatRequisition";
 import HostControls from "@/components/skirmish/lobby/HostControls";
+import GameChat from "@/components/game/chat/GameChat";
 
 // The muster roll for one skirmish. Every seated commander sees the same roll
 // live; when the host fields it, each of them is carried into the same arena.
@@ -87,7 +88,8 @@ export default function SkirmishLobby() {
             </div>
           )}
         </div>
-        <aside className="sticky top-20">
+        <aside className="sticky top-20 space-y-4">
+          <GameChat gameId={lobbyId} myName={callsign || "Commander"} />
           {isHost ? (
             <HostControls
               lobby={lobby}

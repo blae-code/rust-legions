@@ -93,6 +93,11 @@ export function buildUnitTree(stand, ctx) {
     return [fireBranch(stand), moveBranch(stand), worksBranch(stand), supportBranch(), intelBranch("File")];
   }
 
+  // A co-commander's counter on your side — their orders, your reading.
+  if (ctx.ally) {
+    return [intelBranch("File"), N("allied", "Allied Command", Shield, { tone: "steel", disabled: true })];
+  }
+
   // Your own counter, but the hour belongs to the other side.
   if (ctx.own) {
     return [intelBranch("File"), N("held", "Orders Held", Shield, { tone: "steel", disabled: true })];

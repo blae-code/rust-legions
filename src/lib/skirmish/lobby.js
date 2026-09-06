@@ -46,6 +46,7 @@ export function orderFromLobby(lobby, scenario, userId) {
   const names = (sd) => seatsOn(lobby, sd).map((s) => s.callsign);
   return {
     lobbyId: lobby.id,
+    me: me?.callsign || null,
     scenarioId: scenario.id,
     scenarioName: scenario.name,
     objective: scenario.objective,
