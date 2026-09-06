@@ -101,13 +101,14 @@ export default function GamePage() {
   }, [game?.status]);
   useEffect(() => () => setScoreSuppressed(false), []);
 
-  // First war: open the guided tour once the front is live and we hold a slot
+  // First war: open the guided tour once the front is live, we hold a slot, and
+  // the sealed briefing has been acknowledged — never over an open file.
   useEffect(() => {
     if (game?.status !== "active" || game.mySlot === null || game.mySlot === undefined) return;
-    if (localStorage.getItem(TOUR_DONE_KEY)) return;
+    if (showBriefing || localStorage.getItem(TOUR_DONE_KEY)) return;
     const t = setTimeout(() => setTourOpen(true), 1200);
     return () => clearTimeout(t);
-  }, [game?.status, game?.mySlot]);
+  }, [game?.status, game?.mySlot, showBriefing]);
 
   // The front goes live — the sealed operation file lands on the desk, once per war
   useEffect(() => {
