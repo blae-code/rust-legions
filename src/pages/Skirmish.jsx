@@ -4,6 +4,10 @@ import { base44 } from "@/api/base44Client";
 import { SCENARIOS, scenarioById } from "@/lib/skirmish/scenarios";
 import { costOf, newUid, buildAiForce, seedFromDesign } from "@/lib/skirmish/roster";
 import { saveSkirmish } from "@/lib/skirmish/session";
+import { makeCode } from "@/lib/skirmish/lobby";
+import useUser from "@/hooks/useUser";
+import useCallsign from "@/hooks/useCallsign";
+import MusterChoice from "@/components/skirmish/MusterChoice";
 import ScenarioCard from "@/components/skirmish/ScenarioCard";
 import SideChoice from "@/components/skirmish/SideChoice";
 import OpponentPanel from "@/components/skirmish/OpponentPanel";
@@ -33,6 +37,11 @@ export default function Skirmish() {
   const [doctrine, setDoctrine] = useState("aggressive");
   const [items, setItems] = useState([]);
   const [designs, setDesigns] = useState([]);
+  const [mode, setMode] = useState("solo");
+  const [joinError, setJoinError] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const { user } = useUser();
+  const callsign = useCallsign();
 
   const scenario = scenarioById(scenarioId);
   const spent = useMemo(() => costOf(items), [items]);
@@ -64,6 +73,32 @@ export default function Skirmish() {
     navigate("/tactical-preview");
   };
 
+  // Open a muster roll with this sheet, seated on the chosen side with whatever
+  // has been bought so far; the rest is done in the lobby.
+  const openLobby = async () => {
+    setBusy(true);
+    const lobby = await base44.entities.SkirmishLobby.create({
+      name: scenario.name,
+      code: makeCode(),
+      hostUserId: user.id,
+      hostCallsign: callsign || "Commander",
+      scenarioId: scenario.id,
+      doctrine,
+      status: "mustering",
+      seats: [{ userId: user.id, callsign: callsign || "Commander", side, force: items.map(({ key, type }) => ({ key, type })), ready: false }],
+    });
+    navigate(`/skirmish/lobby/${lobby.id}`);
+  };
+
+  const joinByCode = async (code) => {
+    setBusy(true);
+    setJoinError(null);
+    const found = await base44.entities.SkirmishLobby.filter({ code, status: "mustering" });
+    if (found[0]) return navigate(`/skirmish/lobby/${found[0].id}`);
+    setJoinError("NO OPEN MUSTER UNDER THAT CODE");
+    setBusy(false);
+  };
+
   return (
     <div className="cq-page-in space-y-4">
       <div className="cq-panel p-4">
@@ -90,12 +125,19 @@ export default function Skirmish() {
             <Panel step="02" title="Your Role">
               <SideChoice value={side} onChange={setSide} />
             </Panel>
-            <Panel step="03" title="Opposing Command">
-              <OpponentPanel doctrine={doctrine} onDoctrine={setDoctrine} />
+            <Panel step="03" title="Muster">
+              <MusterChoice mode={mode} onMode={setMode} onJoin={joinByCode} joining={busy} />
+              {joinError && (
+                <p className="font-mono text-[9px] text-rust tracking-widest mt-1.5">{joinError}</p>
+              )}
             </Panel>
           </div>
 
-          <Panel step="04" title="Force Requisition">
+          <Panel step="04" title="Machine Command">
+            <OpponentPanel doctrine={doctrine} onDoctrine={setDoctrine} />
+          </Panel>
+
+          <Panel step="05" title="Force Requisition">
             <div className="space-y-3">
               <div>
                 <p className="cq-label mb-1.5">Start From A Saved Design</p>
@@ -131,8 +173,9 @@ export default function Skirmish() {
             doctrine={doctrine}
             count={items.length}
             spent={spent}
-            canLaunch={items.length >= 3}
-            onLaunch={launch}
+            mode={mode}
+            canLaunch={mode === "lobby" ? !busy && !!user : items.length >= 3}
+            onLaunch={mode === "lobby" ? openLobby : launch}
           />
         </aside>
       </div>

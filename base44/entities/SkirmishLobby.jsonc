@@ -1,0 +1,80 @@
+{
+  "name": "SkirmishLobby",
+  "type": "object",
+  "description": "A mustering skirmish: commanders take seats on either side, buy stands against a shared side allowance, and the host fields the battle",
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "code": {
+      "type": "string",
+      "description": "Short join code, uppercase"
+    },
+    "hostUserId": {
+      "type": "string"
+    },
+    "hostCallsign": {
+      "type": "string"
+    },
+    "scenarioId": {
+      "type": "string"
+    },
+    "doctrine": {
+      "type": "string",
+      "enum": [
+        "aggressive",
+        "defensive",
+        "economic"
+      ],
+      "default": "aggressive",
+      "description": "How the machine buys for any side left without a human commander"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "mustering",
+        "fielded",
+        "closed"
+      ],
+      "default": "mustering"
+    },
+    "seats": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string"
+          },
+          "callsign": {
+            "type": "string"
+          },
+          "side": {
+            "type": "string",
+            "enum": [
+              "attacker",
+              "defender"
+            ]
+          },
+          "force": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "ready": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "required": [
+    "code",
+    "hostUserId",
+    "scenarioId"
+  ]
+}

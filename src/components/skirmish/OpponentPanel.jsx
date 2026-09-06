@@ -27,7 +27,7 @@ export default function OpponentPanel({ doctrine, onDoctrine }) {
         </button>
       ))}
       <p className="font-mono text-[9px] text-muted-foreground/70 tracking-widest pt-1">
-        HUMAN OPPONENTS &amp; CO-OP SEATS — NEXT DISPATCH
+        COMMANDS ANY SIDE LEFT WITHOUT A HUMAN AT THE TABLE
       </p>
     </div>
   );

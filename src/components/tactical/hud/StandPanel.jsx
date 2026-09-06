@@ -59,6 +59,7 @@ export default function StandPanel({ stand, role }) {
             <Cell k="Fuel" v={fuel === null ? "—" : fuel} />
             <Cell k="Entrenched" v={stand.entrench || 0} />
             <Cell k="Veterancy" v={"★".repeat(stand.vet || 0) || "—"} />
+            {stand.owner && <Cell k="Commander" v={stand.owner} tone="text-brass-bright" />}
             <Cell
               k="Orders"
               v={stand.moved ? "Expended" : "Available"}

@@ -1,8 +1,9 @@
 import React from "react";
-import { Swords } from "lucide-react";
+import { Swords, Users } from "lucide-react";
 
 // The signed order: what is about to be fought, and the button that starts it.
-export default function LaunchOrder({ scenario, side, doctrine, count, spent, canLaunch, onLaunch }) {
+export default function LaunchOrder({ scenario, side, doctrine, count, spent, canLaunch, onLaunch, mode = "solo" }) {
+  const lobby = mode === "lobby";
   const Row = ({ k, v }) => (
     <div className="flex justify-between gap-2">
       <span className="cq-label">{k}</span>
@@ -18,7 +19,8 @@ export default function LaunchOrder({ scenario, side, doctrine, count, spent, ca
       <div className="space-y-0.5 border-t border-brass/30 pt-2">
         <Row k="Sheet" v={scenario.sheet} />
         <Row k="Your Role" v={side === "attacker" ? "Attacking" : "Defending"} />
-        <Row k="Opponent" v={`Machine — ${doctrine}`} />
+        <Row k="Muster" v={lobby ? "Open lobby — co-op / versus" : "Solo"} />
+        <Row k="Machine" v={`${doctrine}${lobby ? " (empty side)" : ""}`} />
         <Row k="Stands" v={count} />
         <Row k="Spent" v={`${spent} / ${scenario.points}`} />
       </div>
@@ -27,9 +29,10 @@ export default function LaunchOrder({ scenario, side, doctrine, count, spent, ca
         onClick={onLaunch}
         className="cq-metal w-full flex items-center justify-center gap-2 rounded-sm border border-brass/60 bg-rust/80 disabled:opacity-40 disabled:cursor-not-allowed py-2.5 font-display uppercase tracking-[0.2em] text-primary-foreground"
       >
-        <Swords className="w-4 h-4" /> Take The Field
+        {lobby ? <Users className="w-4 h-4" /> : <Swords className="w-4 h-4" />}
+        {lobby ? "Open The Lobby" : "Take The Field"}
       </button>
-      {!canLaunch && (
+      {!canLaunch && !lobby && (
         <p className="font-mono text-[9px] text-muted-foreground tracking-widest text-center">
           REQUISITION AT LEAST THREE STANDS
         </p>

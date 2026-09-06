@@ -12,9 +12,11 @@ export default function BattleBanner({ order, onStand }) {
         <p className="cq-display text-base leading-none text-brass-bright truncate">{order.scenarioName}</p>
         <p className="text-[10px] text-muted-foreground leading-snug truncate">{order.objective}</p>
       </div>
-      <span className="font-mono text-[9px] text-muted-foreground tracking-widest hidden sm:block">
-        YOU ARE {order.side === "attacker" ? "ATTACKING" : "DEFENDING"}
-      </span>
+      <div className="font-mono text-[9px] text-muted-foreground tracking-widest hidden sm:block text-right">
+        <p>YOU ARE {order.side === "attacker" ? "ATTACKING" : "DEFENDING"}</p>
+        {order.allies?.length > 0 && <p className="text-brass">WITH {order.allies.join(", ").toUpperCase()}</p>}
+        <p>VS {order.foes?.length ? order.foes.join(", ").toUpperCase() : "MACHINE COMMAND"}</p>
+      </div>
       <Link
         to="/skirmish"
         onClick={onStand}

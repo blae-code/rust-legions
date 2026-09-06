@@ -52,6 +52,7 @@ export function toStands(items, side) {
       fuel: motor ? START.fuelled : null,
       entrench: 0,
       vet: it.vet || 0,
+      owner: it.owner || null,
       moved: false,
     };
   });
