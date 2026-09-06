@@ -25,6 +25,8 @@ export default function BattlefieldBoard({
   onHoverTile,
   radial,
   zoom = 1,
+  pickHexes = null,
+  onPickHex,
 }) {
   const corners = useMemo(() => hexCorners(SIZE), []);
   const zoneOf = useMemo(() => {
@@ -127,6 +129,29 @@ export default function BattlefieldBoard({
             />
           );
         })()}
+
+      {/* deployment: the strip lit and clickable while stands are set down */}
+      {pickHexes &&
+        pickHexes.map((h) => {
+          const { x, y } = hexPixel(h.q, h.r, SIZE);
+          return (
+            <polygon
+              key={`pick-${h.q},${h.r}`}
+              points={corners}
+              transform={`translate(${x},${y})`}
+              fill="#C9A85C"
+              fillOpacity={h.taken ? 0.08 : 0.28}
+              stroke="#E8D6A8"
+              strokeWidth={h.taken ? 0.6 : 1.4}
+              strokeDasharray={h.taken ? "3 3" : undefined}
+              className={h.taken ? "" : "cursor-pointer"}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (!h.taken) onPickHex?.(h);
+              }}
+            />
+          );
+        })}
 
       {/* assault arrows, under the counters so plates stay readable */}
       {engagements.map((e) => (

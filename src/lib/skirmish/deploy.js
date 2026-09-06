@@ -5,7 +5,7 @@
 // and leave the middle of the board empty for the battle itself.
 import { toStands } from "./roster";
 
-const strip = (field, side) =>
+export const strip = (field, side) =>
   field.deploy[side]
     .filter((hx) => {
       const tile = field.tiles[`${hx.q},${hx.r}`];
@@ -33,7 +33,9 @@ const place = (stands, hexes) =>
  */
 export function deployForces(field, order) {
   const foe = order.side === "attacker" ? "defender" : "attacker";
-  const mine = place(toStands(order.force, order.side), spaced(strip(field, order.side)));
+  const auto = place(toStands(order.force, order.side), spaced(strip(field, order.side)));
+  // Hand-placed stands keep the hex the commander chose; the rest fall in as surveyed.
+  const mine = auto.map((s) => (order.placements?.[s.id] ? { ...s, ...order.placements[s.id] } : s));
   const theirs = place(toStands(order.enemyForce, foe), spaced(strip(field, foe)));
   return [...mine, ...theirs];
 }

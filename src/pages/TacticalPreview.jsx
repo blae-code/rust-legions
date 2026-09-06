@@ -17,15 +17,20 @@ import SignalsLog from "@/components/tactical/hud/SignalsLog";
 import OrbatList from "@/components/tactical/hud/OrbatList";
 import InitiativeTracker from "@/components/tactical/hud/InitiativeTracker";
 import BuildProgress from "@/components/tactical/BuildProgress";
-import { readSkirmish, clearSkirmish } from "@/lib/skirmish/session";
-import { deployForces } from "@/lib/skirmish/deploy";
+import { readSkirmish, saveSkirmish, clearSkirmish } from "@/lib/skirmish/session";
+import { deployForces, strip } from "@/lib/skirmish/deploy";
 import BattleBanner from "@/components/skirmish/BattleBanner";
+import DeploymentRack from "@/components/skirmish/DeploymentRack";
 
 // The tactical arena as a hex-wargame command surface: counters on painted
 // ground, an assault forecast on every contact, and service cards on the rail.
 export default function TacticalPreview() {
   // A requisitioned skirmish takes over the arena: its ground, its forces.
-  const order = useMemo(() => readSkirmish(), []);
+  const [order, setOrder] = useState(() => readSkirmish());
+  // Deployment: the order is fought only once its stands have been set down.
+  const deploying = !!order && !order.placements;
+  const [placements, setPlacements] = useState({});
+  const [carry, setCarry] = useState(null);
   const [opts, setOpts] = useState(
     order ? order.opts : { seed: 20260903, nodeKind: "town", weather: "clear", fortBonus: 2 },
   );
@@ -45,7 +50,59 @@ export default function TacticalPreview() {
 
   // Either the requisitioned forces, deployed into their strips, or the
   // standing sample engagement when the arena is opened on its own.
-  const orbat = useMemo(() => (order ? deployForces(field, order) : SAMPLE_ORBAT), [order, field]);
+  const deployed = useMemo(() => (order ? deployForces(field, order) : SAMPLE_ORBAT), [order, field]);
+  // In a co-op skirmish each commander orders only the stands they bought.
+  const commands = (s) => !order?.me || !s.owner || s.owner === order.me;
+  // The rack: the stands this commander must set down before the battle opens.
+  const rack = useMemo(
+    () => (deploying ? deployed.filter((s) => s.side === order.side && commands(s)) : []),
+    [deploying, deployed, order],
+  );
+  // While deploying only your own side is on the sheet, and only what has been placed.
+  const orbat = useMemo(() => {
+    if (!deploying) return deployed;
+    return deployed
+      .filter((s) => s.side === order.side)
+      .flatMap((s) => (commands(s) ? (placements[s.id] ? [{ ...s, ...placements[s.id] }] : []) : [s]));
+  }, [deploying, deployed, order, placements]);
+
+  // Your strip, lit for placing — hexes already holding a stand are marked taken.
+  const pickHexes = useMemo(() => {
+    if (!deploying) return null;
+    const taken = new Set(orbat.map((s) => `${s.q},${s.r}`));
+    const carried = carry && placements[carry] ? `${placements[carry].q},${placements[carry].r}` : null;
+    return strip(field, order.side).map((h) => {
+      const k = `${h.q},${h.r}`;
+      return { q: h.q, r: h.r, taken: taken.has(k) && k !== carried };
+    });
+  }, [deploying, orbat, field, order, carry, placements]);
+
+  const placeAt = (h) => {
+    if (!carry) return;
+    setPlacements((p) => ({ ...p, [carry]: { q: h.q, r: h.r } }));
+    setCarry(null);
+  };
+  // Whatever is still in reserve takes its surveyed slot, skipping occupied hexes.
+  const autoPlace = () => {
+    const taken = new Set(Object.values(placements).map((p) => `${p.q},${p.r}`));
+    for (const s of deployed) if (s.side === order.side && !commands(s)) taken.add(`${s.q},${s.r}`);
+    const free = strip(field, order.side).filter((h) => !taken.has(`${h.q},${h.r}`));
+    const pending = rack.filter((s) => !placements[s.id]);
+    // Every other hex when the strip has room, shoulder to shoulder when it does not.
+    const slots = pending.length * 2 <= free.length ? free.filter((_, i) => i % 2 === 0) : free;
+    const next = { ...placements };
+    pending.forEach((s, i) => {
+      const h = slots[i];
+      if (h) next[s.id] = { q: h.q, r: h.r };
+    });
+    setPlacements(next);
+  };
+  const commence = () => {
+    const fielded = { ...order, placements };
+    saveSkirmish(fielded);
+    setOrder(fielded);
+    setCarry(null);
+  };
 
   // Counters are static; their current activity is layered on at render time.
   const stands = useMemo(
@@ -57,8 +114,6 @@ export default function TacticalPreview() {
   const target = stands.find((s) => s.id === targetId) || null;
 
   const coverAt = (s) => field.tiles[`${s.q},${s.r}`]?.cover || 0;
-  // In a co-op skirmish each commander orders only the stands they bought.
-  const commands = (s) => !order?.me || !s.owner || s.owner === order.me;
   const contactWith = (stand) =>
     stands.some(
       (v) => v.side === viewSide && neighborsOf(v.q, v.r).some((n) => n.q === stand.q && n.r === stand.r),
@@ -67,6 +122,11 @@ export default function TacticalPreview() {
   // Every counter is a radial button: opening one selects it (or marks it, if
   // it belongs to the other side) and fans out whatever it can offer right now.
   const handleSelect = (stand) => {
+    // During deployment a click on your own placed counter picks it back up.
+    if (deploying) {
+      if (commands(stand)) setCarry(stand.id);
+      return;
+    }
     if (stand.side === viewSide) setSelectedId(stand.id);
     else setTargetId(stand.id);
     setIntel(null);
@@ -151,8 +211,10 @@ export default function TacticalPreview() {
               onSelectStand={handleSelect}
               onClearSelection={() => setMenu(null)}
               onHoverTile={setHover}
-              radial={radial}
+              radial={deploying ? null : radial}
               zoom={zoom}
+              pickHexes={pickHexes}
+              onPickHex={placeAt}
             />
           </BoardViewport>
           {field.meta.weather === "rain" && <div className="absolute inset-0 cq-rain" />}
@@ -196,7 +258,18 @@ export default function TacticalPreview() {
         </div>
 
         <aside className="space-y-2">
-          {tab === "Orders" && (
+          {deploying && (
+            <DeploymentRack
+              stands={rack}
+              placements={placements}
+              carry={carry}
+              onCarry={setCarry}
+              onAuto={autoPlace}
+              onCommence={commence}
+            />
+          )}
+
+          {!deploying && tab === "Orders" && (
             <div className="cq-panel p-2.5">
               <p className="cq-label text-rust mb-2">Issue Orders</p>
               <OrderRail
