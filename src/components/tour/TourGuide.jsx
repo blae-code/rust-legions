@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import TourCard from "@/components/tour/TourCard";
 import placeCard from "@/lib/tourPlace";
 import { playSfx } from "@/lib/sfx";
@@ -86,7 +87,10 @@ export default function TourGuide({ open, steps, onClose }) {
     else setIdx(Math.max(idx + d, 0));
   };
 
-  return (
+  // Portaled to the body: the page shell animates with a transform, which would
+  // otherwise re-anchor this fixed overlay to the shell instead of the viewport
+  // and slide every spotlight off its target.
+  return createPortal(
     <div className="fixed inset-0 z-[80]">
       {/* Grit & scanlines over the darkened room */}
       <div className="absolute inset-0 cq-scanlines opacity-30" />
@@ -120,6 +124,7 @@ export default function TourGuide({ open, steps, onClose }) {
         onSkip={onClose}
         style={{ top: placed.top, left: placed.left }}
       />
-    </div>
+    </div>,
+    document.body,
   );
 }
