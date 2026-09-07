@@ -56,6 +56,14 @@ export default function TourGuide({ open, steps, onClose }) {
     };
   }, [open, step, measure]);
 
+  // Escape always stands the tour down, whatever step is showing
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+
   if (!open || !step) return null;
 
   const pad = 10;
@@ -68,6 +76,9 @@ export default function TourGuide({ open, steps, onClose }) {
   const placed = spot
     ? placeCard(spot, card, { w: window.innerWidth, h: window.innerHeight })
     : { top: window.innerHeight * 0.4, left: Math.max(window.innerWidth / 2 - card.w / 2, 12) };
+  // Whatever the survey said, the card's controls must stay on screen
+  placed.left = Math.max(12, Math.min(placed.left, window.innerWidth - card.w - 12));
+  placed.top = Math.max(12, Math.min(placed.top, window.innerHeight - card.h - 12));
 
   const advance = (d) => {
     playSfx("select");

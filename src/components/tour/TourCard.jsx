@@ -48,6 +48,11 @@ const TourCard = React.forwardRef(function TourCard(
           <span key={i} className={`h-1 rounded-full transition-all duration-300 ${i === idx ? "w-5 bg-brass" : "w-1.5 bg-border"}`} />
         ))}
         <div className="ml-auto flex gap-2">
+          {!last && (
+            <Button size="sm" variant="ghost" className="h-7 px-2 text-[10px] text-muted-foreground hover:text-rust" onClick={onSkip}>
+              Skip
+            </Button>
+          )}
           {idx > 0 && (
             <Button size="sm" variant="outline" className="h-7 px-3 text-[10px]" onClick={onPrev}>Back</Button>
           )}
