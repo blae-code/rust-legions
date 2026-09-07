@@ -7,36 +7,36 @@ export const GAME_TOUR_STEPS = [
   {
     target: "command-bar",
     title: "The Command Bar",
-    body: "Your war at a glance — the operation's name, the current day, and every faction on the front. The lit lamp marks whose turn it is.",
+    body: "The operation's name, the turn number, the theatre, and every faction on the front. The lit lamp marks whose turn it is.",
   },
   {
     target: "chart",
     title: "The Ministry Chart",
-    body: "Drag to pan, wheel to zoom. Click any surveyed site to open its orders wheel — march columns, mount assaults, muster new forces, or roll your fortress-base. Fog hides ground no scout has seen.",
+    body: "The theatre map. Click a site you hold to open its orders wheel; ground no scout has seen stays under fog.",
   },
   {
     target: "order-of-march",
     title: "Order of March",
-    body: "Every column in the field: its commander, strength in points, day-rate, and destination. Issue March or Halt orders straight from the roster.",
+    body: "Your columns in the field, with their strength and where they are headed.",
   },
   {
     target: "resources",
-    title: "The Treasury",
-    body: "Your resources with their daily income, faction stability, army points against the cap, and land control against the victory target.",
+    title: "Stores & Standing",
+    body: "Each resource with its per-turn income, your stability, army points against the cap, and land control against the victory target.",
   },
   {
     target: "desks",
     title: "The Ministry Desks",
-    body: "These small desks are your bureaus — Faction Overview, the Quartermaster's Ledger, the Protectorate Register, the Governor's Desk, and the Archive. Most may be worked off-turn while you wait.",
+    body: "Your bureaus. Hover any one for its name; each opens a file you can read off-turn while you wait.",
   },
   {
     target: "field-wire",
     title: "The Field Wire",
-    body: "A live channel to every commander in this war. Coordinate, negotiate, or gloat — the wire carries it all.",
+    body: "A live message channel shared by everyone in this war.",
   },
   {
     target: "end-turn",
     title: "End Turn",
-    body: "When your orders are filed, pass the baton. Marches resolve day by day, and you'll be wired when command returns to you.",
+    body: "Files your orders and passes the turn. A stamped notice tells you when command returns to you.",
   },
 ];
