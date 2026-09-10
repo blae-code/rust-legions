@@ -31,7 +31,11 @@ function CombatLine({ e }) {
 
 export default function WarChronicle({ entries = [] }) {
   const byTurn = {};
-  for (const e of entries) (byTurn[e.turn] = byTurn[e.turn] || []).push(e);
+  // Movement orders belong to the running log, not the official war record
+  for (const e of entries) {
+    if (e.type === "march") continue;
+    (byTurn[e.turn] = byTurn[e.turn] || []).push(e);
+  }
   const turns = Object.keys(byTurn).map(Number).sort((a, b) => a - b);
 
   return (

@@ -1657,7 +1657,11 @@ Deno.serve(async (req) => {
           doctrine: s.doctrine, color: s.color, eliminated: s.eliminated,
           isOpen: !s.isNPC && !s.userId, isMe: s.userId === user.id, traits: s.userId === user.id ? s.traits : undefined,
         })),
-        combatLog: game.status === 'complete' ? (game.combatLog || []) : (game.combatLog || []).slice(-30),
+        combatLog: (() => {
+          // Movement orders are private to the commander who issued them
+          const visible = (game.combatLog || []).filter((e) => e.type !== 'march' || e.slot === mySlot);
+          return game.status === 'complete' ? visible : visible.slice(-40);
+        })(),
         statHistory: game.statHistory || [],
         diplomacy: mySlot !== null ? {
           stances: game.factionSlots.filter((s) => s.slotIndex !== mySlot).map((s) => {
@@ -2157,6 +2161,15 @@ Deno.serve(async (req) => {
       } else {
         column.march = { path: [column.march.path[0], ...found.path], legMiles: column.march.legMiles };
       }
+      // Filed in the log as a movement order. `slot` keeps it private — getState
+      // hands march entries only to the commander who issued them (fog of war).
+      game.combatLog.push({
+        turn: game.turnNumber, type: 'march', slot: slotIdx,
+        faction: game.factionSlots[slotIdx].factionName, columnName: column.name,
+        from: macroNode(game.macro, from)?.name || null,
+        tileName: macroNode(game.macro, toNodeId)?.name || null,
+        etaDays: Math.ceil(found.totalDays),
+      });
       await persistMacro();
       return Response.json({ ok: true, etaDays: Math.ceil(found.totalDays) });
     }
