@@ -78,7 +78,7 @@ function tickResearch(game) {
 // Precursor relics — shared module (base44/shared/relics.ts)
 import { RELICS, RELIC_SETS, seedRelics, excavateRelic } from '../../shared/relics.ts';
 import { COMMAND_VEHICLES, SUPREME_VEHICLE, VEHICLE_MODS, vehicleOf } from '../../shared/commandVehicles.ts';
-import { MACRO_ROUTE_QUALITY, MACRO_SUPPLY_MILES, macroWeatherMult, macroFindPath, macroSupplied } from '../../shared/macroGraph.ts';
+import { MACRO_ROUTE_QUALITY, MACRO_SUPPLY_MILES, MACRO_SUPPLY_MILES_PER_RANGE, macroWeatherMult, macroFindPath, macroSupplied } from '../../shared/macroGraph.ts';
 
 // ---------- Neutral settlement lore & occupation crises (shared modules) ----------
 import { settlementDossier, charterOptions, POLICY_COOLDOWN_DAYS, POLICY_LOG } from '../../shared/settlementLore.ts';
@@ -218,6 +218,9 @@ function factionProduction(game, slotIdx) {
       if (primary) out[primary] += y[primary] || 0;
     }
   }
+  // Doctrine, decrees, relics and point-buy perks — flat income modifiers, floor 0
+  const inc = slotMods(game.factionSlots?.[slotIdx]).income || {};
+  for (const k of RESOURCE_KEYS) out[k] = Math.max(out[k] + (inc[k] || 0), 0);
   return out;
 }
 
@@ -477,6 +480,16 @@ function aiManeuver(side, doctrine = 'defensive') {
   return pick(table[doctrine] || table.defensive);
 }
 
+// Doctrine, decree, relic and perk unit-stat modifiers bite in the mass battle:
+// every unit type present in a force lends its attack (assaulting) or defense
+// (holding) modifier to the commander's battle skill, capped at ±3.
+function forceStatBonus(slot, units = {}, stat) {
+  const us = slotMods(slot).unitStat || {};
+  let b = 0;
+  for (const k of UNIT_KEYS) if ((units[k] || 0) > 0) b += (us[k] || {})[stat] || 0;
+  return Math.max(-3, Math.min(3, b));
+}
+
 function defenderIsLive(game, defSlotObj) {
   if (!defSlotObj || defSlotObj.isNPC || !defSlotObj.userId) return false;
   const seen = Date.parse((game.lastSeen || {})[defSlotObj.userId] || '') || 0;
@@ -488,7 +501,7 @@ function battleSkill(side, other) {
   const m = MANEUVERS[side.choice];
   const ratio = Math.max(forcePoints(side.units), 1) / Math.max(forcePoints(other.units), 1);
   const strengthMod = Math.max(Math.min(Math.round(Math.log2(ratio) * 2), 4), -4);
-  return side.strategy + m.skill + strengthMod + (side.fortBonus || 0) + (side.terrainBonus || 0) + (side.vetBonus || 0) + (side.nextBonus || 0) + (side.supplyPenalty || 0) + (side.weatherPenalty || 0) + (side.elevMod || 0) + ((side.design || {}).skill || 0) + ((side.vehicle || {}).skill || 0);
+  return side.strategy + m.skill + strengthMod + (side.fortBonus || 0) + (side.terrainBonus || 0) + (side.vetBonus || 0) + (side.statBonus || 0) + (side.nextBonus || 0) + (side.supplyPenalty || 0) + (side.weatherPenalty || 0) + (side.elevMod || 0) + ((side.design || {}).skill || 0) + ((side.vehicle || {}).skill || 0);
 }
 
 function finishBattle(game, b, attackerWon) {
@@ -896,6 +909,11 @@ const macroBlockedAgainst = (game, nodeId, slotIdx) =>
 // of the leg it is marching (the last friendly ground it touched)
 const macroColumnAnchor = (column) => column.nodeId || column.march?.path[0];
 
+// A faction's supply envelope, widened by its supplyRange modifiers (Motorized
+// Supply Trains, the Cartographic Survey Engine) — ~1 road-day per point
+const factionSupplied = (game, slotIdx) =>
+  macroSupplied(game, slotIdx, (slotMods(game.factionSlots[slotIdx]).supplyRange || 0) * MACRO_SUPPLY_MILES_PER_RANGE);
+
 function macroControlPct(game, slotIdx) {
   const settlements = macroSettlements(game.macro);
   if (settlements.length === 0) return 0;
@@ -967,7 +985,7 @@ function macroAdvanceMover(game, mover, rate, days, suppliedSet, onArrive) {
 function macroAdvanceDay(game) {
   // Supply is measured from the pre-dawn positions, once per faction
   const supplied = {};
-  for (const slot of game.factionSlots) supplied[slot.slotIndex] = macroSupplied(game, slot.slotIndex);
+  for (const slot of game.factionSlots) supplied[slot.slotIndex] = factionSupplied(game, slot.slotIndex);
 
   // Fortress-bases first — a base arriving re-anchors that faction's supply
   for (const [slotKey, b] of Object.entries(game.macro.bases || {})) {
@@ -1175,7 +1193,7 @@ function macroVisibleFor(game, slotIdx) {
   const revealAll = game.status !== 'active' || slotIdx === null;
   const seen = revealAll ? null : macroObserved(game, slotIdx);
   const observed = (nid) => revealAll || seen.has(nid);
-  const mySupply = slotIdx !== null ? macroSupplied(game, slotIdx) : new Set();
+  const mySupply = slotIdx !== null ? factionSupplied(game, slotIdx) : new Set();
   const columnView = (c) => ({
     id: c.id, owner: c.owner, name: c.name,
     nodeId: c.nodeId || null,
@@ -1338,6 +1356,12 @@ function macroCreateBattle(game, slotIdx, column, nodeId) {
   const defTrait = traitByKey(defGeneral?.trait);
   const attRank = armyRank(column.battles || 0);
   const defRank = armyRank(defVetBattles);
+  // Held ground: a defender standing on a settlement it administers digs in
+  // behind its defensive works (capitalDefense — perks, decrees, doctrine, relics)
+  const heldGround = game.macro.control[nodeId] === defSlotIdx;
+  const defWorks = heldGround ? (slotMods(defSlotObj).capitalDefense || 0) : 0;
+  const attStat = forceStatBonus(attSlotObj, column.regiments, 'attack');
+  const defStat = forceStatBonus(defSlotObj, defUnits, 'defense');
 
   game.activeBattle = {
     id: genId(), worldModel: 'macro', tileId: null, tileName: node.name,
@@ -1346,6 +1370,7 @@ function macroCreateBattle(game, slotIdx, column, nodeId) {
       slot: slotIdx, armyId: column.id, armyName: column.name, generalName: attGeneral.name, generalId: attGeneral.id || null,
       strategy: attGeneral.strategy, units: { ...column.regiments }, morale: 100, choice: null, nextBonus: 0, losses: 0,
       signature: attTrait?.signature || null, sigCooldown: 0, vetBonus: attRank.bonus, rank: attRank.label,
+      statBonus: attStat,
       vehicle: vehicleOf(attGeneral),
       supplyPenalty: 0,
       weatherPenalty: weather === 'rain' || weather === 'snow' ? -1 : 0,
@@ -1356,9 +1381,10 @@ function macroCreateBattle(game, slotIdx, column, nodeId) {
       slot: defSlotIdx, absorbedArmies: absorbed,
       generalName: defGeneral ? defGeneral.name : 'Column Commander',
       strategy: defGeneral ? defGeneral.strategy : 9,
-      units: defUnits, morale: 100, fortBonus: 0, terrainBonus: 0,
+      units: defUnits, morale: 100, fortBonus: defWorks, terrainBonus: 0,
       generalId: defGeneral?.id || null,
       signature: defTrait?.signature || null, sigCooldown: 0, vetBonus: defRank.bonus, rank: defRank.label,
+      statBonus: defStat,
       vehicle: vehicleOf(defGeneral),
       supplyPenalty: 0,
       weatherPenalty: weather === 'fog' ? -1 : 0,
@@ -1375,6 +1401,9 @@ function macroCreateBattle(game, slotIdx, column, nodeId) {
   const attVeh = vehicleOf(attGeneral), defVeh = vehicleOf(defGeneral);
   if (attVeh) game.activeBattle.log.push(`${attGeneral.name} directs the assault from the ${attVeh.label}.`);
   if (defVeh) game.activeBattle.log.push(`${defGeneral.name} anchors the defense from the ${defVeh.label}.`);
+  if (defWorks > 0) game.activeBattle.log.push(`The defenders hold prepared ground at ${node.name} (defender +${defWorks}).`);
+  if (attStat) game.activeBattle.log.push(`Assault doctrine tells — the attacking arms fight at ${attStat > 0 ? '+' : ''}${attStat}.`);
+  if (defStat) game.activeBattle.log.push(`Defensive doctrine tells — the holding arms fight at ${defStat > 0 ? '+' : ''}${defStat}.`);
   if (weather === 'rain') game.activeBattle.log.push('Driving rain turns the road to mud — the assault bogs down (attacker −1).');
   if (weather === 'fog') game.activeBattle.log.push('Heavy fog cloaks the assault columns — the defense fires blind (defender −1).');
   if (weather === 'snow') game.activeBattle.log.push('Deep snow drags at the assault columns (attacker −1).');
@@ -1557,7 +1586,7 @@ Deno.serve(async (req) => {
         const defOwnerObj = ab.defender.slot !== null && ab.defender.slot !== undefined ? game.factionSlots[ab.defender.slot] : null;
         const myRole = game.factionSlots[ab.attacker.slot]?.userId === user.id ? 'attacker' : defOwnerObj?.userId === user.id ? 'defender' : null;
         if (myRole) {
-          const sideView = (s, fac) => ({ faction: fac, general: s.generalName, strategy: s.strategy, units: s.units, morale: Math.max(s.morale, 0), losses: s.losses, chosen: !!s.choice, signature: s.signature || null, sigCooldown: s.sigCooldown || 0, vetBonus: s.vetBonus || 0, rank: s.rank || null, elevMod: s.elevMod || 0, design: s.design?.name || null, vehicle: s.vehicle ? { label: s.vehicle.label, effect: s.vehicle.effect, mods: s.vehicle.mods || [] } : null });
+          const sideView = (s, fac) => ({ faction: fac, general: s.generalName, strategy: s.strategy, units: s.units, morale: Math.max(s.morale, 0), losses: s.losses, chosen: !!s.choice, signature: s.signature || null, sigCooldown: s.sigCooldown || 0, vetBonus: s.vetBonus || 0, statBonus: s.statBonus || 0, rank: s.rank || null, elevMod: s.elevMod || 0, design: s.design?.name || null, vehicle: s.vehicle ? { label: s.vehicle.label, effect: s.vehicle.effect, mods: s.vehicle.mods || [] } : null });
           battle = {
             tileName: ab.tileName, round: ab.round, myRole, terrain: ab.terrain || null, weather: ab.weather || 'clear', terrainBonus: ab.defender.terrainBonus || 0,
             attacker: sideView(ab.attacker, game.factionSlots[ab.attacker.slot]?.factionName),

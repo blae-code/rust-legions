@@ -7,6 +7,7 @@
 // ---------------------------------------------------------------------------
 export const MACRO_ROUTE_QUALITY = { highway: 1.25, road: 1.0, track: 0.75, trail: 0.5, sealane: 0.6 };
 export const MACRO_SUPPLY_MILES = 220;        // effective-mile envelope from base/depots (~3 road-days)
+export const MACRO_SUPPLY_MILES_PER_RANGE = 70; // each +1 supplyRange (doctrine/relic) extends the envelope ~1 road-day
 
 export function macroWeatherMult(weather, regiments = {}) {
   if (weather !== 'rain' && weather !== 'snow') return 1;
@@ -51,9 +52,10 @@ export function macroFindPath(macro, fromId, toId, dayRate, opts = {}) {
 // Supply envelope: effective-mile reach from the fortress-base and any
 // controlled fuel depot, flowing only through routes whose far node the faction
 // controls or that stand neutral. Returns the Set of in-supply node ids.
-export function macroSupplied(game, slotIdx) {
+export function macroSupplied(game, slotIdx, extraMiles = 0) {
   const macro = game.macro;
   if (!macro?.nodes) return new Set();
+  const reach = MACRO_SUPPLY_MILES + extraMiles;
   const passable = (nid) => macro.control[nid] === slotIdx || macro.control[nid] === null || macro.control[nid] === undefined;
   const sources = [];
   const base = macro.bases?.[String(slotIdx)];
@@ -71,7 +73,7 @@ export function macroSupplied(game, slotIdx) {
       const next = a === cur ? b : a;
       if (!passable(next)) continue;
       const nd = dist[cur] + miles / MACRO_ROUTE_QUALITY[quality]; // effective miles
-      if (nd > MACRO_SUPPLY_MILES) continue;
+      if (nd > reach) continue;
       if (dist[next] === undefined || nd < dist[next]) { dist[next] = nd; queue.push(next); }
     }
   }
