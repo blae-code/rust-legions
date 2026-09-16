@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.38';
+import { gameActionError, validResourceOffer, validCampaignCondition } from '../../shared/gameAccess.ts';
 
 // ---------- Rules definitions ----------
 const RESOURCE_KEYS = ['manpower', 'steel', 'fuel'];
@@ -1189,8 +1190,8 @@ function macroObserved(game, slotIdx) {
 }
 
 // Fog-filtered macro state: geography is public, intel is not (§6)
-function macroVisibleFor(game, slotIdx) {
-  const revealAll = game.status !== 'active' || slotIdx === null;
+function macroVisibleFor(game, slotIdx, oversight = false) {
+  const revealAll = game.status === 'complete' || oversight;
   const seen = revealAll ? null : macroObserved(game, slotIdx);
   const observed = (nid) => revealAll || seen.has(nid);
   const mySupply = slotIdx !== null ? factionSupplied(game, slotIdx) : new Set();
@@ -1466,7 +1467,7 @@ function macroApplyBattleOutcome(game, b, attackerWon) {
 // ---------- End macro engine (harness marker) ----------
 
 // ---------- HTTP handler ----------
-Deno.serve(async (req) => {
+export default async function(req) {
   try {
     const base44 = createClientFromRequest(req);
     const user = await base44.auth.me();
@@ -1499,6 +1500,8 @@ Deno.serve(async (req) => {
     // ----- createGame -----
     PREGAME.createGame = async () => {
       const { name, mode = 'multiplayer', mapId, factionId, humanCount = 2, npcConfigs = [], campaignWinCondition, planetId } = body;
+      if (!['multiplayer', 'campaign'].includes(mode) || !Number.isInteger(humanCount) || humanCount < 1 || humanCount > 4 || !Array.isArray(npcConfigs) || npcConfigs.some((c) => !c || !['aggressive', 'economic', 'defensive'].includes(c.doctrine))) return Response.json({ error: 'Invalid operation setup' }, { status: 400 });
+      if (campaignWinCondition?.type && !validCampaignCondition(campaignWinCondition)) return Response.json({ error: 'Invalid campaign objective' }, { status: 400 });
       // Every operation fights on the ministry chart. A charted map from the
       // Cartography Bureau supplies the settlements; otherwise the theater
       // world generates them. Either way macroBuildWorld grows the landmasses.
@@ -1566,6 +1569,8 @@ Deno.serve(async (req) => {
     }
     const mySlotObj = (game.factionSlots || []).find((s) => s.userId === user.id);
     const mySlot = mySlotObj ? mySlotObj.slotIndex : null;
+    const accessError = gameActionError(game, user, action);
+    if (accessError) return Response.json({ error: accessError.error }, { status: accessError.status });
 
     // ----- getState -----
     GAME_ACTIONS.getState = async () => {
@@ -1631,7 +1636,7 @@ Deno.serve(async (req) => {
         mapId: game.mapId || null,
         // Legacy fronts filed before the macro engine carry no chart — hand back
         // an empty theater instead of crashing the war room
-        macro: game.macro?.nodes ? macroVisibleFor(game, mySlot) : { seed: 0, nodes: [], routes: [], continents: [], size: { ...MACRO_CHART }, control: {}, observed: [], supplied: [], bases: [], columns: [], settlementCount: 0 },
+        macro: game.macro?.nodes ? macroVisibleFor(game, mySlot, mySlot === null && user.role === 'admin') : { seed: 0, nodes: [], routes: [], continents: [], size: { ...MACRO_CHART }, control: {}, observed: [], supplied: [], bases: [], columns: [], settlementCount: 0 },
         isMyTurn: active && game.factionSlots?.[currentSlotIdx]?.userId === user.id,
         mySlot,
         myResources: mySlot !== null ? getTreasury(game, mySlot) : null,
@@ -1753,7 +1758,8 @@ Deno.serve(async (req) => {
       if (campaignWinCondition !== undefined) {
         const { type, value } = campaignWinCondition || {};
         if (type && !['survive', 'territory'].includes(type)) return Response.json({ error: 'Unknown win condition' }, { status: 400 });
-        const cond = type ? { type, value: Math.max(Number(value) || 0, 1) } : {};
+        const cond = type ? { type, value: Number(value) } : {};
+        if (type && !validCampaignCondition(cond)) return Response.json({ error: 'Use a positive whole number; territory objectives cannot exceed 100%.' }, { status: 400 });
         game.campaignWinCondition = cond;
         patch.campaignWinCondition = cond;
       }
@@ -2041,7 +2047,7 @@ Deno.serve(async (req) => {
       const lpKey = `${slotIdx}>${targetSlot}`;
       if (dip.lastProposal[lpKey] === game.turnNumber) return Response.json({ error: 'Your envoy has already called on that faction this turn' }, { status: 400 });
       if (kind === 'trade') {
-        for (const k of RESOURCE_KEYS) if ((give[k] || 0) < 0 || (want[k] || 0) < 0) return Response.json({ error: 'Invalid terms' }, { status: 400 });
+        if (!validResourceOffer(give, RESOURCE_KEYS) || !validResourceOffer(want, RESOURCE_KEYS)) return Response.json({ error: 'Trade amounts must be nonnegative whole numbers of known resources.' }, { status: 400 });
         if (offerValue(give) === 0 && offerValue(want) === 0) return Response.json({ error: 'The envoy needs terms to carry' }, { status: 400 });
         if (!canAfford(getTreasury(game, slotIdx), give)) return Response.json({ error: 'You cannot cover what you offer' }, { status: 400 });
       }
@@ -2098,6 +2104,7 @@ Deno.serve(async (req) => {
       const myName = game.factionSlots[mySlot].factionName;
       if (body.accept) {
         if (offer.kind === 'trade') {
+          if (!validResourceOffer(offer.give, RESOURCE_KEYS) || !validResourceOffer(offer.want, RESOURCE_KEYS)) return Response.json({ error: 'These stored trade terms are invalid; decline the offer and request new terms.' }, { status: 400 });
           const fromT = getTreasury(game, offer.from);
           const myT = getTreasury(game, mySlot);
           if (!canAfford(fromT, offer.give) || !canAfford(myT, offer.want)) {
@@ -2335,6 +2342,7 @@ Deno.serve(async (req) => {
       requireMacro();
       const slotIdx = requireMyTurn();
       const { nodeId, regiments = {}, generalId } = body;
+      if (!validResourceOffer(regiments, MACRO_COLUMN_KEYS)) return Response.json({ error: 'Company quantities must be nonnegative whole numbers of known units.' }, { status: 400 });
       const node = macroNode(game.macro, nodeId);
       if (!node) return Response.json({ error: 'Uncharted muster site' }, { status: 400 });
       const isBaseNode = game.macro.bases?.[String(slotIdx)]?.nodeId === nodeId;
@@ -2352,7 +2360,8 @@ Deno.serve(async (req) => {
       }
       if (companies === 0) return Response.json({ error: 'A column needs at least one company' }, { status: 400 });
       const treasury = getTreasury(game, slotIdx);
-      if (!canAfford(treasury, totalCost)) return Response.json({ error: 'Insufficient resources' }, { status: 400 });
+      const fullCost = Object.fromEntries(RESOURCE_KEYS.map((k) => [k, totalCost[k] + (generalId === 'recruit' ? RECRUIT_GENERAL_COST[k] || 0 : 0)]));
+      if (!validResourceOffer(fullCost, RESOURCE_KEYS) || !canAfford(treasury, fullCost)) return Response.json({ error: 'Insufficient resources for the column and its commander.' }, { status: 400 });
       const cap = armyCap(game, slotIdx);
       if (armyPoints(game, slotIdx) + points > cap) {
         return Response.json({ error: `Army cap exceeded — ${cap} points max (take more settlements to raise it)` }, { status: 400 });
@@ -2432,4 +2441,4 @@ Deno.serve(async (req) => {
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
   }
-});
+}

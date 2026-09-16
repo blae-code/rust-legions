@@ -9,8 +9,8 @@ export default function CampaignAnnals() {
   const [wars, setWars] = useState(null);
 
   useEffect(() => {
-    base44.entities.Game.filter({ status: "complete" }, "-updated_date", 40)
-      .then(setWars)
+    base44.functions.invoke("openFronts", { action: "annals" })
+      .then((response) => setWars(response.data.games))
       .catch(() => setWars([]));
   }, []);
 
@@ -39,8 +39,8 @@ export default function CampaignAnnals() {
       {wars.map((g) => {
         const winner = g.factionSlots?.[g.winnerSlot];
         const planet = WORLDS.find((w) => w.id === g.planetId)?.name || "Cindara";
-        const captures = (g.combatLog || []).filter((e) => e.type === "capture").length;
-        const battles = (g.combatLog || []).filter((e) => e.type === "combat").length;
+        const captures = g.captureCount;
+        const battles = g.battleCount;
         return (
           <CodexEntry
             key={g.id}

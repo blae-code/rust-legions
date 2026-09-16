@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.44';
+import { campaignAnnalsSummary } from '../../shared/gameAccess.ts';
 
 // Fronts still in staging with an unclaimed human seat that the caller has not joined.
 export default async function(req) {
@@ -7,6 +8,12 @@ export default async function(req) {
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
     const svc = base44.asServiceRole;
+    const text = await req.text();
+    const body = text ? JSON.parse(text) : {};
+    if (body.action === 'annals') {
+      const finished = await svc.entities.Game.filter({ status: 'complete' }, '-updated_date', 40);
+      return Response.json({ games: finished.map(campaignAnnalsSummary) });
+    }
 
     const games = await svc.entities.Game.list('-updated_date', 100);
     const open = games.filter((g) =>

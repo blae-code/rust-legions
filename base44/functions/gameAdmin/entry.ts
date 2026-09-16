@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.44';
+import { validCampaignCondition } from '../../shared/gameAccess.ts';
 
 // Front management — host controls (pause, resume, cancel, settings) plus
 // full Ministry (app-admin) oversight of every live and archived front.
@@ -93,7 +94,9 @@ export default async function(req) {
         if (game.mode !== 'campaign') return Response.json({ error: 'Victory conditions apply to campaigns only' }, { status: 400 });
         const { type, value } = body.campaignWinCondition || {};
         if (!['survive', 'territory'].includes(type)) return Response.json({ error: 'Unknown win condition' }, { status: 400 });
-        patch.campaignWinCondition = { type, value: Math.max(Number(value) || 0, 1) };
+        const condition = { type, value: Number(value) };
+        if (!validCampaignCondition(condition)) return Response.json({ error: 'Use a positive whole number; territory objectives cannot exceed 100%.' }, { status: 400 });
+        patch.campaignWinCondition = condition;
       }
       if (Object.keys(patch).length === 0) return Response.json({ error: 'Nothing to amend' }, { status: 400 });
       if (patch.name && patch.name !== game.name) log(`The operation is redesignated "${patch.name}".`);
