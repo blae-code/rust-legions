@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { generateField, PALETTES } from "@/lib/tactical/field";
 import { SAMPLE_ORBAT, neighborsOf, FIRE_ACT } from "@/lib/tactical/orbat";
 import useActivities from "@/hooks/useActivities";
@@ -17,7 +17,7 @@ import SignalsLog from "@/components/tactical/hud/SignalsLog";
 import OrbatList from "@/components/tactical/hud/OrbatList";
 import InitiativeTracker from "@/components/tactical/hud/InitiativeTracker";
 import BuildProgress from "@/components/tactical/BuildProgress";
-import { readSkirmish, saveSkirmish, clearSkirmish } from "@/lib/skirmish/session";
+import { readSkirmish, saveSkirmishSnapshot, clearSkirmish } from "@/lib/skirmish/session";
 import { deployForces, strip } from "@/lib/skirmish/deploy";
 import BattleBanner from "@/components/skirmish/BattleBanner";
 import DeploymentRack from "@/components/skirmish/DeploymentRack";
@@ -27,30 +27,38 @@ import DeploymentRack from "@/components/skirmish/DeploymentRack";
 export default function TacticalPreview() {
   // A requisitioned skirmish takes over the arena: its ground, its forces.
   const [order, setOrder] = useState(() => readSkirmish());
-  // Deployment: the order is fought only once its stands have been set down.
+  const [restored] = useState(() => order?.snapshot?.version === 1 ? order.snapshot : null);
+  const viewportRef = useRef(null);
+  // A deployment draft must not accidentally commence the battle on reload.
   const deploying = !!order && !order.placements;
-  const [placements, setPlacements] = useState({});
-  const [carry, setCarry] = useState(null);
+  const [placements, setPlacements] = useState(() => restored?.placements || order?.placements || {});
+  const [carry, setCarry] = useState(restored?.carry ?? null);
   const [opts, setOpts] = useState(
-    order ? order.opts : { seed: 20260903, nodeKind: "town", weather: "clear", fortBonus: 2 },
+    restored?.opts || (order ? order.opts : { seed: 20260903, nodeKind: "town", weather: "clear", fortBonus: 2 }),
   );
   const [hover, setHover] = useState(null);
-  const [selectedId, setSelectedId] = useState(order ? null : "a4");
-  const [targetId, setTargetId] = useState(order ? null : "d1");
-  const [tab, setTab] = useState("Orders");
+  const [selectedId, setSelectedId] = useState(restored?.selectedId ?? (order ? null : "a4"));
+  const [targetId, setTargetId] = useState(restored?.targetId ?? (order ? null : "d1"));
+  const [tab, setTab] = useState(restored?.tab || "Orders");
   const [menu, setMenu] = useState(null); // { standId, path: [] } — the open radial
   const [intel, setIntel] = useState(null); // { standId, kind } — the pulled file
-  const [zoom, setZoom] = useState(1);
-  const [viewSide, setViewSide] = useState(order ? order.side : "attacker");
-  const [turnSide, setTurnSide] = useState(order ? order.side : "attacker");
+  const [zoom, setZoom] = useState(restored?.zoom ?? 1);
+  const [viewSide, setViewSide] = useState(restored?.viewSide || (order ? order.side : "attacker"));
+  const [turnSide, setTurnSide] = useState(restored?.turnSide || (order ? order.side : "attacker"));
   const { acts, issue } = useActivities();
 
-  const field = useMemo(() => generateField(opts), [opts]);
+  const field = useMemo(() => restored && opts === restored.opts ? restored.field : generateField(opts), [opts, restored]);
   const palette = PALETTES[field.meta.nodeKind];
 
   // Either the requisitioned forces, deployed into their strips, or the
   // standing sample engagement when the arena is opened on its own.
-  const deployed = useMemo(() => (order ? deployForces(field, order) : SAMPLE_ORBAT), [order, field]);
+  const deployed = useMemo(() => {
+    if (restored && opts === restored.opts) {
+      return restored.units.map((s) => !deploying && restored.phase === "deployment" && order.placements?.[s.id]
+        ? { ...s, ...order.placements[s.id] } : s);
+    }
+    return order ? deployForces(field, order) : SAMPLE_ORBAT;
+  }, [order, field, opts, restored, deploying]);
   // In a co-op skirmish each commander orders only the stands they bought.
   const commands = (s) => !order?.me || !s.owner || s.owner === order.me;
   // The rack: the stands this commander must set down before the battle opens.
@@ -97,9 +105,16 @@ export default function TacticalPreview() {
     });
     setPlacements(next);
   };
+  const snapshot = (phase = deploying ? "deployment" : "battle") => ({
+    phase, opts, field,
+    units: deploying ? deployed.map((s) => placements[s.id] ? { ...s, ...placements[s.id] } : s) : deployed,
+    placements, carry: phase === "deployment" ? carry : null,
+    selectedId, targetId, tab, zoom, viewSide, turnSide,
+    viewport: { left: viewportRef.current?.scrollLeft || 0, top: viewportRef.current?.scrollTop || 0 },
+  });
+  const quickSave = () => saveSkirmishSnapshot(order, snapshot());
   const commence = () => {
-    const fielded = { ...order, placements };
-    saveSkirmish(fielded);
+    const fielded = saveSkirmishSnapshot({ ...order, placements }, snapshot("battle"));
     setOrder(fielded);
     setCarry(null);
   };
@@ -186,7 +201,7 @@ export default function TacticalPreview() {
 
   return (
     <div className="cq-page-in max-w-[1800px] mx-auto px-3 py-3 space-y-2">
-      {order && <BattleBanner order={order} onStand={clearSkirmish} />}
+      {order && <BattleBanner order={order} onStand={clearSkirmish} onQuickSave={quickSave} />}
 
       <CommandBar field={field} tab={tab} onTab={setTab} turn={7} />
 
@@ -202,7 +217,7 @@ export default function TacticalPreview() {
 
       <div className="grid xl:grid-cols-[1fr_296px] gap-2 items-start">
         <div className="cq-panel cq-brackets p-2 cq-board relative overflow-hidden">
-          <BoardViewport zoom={zoom} onZoom={setZoom}>
+          <BoardViewport zoom={zoom} onZoom={setZoom} viewportRef={viewportRef} initialPosition={restored?.viewport}>
             <BattlefieldBoard
               field={field}
               stands={stands}

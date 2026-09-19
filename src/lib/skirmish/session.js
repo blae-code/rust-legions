@@ -7,6 +7,18 @@ export function saveSkirmish(order) {
   sessionStorage.setItem(KEY, JSON.stringify(order));
 }
 
+// Snapshot the actual field and units, not just the procedural setup seed.
+// Deployment drafts stay inside snapshot; only commencing sets order.placements.
+export function saveSkirmishSnapshot(order, state) {
+  const saved = {
+    ...order,
+    opts: state.opts,
+    snapshot: { ...state, version: 1, savedAt: new Date().toISOString() },
+  };
+  saveSkirmish(saved);
+  return saved;
+}
+
 export function readSkirmish() {
   try {
     const raw = sessionStorage.getItem(KEY);

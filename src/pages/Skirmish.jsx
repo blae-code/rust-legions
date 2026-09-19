@@ -15,6 +15,7 @@ import DesignSeedPicker from "@/components/skirmish/DesignSeedPicker";
 import RosterShop from "@/components/skirmish/RosterShop";
 import ForceSlip from "@/components/skirmish/ForceSlip";
 import LaunchOrder from "@/components/skirmish/LaunchOrder";
+import ResumeSkirmish from "@/components/skirmish/ResumeSkirmish";
 
 const Panel = ({ step, title, children }) => (
   <div className="cq-panel p-3.5">
@@ -111,6 +112,7 @@ export default function Skirmish() {
         </p>
       </div>
 
+      <ResumeSkirmish />
       <div className="grid xl:grid-cols-[1fr_320px] gap-4 items-start">
         <div className="space-y-4">
           <Panel step="01" title="Scenario Drawer">

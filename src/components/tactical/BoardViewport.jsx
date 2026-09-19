@@ -1,10 +1,17 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useLayoutEffect, useRef } from "react";
 import { Move, Search } from "lucide-react";
 
 // The board is bigger than the desk it sits on: this is the desk. WASD (and the
 // arrow keys) walk the sheet under the eye, the wheel racks the magnification.
-export default function BoardViewport({ zoom, onZoom, children, height = "72vh" }) {
-  const ref = useRef(null);
+export default function BoardViewport({ zoom, onZoom, children, height = "72vh", viewportRef, initialPosition }) {
+  const localRef = useRef(null);
+  const ref = viewportRef || localRef;
+
+  useLayoutEffect(() => {
+    if (!ref.current || !initialPosition) return;
+    ref.current.scrollLeft = initialPosition.left;
+    ref.current.scrollTop = initialPosition.top;
+  }, [ref, initialPosition]);
 
   useEffect(() => {
     const el = ref.current;
