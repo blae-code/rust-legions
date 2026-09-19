@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { Loader2 } from "lucide-react";
+import MedalBadges from "@/components/medals/MedalBadges";
 
 // Final campaign summary — compiles each commander's record when the war ends
 // and files it automatically to the War Ministry spreadsheet ledger.
-export default function CampaignSummary({ gameId }) {
+export default function CampaignSummary({ gameId, factions = [] }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
 
@@ -48,6 +49,9 @@ export default function CampaignSummary({ gameId }) {
                 <span title="Manpower at war's end">⚑ MP {r.resources.manpower}</span>
                 <span title="Steel at war's end">⚙ ST {r.resources.steel}</span>
                 <span title="Fuel at war's end">⛽ FU {r.resources.fuel}</span>
+              </div>
+              <div className="mt-3 pt-3 border-t border-border/60">
+                <MedalBadges medals={factions.find((f) => f.factionName === r.faction)?.medals} label="Decorations earned this operation" />
               </div>
               {r.milestones.length > 0 && (
                 <p className="text-[11px] text-muted-foreground mt-1.5">

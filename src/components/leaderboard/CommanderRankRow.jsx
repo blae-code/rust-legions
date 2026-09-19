@@ -1,6 +1,7 @@
 import React from "react";
 import { motion } from "framer-motion";
 import { Trophy, Flag, Swords, Map } from "lucide-react";
+import MedalBadges from "@/components/medals/MedalBadges";
 
 const MEDAL = ["#E8C15A", "#B8B8B8", "#B07B4F"];
 
@@ -14,7 +15,7 @@ export default function CommanderRankRow({ rank, profile, index }) {
       initial={{ opacity: 0, x: -12 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ delay: Math.min(index * 0.04, 0.5) }}
-      className={`cq-panel relative overflow-hidden px-4 py-3 flex items-center gap-4 ${medal ? "border-brass/50" : ""}`}
+      className={`cq-panel relative overflow-hidden px-4 py-3 flex flex-wrap items-center gap-x-4 gap-y-3 ${medal ? "border-brass/50" : ""}`}
     >
       {medal && <div className="cq-hazard absolute top-0 left-0 right-0" />}
       <div className="w-10 shrink-0 text-center">
@@ -51,6 +52,9 @@ export default function CommanderRankRow({ rank, profile, index }) {
           <p className="font-display text-lg leading-none text-muted-foreground">{profile.mapsCreated || 0}</p>
           <p className="cq-label text-[8px]">Charts</p>
         </div>
+      </div>
+      <div className="w-full border-t border-border/70 pt-3">
+        <MedalBadges medals={profile.medals} compact label="Combat honours across operations" />
       </div>
     </motion.div>
   );

@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import { Loader2, Medal } from "lucide-react";
 import CommanderRankRow from "@/components/leaderboard/CommanderRankRow";
@@ -6,11 +7,15 @@ import CommanderRankRow from "@/components/leaderboard/CommanderRankRow";
 // The Ministry's Roll of Honour — commanders ranked by wars carried,
 // campaigns concluded breaking any tie.
 export default function Leaderboard() {
-  const [profiles, setProfiles] = useState(null);
-
-  useEffect(() => {
-    base44.entities.UserProfile.list("-gamesWon", 200).then(setProfiles).catch(() => setProfiles([]));
-  }, []);
+  const { data: profiles, isPending, isError, refetch, isFetching } = useQuery({
+    queryKey: ["leaderboard-honors"],
+    queryFn: async () => {
+      const { data } = await base44.functions.invoke("gameEngine", { action: "getLeaderboard" });
+      return data.profiles;
+    },
+    refetchOnWindowFocus: true,
+    staleTime: 0,
+  });
 
   const ranked = useMemo(() => {
     if (!profiles) return [];
@@ -35,9 +40,14 @@ export default function Leaderboard() {
         </p>
       </div>
 
-      {profiles === null ? (
+      {isPending ? (
         <div className="flex justify-center py-16">
           <Loader2 className="w-6 h-6 animate-spin text-brass" />
+        </div>
+      ) : isError ? (
+        <div className="cq-panel p-5 text-center space-y-3" role="alert">
+          <p className="text-sm text-rust">The service roll could not be retrieved.</p>
+          <button type="button" onClick={() => refetch()} disabled={isFetching} className="cq-metal px-4 py-2 border border-brass/50 text-brass-bright rounded-sm font-heading uppercase disabled:opacity-50">{isFetching ? "Retrieving…" : "Retry"}</button>
         </div>
       ) : ranked.length === 0 ? (
         <p className="font-mono text-[10px] text-muted-foreground tracking-widest text-center py-16">

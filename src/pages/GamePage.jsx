@@ -472,7 +472,7 @@ export default function GamePage() {
         </div>
       )}
 
-      {game.status === "complete" && <CampaignSummary gameId={game.id} />}
+      {game.status === "complete" && <CampaignSummary gameId={game.id} factions={game.factions} />}
 
       {game.status === "complete" && <WarChronicle entries={game.combatLog} />}
 

@@ -394,36 +394,9 @@ const traitByKey = (k) => GENERAL_TRAITS.find((t) => t.key === k) || null;
 const VETERANCY = [{ min: 5, label: 'Elite', bonus: 3 }, { min: 3, label: 'Veteran', bonus: 2 }, { min: 1, label: 'Seasoned', bonus: 1 }, { min: 0, label: 'Green', bonus: 0 }];
 const armyRank = (battles = 0) => VETERANCY.find((v) => battles >= v.min);
 
-// Thematic medals — awarded once per general when a battle milestone is reached
-const MEDALS = { iron_hammer: { label: 'Order of the Iron Hammer', desc: 'Three consecutive victories' }, brass_star: { label: 'Brass Star of Command', desc: 'A decisive victory with minimal casualties' }, defiant_standard: { label: 'The Defiant Standard', desc: 'Victory against a superior force' }, marshals_cross: { label: "The Marshal's Cross", desc: 'Five career victories' } };
-
-function awardMedal(game, g, key) {
-  g.medals = g.medals || [];
-  if (g.medals.includes(key)) return;
-  g.medals.push(key);
-  game.combatLog.push({ turn: game.turnNumber, type: 'event', text: `${g.name} is decorated with the ${MEDALS[key].label} — ${MEDALS[key].desc.toLowerCase()}.` });
-}
-
-// Update win streaks and hand out battle-milestone medals after a mass battle concludes
-function recordBattleHonors(game, b, attackerWon) {
-  const sides = [
-    { s: b.attacker, foe: b.defender, won: attackerWon },
-    { s: b.defender, foe: b.attacker, won: !attackerWon },
-  ];
-  for (const { s, foe, won } of sides) {
-    if (s.slot === null || s.slot === undefined || !s.generalId) continue;
-    const g = (game.factionSlots[s.slot].generals || []).find((x) => x.id === s.generalId);
-    if (!g) continue;
-    if (!won) { g.streak = 0; continue; }
-    g.streak = (g.streak || 0) + 1;
-    if (g.streak >= 3) awardMedal(game, g, 'iron_hammer');
-    if ((g.victories || 0) >= 5) awardMedal(game, g, 'marshals_cross');
-    const myStart = totalUnits(s.units) + s.losses;
-    const foeStart = totalUnits(foe.units) + foe.losses;
-    if (myStart > 0 && s.losses / myStart <= 0.1 && foeStart >= 3) awardMedal(game, g, 'brass_star');
-    if (foeStart > myStart * 1.5) awardMedal(game, g, 'defiant_standard');
-  }
-}
+// Combat honours are shared by battle resolution and the public service roll.
+import { recordBattleHonors, slotMedals } from '../../shared/combatHonors.ts';
+import { leaderboardHonors } from '../../shared/leaderboardHonors.ts';
 
 function creditVictory(game, slotIdx, generalId) {
   if (slotIdx === null || slotIdx === undefined || !generalId) return;
@@ -508,8 +481,10 @@ function battleSkill(side, other) {
 function finishBattle(game, b, attackerWon) {
   const attSlotObj = game.factionSlots[b.attacker.slot];
   const defSlotObj = b.defender.slot !== null ? game.factionSlots[b.defender.slot] : null;
+  // Preserve legacy decorations before casualties can remove a general.
+  for (const slot of game.factionSlots) slot.medals = slotMedals(slot);
   const outcome = macroApplyBattleOutcome(game, b, attackerWon);
-  recordBattleHonors(game, b, attackerWon);
+  recordBattleHonors(game, b, attackerWon, totalUnits);
   game.combatLog.push({
     turn: game.turnNumber, type: 'combat', attacker: attSlotObj.factionName,
     defender: defSlotObj ? defSlotObj.factionName : 'Neutral garrison',
@@ -1483,6 +1458,9 @@ export default async function(req) {
     const PREGAME = Object.create(null);
     const GAME_ACTIONS = Object.create(null);
 
+    // The public roll exposes only callsigns, career totals and earned badges.
+    PREGAME.getLeaderboard = async () => Response.json({ profiles: await leaderboardHonors(svc) });
+
     // ----- listMyGames -----
     PREGAME.listMyGames = async () => {
       const games = await svc.entities.Game.list('-updated_date', 100);
@@ -1660,6 +1638,7 @@ export default async function(req) {
         factions: (game.factionSlots || []).map((s) => ({
           slotIndex: s.slotIndex, factionName: s.factionName, isNPC: s.isNPC,
           doctrine: s.doctrine, color: s.color, eliminated: s.eliminated,
+          medals: game.status === 'complete' || s.userId === user.id ? slotMedals(s) : [],
           isOpen: !s.isNPC && !s.userId, isMe: s.userId === user.id, traits: s.userId === user.id ? s.traits : undefined,
         })),
         combatLog: (() => {

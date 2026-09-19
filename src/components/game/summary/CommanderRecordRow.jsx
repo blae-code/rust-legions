@@ -1,5 +1,6 @@
 import React from "react";
 import { Crown, Skull } from "lucide-react";
+import MedalBadges from "@/components/medals/MedalBadges";
 
 const OUTCOME_STYLE = {
   Victory: "border-brass/70 text-brass-bright",
@@ -39,6 +40,9 @@ export default function CommanderRecordRow({ record }) {
         <Stat label="SEATS TAKEN" value={record.capitals} tone="text-brass-bright" />
         <Stat label="LOSSES DEALT" value={record.inflicted} tone="text-olive" />
         <Stat label="LOSSES BORNE" value={record.suffered} tone="text-rust" />
+      </div>
+      <div className="mt-3 pt-3 pl-2 border-t border-border/60">
+        <MedalBadges medals={record.medals} label="Decorations earned this operation" />
       </div>
     </div>
   );
