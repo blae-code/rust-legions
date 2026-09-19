@@ -48,7 +48,7 @@ export default function TopoNetwork({ field, size }) {
 
       {/* metalled road — ink casing, pale metalling, dashed centre line */}
       <Run links={roads} stroke={INK.line} strokeWidth={size * 0.42} strokeLinecap="round" opacity="0.55" />
-      <Run links={roads} stroke="#E4D6AE" strokeWidth={size * 0.28} strokeLinecap="round" opacity="0.9" />
+      <Run links={roads} stroke="hsl(var(--tactical-paper-light))" strokeWidth={size * 0.28} strokeLinecap="round" opacity="0.9" />
       <Run
         links={roads}
         stroke={INK.line}
@@ -62,7 +62,7 @@ export default function TopoNetwork({ field, size }) {
       <Run links={rails} stroke={INK.line} strokeWidth={size * 0.16} strokeLinecap="round" opacity="0.85" />
       <Run
         links={rails}
-        stroke="#E4D6AE"
+        stroke="hsl(var(--tactical-paper-light))"
         strokeWidth={size * 0.16}
         strokeDasharray="2 4"
         strokeLinecap="butt"

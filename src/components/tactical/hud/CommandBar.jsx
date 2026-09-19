@@ -17,7 +17,7 @@ export default function CommandBar({ field, tab, onTab, turn }) {
   const TABS = ["Orders", "Order of Battle", "Signals", "Survey"];
 
   return (
-    <div className="cq-panel flex flex-wrap items-center gap-x-5 gap-y-2 px-3 py-2">
+    <div className="cq-panel border-t-2 border-t-brass/60 flex flex-wrap items-center gap-x-5 gap-y-3 px-4 py-3">
       <div className="flex items-center gap-4">
         <Res icon={Users} value="12,480" tone="text-olive" />
         <Res icon={Cog} value="3,125" tone="text-steel" />
@@ -26,15 +26,15 @@ export default function CommandBar({ field, tab, onTab, turn }) {
 
       <div className="h-5 w-px bg-border" />
 
-      <div className="flex items-center gap-1">
+      <div className="flex flex-wrap items-center gap-1.5">
         {TABS.map((t) => (
           <button
             key={t}
             onClick={() => onTab(t)}
-            className={`cq-metal font-heading uppercase tracking-widest text-[10px] px-2.5 py-1 rounded-sm border transition-colors ${
+            className={`cq-metal font-heading uppercase tracking-wider text-[11px] min-h-9 px-3 py-1.5 rounded-sm border transition-colors ${
               tab === t
                 ? "border-brass text-brass-bright bg-brass/10"
-                : "border-transparent text-secondary-foreground hover:border-brass/50"
+                : "border-border/60 bg-secondary/40 text-secondary-foreground hover:border-brass/50"
             }`}
           >
             {t}

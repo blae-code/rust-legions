@@ -60,7 +60,7 @@ export default function HexTerrainTile({ x, y, corners, tile, zone, q, r, onHove
       {zone && (
         <polygon
           points={corners}
-          fill={zone === "attacker" ? "hsl(4 68% 40% / 0.14)" : "hsl(210 40% 35% / 0.14)"}
+          fill={zone === "attacker" ? "hsl(var(--tactical-rust-ink) / 0.12)" : "hsl(var(--tactical-water-ink) / 0.12)"}
         />
       )}
 
@@ -78,7 +78,7 @@ export default function HexTerrainTile({ x, y, corners, tile, zone, q, r, onHove
       {tile.work === "bunker" && (
         <g opacity="0.9">
           <rect x="-7" y="-4" width="14" height="9" rx="1" fill={INK.line} fillOpacity="0.55" stroke={INK.line} strokeWidth="1" />
-          <rect x="-4" y="-1" width="8" height="2.2" fill="#E4D6AE" opacity="0.7" />
+          <rect x="-4" y="-1" width="8" height="2.2" fill="hsl(var(--tactical-paper-light))" opacity="0.7" />
         </g>
       )}
 

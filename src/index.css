@@ -1,5 +1,13 @@
 @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow+Condensed:wght@400;500;600;700&family=Barlow:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 
+@font-face {
+  font-family: 'DIN Neuzeit Grotesk';
+  src: url('https://media.base44.com/files/public/builder-assets/wix-fonts/din-neuzeit-grotesk-700-normal.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -293,6 +301,97 @@
       repeating-linear-gradient(90deg, transparent 0 23px, hsl(210 8% 60% / 0.045) 23px 24px),
       linear-gradient(180deg, hsl(210 7% 9%), hsl(210 9% 4%));
   }
+}
+
+/* Tactical survey palette: display-only, shared by SVG terrain and its instruments. */
+:root, .dark {
+  --tactical-paper: 40 16% 65%;
+  --tactical-paper-light: 40 20% 77%;
+  --tactical-ink: 35 14% 19%;
+  --tactical-field: 62 12% 62%;
+  --tactical-forest: 76 11% 52%;
+  --tactical-stone: 36 8% 57%;
+  --tactical-earth: 33 13% 57%;
+  --tactical-water: 197 11% 59%;
+  --tactical-contour: 36 22% 37%;
+  --tactical-water-ink: 198 18% 32%;
+  --tactical-forest-ink: 78 17% 28%;
+  --tactical-rust-ink: 13 28% 35%;
+}
+
+/* Scoped instrument-panel treatment: the rest of the war room keeps its theme. */
+.cq-tactical {
+  --background: 45 6% 9%;
+  --foreground: 40 16% 85%;
+  --card: 48 5% 13%;
+  --card-foreground: 40 16% 85%;
+  --popover: 48 5% 12%;
+  --popover-foreground: 40 16% 85%;
+  --secondary: 45 5% 19%;
+  --secondary-foreground: 40 11% 78%;
+  --muted: 48 5% 15%;
+  --muted-foreground: 40 8% 64%;
+  --border: 43 7% 29%;
+  --input: 45 5% 20%;
+  --primary: 13 32% 44%;
+  --primary-foreground: 40 20% 93%;
+  --accent: 43 8% 23%;
+  --accent-foreground: 40 27% 74%;
+  --brass: 40 23% 57%;
+  --brass-bright: 40 32% 75%;
+  --rust: 13 37% 57%;
+  --olive: 74 14% 59%;
+  --steel: 195 10% 65%;
+  --ring: 40 23% 57%;
+  --font-heading: 'DIN Neuzeit Grotesk', 'Barlow Condensed', sans-serif;
+  --font-display: 'DIN Neuzeit Grotesk', 'Barlow Condensed', sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+.cq-tactical .cq-panel {
+  background-color: hsl(var(--card));
+  background-image: linear-gradient(180deg, hsl(var(--foreground) / 0.045), transparent 45%),
+    repeating-linear-gradient(0deg, transparent 0 5px, hsl(var(--background) / 0.16) 5px 6px);
+  border-radius: 2px;
+  box-shadow: inset 0 1px 0 hsl(var(--foreground) / 0.09), inset 0 -1px 0 hsl(var(--background) / 0.8), 0 3px 8px hsl(var(--background) / 0.55);
+}
+.cq-tactical .cq-panel::before, .cq-tactical .cq-panel::after {
+  width: 5px;
+  height: 5px;
+  background: hsl(var(--steel) / 0.45);
+  pointer-events: none;
+}
+.cq-tactical .cq-slip {
+  background-color: hsl(var(--popover));
+  background-image: linear-gradient(180deg, hsl(var(--brass) / 0.065), transparent 45%),
+    repeating-linear-gradient(90deg, transparent 0 7px, hsl(var(--background) / 0.15) 7px 8px);
+  border-color: hsl(var(--brass) / 0.45);
+  box-shadow: inset 0 1px 0 hsl(var(--foreground) / 0.07), 0 3px 10px hsl(var(--background) / 0.7);
+}
+.cq-tactical .cq-metal {
+  background-image: linear-gradient(180deg, hsl(var(--foreground) / 0.055), transparent 48%, hsl(var(--background) / 0.25));
+  box-shadow: inset 0 1px 0 hsl(var(--foreground) / 0.06), 0 1px 2px hsl(var(--background) / 0.6);
+}
+.cq-tactical .cq-label {
+  font-size: 0.6875rem;
+  line-height: 1.5;
+  letter-spacing: 0.16em;
+  font-weight: 700;
+}
+.cq-tactical .cq-display { font-weight: 700; letter-spacing: 0.07em; line-height: 1.2; }
+.cq-tactical .font-heading { font-weight: 700; }
+.cq-tactical .cq-board {
+  background: hsl(var(--background));
+  box-shadow: inset 0 0 0 1px hsl(var(--border)), inset 0 2px 12px hsl(var(--background) / 0.8);
+}
+.cq-tactical .cq-order-group + .cq-order-group {
+  border-top: 1px solid hsl(var(--border) / 0.6);
+  padding-top: 0.625rem;
+}
+.cq-tactical .cq-service-card { min-height: 7rem; }
+.cq-tactical .cq-counter-portrait, .cq-tactical .cq-unit-portrait { filter: saturate(0.65) contrast(1.08); }
+.cq-tactical button:focus-visible, .cq-tactical a:focus-visible {
+  outline: 2px solid hsl(var(--brass-bright));
+  outline-offset: 3px;
 }
 
 /* Page-enter — documents slide onto the war desk */

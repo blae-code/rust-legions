@@ -13,8 +13,8 @@ const L = -W / 2;
 const T = -H / 2;
 
 const SIDE = {
-  attacker: { plate: "#6E2320", edge: "#C9553F", ink: "#F2E4D6" },
-  defender: { plate: "#3A4046", edge: "#98A3AC", ink: "#E8ECEF" },
+  attacker: { plate: "hsl(var(--tactical-rust-ink))", edge: "hsl(var(--rust))", ink: "hsl(var(--foreground))" },
+  defender: { plate: "hsl(var(--tactical-water-ink))", edge: "hsl(var(--steel))", ink: "hsl(var(--foreground))" },
 };
 
 export default function UnitCounter({ stand, selected, targeted, onSelect }) {
@@ -33,13 +33,16 @@ export default function UnitCounter({ stand, selected, targeted, onSelect }) {
       className="cursor-pointer"
       opacity={stand.moved ? 0.62 : 1}
     >
-      {/* plate */}
+      {/* Raised enamel plate, kept distinct from the printed map beneath. */}
+      <rect x={L + 1.5} y={T + 2} width={W} height={H} fill="hsl(var(--tactical-ink))" opacity="0.5" />
       <rect x={L} y={T} width={W} height={H} fill={skin.plate} stroke={skin.edge} strokeWidth="1.2" />
+      <path d={`M${L + 1} ${T + H - 1} v${-H + 2} h${W - 2}`} fill="none" stroke={skin.ink} strokeOpacity="0.2" strokeWidth="0.6" />
 
       {/* portrait, cropped to the plate window */}
       {url ? (
         <image
           href={url}
+          className="cq-counter-portrait"
           x={L + 1}
           y={T + 8}
           width={W - 2}
@@ -48,18 +51,18 @@ export default function UnitCounter({ stand, selected, targeted, onSelect }) {
           clipPath="url(#cq_counter_window)"
         />
       ) : (
-        <rect x={L + 1} y={T + 8} width={W - 2} height={17} fill="#1A1714" />
+        <rect x={L + 1} y={T + 8} width={W - 2} height={17} fill="hsl(var(--background))" />
       )}
 
       {/* top number strip — strength · ammunition · fuel */}
-      <rect x={L + 1} y={T + 1} width={W - 2} height={7} fill="#15181B" opacity="0.9" />
+      <rect x={L + 1} y={T + 1} width={W - 2} height={7} fill="hsl(var(--background))" opacity="0.9" />
       <text x={L + 4} y={T + 6.6} className="font-mono" fontSize="6.2" fill={skin.ink}>
         {stand.str}
       </text>
-      <text x={0} y={T + 6.6} className="font-mono" fontSize="6.2" fill="#D9C58F" textAnchor="middle">
+      <text x={0} y={T + 6.6} className="font-mono" fontSize="6.2" fill="hsl(var(--brass-bright))" textAnchor="middle">
         {stand.ammo}
       </text>
-      <text x={L + W - 4} y={T + 6.6} className="font-mono" fontSize="6.2" fill="#9FB2C4" textAnchor="end">
+      <text x={L + W - 4} y={T + 6.6} className="font-mono" fontSize="6.2" fill="hsl(var(--steel))" textAnchor="end">
         {fuel === null ? "–" : fuel}
       </text>
 
@@ -67,21 +70,21 @@ export default function UnitCounter({ stand, selected, targeted, onSelect }) {
       <DurabilityBars layers={layers} x={L + 1} y={T + 25} width={W - 2} />
 
       {/* foot strip — side flash, veterancy pips, entrenchment */}
-      <rect x={L + 1} y={T + 25.5} width={W - 2} height={H - 26.5} fill="#15181B" opacity="0.92" />
+      <rect x={L + 1} y={T + 25.5} width={W - 2} height={H - 26.5} fill="hsl(var(--background))" opacity="0.92" />
       <rect x={L + 3} y={T + 27} width={5} height={4.5} fill={skin.edge} />
       {Array.from({ length: stand.vet || 0 }).map((_, i) => (
-        <circle key={i} cx={L + 11.5 + i * 3.4} cy={T + 29.2} r="1.1" fill="#D9C58F" />
+        <circle key={i} cx={L + 11.5 + i * 3.4} cy={T + 29.2} r="1.1" fill="hsl(var(--brass-bright))" />
       ))}
       {Array.from({ length: stand.entrench || 0 }).map((_, i) => (
-        <rect key={i} x={L + W - 5 - i * 3.2} y={T + 27.4} width="2.2" height="3.8" fill="#8A7F6B" />
+        <rect key={i} x={L + W - 5 - i * 3.2} y={T + 27.4} width="2.2" height="3.8" fill="hsl(var(--brass))" />
       ))}
 
       {/* selection bracket / target ring */}
       {selected && (
-        <rect x={L - 2} y={T - 2} width={W + 4} height={H + 4} fill="none" stroke="#E8D6A8" strokeWidth="1.6" />
+        <rect x={L - 2} y={T - 2} width={W + 4} height={H + 4} fill="none" stroke="hsl(var(--brass-bright))" strokeWidth="1.6" />
       )}
       {targeted && (
-        <rect x={L - 2} y={T - 2} width={W + 4} height={H + 4} fill="none" stroke="#E2483A" strokeWidth="1.8" />
+        <rect x={L - 2} y={T - 2} width={W + 4} height={H + 4} fill="none" stroke="hsl(var(--rust))" strokeWidth="1.8" strokeDasharray="3 2" />
       )}
 
       {/* what this stand is doing right now — the plate itself never animates */}

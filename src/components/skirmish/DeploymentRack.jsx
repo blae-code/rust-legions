@@ -10,11 +10,11 @@ export default function DeploymentRack({ stands, placements, carry, onCarry, onA
     <div className="cq-panel p-2.5 space-y-2">
       <div className="flex items-baseline justify-between">
         <p className="cq-label text-rust">Deployment</p>
-        <span className="font-mono text-[9px] text-muted-foreground tracking-widest">
+        <span className="font-mono text-[10px] text-muted-foreground tracking-widest">
           {stands.length - left} / {stands.length} PLACED
         </span>
       </div>
-      <p className="font-mono text-[9px] text-muted-foreground tracking-widest leading-relaxed">
+      <p className="font-mono text-[10px] text-muted-foreground tracking-widest leading-relaxed">
         {carry ? "CLICK A LIT HEX IN YOUR STRIP TO SET THE STAND DOWN" : "PICK A STAND FROM THE RACK OR OFF THE BOARD"}
       </p>
       <div className="space-y-1 max-h-72 overflow-y-auto pr-1">
@@ -32,7 +32,7 @@ export default function DeploymentRack({ stands, placements, carry, onCarry, onA
               <MapPin className={`w-3 h-3 shrink-0 ${placed ? "text-olive" : "text-rust"}`} />
               <span className="min-w-0 flex-1">
                 <span className="block font-heading uppercase tracking-widest text-[10px] text-foreground truncate">{s.name}</span>
-                <span className="block font-mono text-[8px] text-muted-foreground tracking-widest">
+                <span className="block font-mono text-[10px] text-muted-foreground tracking-widest">
                   {UNIT_TYPES[s.type].label.toUpperCase()} · {placed ? `HEX ${placed.q},${placed.r}` : "IN RESERVE"}
                 </span>
               </span>

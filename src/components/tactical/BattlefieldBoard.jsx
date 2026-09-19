@@ -110,6 +110,8 @@ export default function BattlefieldBoard({
         />
       ))}
 
+      <rect x={-pad} y={-pad} width={vbW} height={vbH} fill="url(#topo_wear)" pointerEvents="none" />
+
       {/* linear features run across hexes, then the grid is ruled on top */}
       <TopoNetwork field={field} size={SIZE} />
       <TopoGrid x={-pad} y={-pad} width={vbW} height={vbH} />
@@ -123,7 +125,7 @@ export default function BattlefieldBoard({
               points={corners}
               transform={`translate(${x},${y})`}
               fill="none"
-              stroke="#E8D6A8"
+              stroke="hsl(var(--tactical-ink))"
               strokeWidth="2.2"
               pointerEvents="none"
             />
@@ -139,9 +141,9 @@ export default function BattlefieldBoard({
               key={`pick-${h.q},${h.r}`}
               points={corners}
               transform={`translate(${x},${y})`}
-              fill="#C9A85C"
+              fill="hsl(var(--brass))"
               fillOpacity={h.taken ? 0.08 : 0.28}
-              stroke="#E8D6A8"
+              stroke="hsl(var(--tactical-ink))"
               strokeWidth={h.taken ? 0.6 : 1.4}
               strokeDasharray={h.taken ? "3 3" : undefined}
               className={h.taken ? "" : "cursor-pointer"}

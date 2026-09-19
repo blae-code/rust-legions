@@ -10,9 +10,18 @@ export default function TopoDefs() {
     <defs>
       {/* the sheet itself — laid paper with a faint stain */}
       <pattern id="topo_paper" width="64" height="64" patternUnits="userSpaceOnUse">
-        <rect width="64" height="64" fill="#C4B899" />
+        <rect width="64" height="64" fill="hsl(var(--tactical-paper))" />
         <path d="M0 12 h64 M0 30 h64 M0 49 h64" stroke="#00000009" strokeWidth="1" {...S} />
         <path d="M17 0 v64 M43 0 v64" stroke="#00000007" strokeWidth="1" {...S} />
+      </pattern>
+
+      {/* Printed wear sits below symbols and counters; no expensive noise filter. */}
+      <pattern id="topo_wear" width="97" height="83" patternUnits="userSpaceOnUse">
+        <path d="M4 11 h18 M58 39 h29 M19 71 h13 M74 7 v9" stroke={INK.line} strokeWidth="0.6" opacity="0.12" {...S} />
+        <path d="M9 47 h35 M66 66 h19" stroke="hsl(var(--tactical-paper-light))" strokeWidth="1" opacity="0.3" {...S} />
+        <g fill={INK.line} opacity="0.14">
+          <circle cx="16" cy="29" r="0.7" /><circle cx="53" cy="62" r="0.8" /><circle cx="87" cy="24" r="0.6" />
+        </g>
       </pattern>
 
       {/* woods — stippled canopy, the surveyor's dot-and-tuft */}

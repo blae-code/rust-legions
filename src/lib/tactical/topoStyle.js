@@ -10,32 +10,32 @@
 // Paper tints. Deliberately close together so the sheet reads as one document
 // and the counters stay the brightest thing on it.
 export const TOPO_FILL = {
-  open: "#C4B899",
-  field: "#C6C293",
-  road: "#D2C29C",
-  rail: "#C1B594",
-  rubble: "#B5A88D",
-  ruins: "#B1A488",
-  building: "#A6987E",
-  wall: "#8C8066",
-  woods: "#94A277",
-  hedgerow: "#A2AC83",
-  crater: "#BAAD90",
-  water: "#8FA9B8",
-  marsh: "#A5B199",
-  hill: "#C8B489",
-  fuel_tank: "#B79A85",
-  precursor_wall: "#9AA5A7",
+  open: "hsl(var(--tactical-paper))",
+  field: "hsl(var(--tactical-field))",
+  road: "hsl(var(--tactical-paper-light) / 0.7)",
+  rail: "hsl(var(--tactical-stone))",
+  rubble: "hsl(var(--tactical-earth))",
+  ruins: "hsl(var(--tactical-stone))",
+  building: "hsl(var(--tactical-stone))",
+  wall: "hsl(var(--tactical-contour) / 0.65)",
+  woods: "hsl(var(--tactical-forest))",
+  hedgerow: "hsl(var(--tactical-field))",
+  crater: "hsl(var(--tactical-earth))",
+  water: "hsl(var(--tactical-water))",
+  marsh: "hsl(var(--tactical-water) / 0.55)",
+  hill: "hsl(var(--tactical-earth))",
+  fuel_tank: "hsl(var(--tactical-rust-ink) / 0.3)",
+  precursor_wall: "hsl(var(--tactical-water))",
 };
 
 // Ink used for structures, contours and hydrography.
 export const INK = {
-  line: "#3B3323",
-  soft: "#3B332366",
-  water: "#3E6C86",
-  green: "#4C5F38",
-  contour: "#8A6E3F",
-  red: "#8C3A2A",
+  line: "hsl(var(--tactical-ink))",
+  soft: "hsl(var(--tactical-ink) / 0.4)",
+  water: "hsl(var(--tactical-water-ink))",
+  green: "hsl(var(--tactical-forest-ink))",
+  contour: "hsl(var(--tactical-contour))",
+  red: "hsl(var(--tactical-rust-ink))",
 };
 
 // Which hexes chain together into continuous linear features across the sheet.

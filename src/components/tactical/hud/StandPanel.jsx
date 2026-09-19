@@ -3,11 +3,12 @@ import { PLATE_URLS } from "@/lib/imagePlates";
 import { UNIT_TYPES, CARRIES_FUEL, ARM_LABEL } from "@/lib/tactical/orbat";
 import { ACTIVITIES } from "@/lib/tactical/activities";
 import LayerReadout from "./LayerReadout";
+import { Image } from "@/components/ui/image";
 
 const Cell = ({ k, v, tone = "text-foreground" }) => (
   <div className="flex justify-between gap-2">
     <span className="cq-label">{k}</span>
-    <span className={`font-mono text-[10px] ${tone}`}>{v}</span>
+    <span className={`font-mono text-[11px] ${tone}`}>{v}</span>
   </div>
 );
 
@@ -15,8 +16,8 @@ const Cell = ({ k, v, tone = "text-foreground" }) => (
 export default function StandPanel({ stand, role }) {
   if (!stand) {
     return (
-      <div className="cq-panel px-3 py-2 h-full flex items-center">
-        <p className="font-mono text-[10px] text-muted-foreground tracking-widest">
+      <div className="cq-panel cq-service-card px-4 py-3 h-full flex items-center border-l-4 border-l-border">
+        <p className="font-mono text-[11px] text-muted-foreground tracking-widest">
           {role === "target" ? "NO TARGET DESIGNATED" : "NO STAND SELECTED — CLICK A COUNTER"}
         </p>
       </div>
@@ -29,19 +30,19 @@ export default function StandPanel({ stand, role }) {
   const edge = stand.side === "attacker" ? "border-l-rust" : "border-l-steel";
 
   return (
-    <div className={`cq-panel px-3 py-2 h-full border-l-4 ${edge}`}>
+    <div className={`cq-panel cq-service-card px-4 py-3 h-full border-l-4 ${edge}`}>
       <div className="flex gap-3">
         {url && (
-          <img src={url} alt="" className="w-16 h-16 object-cover rounded-sm border border-border shrink-0" />
+          <Image src={url} alt="" className="cq-unit-portrait w-16 h-20 rounded-sm border border-brass/30 shrink-0" />
         )}
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline justify-between gap-2">
             <p className="cq-display text-base leading-none truncate">{stand.name}</p>
-            <span className="font-mono text-[9px] text-muted-foreground tracking-widest shrink-0">
+            <span className="font-mono text-[10px] text-muted-foreground tracking-widest shrink-0">
               {stand.q},{stand.r}
             </span>
           </div>
-          <p className="font-mono text-[9px] text-muted-foreground tracking-widest mt-0.5">
+          <p className="font-mono text-[10px] text-muted-foreground tracking-widest mt-0.5">
             {type.label.toUpperCase()} · {ARM_LABEL[type.arm].toUpperCase()}
             {stand.activity && (
               <span style={{ color: ACTIVITIES[stand.activity].tone }}>

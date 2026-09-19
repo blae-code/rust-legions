@@ -200,7 +200,7 @@ export default function TacticalPreview() {
   }, [intelStand, intel, stands, viewSide, field]);
 
   return (
-    <div className="cq-page-in max-w-[1800px] mx-auto px-3 py-3 space-y-2">
+    <div className="cq-tactical cq-page-in max-w-[1800px] mx-auto px-3 py-3 space-y-3">
       {order && <BattleBanner order={order} onStand={clearSkirmish} onQuickSave={quickSave} />}
 
       <CommandBar field={field} tab={tab} onTab={setTab} turn={7} />

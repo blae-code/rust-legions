@@ -22,14 +22,14 @@ export default function InitiativeTracker({ stands, field, viewSide, selectedId,
   const hidden = queue.filter((e) => !e.seen).length;
 
   return (
-    <div className="cq-slip px-2 py-1.5 max-w-full">
+    <div className="cq-slip px-3 py-2.5 max-w-full">
       <div className="flex items-center justify-between mb-1">
         <p className="cq-label text-rust">Order of Action</p>
-        <p className="font-mono text-[8px] tracking-widest text-muted-foreground">
+        <p className="font-mono text-[10px] tracking-widest text-muted-foreground">
           {hidden > 0 ? `${hidden} UNOBSERVED` : "FULL PICTURE"}
         </p>
       </div>
-      <div className="flex gap-1 overflow-x-auto pb-0.5">
+      <div className="flex gap-1.5 overflow-x-auto pt-1 pb-1">
         {queue.map((e, i) => (
           <InitiativeChip
             key={e.stand.id}

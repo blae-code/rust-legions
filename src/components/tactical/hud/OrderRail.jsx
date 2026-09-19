@@ -28,7 +28,7 @@ export default function OrderRail({ stand, current, onIssue, locked = false }) {
     <div className="space-y-2.5">
       <p className="font-mono text-[10px] text-brass-bright tracking-widest truncate">{stand.name}</p>
       {ORDER_GROUPS.map((g) => (
-        <div key={g.label}>
+        <div key={g.label} className="cq-order-group">
           <p className="cq-label mb-1">{g.label}</p>
           <div className="flex flex-wrap gap-1">
             {g.keys.map((k) => {
@@ -38,12 +38,8 @@ export default function OrderRail({ stand, current, onIssue, locked = false }) {
                 <button
                   key={k}
                   onClick={() => onIssue(stand.id, k)}
-                  className="cq-metal font-heading uppercase tracking-widest text-[9px] px-2 py-1 rounded-sm border transition-colors"
-                  style={{
-                    borderColor: live ? spec.tone : "hsl(var(--border))",
-                    color: live ? spec.tone : "hsl(var(--secondary-foreground))",
-                    background: live ? `${spec.tone}1A` : undefined,
-                  }}
+                  aria-pressed={live}
+                  className={`cq-metal font-heading uppercase tracking-wider text-[11px] min-h-8 px-2.5 py-1.5 rounded-sm border transition-colors ${live ? "border-brass bg-brass/15 text-brass-bright" : "border-border bg-secondary/50 text-secondary-foreground hover:border-brass/60"}`}
                 >
                   {spec.label}
                 </button>
